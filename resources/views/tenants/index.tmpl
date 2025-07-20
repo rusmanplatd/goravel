@@ -1,0 +1,184 @@
+{{define "tenants/index.tmpl"}}
+{{template "layouts/header.tmpl" .}}
+    {{template "layouts/nav.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+<div class="py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-semibold text-gray-900">Tenants</h1>
+            <a href="/tenants/create" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <i class="fas fa-plus mr-2"></i>
+                Create Tenant
+            </a>
+        </div>
+
+        {{if .error}}
+        <div class="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-circle text-red-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-red-800">{{.error}}</p>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Filters -->
+        <div class="bg-white shadow rounded-lg mb-6">
+            <div class="px-4 py-5 sm:p-6">
+                <form method="GET" action="/tenants" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div>
+                        <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
+                        <input type="text" name="search" id="search" value="{{.filters.search}}" 
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                               placeholder="Search tenants...">
+                    </div>
+                    <div>
+                        <label for="is_active" class="block text-sm font-medium text-gray-700">Status</label>
+                        <select name="is_active" id="is_active" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <option value="">All</option>
+                            <option value="true" {{if eq .filters.is_active "true"}}selected{{end}}>Active</option>
+                            <option value="false" {{if eq .filters.is_active "false"}}selected{{end}}>Inactive</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <i class="fas fa-search mr-2"></i>
+                            Filter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tenants List -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+            <ul class="divide-y divide-gray-200">
+                {{range .tenants}}
+                <li>
+                    <div class="px-4 py-4 sm:px-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 h-10 w-10">
+                                    <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                                        <i class="fas fa-building text-indigo-600"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <div class="flex items-center">
+                                        <p class="text-sm font-medium text-indigo-600 truncate">
+                                            <a href="/tenants/{{.ID}}" class="hover:text-indigo-900">{{.Name}}</a>
+                                        </p>
+                                        {{if .IsActive}}
+                                        <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            Active
+                                        </span>
+                                        {{else}}
+                                        <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            Inactive
+                                        </span>
+                                        {{end}}
+                                    </div>
+                                    <div class="mt-2 sm:flex sm:justify-between">
+                                        <div class="sm:flex">
+                                            <p class="flex items-center text-sm text-gray-500">
+                                                <i class="fas fa-envelope mr-1.5"></i>
+                                                {{.Email}}
+                                            </p>
+                                            {{if .Phone}}
+                                            <p class="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
+                                                <i class="fas fa-phone mr-1.5"></i>
+                                                {{.Phone}}
+                                            </p>
+                                            {{end}}
+                                        </div>
+                                        <div class="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                                            <i class="fas fa-calendar mr-1.5"></i>
+                                            <p>
+                                                Created {{.CreatedAt.Format "Jan 02, 2006"}}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <a href="/tenants/{{.ID}}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="/tenants/{{.ID}}/edit" class="text-yellow-600 hover:text-yellow-900 text-sm font-medium">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="POST" action="/tenants/{{.ID}}" class="inline" onsubmit="return confirm('Are you sure you want to delete this tenant?')">
+                                    <input type="hidden" name="_method" value="DELETE">
+                                    <button type="submit" class="text-red-600 hover:text-red-900 text-sm font-medium">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                {{else}}
+                <li class="px-4 py-8 text-center">
+                    <div class="text-gray-500">
+                        <i class="fas fa-building text-4xl mb-4"></i>
+                        <p class="text-lg font-medium">No tenants found</p>
+                        <p class="text-sm">Get started by creating your first tenant.</p>
+                        <a href="/tenants/create" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                            <i class="fas fa-plus mr-2"></i>
+                            Create Tenant
+                        </a>
+                    </div>
+                </li>
+                {{end}}
+            </ul>
+        </div>
+
+        <!-- Pagination -->
+        {{if .pagination.hasMore}}
+        <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-6">
+            <div class="flex-1 flex justify-between sm:hidden">
+                {{if .pagination.cursor}}
+                <a href="/tenants?cursor={{.pagination.cursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Previous
+                </a>
+                {{end}}
+                {{if .pagination.nextCursor}}
+                <a href="/tenants?cursor={{.pagination.nextCursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Next
+                </a>
+                {{end}}
+            </div>
+            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium">{{len .tenants}}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                        {{if .pagination.cursor}}
+                        <a href="/tenants?cursor={{.pagination.cursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                        {{end}}
+                        {{if .pagination.nextCursor}}
+                        <a href="/tenants?cursor={{.pagination.nextCursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                        {{end}}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        {{end}}
+    </div>
+</div>
+</main>
+
+{{template "layouts/footer.tmpl" .}}
+{{end}} 

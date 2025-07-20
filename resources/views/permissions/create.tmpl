@@ -1,0 +1,105 @@
+{{define "permissions/create.tmpl"}}
+{{template "layouts/header.tmpl" .}}
+    {{template "layouts/nav.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+<div class="py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="mb-6">
+            <nav class="flex" aria-label="Breadcrumb">
+                <ol class="flex items-center space-x-4">
+                    <li>
+                        <div>
+                            <a href="/permissions?tenant_id={{.tenantID}}" class="text-gray-400 hover:text-gray-500">
+                                <i class="fas fa-key"></i>
+                                <span class="sr-only">Permissions</span>
+                            </a>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="flex items-center">
+                            <i class="fas fa-chevron-right text-gray-400"></i>
+                            <span class="ml-4 text-sm font-medium text-gray-500">Create Permission</span>
+                        </div>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+
+        <div class="md:grid md:grid-cols-3 md:gap-6">
+            <div class="md:col-span-1">
+                <div class="px-4 sm:px-0">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">Permission Information</h3>
+                    <p class="mt-1 text-sm text-gray-600">
+                        Create a new permission for the tenant. Permissions define what actions users can perform.
+                    </p>
+                </div>
+            </div>
+            <div class="mt-5 md:mt-0 md:col-span-2">
+                <form method="POST" action="/permissions">
+                    <input type="hidden" name="tenant_id" value="{{.tenantID}}">
+                    <div class="shadow sm:rounded-md sm:overflow-hidden">
+                        <div class="px-4 py-5 bg-white space-y-6 sm:p-6">
+                            {{if .error}}
+                            <div class="bg-red-50 border border-red-200 rounded-md p-4">
+                                <div class="flex">
+                                    <div class="flex-shrink-0">
+                                        <i class="fas fa-exclamation-circle text-red-400"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-red-800">{{.error}}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+
+                            <div class="grid grid-cols-6 gap-6">
+                                <div class="col-span-6 sm:col-span-4">
+                                    <label for="name" class="block text-sm font-medium text-gray-700">
+                                        Permission Name
+                                    </label>
+                                    <input type="text" name="name" id="name" required
+                                           class="mt-1 focus:ring-purple-500 focus:border-purple-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                           value="{{.name}}" placeholder="e.g., users.create, posts.edit">
+                                </div>
+
+                                <div class="col-span-6 sm:col-span-4">
+                                    <label for="description" class="block text-sm font-medium text-gray-700">
+                                        Description
+                                    </label>
+                                    <textarea name="description" id="description" rows="3"
+                                              class="mt-1 focus:ring-purple-500 focus:border-purple-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                              placeholder="Enter permission description">{{.description}}</textarea>
+                                </div>
+
+                                <div class="col-span-6 sm:col-span-4">
+                                    <label for="guard" class="block text-sm font-medium text-gray-700">
+                                        Guard
+                                    </label>
+                                    <select name="guard" id="guard" required
+                                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
+                                        <option value="web" {{if eq .guard "web"}}selected{{end}}>Web</option>
+                                        <option value="api" {{if eq .guard "api"}}selected{{end}}>API</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
+                            <a href="/permissions?tenant_id={{.tenantID}}" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+                                Cancel
+                            </a>
+                            <button type="submit" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+                                Create Permission
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</main>
+
+{{template "layouts/footer.tmpl" .}}
+{{end}} 

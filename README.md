@@ -68,6 +68,91 @@ Example [https://github.com/goravel/example](https://github.com/goravel/example)
 | [Validation](https://www.goravel.dev/the-basics/validation.html)                       | [Mock](https://www.goravel.dev/testing/mock.html)               | [Hash](https://www.goravel.dev/security/hashing.html)                    | [Crypt](https://www.goravel.dev/security/encryption.html)             | [Carbon](https://www.goravel.dev/digging-deeper/helpers.html)                  |
 | [Package Development](https://www.goravel.dev/digging-deeper/package-development.html) | [Testing](https://www.goravel.dev/testing/getting-started.html) | [Localization](https://www.goravel.dev/digging-deeper/localization.html) | [Session](https://www.goravel.dev/the-basics/session.html)            |                                                                                |
 
+## Geographic CRUD Operations
+
+This application includes complete CRUD operations for geographic entities with hierarchical relationships:
+
+### Entities
+- **Countries**: Top-level geographic entities with ISO codes
+- **Provinces/States**: Subdivisions of countries
+- **Cities**: Municipalities within provinces
+- **Districts**: Neighborhoods or administrative divisions within cities
+
+### Features
+- **Full CRUD Operations**: Create, Read, Update, Delete for all entities
+- **Hierarchical Relationships**: Countries → Provinces → Cities → Districts
+- **Pagination & Filtering**: List endpoints support pagination and search
+- **Bulk Operations**: Bulk delete functionality for countries
+- **Status Management**: Toggle active/inactive status
+- **OpenAPI Documentation**: Auto-generated API documentation
+- **Validation**: Input validation with proper error handling
+
+### API Endpoints
+
+#### Countries
+- `GET /api/v1/countries` - List countries with pagination and filtering
+- `POST /api/v1/countries` - Create a new country
+- `GET /api/v1/countries/{id}` - Get a specific country
+- `PUT /api/v1/countries/{id}` - Update a country
+- `DELETE /api/v1/countries/{id}` - Delete a country
+- `POST /api/v1/countries/bulk-delete` - Delete multiple countries
+- `PATCH /api/v1/countries/{id}/toggle-active` - Toggle country status
+- `GET /api/v1/countries/{id}/provinces` - Get provinces for a country
+
+#### Provinces
+- `GET /api/v1/provinces` - List provinces with pagination and filtering
+- `POST /api/v1/provinces` - Create a new province
+- `GET /api/v1/provinces/{id}` - Get a specific province
+- `PUT /api/v1/provinces/{id}` - Update a province
+- `DELETE /api/v1/provinces/{id}` - Delete a province
+- `GET /api/v1/provinces/{id}/cities` - Get cities for a province
+
+#### Cities
+- `GET /api/v1/cities` - List cities with pagination and filtering
+- `POST /api/v1/cities` - Create a new city
+- `GET /api/v1/cities/{id}` - Get a specific city
+- `PUT /api/v1/cities/{id}` - Update a city
+- `DELETE /api/v1/cities/{id}` - Delete a city
+- `GET /api/v1/cities/{id}/districts` - Get districts for a city
+
+#### Districts
+- `GET /api/v1/districts` - List districts with pagination and filtering
+- `POST /api/v1/districts` - Create a new district
+- `GET /api/v1/districts/{id}` - Get a specific district
+- `PUT /api/v1/districts/{id}` - Update a district
+- `DELETE /api/v1/districts/{id}` - Delete a district
+
+### Query Parameters
+All list endpoints support the following query parameters:
+- `cursor` - Cursor for pagination (base64 encoded)
+- `limit` - Items per page (default: 10, max: 100)
+- `search` - Search by name or code
+- `is_active` - Filter by active status (true/false)
+- `country_id` - Filter provinces by country (provinces only)
+- `province_id` - Filter cities by province (cities only)
+- `city_id` - Filter districts by city (districts only)
+
+### Pagination
+The API uses cursor-based pagination for better performance and consistency. Each response includes:
+- `next_cursor` - Cursor for the next page (if available)
+- `prev_cursor` - Cursor for the previous page (if available)
+- `has_more` - Whether there are more pages
+- `has_prev` - Whether there are previous pages
+- `count` - Number of items in current page
+- `limit` - Maximum items per page
+
+### Sample Data
+The application includes seed data for testing:
+- 5 countries (US, Canada, UK, Germany, France)
+- Multiple provinces/states per country
+- Cities within provinces
+- Districts within cities
+
+### API Documentation
+- Interactive API documentation: `/api/openapi.html`
+- OpenAPI JSON: `/api/docs/openapi.json`
+- OpenAPI YAML: `/api/docs/openapi.yaml`
+
 ## Roadmap
 
 [For Detail](https://github.com/goravel/goravel/issues?q=is%3Aissue+is%3Aopen)

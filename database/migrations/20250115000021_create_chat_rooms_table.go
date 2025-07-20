@@ -1,0 +1,46 @@
+package migrations
+
+import (
+	"github.com/goravel/framework/contracts/database/schema"
+	"github.com/goravel/framework/facades"
+)
+
+type M20250115000021CreateChatRoomsTable struct {
+}
+
+// Signature The unique signature for the migration.
+func (r *M20250115000021CreateChatRoomsTable) Signature() string {
+	return "20250115000021_create_chat_rooms_table"
+}
+
+// Up Run the migrations.
+func (r *M20250115000021CreateChatRoomsTable) Up() error {
+	return facades.Schema().Create("chat_rooms", func(table schema.Blueprint) {
+		table.Ulid("id")
+		table.String("name")
+		table.Text("description")
+		table.String("type")
+		table.Boolean("is_active")
+		table.String("avatar")
+		table.Ulid("tenant_id")
+		table.Ulid("created_by")
+		table.Timestamp("last_activity_at")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
+
+		// Primary key
+		table.Primary("id")
+
+		// Add indexes
+		table.Index("tenant_id")
+		table.Index("created_by")
+		table.Index("type")
+		table.Index("last_activity_at")
+		table.Index("tenant_id", "is_active")
+	})
+}
+
+// Down Reverse the migrations.
+func (r *M20250115000021CreateChatRoomsTable) Down() error {
+	return facades.Schema().DropIfExists("chat_rooms")
+}

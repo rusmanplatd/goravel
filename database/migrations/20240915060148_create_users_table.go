@@ -16,11 +16,23 @@ func (r *M20240915060148CreateUsersTable) Signature() string {
 // Up Run the migrations.
 func (r *M20240915060148CreateUsersTable) Up() error {
 	return facades.Schema().Create("users", func(table schema.Blueprint) {
-		table.ID("id")
+		table.Ulid("id")
 		table.String("name")
 		table.String("email")
 		table.String("password")
+		table.TimestampTz("email_verified_at").Nullable()
+		table.String("remember_token")
+		table.Boolean("is_active")
+
 		table.TimestampsTz()
+		table.SoftDeletesTz()
+
+		// Primary key
+		table.Primary("id")
+
+		// Add indexes
+		table.Index("email")
+		table.Index("is_active")
 	})
 }
 

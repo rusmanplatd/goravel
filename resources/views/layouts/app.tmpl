@@ -1,0 +1,11 @@
+{{define "layouts/app.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+    {{template "layouts/nav.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container py-4">
+        {{template "content" .}}
+    </main>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}}
