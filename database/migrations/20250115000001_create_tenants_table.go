@@ -18,10 +18,10 @@ func (r *M20250115000001CreateTenantsTable) Up() error {
 	return facades.Schema().Create("tenants", func(table schema.Blueprint) {
 		table.Ulid("id")
 		table.String("name")
-		table.String("slug")
-		table.String("domain")
+		table.String("slug").Nullable()
+		table.String("domain").Nullable()
 		table.Text("description")
-		table.Boolean("is_active")
+		table.Boolean("is_active").Default(false)
 		table.Json("settings")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
@@ -30,8 +30,8 @@ func (r *M20250115000001CreateTenantsTable) Up() error {
 		table.Primary("id")
 
 		// Add indexes
-		table.Index("slug")
-		table.Index("domain")
+		table.Unique("slug")
+		table.Unique("domain")
 	})
 }
 

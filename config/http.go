@@ -50,6 +50,7 @@ func init() {
 				"key": "",
 			},
 		},
+		// HTTP Client Configuration
 		"client": map[string]any{
 			"base_url":                config.GetString("HTTP_CLIENT_BASE_URL"),
 			"timeout":                 config.GetDuration("HTTP_CLIENT_TIMEOUT"),

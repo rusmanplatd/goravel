@@ -5,10 +5,12 @@ go 1.23.0
 toolchain go1.24.4
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/goravel/framework v1.16.0
 	github.com/goravel/gin v1.4.0
 	github.com/goravel/postgres v1.4.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.10.0
@@ -31,7 +33,6 @@ require (
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/RichardKnop/logging v0.0.0-20190827224416-1a693bdd4fae // indirect
 	github.com/RichardKnop/machinery/v2 v2.0.13 // indirect
-	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -82,7 +83,6 @@ require (
 	github.com/gookit/goutil v0.7.0 // indirect
 	github.com/gookit/validate v1.5.5 // indirect
 	github.com/goravel/file-rotatelogs/v2 v2.4.2 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

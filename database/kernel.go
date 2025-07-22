@@ -13,8 +13,8 @@ type Kernel struct {
 
 func (kernel Kernel) Migrations() []schema.Migration {
 	return []schema.Migration{
+		&migrations.M20210101000001CreateUsersTable{},
 		&migrations.M20210101000002CreateJobsTable{},
-		&migrations.M20240915060148CreateUsersTable{},
 		&migrations.M20250115000001CreateTenantsTable{},
 		&migrations.M20250115000002CreateRolesTable{},
 		&migrations.M20250115000003CreatePermissionsTable{},
