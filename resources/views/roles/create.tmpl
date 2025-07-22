@@ -1,118 +1,93 @@
 {{define "roles/create.tmpl"}}
-{{template "layouts/header.tmpl" .}}
+    {{template "layouts/header.tmpl" .}}
     {{template "layouts/nav.tmpl" .}}
 
     <!-- Page Content -->
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-<div class="py-6">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="mb-6">
-            <nav class="flex" aria-label="Breadcrumb">
-                <ol class="flex items-center space-x-4">
-                    <li>
-                        <div>
-                            <a href="/roles?tenant_id={{.tenantID}}" class="text-gray-400 hover:text-gray-500">
-                                <i class="fas fa-user-tag"></i>
-                                <span class="sr-only">Roles</span>
-                            </a>
-                        </div>
+    <main class="container py-4">
+        <div class="mb-4">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="/roles?tenant_id={{.tenantID}}" class="text-decoration-none">
+                            <i class="fas fa-user-tag me-1"></i>Roles
+                        </a>
                     </li>
-                    <li>
-                        <div class="flex items-center">
-                            <i class="fas fa-chevron-right text-gray-400"></i>
-                            <span class="ml-4 text-sm font-medium text-gray-500">Create Role</span>
-                        </div>
-                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Create Role</li>
                 </ol>
             </nav>
         </div>
 
-        <div class="md:grid md:grid-cols-3 md:gap-6">
-            <div class="md:col-span-1">
-                <div class="px-4 sm:px-0">
-                    <h3 class="text-lg font-medium leading-6 text-gray-900">Role Information</h3>
-                    <p class="mt-1 text-sm text-gray-600">
-                        Create a new role for the tenant. Roles define what permissions users have within the system.
-                    </p>
+        <div class="row">
+            <div class="col-lg-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Role Information</h5>
+                        <p class="card-text text-muted small">
+                            Create a new role for the tenant. Roles define what permissions users have within the system.
+                        </p>
+                    </div>
                 </div>
             </div>
-            <div class="mt-5 md:mt-0 md:col-span-2">
-                <form method="POST" action="/roles">
-                    <input type="hidden" name="tenant_id" value="{{.tenantID}}">
-                    <div class="shadow sm:rounded-md sm:overflow-hidden">
-                        <div class="px-4 py-5 bg-white space-y-6 sm:p-6">
+            <div class="col-lg-9">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <form method="POST" action="/roles">
+                            <input type="hidden" name="tenant_id" value="{{.tenantID}}">
+                            
                             {{if .error}}
-                            <div class="bg-red-50 border border-red-200 rounded-md p-4">
-                                <div class="flex">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-exclamation-circle text-red-400"></i>
-                                    </div>
-                                    <div class="ml-3">
-                                        <p class="text-sm text-red-800">{{.error}}</p>
-                                    </div>
-                                </div>
+                            <div class="alert alert-danger d-flex align-items-center" role="alert">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                <div>{{.error}}</div>
                             </div>
                             {{end}}
 
-                            <div class="grid grid-cols-6 gap-6">
-                                <div class="col-span-6 sm:col-span-4">
-                                    <label for="name" class="block text-sm font-medium text-gray-700">
-                                        Role Name
-                                    </label>
-                                    <input type="text" name="name" id="name" required
-                                           class="mt-1 focus:ring-green-500 focus:border-green-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                                           value="{{.name}}" placeholder="Enter role name">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="name" class="form-label">Role Name <span class="text-danger">*</span></label>
+                                    <input type="text" name="name" id="name" class="form-control" 
+                                           value="{{.name}}" placeholder="Enter role name" required>
                                 </div>
 
-                                <div class="col-span-6 sm:col-span-4">
-                                    <label for="description" class="block text-sm font-medium text-gray-700">
-                                        Description
-                                    </label>
-                                    <textarea name="description" id="description" rows="3"
-                                              class="mt-1 focus:ring-green-500 focus:border-green-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                <div class="col-12">
+                                    <label for="description" class="form-label">Description</label>
+                                    <textarea name="description" id="description" rows="3" class="form-control" 
                                               placeholder="Enter role description">{{.description}}</textarea>
                                 </div>
 
-                                <div class="col-span-6 sm:col-span-4">
-                                    <label for="guard" class="block text-sm font-medium text-gray-700">
-                                        Guard
-                                    </label>
-                                    <select name="guard" id="guard" required
-                                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                                <div class="col-12">
+                                    <label for="guard" class="form-label">Guard <span class="text-danger">*</span></label>
+                                    <select name="guard" id="guard" class="form-select" required>
                                         <option value="web" {{if eq .guard "web"}}selected{{end}}>Web</option>
                                         <option value="api" {{if eq .guard "api"}}selected{{end}}>API</option>
                                     </select>
                                 </div>
 
-                                <div class="col-span-6 sm:col-span-4">
-                                    <div class="flex items-center">
-                                        <input type="checkbox" name="is_active" id="is_active" value="true" checked
-                                               class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded">
-                                        <label for="is_active" class="ml-2 block text-sm text-gray-900">
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input type="checkbox" name="is_active" id="is_active" value="true" 
+                                               class="form-check-input" {{if not .is_active}}{{else}}checked{{end}}>
+                                        <label for="is_active" class="form-check-label">
                                             Active
                                         </label>
                                     </div>
-                                    <p class="mt-1 text-sm text-gray-500">
+                                    <div class="form-text">
                                         Active roles can be assigned to users. Inactive roles are disabled.
-                                    </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
-                            <a href="/roles?tenant_id={{.tenantID}}" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                Cancel
-                            </a>
-                            <button type="submit" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                Create Role
-                            </button>
-                        </div>
+
+                            <div class="d-flex justify-content-end gap-2 mt-4">
+                                <a href="/roles?tenant_id={{.tenantID}}" class="btn btn-secondary">Cancel</a>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save me-2"></i>Create Role
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
-    </div>
-</div>
-</main>
+    </main>
 
-{{template "layouts/footer.tmpl" .}}
+    {{template "layouts/footer.tmpl" .}}
 {{end}} 

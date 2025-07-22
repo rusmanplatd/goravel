@@ -1,125 +1,166 @@
 {{define "tenants/show.tmpl"}}
-{{template "layouts/header.tmpl" .}}
+    {{template "layouts/header.tmpl" .}}
     {{template "layouts/nav.tmpl" .}}
 
     <!-- Page Content -->
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-<div class="py-6">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="mb-6">
-            <nav class="flex" aria-label="Breadcrumb">
-                <ol class="flex items-center space-x-4">
-                    <li>
-                        <div>
-                            <a href="/tenants" class="text-gray-400 hover:text-gray-500">
-                                <i class="fas fa-building"></i>
-                                <span class="sr-only">Tenants</span>
-                            </a>
-                        </div>
+    <main class="container py-4">
+        <div class="mb-4">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="/tenants" class="text-decoration-none">
+                            <i class="fas fa-building me-1"></i>Tenants
+                        </a>
                     </li>
-                    <li>
-                        <div class="flex items-center">
-                            <i class="fas fa-chevron-right text-gray-400"></i>
-                            <span class="ml-4 text-sm font-medium text-gray-500">{{.tenant.Name}}</span>
-                        </div>
-                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">{{.tenant.Name}}</li>
                 </ol>
             </nav>
         </div>
 
         {{if .error}}
-        <div class="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-exclamation-circle text-red-400"></i>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm text-red-800">{{.error}}</p>
-                </div>
-            </div>
+        <div class="alert alert-danger d-flex align-items-center" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <div>{{.error}}</div>
         </div>
         {{end}}
 
-        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-            <div class="px-4 py-5 sm:px-6">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">
-                    Tenant Information
-                </h3>
-                <p class="mt-1 max-w-2xl text-sm text-gray-500">
-                    Details about the tenant organization.
-                </p>
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-building me-2"></i>Tenant Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <p class="mb-0 fw-medium text-muted">Name</p>
+                            </div>
+                            <div class="col-sm-9">
+                                <p class="mb-0">{{.tenant.Name}}</p>
+                            </div>
+                        </div>
+                        <hr>
+                        {{if .tenant.Domain}}
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <p class="mb-0 fw-medium text-muted">Domain</p>
+                            </div>
+                            <div class="col-sm-9">
+                                <p class="mb-0">{{.tenant.Domain}}</p>
+                            </div>
+                        </div>
+                        <hr>
+                        {{end}}
+                        {{if .tenant.Description}}
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <p class="mb-0 fw-medium text-muted">Description</p>
+                            </div>
+                            <div class="col-sm-9">
+                                <p class="mb-0">{{.tenant.Description}}</p>
+                            </div>
+                        </div>
+                        <hr>
+                        {{end}}
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <p class="mb-0 fw-medium text-muted">Status</p>
+                            </div>
+                            <div class="col-sm-9">
+                                {{if .tenant.IsActive}}
+                                <span class="badge bg-success">Active</span>
+                                {{else}}
+                                <span class="badge bg-danger">Inactive</span>
+                                {{end}}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <p class="mb-0 fw-medium text-muted">Created</p>
+                            </div>
+                            <div class="col-sm-9">
+                                <p class="mb-0">{{.tenant.CreatedAt.Format "Jan 02, 2006 at 15:04"}}</p>
+                            </div>
+                        </div>
+                        {{if .tenant.UpdatedAt}}
+                        <hr>
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <p class="mb-0 fw-medium text-muted">Last Updated</p>
+                            </div>
+                            <div class="col-sm-9">
+                                <p class="mb-0">{{.tenant.UpdatedAt.Format "Jan 02, 2006 at 15:04"}}</p>
+                            </div>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
             </div>
-            <div class="border-t border-gray-200">
-                <dl>
-                    <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt class="text-sm font-medium text-gray-500">Name</dt>
-                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{.tenant.Name}}</dd>
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Quick Actions</h6>
                     </div>
-                    <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt class="text-sm font-medium text-gray-500">Email</dt>
-                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{.tenant.Email}}</dd>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="/tenants/{{.tenant.ID}}/edit" class="btn btn-primary">
+                                <i class="fas fa-edit me-2"></i>Edit Tenant
+                            </a>
+                            <a href="/roles?tenant_id={{.tenant.ID}}" class="btn btn-outline-success">
+                                <i class="fas fa-user-tag me-2"></i>Manage Roles
+                            </a>
+                            <a href="/permissions?tenant_id={{.tenant.ID}}" class="btn btn-outline-info">
+                                <i class="fas fa-key me-2"></i>Manage Permissions
+                            </a>
+                            <button type="button" class="btn btn-outline-danger" 
+                                    onclick="deleteTenant('{{.tenant.ID}}', '{{.tenant.Name}}')">
+                                <i class="fas fa-trash me-2"></i>Delete Tenant
+                            </button>
+                        </div>
                     </div>
-                    {{if .tenant.Phone}}
-                    <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt class="text-sm font-medium text-gray-500">Phone</dt>
-                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{.tenant.Phone}}</dd>
-                    </div>
-                    {{end}}
-                    {{if .tenant.Address}}
-                    <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt class="text-sm font-medium text-gray-500">Address</dt>
-                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{.tenant.Address}}</dd>
-                    </div>
-                    {{end}}
-                    {{if .tenant.Website}}
-                    <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt class="text-sm font-medium text-gray-500">Website</dt>
-                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                            <a href="{{.tenant.Website}}" target="_blank" class="text-indigo-600 hover:text-indigo-500">{{.tenant.Website}}</a>
-                        </dd>
-                    </div>
-                    {{end}}
-                    <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt class="text-sm font-medium text-gray-500">Status</dt>
-                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                            {{if .tenant.IsActive}}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Active
-                            </span>
-                            {{else}}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Inactive
-                            </span>
-                            {{end}}
-                        </dd>
-                    </div>
-                    <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt class="text-sm font-medium text-gray-500">Created</dt>
-                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{.tenant.CreatedAt.Format "Jan 02, 2006 at 15:04"}}</dd>
-                    </div>
-                </dl>
+                </div>
             </div>
         </div>
 
-        <div class="mt-6 flex justify-between">
-            <a href="/tenants" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                <i class="fas fa-arrow-left mr-2"></i>
-                Back to Tenants
+        <div class="d-flex justify-content-between mt-4">
+            <a href="/tenants" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Tenants
             </a>
-            <div class="flex space-x-3">
-                <a href="/tenants/{{.tenant.ID}}/edit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    <i class="fas fa-edit mr-2"></i>
-                    Edit Tenant
-                </a>
-                <a href="/tenants/{{.tenant.ID}}/users" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                    <i class="fas fa-users mr-2"></i>
-                    View Users
-                </a>
+        </div>
+    </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete tenant "<span id="tenantName"></span>"? This action cannot be undone.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form id="deleteForm" method="POST" style="display: inline;">
+                        <input type="hidden" name="_method" value="DELETE">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
-</main>
 
-{{template "layouts/footer.tmpl" .}}
+    <script>
+        function deleteTenant(id, name) {
+            document.getElementById('tenantName').textContent = name;
+            document.getElementById('deleteForm').action = '/tenants/' + id;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
 {{end}} 

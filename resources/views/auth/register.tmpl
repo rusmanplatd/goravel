@@ -1,91 +1,76 @@
 {{define "auth/register.tmpl"}}
-{{template "layouts/header.tmpl" .}}
-    {{template "layouts/nav.tmpl" .}}
+    {{template "layouts/header.tmpl" .}}
 
     <!-- Page Content -->
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
-        <div>
-            <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-indigo-100">
-                <i class="fas fa-user-plus text-indigo-600 text-xl"></i>
+    <main class="container-fluid">
+        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
+            <div class="col-12 col-sm-8 col-md-6 col-lg-4 col-xl-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <div class="mx-auto bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                <i class="fas fa-user-plus text-primary fs-4"></i>
+                            </div>
+                            <h2 class="h3 fw-bold text-dark mb-2">
+                                Create your account
+                            </h2>
+                            <p class="text-muted small mb-0">
+                                Or
+                                <a href="/login" class="text-decoration-none fw-medium">
+                                    sign in to your existing account
+                                </a>
+                            </p>
+                        </div>
+                        
+                        {{if .error}}
+                        <div class="alert alert-danger d-flex align-items-center" role="alert">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            <div>{{.error}}</div>
+                        </div>
+                        {{end}}
+
+                        <form method="POST" action="/register">
+                            <div class="mb-3">
+                                <label for="name" class="form-label visually-hidden">Full name</label>
+                                <input id="name" name="name" type="text" class="form-control form-control-lg" 
+                                    placeholder="Full name" value="{{.name}}" required autocomplete="name">
+                            </div>
+                            <div class="mb-3">
+                                <label for="email" class="form-label visually-hidden">Email address</label>
+                                <input id="email" name="email" type="email" class="form-control form-control-lg" 
+                                    placeholder="Email address" value="{{.email}}" required autocomplete="email">
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label visually-hidden">Password</label>
+                                <input id="password" name="password" type="password" class="form-control form-control-lg" 
+                                    placeholder="Password" required autocomplete="new-password">
+                            </div>
+                            <div class="mb-4">
+                                <label for="password_confirmation" class="form-label visually-hidden">Confirm password</label>
+                                <input id="password_confirmation" name="password_confirmation" type="password" class="form-control form-control-lg" 
+                                    placeholder="Confirm password" required autocomplete="new-password">
+                            </div>
+
+                            <div class="form-check mb-4">
+                                <input id="terms" name="terms" type="checkbox" class="form-check-input" required>
+                                <label for="terms" class="form-check-label small">
+                                    I agree to the
+                                    <a href="#" class="text-decoration-none">Terms of Service</a>
+                                    and
+                                    <a href="#" class="text-decoration-none">Privacy Policy</a>
+                                </label>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-user-plus me-2"></i>
+                                Create account
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                Create your account
-            </h2>
-            <p class="mt-2 text-center text-sm text-gray-600">
-                Or
-                <a href="/login" class="font-medium text-indigo-600 hover:text-indigo-500">
-                    sign in to your existing account
-                </a>
-            </p>
         </div>
-        
-        {{if .error}}
-        <div class="bg-red-50 border border-red-200 rounded-md p-4">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-exclamation-circle text-red-400"></i>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm text-red-800">{{.error}}</p>
-                </div>
-            </div>
-        </div>
-        {{end}}
+    </main>
 
-        <form class="mt-8 space-y-6" method="POST" action="/register">
-            <div class="rounded-md shadow-sm -space-y-px">
-                <div>
-                    <label for="name" class="sr-only">Full name</label>
-                    <input id="name" name="name" type="text" autocomplete="name" required 
-                           class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                           placeholder="Full name" value="{{.name}}">
-                </div>
-                <div>
-                    <label for="email" class="sr-only">Email address</label>
-                    <input id="email" name="email" type="email" autocomplete="email" required 
-                           class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                           placeholder="Email address" value="{{.email}}">
-                </div>
-                <div>
-                    <label for="password" class="sr-only">Password</label>
-                    <input id="password" name="password" type="password" autocomplete="new-password" required 
-                           class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                           placeholder="Password">
-                </div>
-                <div>
-                    <label for="password_confirmation" class="sr-only">Confirm password</label>
-                    <input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required 
-                           class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                           placeholder="Confirm password">
-                </div>
-            </div>
-
-            <div class="flex items-center">
-                <input id="terms" name="terms" type="checkbox" required
-                       class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                <label for="terms" class="ml-2 block text-sm text-gray-900">
-                    I agree to the
-                    <a href="#" class="text-indigo-600 hover:text-indigo-500">Terms of Service</a>
-                    and
-                    <a href="#" class="text-indigo-600 hover:text-indigo-500">Privacy Policy</a>
-                </label>
-            </div>
-
-            <div>
-                <button type="submit" 
-                        class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                        <i class="fas fa-user-plus text-indigo-500 group-hover:text-indigo-400"></i>
-                    </span>
-                    Create account
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-</main>
-
-{{template "layouts/footer.tmpl" .}}
+    {{template "layouts/footer.tmpl" .}}
 {{end}} 
