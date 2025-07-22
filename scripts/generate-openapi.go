@@ -133,6 +133,7 @@ type RouteInfo struct {
 	Method      string
 	Path        string
 	Handler     string
+	Summary     string
 	Description string
 	Parameters  []Parameter
 	RequestBody *RequestBody
@@ -228,6 +229,9 @@ func main() {
 	// Build the handler map once
 	globalHandlerMap = BuildHandlerMethodMap("app/http/controllers/api/v1")
 
+	// Build variable-to-type map from routes file
+	varTypeMap = buildVarTypeMap("routes/api.go")
+
 	// Collect tags dynamically
 	dynamicTags := CollectTagsFromControllers("app/http/controllers/api/v1")
 
@@ -246,7 +250,7 @@ func main() {
 		},
 		Servers: []Server{
 			{
-				URL:         "http://localhost:8080",
+				URL:         "http://localhost:3000",
 				Description: "Development server",
 			},
 			{
@@ -281,6 +285,27 @@ func main() {
 	// Build OpenAPI paths from routes
 	fmt.Println("Building OpenAPI paths...")
 	buildPaths(openAPI, routes)
+
+	// Ensure all used tags are present in openAPI.Tags
+	usedTags := make(map[string]bool)
+	for _, pathItem := range openAPI.Paths {
+		for _, op := range []*Operation{pathItem.Get, pathItem.Post, pathItem.Put, pathItem.Delete, pathItem.Patch} {
+			if op != nil {
+				for _, tag := range op.Tags {
+					usedTags[tag] = true
+				}
+			}
+		}
+	}
+	existingTags := make(map[string]bool)
+	for _, tag := range openAPI.Tags {
+		existingTags[tag.Name] = true
+	}
+	for tag := range usedTags {
+		if !existingTags[tag] {
+			openAPI.Tags = append(openAPI.Tags, Tag{Name: tag, Description: ""})
+		}
+	}
 
 	// Add schemas to components
 	fmt.Println("Adding schemas...")
@@ -335,29 +360,31 @@ func extractOpenAPIDocFromController(controllerFile, methodName string) (tags []
 	ast.Inspect(node, func(n ast.Node) bool {
 		if fn, ok := n.(*ast.FuncDecl); ok && fn.Name.Name == methodName {
 			if fn.Doc != nil {
+				// Concatenate all comment lines
+				fullComment := ""
 				for _, comment := range fn.Doc.List {
-					text := comment.Text
-					if strings.Contains(text, "@Tags") {
-						re := regexp.MustCompile(`@Tags\s+([\w\-, ]+)`)
-						if matches := re.FindStringSubmatch(text); len(matches) > 1 {
-							tags = strings.Split(strings.TrimSpace(matches[1]), ",")
-							for i := range tags {
-								tags[i] = strings.TrimSpace(tags[i])
-							}
-						}
+					fullComment += comment.Text + "\n"
+				}
+				// Extract @Tags (single-line only)
+				tagsRe := regexp.MustCompile(`@Tags\s+([\w\-, ]+)`)
+				if matches := tagsRe.FindStringSubmatch(fullComment); len(matches) > 1 {
+					tags = strings.Split(strings.TrimSpace(matches[1]), ",")
+					for i := range tags {
+						tags[i] = strings.TrimSpace(tags[i])
 					}
-					if strings.Contains(text, "@Summary") {
-						re := regexp.MustCompile(`@Summary\s+(.+)`)
-						if matches := re.FindStringSubmatch(text); len(matches) > 1 {
-							summary = strings.TrimSpace(matches[1])
-						}
-					}
-					if strings.Contains(text, "@Description") {
-						re := regexp.MustCompile(`@Description\s+(.+)`)
-						if matches := re.FindStringSubmatch(text); len(matches) > 1 {
-							description = strings.TrimSpace(matches[1])
-						}
-					}
+				}
+				// Extract @Summary and @Description (multi-line, up to next @ or end)
+				summaryRe := regexp.MustCompile(`@Summary\s+([\s\S]*?)(?:@|$)`)
+				descRe := regexp.MustCompile(`@Description\s+([\s\S]*?)(?:@|$)`)
+				if matches := summaryRe.FindStringSubmatch(fullComment); len(matches) > 1 {
+					summary = strings.TrimSpace(matches[1])
+					// Remove trailing '//' and whitespace
+					summary = strings.TrimRight(summary, "/ 	\n")
+				}
+				if matches := descRe.FindStringSubmatch(fullComment); len(matches) > 1 {
+					description = strings.TrimSpace(matches[1])
+					// Remove trailing '//' and whitespace
+					description = strings.TrimRight(description, "/ 	\n")
 				}
 			}
 			return false
@@ -387,7 +414,14 @@ func extractRouteFromCall(call *ast.CallExpr, fset *token.FileSet) RouteInfo {
 								route.Path = strings.Trim(lit.Value, "\"")
 							}
 							if sel, ok := call.Args[1].(*ast.SelectorExpr); ok {
-								handlerStr := fmt.Sprintf("%s.%s", sel.X, sel.Sel.Name)
+								handlerTypeName := ""
+								if ident, ok := sel.X.(*ast.Ident); ok {
+									handlerTypeName = ident.Name
+								}
+								if realType, ok := varTypeMap[handlerTypeName]; ok {
+									handlerTypeName = realType
+								}
+								handlerStr := fmt.Sprintf("%s.%s", handlerTypeName, sel.Sel.Name)
 								route.Handler = handlerStr
 								if info, ok := globalHandlerMap[handlerStr]; ok {
 									tags, summary, description := extractOpenAPIDocFromController(info.FilePath, info.MethodName)
@@ -395,7 +429,7 @@ func extractRouteFromCall(call *ast.CallExpr, fset *token.FileSet) RouteInfo {
 										route.Tags = tags
 									}
 									if summary != "" {
-										route.Description = summary
+										route.Summary = summary
 									}
 									if description != "" {
 										route.Description = description
@@ -417,6 +451,18 @@ func extractRouteFromCall(call *ast.CallExpr, fset *token.FileSet) RouteInfo {
 					}
 				}
 			}
+		}
+	}
+
+	// Fallback: if no tags, use first path segment after /api/v1/ as tag
+	if len(route.Tags) == 0 && route.Path != "" {
+		segments := strings.Split(strings.Trim(route.Path, "/"), "/")
+		if len(segments) > 2 { // skip api/v1
+			route.Tags = []string{segments[2]}
+		} else if len(segments) > 0 {
+			route.Tags = []string{segments[len(segments)-1]}
+		} else {
+			route.Tags = []string{"default"}
 		}
 	}
 
@@ -987,11 +1033,22 @@ func buildPaths(openAPI *OpenAPI, routes []RouteInfo) {
 	for _, route := range routes {
 		pathItem := openAPI.Paths[route.Path]
 
+		// Patch empty summary/description
+		summary := route.Summary
+		description := route.Description
+		operationID := generateOperationID(route.Method, route.Path)
+		if strings.TrimSpace(summary) == "" {
+			summary = operationID
+		}
+		if strings.TrimSpace(description) == "" {
+			description = "API endpoint"
+		}
+
 		operation := &Operation{
 			Tags:        route.Tags,
-			Summary:     route.Description,
-			Description: route.Description,
-			OperationID: generateOperationID(route.Method, route.Path),
+			Summary:     summary,
+			Description: description,
+			OperationID: operationID,
 			Parameters:  route.Parameters,
 			RequestBody: route.RequestBody,
 			Responses:   route.Responses,
@@ -1152,14 +1209,19 @@ func BuildHandlerMethodMap(controllerDir string) map[string]HandlerMethodInfo {
 				if !ok || fn.Recv == nil || len(fn.Recv.List) == 0 {
 					return true
 				}
-				// Get receiver name (e.g., (c *AuthController) -> c)
+				// Get receiver type name (e.g., (c *ProvinceController) -> ProvinceController)
 				recv := fn.Recv.List[0]
-				var recvName string
-				if len(recv.Names) > 0 {
-					recvName = recv.Names[0].Name
+				var typeName string
+				switch t := recv.Type.(type) {
+				case *ast.StarExpr:
+					if ident, ok := t.X.(*ast.Ident); ok {
+						typeName = ident.Name
+					}
+				case *ast.Ident:
+					typeName = t.Name
 				}
-				if recvName != "" {
-					handlerKey := fmt.Sprintf("%s.%s", recvName, fn.Name.Name)
+				if typeName != "" {
+					handlerKey := fmt.Sprintf("%s.%s", typeName, fn.Name.Name)
 					handlerMap[handlerKey] = HandlerMethodInfo{FilePath: path, MethodName: fn.Name.Name}
 				}
 				return true
@@ -1172,3 +1234,38 @@ func BuildHandlerMethodMap(controllerDir string) map[string]HandlerMethodInfo {
 
 // Declare global handler map
 var globalHandlerMap map[string]HandlerMethodInfo
+
+var varTypeMap map[string]string
+
+func buildVarTypeMap(filename string) map[string]string {
+	m := make(map[string]string)
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filename, nil, 0)
+	if err != nil {
+		return m
+	}
+	ast.Inspect(node, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			return true
+		}
+		ident, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if fun, ok := call.Fun.(*ast.SelectorExpr); ok {
+			// e.g., v1.NewProvinceController -> ProvinceController
+			name := fun.Sel.Name
+			if strings.HasPrefix(name, "New") && len(name) > 3 {
+				typeName := name[3:]
+				m[ident.Name] = typeName
+			}
+		}
+		return true
+	})
+	return m
+}

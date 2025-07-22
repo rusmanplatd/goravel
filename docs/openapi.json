@@ -12,7 +12,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8080",
+      "url": "http://localhost:3000",
       "description": "Development server"
     },
     {
@@ -24,9 +24,9 @@
     "/api/docs": {
       "get": {
         "tags": [
-          "API"
+          "docs"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiDocs",
         "description": "API endpoint",
         "operationId": "getApiDocs",
         "parameters": [
@@ -73,9 +73,9 @@
     "/api/docs/openapi.json": {
       "get": {
         "tags": [
-          "API"
+          "openapi.json"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiDocsOpenapi.Json",
         "description": "API endpoint",
         "operationId": "getApiDocsOpenapi.Json",
         "responses": {
@@ -101,9 +101,9 @@
     "/api/docs/openapi.yaml": {
       "get": {
         "tags": [
-          "API"
+          "openapi.yaml"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiDocsOpenapi.Yaml",
         "description": "API endpoint",
         "operationId": "getApiDocsOpenapi.Yaml",
         "responses": {
@@ -129,9 +129,9 @@
     "/api/openapi.html": {
       "get": {
         "tags": [
-          "API"
+          "openapi.html"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiOpenapi.Html",
         "description": "API endpoint",
         "operationId": "getApiOpenapi.Html",
         "responses": {
@@ -157,10 +157,10 @@
     "/api/v1/activity-logs": {
       "get": {
         "tags": [
-          "Activity Logs"
+          "activity-logs"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all activity logs",
+        "description": "Retrieve a list of all activity logs with cursor-based pagination",
         "operationId": "getApiV1Activity-Logs",
         "parameters": [
           {
@@ -209,9 +209,9 @@
       },
       "post": {
         "tags": [
-          "Activity Logs"
+          "activity-logs"
         ],
-        "summary": "API endpoint",
+        "summary": "postApiV1Activity-Logs",
         "description": "API endpoint",
         "operationId": "postApiV1Activity-Logs",
         "parameters": [
@@ -263,10 +263,10 @@
     "/api/v1/activity-logs/causer": {
       "get": {
         "tags": [
-          "Activity Logs"
+          "activity-logs"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get activities for causer",
+        "description": "Retrieve activities caused by a specific user with cursor-based pagination",
         "operationId": "getApiV1Activity-LogsCauser",
         "responses": {
           "200": {
@@ -296,10 +296,10 @@
     "/api/v1/activity-logs/date-range": {
       "get": {
         "tags": [
-          "Activity Logs"
+          "activity-logs"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get activities in date range",
+        "description": "Retrieve activities within a date range with cursor-based pagination",
         "operationId": "getApiV1Activity-LogsDate-Range",
         "responses": {
           "200": {
@@ -329,10 +329,10 @@
     "/api/v1/activity-logs/log-name": {
       "get": {
         "tags": [
-          "Activity Logs"
+          "activity-logs"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get activities by log name",
+        "description": "Retrieve activities by log name with cursor-based pagination",
         "operationId": "getApiV1Activity-LogsLog-Name",
         "responses": {
           "200": {
@@ -362,10 +362,10 @@
     "/api/v1/activity-logs/subject": {
       "get": {
         "tags": [
-          "Activity Logs"
+          "activity-logs"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get activities for subject",
+        "description": "Retrieve activities for a specific subject with cursor-based pagination",
         "operationId": "getApiV1Activity-LogsSubject",
         "responses": {
           "200": {
@@ -395,9 +395,9 @@
     "/api/v1/activity-logs/{id}": {
       "get": {
         "tags": [
-          "Activity Logs"
+          "activity-logs"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiV1Activity-LogsbyId",
         "description": "API endpoint",
         "operationId": "getApiV1Activity-LogsbyId",
         "parameters": [
@@ -442,8 +442,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Change password",
+        "description": "Change user password",
         "operationId": "postApiV1AuthChange-Password",
         "requestBody": {
           "description": "Request data",
@@ -486,8 +486,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Request password reset",
+        "description": "Send password reset email to user",
         "operationId": "postApiV1AuthForgot-Password",
         "requestBody": {
           "description": "Request data",
@@ -525,8 +525,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Authenticate user",
+        "description": "Authenticate user with email and password, optionally with MFA or WebAuthn",
         "operationId": "postApiV1AuthLogin",
         "requestBody": {
           "description": "Request data",
@@ -564,8 +564,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Logout user",
+        "description": "Logout user and invalidate session",
         "operationId": "postApiV1AuthLogout",
         "responses": {
           "201": {
@@ -597,8 +597,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Disable MFA",
+        "description": "Disable two-factor authentication for user",
         "operationId": "postApiV1AuthMfaDisable",
         "requestBody": {
           "description": "Request data",
@@ -641,8 +641,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Enable MFA",
+        "description": "Enable two-factor authentication for user",
         "operationId": "postApiV1AuthMfaEnable",
         "requestBody": {
           "description": "Request data",
@@ -685,8 +685,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Generate MFA setup",
+        "description": "Generate MFA secret and QR code for setup",
         "operationId": "getApiV1AuthMfaSetup",
         "responses": {
           "200": {
@@ -718,8 +718,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Verify MFA code",
+        "description": "Verify MFA code for authentication",
         "operationId": "postApiV1AuthMfaVerify",
         "requestBody": {
           "description": "Request data",
@@ -762,8 +762,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get user profile",
+        "description": "Get current authenticated user profile",
         "operationId": "getApiV1AuthProfile",
         "responses": {
           "200": {
@@ -795,8 +795,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Refresh token",
+        "description": "Refresh JWT authentication token",
         "operationId": "postApiV1AuthRefresh",
         "requestBody": {
           "description": "Request data",
@@ -839,8 +839,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Register new user",
+        "description": "Register a new user account",
         "operationId": "postApiV1AuthRegister",
         "requestBody": {
           "description": "Request data",
@@ -878,8 +878,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Reset password",
+        "description": "Reset password using reset token",
         "operationId": "postApiV1AuthReset-Password",
         "requestBody": {
           "description": "Request data",
@@ -917,8 +917,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Authenticate with WebAuthn",
+        "description": "Authenticate user using WebAuthn assertion",
         "operationId": "postApiV1AuthWebauthnAuthenticate",
         "requestBody": {
           "description": "Request data",
@@ -956,8 +956,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Begin WebAuthn authentication",
+        "description": "Start the WebAuthn authentication process for user",
         "operationId": "getApiV1AuthWebauthnBegin-Authentication",
         "responses": {
           "200": {
@@ -989,8 +989,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Begin WebAuthn registration",
+        "description": "Start the WebAuthn registration process for user",
         "operationId": "getApiV1AuthWebauthnBegin-Registration",
         "responses": {
           "200": {
@@ -1022,8 +1022,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get WebAuthn credentials",
+        "description": "Get all WebAuthn credentials for the authenticated user",
         "operationId": "getApiV1AuthWebauthnCredentials",
         "parameters": [
           {
@@ -1076,8 +1076,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete WebAuthn credential",
+        "description": "Delete a specific WebAuthn credential for the authenticated user",
         "operationId": "deleteApiV1AuthWebauthnCredentialsbyId",
         "parameters": [
           {
@@ -1111,8 +1111,8 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Register WebAuthn credential",
+        "description": "Register a new WebAuthn authenticator for user",
         "operationId": "postApiV1AuthWebauthnRegister",
         "requestBody": {
           "description": "Request data",
@@ -1153,10 +1153,10 @@
     "/api/v1/calendar-events": {
       "get": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all calendar events",
+        "description": "Retrieve a list of calendar events with cursor-based pagination and filtering",
         "operationId": "getApiV1Calendar-Events",
         "parameters": [
           {
@@ -1205,10 +1205,10 @@
       },
       "post": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create calendar event",
+        "description": "Create a new calendar event with optional participants and meeting details",
         "operationId": "postApiV1Calendar-Events",
         "parameters": [
           {
@@ -1259,10 +1259,10 @@
     "/api/v1/calendar-events/check-conflicts": {
       "post": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Check scheduling conflicts",
+        "description": "Check for scheduling conflicts with existing events",
         "operationId": "postApiV1Calendar-EventsCheck-Conflicts",
         "parameters": [
           {
@@ -1313,10 +1313,10 @@
     "/api/v1/calendar-events/export": {
       "post": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Export calendar to iCal",
+        "description": "Export calendar events to iCal format",
         "operationId": "postApiV1Calendar-EventsExport",
         "responses": {
           "201": {
@@ -1346,10 +1346,10 @@
     "/api/v1/calendar-events/my": {
       "get": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get my events",
+        "description": "Retrieve calendar events for the authenticated user",
         "operationId": "getApiV1Calendar-EventsMy",
         "responses": {
           "200": {
@@ -1379,10 +1379,10 @@
     "/api/v1/calendar-events/{id}": {
       "get": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get calendar event by ID",
+        "description": "Retrieve a specific calendar event by its ID",
         "operationId": "getApiV1Calendar-EventsbyId",
         "parameters": [
           {
@@ -1422,10 +1422,10 @@
       },
       "put": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update calendar event",
+        "description": "Update an existing calendar event",
         "operationId": "putApiV1Calendar-EventsbyId",
         "parameters": [
           {
@@ -1465,10 +1465,10 @@
       },
       "delete": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete calendar event",
+        "description": "Delete a calendar event and all its participants",
         "operationId": "deleteApiV1Calendar-EventsbyId",
         "parameters": [
           {
@@ -1500,10 +1500,10 @@
     "/api/v1/calendar-events/{id}/meeting/status": {
       "put": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update meeting status",
+        "description": "Update the status and details of a meeting",
         "operationId": "putApiV1Calendar-EventsbyIdMeetingStatus",
         "parameters": [
           {
@@ -1545,10 +1545,10 @@
     "/api/v1/calendar-events/{id}/participants": {
       "get": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get event participants",
+        "description": "Retrieve all participants for a specific calendar event",
         "operationId": "getApiV1Calendar-EventsbyIdParticipants",
         "parameters": [
           {
@@ -1588,10 +1588,10 @@
       },
       "post": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Add participant to event",
+        "description": "Add a new participant to a calendar event",
         "operationId": "postApiV1Calendar-EventsbyIdParticipants",
         "parameters": [
           {
@@ -1633,10 +1633,10 @@
     "/api/v1/calendar-events/{id}/participants/{user_id}": {
       "delete": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Remove participant from event",
+        "description": "Remove a participant from a calendar event",
         "operationId": "deleteApiV1Calendar-EventsbyIdParticipantsbyUser_id",
         "parameters": [
           {
@@ -1678,10 +1678,10 @@
     "/api/v1/calendar-events/{id}/participants/{user_id}/response": {
       "put": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update participant response",
+        "description": "Update a participant's response status for an event",
         "operationId": "putApiV1Calendar-EventsbyIdParticipantsbyUser_idResponse",
         "parameters": [
           {
@@ -1733,10 +1733,10 @@
     "/api/v1/calendar-events/{id}/reminders": {
       "get": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get event reminders",
+        "description": "Retrieve all reminders for a specific calendar event",
         "operationId": "getApiV1Calendar-EventsbyIdReminders",
         "parameters": [
           {
@@ -1776,10 +1776,10 @@
       },
       "post": {
         "tags": [
-          "Calendar Events"
+          "calendar-events"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create event reminder",
+        "description": "Create a reminder for a calendar event",
         "operationId": "postApiV1Calendar-EventsbyIdReminders",
         "parameters": [
           {
@@ -1821,10 +1821,10 @@
     "/api/v1/chat/keys": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get user keys",
+        "description": "Retrieve all encryption keys for the current user",
         "operationId": "getApiV1ChatKeys",
         "parameters": [
           {
@@ -1873,10 +1873,10 @@
       },
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Generate encryption keys",
+        "description": "Generate new encryption keys for the current user",
         "operationId": "postApiV1ChatKeys",
         "parameters": [
           {
@@ -1927,10 +1927,10 @@
     "/api/v1/chat/notifications/global": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get global notification settings",
+        "description": "Retrieve global notification settings for the current user",
         "operationId": "getApiV1ChatNotificationsGlobal",
         "responses": {
           "200": {
@@ -1958,10 +1958,10 @@
       },
       "put": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update global notification settings",
+        "description": "Update global notification settings for the current user",
         "operationId": "putApiV1ChatNotificationsGlobal",
         "responses": {
           "200": {
@@ -1991,10 +1991,10 @@
     "/api/v1/chat/rooms": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get user's chat rooms",
+        "description": "Retrieve all chat rooms where the current user is a member",
         "operationId": "getApiV1ChatRooms",
         "parameters": [
           {
@@ -2043,10 +2043,10 @@
       },
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create a new chat room",
+        "description": "Create a new chat room with specified members",
         "operationId": "postApiV1ChatRooms",
         "parameters": [
           {
@@ -2097,10 +2097,10 @@
     "/api/v1/chat/rooms/{id}": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get chat room by ID",
+        "description": "Retrieve a specific chat room by its ID",
         "operationId": "getApiV1ChatRoomsbyId",
         "parameters": [
           {
@@ -2140,10 +2140,10 @@
       },
       "put": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update chat room",
+        "description": "Update a chat room's information (admin only)",
         "operationId": "putApiV1ChatRoomsbyId",
         "parameters": [
           {
@@ -2183,10 +2183,10 @@
       },
       "delete": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete chat room",
+        "description": "Delete a chat room (admin only)",
         "operationId": "deleteApiV1ChatRoomsbyId",
         "parameters": [
           {
@@ -2218,10 +2218,10 @@
     "/api/v1/chat/rooms/{id}/members": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get room members",
+        "description": "Retrieve all members of a chat room",
         "operationId": "getApiV1ChatRoomsbyIdMembers",
         "parameters": [
           {
@@ -2261,10 +2261,10 @@
       },
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Add member to room",
+        "description": "Add a new member to a chat room (admin only)",
         "operationId": "postApiV1ChatRoomsbyIdMembers",
         "parameters": [
           {
@@ -2306,10 +2306,10 @@
     "/api/v1/chat/rooms/{id}/members/{user_id}": {
       "delete": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Remove member from room",
+        "description": "Remove a member from a chat room (admin only)",
         "operationId": "deleteApiV1ChatRoomsbyIdMembersbyUser_id",
         "parameters": [
           {
@@ -2351,10 +2351,10 @@
     "/api/v1/chat/rooms/{id}/messages": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get messages",
+        "description": "Retrieve messages from a chat room with pagination",
         "operationId": "getApiV1ChatRoomsbyIdMessages",
         "parameters": [
           {
@@ -2394,10 +2394,10 @@
       },
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Send message",
+        "description": "Send a message to a chat room",
         "operationId": "postApiV1ChatRoomsbyIdMessages",
         "parameters": [
           {
@@ -2439,10 +2439,10 @@
     "/api/v1/chat/rooms/{id}/messages/{message_id}": {
       "put": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Edit message",
+        "description": "Edit a message (only sender can edit within 15 minutes)",
         "operationId": "putApiV1ChatRoomsbyIdMessagesbyMessage_id",
         "parameters": [
           {
@@ -2492,10 +2492,10 @@
       },
       "delete": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete message",
+        "description": "Delete a message (sender or admin only)",
         "operationId": "deleteApiV1ChatRoomsbyIdMessagesbyMessage_id",
         "parameters": [
           {
@@ -2537,10 +2537,10 @@
     "/api/v1/chat/rooms/{id}/messages/{message_id}/reactions": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get message reactions",
+        "description": "Retrieve all reactions for a specific message",
         "operationId": "getApiV1ChatRoomsbyIdMessagesbyMessage_idReactions",
         "parameters": [
           {
@@ -2590,10 +2590,10 @@
       },
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Add message reaction",
+        "description": "Add an emoji reaction to a message",
         "operationId": "postApiV1ChatRoomsbyIdMessagesbyMessage_idReactions",
         "parameters": [
           {
@@ -2643,10 +2643,10 @@
       },
       "delete": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Remove message reaction",
+        "description": "Remove an emoji reaction from a message",
         "operationId": "deleteApiV1ChatRoomsbyIdMessagesbyMessage_idReactions",
         "parameters": [
           {
@@ -2688,10 +2688,10 @@
     "/api/v1/chat/rooms/{id}/messages/{message_id}/reactions/summary": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get reaction summary",
+        "description": "Get a summary of reactions grouped by emoji",
         "operationId": "getApiV1ChatRoomsbyIdMessagesbyMessage_idReactionsSummary",
         "parameters": [
           {
@@ -2743,10 +2743,10 @@
     "/api/v1/chat/rooms/{id}/messages/{message_id}/threads": {
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create thread",
+        "description": "Create a new message thread from a root message",
         "operationId": "postApiV1ChatRoomsbyIdMessagesbyMessage_idThreads",
         "parameters": [
           {
@@ -2798,10 +2798,10 @@
     "/api/v1/chat/rooms/{id}/notifications": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get notification settings",
+        "description": "Retrieve notification settings for the current user in a specific room",
         "operationId": "getApiV1ChatRoomsbyIdNotifications",
         "parameters": [
           {
@@ -2841,10 +2841,10 @@
       },
       "put": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update notification settings",
+        "description": "Update notification settings for the current user in a specific room",
         "operationId": "putApiV1ChatRoomsbyIdNotifications",
         "parameters": [
           {
@@ -2886,10 +2886,10 @@
     "/api/v1/chat/rooms/{id}/read": {
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Mark room as read",
+        "description": "Mark all messages in a chat room as read by the current user",
         "operationId": "postApiV1ChatRoomsbyIdRead",
         "parameters": [
           {
@@ -2931,10 +2931,10 @@
     "/api/v1/chat/rooms/{id}/rotate-key": {
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Rotate room key",
+        "description": "Rotate the encryption key for a chat room (admin only)",
         "operationId": "postApiV1ChatRoomsbyIdRotate-Key",
         "parameters": [
           {
@@ -2976,10 +2976,10 @@
     "/api/v1/chat/rooms/{id}/threads": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get room threads",
+        "description": "Retrieve all threads in a chat room",
         "operationId": "getApiV1ChatRoomsbyIdThreads",
         "parameters": [
           {
@@ -3021,10 +3021,10 @@
     "/api/v1/chat/threads/{thread_id}": {
       "get": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get thread",
+        "description": "Retrieve a thread with all its messages",
         "operationId": "getApiV1ChatThreadsbyThread_id",
         "parameters": [
           {
@@ -3066,10 +3066,10 @@
     "/api/v1/chat/threads/{thread_id}/resolve": {
       "post": {
         "tags": [
-          "Chat"
+          "chat"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Resolve thread",
+        "description": "Mark a thread as resolved",
         "operationId": "postApiV1ChatThreadsbyThread_idResolve",
         "parameters": [
           {
@@ -3111,10 +3111,10 @@
     "/api/v1/cities": {
       "get": {
         "tags": [
-          "Cities"
+          "cities"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all cities",
+        "description": "Retrieve a list of all cities with optional filtering and cursor-based pagination",
         "operationId": "getApiV1Cities",
         "parameters": [
           {
@@ -3163,10 +3163,10 @@
       },
       "post": {
         "tags": [
-          "Cities"
+          "cities"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create a new city",
+        "description": "Create a new city with the provided information",
         "operationId": "postApiV1Cities",
         "parameters": [
           {
@@ -3228,10 +3228,10 @@
     "/api/v1/cities/{id}": {
       "get": {
         "tags": [
-          "Cities"
+          "cities"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get city by ID",
+        "description": "Retrieve a specific city by their ID",
         "operationId": "getApiV1CitiesbyId",
         "parameters": [
           {
@@ -3271,10 +3271,10 @@
       },
       "put": {
         "tags": [
-          "Cities"
+          "cities"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update a city",
+        "description": "Update an existing city with the provided information",
         "operationId": "putApiV1CitiesbyId",
         "parameters": [
           {
@@ -3325,10 +3325,10 @@
       },
       "delete": {
         "tags": [
-          "Cities"
+          "cities"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete a city",
+        "description": "Remove a city from the system",
         "operationId": "deleteApiV1CitiesbyId",
         "parameters": [
           {
@@ -3360,10 +3360,10 @@
     "/api/v1/cities/{id}/districts": {
       "get": {
         "tags": [
-          "Cities"
+          "cities"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get districts by city",
+        "description": "Retrieve all districts for a specific city",
         "operationId": "getApiV1CitiesbyIdDistricts",
         "parameters": [
           {
@@ -3405,10 +3405,10 @@
     "/api/v1/countries": {
       "get": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all countries",
+        "description": "Retrieve a list of all countries with optional filtering and cursor-based pagination",
         "operationId": "getApiV1Countries",
         "parameters": [
           {
@@ -3457,10 +3457,10 @@
       },
       "post": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create a new country",
+        "description": "Create a new country with the provided information",
         "operationId": "postApiV1Countries",
         "parameters": [
           {
@@ -3522,10 +3522,10 @@
     "/api/v1/countries/bulk-delete": {
       "post": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete multiple countries",
+        "description": "Remove multiple countries from the system",
         "operationId": "postApiV1CountriesBulk-Delete",
         "requestBody": {
           "description": "Request data",
@@ -3566,10 +3566,10 @@
     "/api/v1/countries/{id}": {
       "get": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get country by ID",
+        "description": "Retrieve a specific country by their ID",
         "operationId": "getApiV1CountriesbyId",
         "parameters": [
           {
@@ -3609,10 +3609,10 @@
       },
       "put": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update a country",
+        "description": "Update an existing country with the provided information",
         "operationId": "putApiV1CountriesbyId",
         "parameters": [
           {
@@ -3663,10 +3663,10 @@
       },
       "delete": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete a country",
+        "description": "Remove a country from the system",
         "operationId": "deleteApiV1CountriesbyId",
         "parameters": [
           {
@@ -3698,10 +3698,10 @@
     "/api/v1/countries/{id}/provinces": {
       "get": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get provinces by country",
+        "description": "Retrieve all provinces for a specific country",
         "operationId": "getApiV1CountriesbyIdProvinces",
         "parameters": [
           {
@@ -3743,10 +3743,10 @@
     "/api/v1/countries/{id}/toggle-active": {
       "patch": {
         "tags": [
-          "Countries"
+          "countries"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Toggle country active status",
+        "description": "Toggle the active status of a country",
         "operationId": "patchApiV1CountriesbyIdToggle-Active",
         "parameters": [
           {
@@ -3771,10 +3771,10 @@
     "/api/v1/districts": {
       "get": {
         "tags": [
-          "Districts"
+          "districts"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all districts",
+        "description": "Retrieve a list of all districts with optional filtering and cursor-based pagination",
         "operationId": "getApiV1Districts",
         "parameters": [
           {
@@ -3823,10 +3823,10 @@
       },
       "post": {
         "tags": [
-          "Districts"
+          "districts"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create a new district",
+        "description": "Create a new district with the provided information",
         "operationId": "postApiV1Districts",
         "parameters": [
           {
@@ -3888,10 +3888,10 @@
     "/api/v1/districts/{id}": {
       "get": {
         "tags": [
-          "Districts"
+          "districts"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get district by ID",
+        "description": "Retrieve a specific district by their ID",
         "operationId": "getApiV1DistrictsbyId",
         "parameters": [
           {
@@ -3931,10 +3931,10 @@
       },
       "put": {
         "tags": [
-          "Districts"
+          "districts"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update a district",
+        "description": "Update an existing district with the provided information",
         "operationId": "putApiV1DistrictsbyId",
         "parameters": [
           {
@@ -3985,10 +3985,10 @@
       },
       "delete": {
         "tags": [
-          "Districts"
+          "districts"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete a district",
+        "description": "Remove a district from the system",
         "operationId": "deleteApiV1DistrictsbyId",
         "parameters": [
           {
@@ -4020,10 +4020,10 @@
     "/api/v1/oauth/authorize": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "OAuth2 authorization endpoint",
+        "description": "Handle OAuth2 authorization requests",
         "operationId": "postApiV1OauthAuthorize",
         "responses": {
           "201": {
@@ -4048,10 +4048,10 @@
     "/api/v1/oauth/clients": {
       "get": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get OAuth2 clients",
+        "description": "Get all OAuth2 clients for the authenticated user",
         "operationId": "getApiV1OauthClients",
         "parameters": [
           {
@@ -4100,10 +4100,10 @@
       },
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create OAuth2 client",
+        "description": "Create a new OAuth2 client",
         "operationId": "postApiV1OauthClients",
         "parameters": [
           {
@@ -4154,10 +4154,10 @@
     "/api/v1/oauth/clients/{id}": {
       "get": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get OAuth2 client",
+        "description": "Get a specific OAuth2 client by ID",
         "operationId": "getApiV1OauthClientsbyId",
         "parameters": [
           {
@@ -4197,10 +4197,10 @@
       },
       "put": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update OAuth2 client",
+        "description": "Update an OAuth2 client",
         "operationId": "putApiV1OauthClientsbyId",
         "parameters": [
           {
@@ -4240,10 +4240,10 @@
       },
       "delete": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete OAuth2 client",
+        "description": "Delete an OAuth2 client",
         "operationId": "deleteApiV1OauthClientsbyId",
         "parameters": [
           {
@@ -4275,10 +4275,10 @@
     "/api/v1/oauth/device": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "OAuth2 device authorization endpoint",
+        "description": "Handle OAuth2 device authorization requests",
         "operationId": "postApiV1OauthDevice",
         "responses": {
           "201": {
@@ -4303,10 +4303,10 @@
     "/api/v1/oauth/device/complete": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Complete device authorization",
+        "description": "Complete device authorization by providing user credentials",
         "operationId": "postApiV1OauthDeviceComplete",
         "responses": {
           "201": {
@@ -4331,10 +4331,10 @@
     "/api/v1/oauth/device/token": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "OAuth2 device token endpoint",
+        "description": "Handle OAuth2 device token requests",
         "operationId": "postApiV1OauthDeviceToken",
         "responses": {
           "201": {
@@ -4359,10 +4359,10 @@
     "/api/v1/oauth/introspect": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "OAuth2 token introspection",
+        "description": "Introspect an OAuth2 token",
         "operationId": "postApiV1OauthIntrospect",
         "responses": {
           "201": {
@@ -4387,10 +4387,10 @@
     "/api/v1/oauth/personal-access-tokens": {
       "get": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get personal access tokens",
+        "description": "Get all personal access tokens for the authenticated user",
         "operationId": "getApiV1OauthPersonal-Access-Tokens",
         "parameters": [
           {
@@ -4439,10 +4439,10 @@
       },
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create personal access token",
+        "description": "Create a personal access token for the authenticated user",
         "operationId": "postApiV1OauthPersonal-Access-Tokens",
         "parameters": [
           {
@@ -4493,10 +4493,10 @@
     "/api/v1/oauth/personal-access-tokens/{id}": {
       "delete": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Revoke personal access token",
+        "description": "Revoke a personal access token",
         "operationId": "deleteApiV1OauthPersonal-Access-TokensbyId",
         "parameters": [
           {
@@ -4528,10 +4528,10 @@
     "/api/v1/oauth/revoke": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "OAuth2 token revocation",
+        "description": "Revoke an OAuth2 token",
         "operationId": "postApiV1OauthRevoke",
         "responses": {
           "201": {
@@ -4556,9 +4556,9 @@
     "/api/v1/oauth/test": {
       "get": {
         "tags": [
-          "Authentication"
+          "oauth"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiV1OauthTest",
         "description": "API endpoint",
         "operationId": "getApiV1OauthTest",
         "responses": {
@@ -4589,10 +4589,10 @@
     "/api/v1/oauth/token": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "OAuth2 token endpoint",
+        "description": "Handle OAuth2 token requests (password, client_credentials, authorization_code, refresh_token grants)",
         "operationId": "postApiV1OauthToken",
         "responses": {
           "201": {
@@ -4617,10 +4617,10 @@
     "/api/v1/oauth/token/exchange": {
       "post": {
         "tags": [
-          "Authentication"
+          "OAuth2"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "OAuth2 token exchange endpoint",
+        "description": "Handle OAuth2 token exchange requests",
         "operationId": "postApiV1OauthTokenExchange",
         "responses": {
           "201": {
@@ -4645,10 +4645,10 @@
     "/api/v1/permissions": {
       "get": {
         "tags": [
-          "Permissions"
+          "permissions"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all permissions",
+        "description": "Retrieve a list of all permissions with cursor-based pagination",
         "operationId": "getApiV1Permissions",
         "parameters": [
           {
@@ -4697,9 +4697,9 @@
       },
       "post": {
         "tags": [
-          "Permissions"
+          "permissions"
         ],
-        "summary": "API endpoint",
+        "summary": "postApiV1Permissions",
         "description": "API endpoint",
         "operationId": "postApiV1Permissions",
         "parameters": [
@@ -4751,9 +4751,9 @@
     "/api/v1/permissions/{id}": {
       "get": {
         "tags": [
-          "Permissions"
+          "permissions"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiV1PermissionsbyId",
         "description": "API endpoint",
         "operationId": "getApiV1PermissionsbyId",
         "parameters": [
@@ -4794,9 +4794,9 @@
       },
       "put": {
         "tags": [
-          "Permissions"
+          "permissions"
         ],
-        "summary": "API endpoint",
+        "summary": "putApiV1PermissionsbyId",
         "description": "API endpoint",
         "operationId": "putApiV1PermissionsbyId",
         "parameters": [
@@ -4837,9 +4837,9 @@
       },
       "delete": {
         "tags": [
-          "Permissions"
+          "permissions"
         ],
-        "summary": "API endpoint",
+        "summary": "deleteApiV1PermissionsbyId",
         "description": "API endpoint",
         "operationId": "deleteApiV1PermissionsbyId",
         "parameters": [
@@ -4872,10 +4872,10 @@
     "/api/v1/provinces": {
       "get": {
         "tags": [
-          "Provinces"
+          "provinces"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all provinces",
+        "description": "Retrieve a list of all provinces with optional filtering and cursor-based pagination",
         "operationId": "getApiV1Provinces",
         "parameters": [
           {
@@ -4924,10 +4924,10 @@
       },
       "post": {
         "tags": [
-          "Provinces"
+          "provinces"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create a new province",
+        "description": "Create a new province with the provided information",
         "operationId": "postApiV1Provinces",
         "parameters": [
           {
@@ -4989,10 +4989,10 @@
     "/api/v1/provinces/{id}": {
       "get": {
         "tags": [
-          "Provinces"
+          "provinces"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get province by ID",
+        "description": "Retrieve a specific province by their ID",
         "operationId": "getApiV1ProvincesbyId",
         "parameters": [
           {
@@ -5032,10 +5032,10 @@
       },
       "put": {
         "tags": [
-          "Provinces"
+          "provinces"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update a province",
+        "description": "Update an existing province with the provided information",
         "operationId": "putApiV1ProvincesbyId",
         "parameters": [
           {
@@ -5086,10 +5086,10 @@
       },
       "delete": {
         "tags": [
-          "Provinces"
+          "provinces"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete a province",
+        "description": "Remove a province from the system",
         "operationId": "deleteApiV1ProvincesbyId",
         "parameters": [
           {
@@ -5121,10 +5121,10 @@
     "/api/v1/provinces/{id}/cities": {
       "get": {
         "tags": [
-          "Provinces"
+          "provinces"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get cities by province",
+        "description": "Retrieve all cities for a specific province",
         "operationId": "getApiV1ProvincesbyIdCities",
         "parameters": [
           {
@@ -5166,10 +5166,10 @@
     "/api/v1/roles": {
       "get": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all roles",
+        "description": "Retrieve a list of all roles with cursor-based pagination",
         "operationId": "getApiV1Roles",
         "parameters": [
           {
@@ -5218,9 +5218,9 @@
       },
       "post": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
+        "summary": "postApiV1Roles",
         "description": "API endpoint",
         "operationId": "postApiV1Roles",
         "parameters": [
@@ -5272,9 +5272,9 @@
     "/api/v1/roles/{id}": {
       "get": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiV1RolesbyId",
         "description": "API endpoint",
         "operationId": "getApiV1RolesbyId",
         "parameters": [
@@ -5315,9 +5315,9 @@
       },
       "put": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
+        "summary": "putApiV1RolesbyId",
         "description": "API endpoint",
         "operationId": "putApiV1RolesbyId",
         "parameters": [
@@ -5358,9 +5358,9 @@
       },
       "delete": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
+        "summary": "deleteApiV1RolesbyId",
         "description": "API endpoint",
         "operationId": "deleteApiV1RolesbyId",
         "parameters": [
@@ -5393,9 +5393,9 @@
     "/api/v1/roles/{id}/permissions": {
       "get": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiV1RolesbyIdPermissions",
         "description": "API endpoint",
         "operationId": "getApiV1RolesbyIdPermissions",
         "parameters": [
@@ -5436,9 +5436,9 @@
       },
       "post": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
+        "summary": "postApiV1RolesbyIdPermissions",
         "description": "API endpoint",
         "operationId": "postApiV1RolesbyIdPermissions",
         "parameters": [
@@ -5481,9 +5481,9 @@
     "/api/v1/roles/{id}/permissions/{permission_id}": {
       "delete": {
         "tags": [
-          "Roles"
+          "roles"
         ],
-        "summary": "API endpoint",
+        "summary": "deleteApiV1RolesbyIdPermissionsbyPermission_id",
         "description": "API endpoint",
         "operationId": "deleteApiV1RolesbyIdPermissionsbyPermission_id",
         "parameters": [
@@ -5526,10 +5526,10 @@
     "/api/v1/tenants": {
       "get": {
         "tags": [
-          "Tenants"
+          "tenants"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all tenants",
+        "description": "Retrieve a list of all tenants with cursor-based pagination",
         "operationId": "getApiV1Tenants",
         "parameters": [
           {
@@ -5578,9 +5578,9 @@
       },
       "post": {
         "tags": [
-          "Tenants"
+          "tenants"
         ],
-        "summary": "API endpoint",
+        "summary": "postApiV1Tenants",
         "description": "API endpoint",
         "operationId": "postApiV1Tenants",
         "parameters": [
@@ -5643,9 +5643,9 @@
     "/api/v1/tenants/{id}": {
       "get": {
         "tags": [
-          "Tenants"
+          "tenants"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiV1TenantsbyId",
         "description": "API endpoint",
         "operationId": "getApiV1TenantsbyId",
         "parameters": [
@@ -5686,9 +5686,9 @@
       },
       "put": {
         "tags": [
-          "Tenants"
+          "tenants"
         ],
-        "summary": "API endpoint",
+        "summary": "putApiV1TenantsbyId",
         "description": "API endpoint",
         "operationId": "putApiV1TenantsbyId",
         "parameters": [
@@ -5729,9 +5729,9 @@
       },
       "delete": {
         "tags": [
-          "Tenants"
+          "tenants"
         ],
-        "summary": "API endpoint",
+        "summary": "deleteApiV1TenantsbyId",
         "description": "API endpoint",
         "operationId": "deleteApiV1TenantsbyId",
         "parameters": [
@@ -5764,9 +5764,9 @@
     "/api/v1/tenants/{id}/users": {
       "get": {
         "tags": [
-          "Users"
+          "tenants"
         ],
-        "summary": "API endpoint",
+        "summary": "getApiV1TenantsbyIdUsers",
         "description": "API endpoint",
         "operationId": "getApiV1TenantsbyIdUsers",
         "parameters": [
@@ -5807,9 +5807,9 @@
       },
       "post": {
         "tags": [
-          "Users"
+          "tenants"
         ],
-        "summary": "API endpoint",
+        "summary": "postApiV1TenantsbyIdUsers",
         "description": "API endpoint",
         "operationId": "postApiV1TenantsbyIdUsers",
         "parameters": [
@@ -5863,9 +5863,9 @@
     "/api/v1/tenants/{id}/users/{user_id}": {
       "delete": {
         "tags": [
-          "Users"
+          "tenants"
         ],
-        "summary": "API endpoint",
+        "summary": "deleteApiV1TenantsbyIdUsersbyUser_id",
         "description": "API endpoint",
         "operationId": "deleteApiV1TenantsbyIdUsersbyUser_id",
         "parameters": [
@@ -5908,10 +5908,10 @@
     "/api/v1/users": {
       "get": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get all users",
+        "description": "Retrieve a list of all users with cursor-based pagination",
         "operationId": "getApiV1Users",
         "parameters": [
           {
@@ -5960,10 +5960,10 @@
       },
       "post": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Create a new user",
+        "description": "Create a new user with the provided information",
         "operationId": "postApiV1Users",
         "parameters": [
           {
@@ -6025,10 +6025,10 @@
     "/api/v1/users/{id}": {
       "get": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get user by ID",
+        "description": "Retrieve a specific user by their ID",
         "operationId": "getApiV1UsersbyId",
         "parameters": [
           {
@@ -6068,10 +6068,10 @@
       },
       "put": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Update a user",
+        "description": "Update an existing user's information",
         "operationId": "putApiV1UsersbyId",
         "parameters": [
           {
@@ -6122,10 +6122,10 @@
       },
       "delete": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Delete a user",
+        "description": "Delete a user by their ID",
         "operationId": "deleteApiV1UsersbyId",
         "parameters": [
           {
@@ -6157,10 +6157,10 @@
     "/api/v1/users/{id}/roles": {
       "get": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get user's roles",
+        "description": "Retrieve all roles associated with a user in a specific tenant",
         "operationId": "getApiV1UsersbyIdRoles",
         "parameters": [
           {
@@ -6200,10 +6200,10 @@
       },
       "post": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Assign role to user",
+        "description": "Assign a specific role to a user in a tenant",
         "operationId": "postApiV1UsersbyIdRoles",
         "parameters": [
           {
@@ -6256,10 +6256,10 @@
     "/api/v1/users/{id}/roles/{role_id}": {
       "delete": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Revoke role from user",
+        "description": "Remove a specific role from a user in a tenant",
         "operationId": "deleteApiV1UsersbyIdRolesbyRole_id",
         "parameters": [
           {
@@ -6301,10 +6301,10 @@
     "/api/v1/users/{id}/tenants": {
       "get": {
         "tags": [
-          "Users"
+          "users"
         ],
-        "summary": "API endpoint",
-        "description": "API endpoint",
+        "summary": "Get user's tenants",
+        "description": "Retrieve all tenants associated with a user",
         "operationId": "getApiV1UsersbyIdTenants",
         "parameters": [
           {
@@ -9862,52 +9862,76 @@
   ],
   "tags": [
     {
+      "name": "roles",
+      "description": ""
+    },
+    {
+      "name": "users",
+      "description": ""
+    },
+    {
+      "name": "activity-logs",
+      "description": ""
+    },
+    {
       "name": "Authentication",
-      "description": "Authentication and authorization operations"
+      "description": ""
     },
     {
-      "name": "Users",
-      "description": "User management operations"
+      "name": "calendar-events",
+      "description": ""
     },
     {
-      "name": "Tenants",
-      "description": "Tenant management operations"
+      "name": "chat",
+      "description": ""
     },
     {
-      "name": "Roles",
-      "description": "Role management operations"
+      "name": "cities",
+      "description": ""
     },
     {
-      "name": "Permissions",
-      "description": "Permission management operations"
+      "name": "districts",
+      "description": ""
     },
     {
-      "name": "Activity Logs",
-      "description": "Activity logging operations"
+      "name": "OAuth2",
+      "description": ""
     },
     {
-      "name": "Countries",
-      "description": "Country management operations"
+      "name": "tenants",
+      "description": ""
     },
     {
-      "name": "Provinces",
-      "description": "Province/State management operations"
+      "name": "countries",
+      "description": ""
     },
     {
-      "name": "Cities",
-      "description": "City management operations"
+      "name": "permissions",
+      "description": ""
     },
     {
-      "name": "Districts",
-      "description": "District management operations"
+      "name": "provinces",
+      "description": ""
     },
     {
-      "name": "Chat",
-      "description": "Chat system operations"
+      "name": "docs",
+      "description": ""
     },
     {
-      "name": "Calendar Events",
-      "description": "Calendar event management operations"
+      "name": "openapi.html",
+      "description": ""
+    },
+    {
+      "name": "openapi.json",
+      "description": ""
+    },
+    {
+      "name": "openapi.yaml",
+      "description": ""
+    },
+    {
+      "name": "oauth",
+      "description": ""
     }
   ]
 }

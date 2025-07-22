@@ -8,7 +8,7 @@ info:
         email: support@goravel.com
         url: https://goravel.com
 servers:
-    - url: http://localhost:8080
+    - url: http://localhost:3000
       description: Development server
     - url: https://api.goravel.com
       description: Production server
@@ -16,8 +16,8 @@ paths:
     /api/docs:
         get:
             tags:
-                - API
-            summary: API endpoint
+                - docs
+            summary: getApiDocs
             description: API endpoint
             operationId: getApiDocs
             parameters:
@@ -48,8 +48,8 @@ paths:
     /api/docs/openapi.json:
         get:
             tags:
-                - API
-            summary: API endpoint
+                - openapi.json
+            summary: getApiDocsOpenapi.Json
             description: API endpoint
             operationId: getApiDocsOpenapi.Json
             responses:
@@ -66,8 +66,8 @@ paths:
     /api/docs/openapi.yaml:
         get:
             tags:
-                - API
-            summary: API endpoint
+                - openapi.yaml
+            summary: getApiDocsOpenapi.Yaml
             description: API endpoint
             operationId: getApiDocsOpenapi.Yaml
             responses:
@@ -84,8 +84,8 @@ paths:
     /api/openapi.html:
         get:
             tags:
-                - API
-            summary: API endpoint
+                - openapi.html
+            summary: getApiOpenapi.Html
             description: API endpoint
             operationId: getApiOpenapi.Html
             responses:
@@ -102,9 +102,9 @@ paths:
     /api/v1/activity-logs:
         get:
             tags:
-                - Activity Logs
-            summary: API endpoint
-            description: API endpoint
+                - activity-logs
+            summary: Get all activity logs
+            description: Retrieve a list of all activity logs with cursor-based pagination
             operationId: getApiV1Activity-Logs
             parameters:
                 - name: cursor
@@ -135,8 +135,8 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Activity Logs
-            summary: API endpoint
+                - activity-logs
+            summary: postApiV1Activity-Logs
             description: API endpoint
             operationId: postApiV1Activity-Logs
             parameters:
@@ -169,8 +169,8 @@ paths:
     /api/v1/activity-logs/{id}:
         get:
             tags:
-                - Activity Logs
-            summary: API endpoint
+                - activity-logs
+            summary: getApiV1Activity-LogsbyId
             description: API endpoint
             operationId: getApiV1Activity-LogsbyId
             parameters:
@@ -197,9 +197,9 @@ paths:
     /api/v1/activity-logs/causer:
         get:
             tags:
-                - Activity Logs
-            summary: API endpoint
-            description: API endpoint
+                - activity-logs
+            summary: Get activities for causer
+            description: Retrieve activities caused by a specific user with cursor-based pagination
             operationId: getApiV1Activity-LogsCauser
             responses:
                 "200":
@@ -217,9 +217,9 @@ paths:
     /api/v1/activity-logs/date-range:
         get:
             tags:
-                - Activity Logs
-            summary: API endpoint
-            description: API endpoint
+                - activity-logs
+            summary: Get activities in date range
+            description: Retrieve activities within a date range with cursor-based pagination
             operationId: getApiV1Activity-LogsDate-Range
             responses:
                 "200":
@@ -237,9 +237,9 @@ paths:
     /api/v1/activity-logs/log-name:
         get:
             tags:
-                - Activity Logs
-            summary: API endpoint
-            description: API endpoint
+                - activity-logs
+            summary: Get activities by log name
+            description: Retrieve activities by log name with cursor-based pagination
             operationId: getApiV1Activity-LogsLog-Name
             responses:
                 "200":
@@ -257,9 +257,9 @@ paths:
     /api/v1/activity-logs/subject:
         get:
             tags:
-                - Activity Logs
-            summary: API endpoint
-            description: API endpoint
+                - activity-logs
+            summary: Get activities for subject
+            description: Retrieve activities for a specific subject with cursor-based pagination
             operationId: getApiV1Activity-LogsSubject
             responses:
                 "200":
@@ -278,8 +278,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Change password
+            description: Change user password
             operationId: postApiV1AuthChange-Password
             requestBody:
                 description: Request data
@@ -305,8 +305,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Request password reset
+            description: Send password reset email to user
             operationId: postApiV1AuthForgot-Password
             requestBody:
                 description: Request data
@@ -330,8 +330,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Authenticate user
+            description: Authenticate user with email and password, optionally with MFA or WebAuthn
             operationId: postApiV1AuthLogin
             requestBody:
                 description: Request data
@@ -355,8 +355,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Logout user
+            description: Logout user and invalidate session
             operationId: postApiV1AuthLogout
             responses:
                 "201":
@@ -375,8 +375,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Disable MFA
+            description: Disable two-factor authentication for user
             operationId: postApiV1AuthMfaDisable
             requestBody:
                 description: Request data
@@ -402,8 +402,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Enable MFA
+            description: Enable two-factor authentication for user
             operationId: postApiV1AuthMfaEnable
             requestBody:
                 description: Request data
@@ -429,8 +429,8 @@ paths:
         get:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Generate MFA setup
+            description: Generate MFA secret and QR code for setup
             operationId: getApiV1AuthMfaSetup
             responses:
                 "200":
@@ -449,8 +449,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Verify MFA code
+            description: Verify MFA code for authentication
             operationId: postApiV1AuthMfaVerify
             requestBody:
                 description: Request data
@@ -476,8 +476,8 @@ paths:
         get:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Get user profile
+            description: Get current authenticated user profile
             operationId: getApiV1AuthProfile
             responses:
                 "200":
@@ -496,8 +496,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Refresh token
+            description: Refresh JWT authentication token
             operationId: postApiV1AuthRefresh
             requestBody:
                 description: Request data
@@ -523,8 +523,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Register new user
+            description: Register a new user account
             operationId: postApiV1AuthRegister
             requestBody:
                 description: Request data
@@ -548,8 +548,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Reset password
+            description: Reset password using reset token
             operationId: postApiV1AuthReset-Password
             requestBody:
                 description: Request data
@@ -573,8 +573,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Authenticate with WebAuthn
+            description: Authenticate user using WebAuthn assertion
             operationId: postApiV1AuthWebauthnAuthenticate
             requestBody:
                 description: Request data
@@ -598,8 +598,8 @@ paths:
         get:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Begin WebAuthn authentication
+            description: Start the WebAuthn authentication process for user
             operationId: getApiV1AuthWebauthnBegin-Authentication
             responses:
                 "200":
@@ -618,8 +618,8 @@ paths:
         get:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Begin WebAuthn registration
+            description: Start the WebAuthn registration process for user
             operationId: getApiV1AuthWebauthnBegin-Registration
             responses:
                 "200":
@@ -638,8 +638,8 @@ paths:
         get:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Get WebAuthn credentials
+            description: Get all WebAuthn credentials for the authenticated user
             operationId: getApiV1AuthWebauthnCredentials
             parameters:
                 - name: cursor
@@ -672,8 +672,8 @@ paths:
         delete:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Delete WebAuthn credential
+            description: Delete a specific WebAuthn credential for the authenticated user
             operationId: deleteApiV1AuthWebauthnCredentialsbyId
             parameters:
                 - name: id
@@ -694,8 +694,8 @@ paths:
         post:
             tags:
                 - Authentication
-            summary: API endpoint
-            description: API endpoint
+            summary: Register WebAuthn credential
+            description: Register a new WebAuthn authenticator for user
             operationId: postApiV1AuthWebauthnRegister
             requestBody:
                 description: Request data
@@ -720,9 +720,9 @@ paths:
     /api/v1/calendar-events:
         get:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Get all calendar events
+            description: Retrieve a list of calendar events with cursor-based pagination and filtering
             operationId: getApiV1Calendar-Events
             parameters:
                 - name: cursor
@@ -753,9 +753,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Create calendar event
+            description: Create a new calendar event with optional participants and meeting details
             operationId: postApiV1Calendar-Events
             parameters:
                 - name: cursor
@@ -787,9 +787,9 @@ paths:
     /api/v1/calendar-events/{id}:
         get:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Get calendar event by ID
+            description: Retrieve a specific calendar event by its ID
             operationId: getApiV1Calendar-EventsbyId
             parameters:
                 - name: id
@@ -814,9 +814,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Update calendar event
+            description: Update an existing calendar event
             operationId: putApiV1Calendar-EventsbyId
             parameters:
                 - name: id
@@ -841,9 +841,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Delete calendar event
+            description: Delete a calendar event and all its participants
             operationId: deleteApiV1Calendar-EventsbyId
             parameters:
                 - name: id
@@ -863,9 +863,9 @@ paths:
     /api/v1/calendar-events/{id}/meeting/status:
         put:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Update meeting status
+            description: Update the status and details of a meeting
             operationId: putApiV1Calendar-EventsbyIdMeetingStatus
             parameters:
                 - name: id
@@ -891,9 +891,9 @@ paths:
     /api/v1/calendar-events/{id}/participants:
         get:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Get event participants
+            description: Retrieve all participants for a specific calendar event
             operationId: getApiV1Calendar-EventsbyIdParticipants
             parameters:
                 - name: id
@@ -918,9 +918,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Add participant to event
+            description: Add a new participant to a calendar event
             operationId: postApiV1Calendar-EventsbyIdParticipants
             parameters:
                 - name: id
@@ -946,9 +946,9 @@ paths:
     /api/v1/calendar-events/{id}/participants/{user_id}:
         delete:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Remove participant from event
+            description: Remove a participant from a calendar event
             operationId: deleteApiV1Calendar-EventsbyIdParticipantsbyUser_id
             parameters:
                 - name: id
@@ -975,9 +975,9 @@ paths:
     /api/v1/calendar-events/{id}/participants/{user_id}/response:
         put:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Update participant response
+            description: Update a participant's response status for an event
             operationId: putApiV1Calendar-EventsbyIdParticipantsbyUser_idResponse
             parameters:
                 - name: id
@@ -1010,9 +1010,9 @@ paths:
     /api/v1/calendar-events/{id}/reminders:
         get:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Get event reminders
+            description: Retrieve all reminders for a specific calendar event
             operationId: getApiV1Calendar-EventsbyIdReminders
             parameters:
                 - name: id
@@ -1037,9 +1037,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Create event reminder
+            description: Create a reminder for a calendar event
             operationId: postApiV1Calendar-EventsbyIdReminders
             parameters:
                 - name: id
@@ -1065,9 +1065,9 @@ paths:
     /api/v1/calendar-events/check-conflicts:
         post:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Check scheduling conflicts
+            description: Check for scheduling conflicts with existing events
             operationId: postApiV1Calendar-EventsCheck-Conflicts
             parameters:
                 - name: cursor
@@ -1099,9 +1099,9 @@ paths:
     /api/v1/calendar-events/export:
         post:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Export calendar to iCal
+            description: Export calendar events to iCal format
             operationId: postApiV1Calendar-EventsExport
             responses:
                 "201":
@@ -1119,9 +1119,9 @@ paths:
     /api/v1/calendar-events/my:
         get:
             tags:
-                - Calendar Events
-            summary: API endpoint
-            description: API endpoint
+                - calendar-events
+            summary: Get my events
+            description: Retrieve calendar events for the authenticated user
             operationId: getApiV1Calendar-EventsMy
             responses:
                 "200":
@@ -1139,9 +1139,9 @@ paths:
     /api/v1/chat/keys:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get user keys
+            description: Retrieve all encryption keys for the current user
             operationId: getApiV1ChatKeys
             parameters:
                 - name: cursor
@@ -1172,9 +1172,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Generate encryption keys
+            description: Generate new encryption keys for the current user
             operationId: postApiV1ChatKeys
             parameters:
                 - name: cursor
@@ -1206,9 +1206,9 @@ paths:
     /api/v1/chat/notifications/global:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get global notification settings
+            description: Retrieve global notification settings for the current user
             operationId: getApiV1ChatNotificationsGlobal
             responses:
                 "200":
@@ -1225,9 +1225,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Update global notification settings
+            description: Update global notification settings for the current user
             operationId: putApiV1ChatNotificationsGlobal
             responses:
                 "200":
@@ -1245,9 +1245,9 @@ paths:
     /api/v1/chat/rooms:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get user's chat rooms
+            description: Retrieve all chat rooms where the current user is a member
             operationId: getApiV1ChatRooms
             parameters:
                 - name: cursor
@@ -1278,9 +1278,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Create a new chat room
+            description: Create a new chat room with specified members
             operationId: postApiV1ChatRooms
             parameters:
                 - name: cursor
@@ -1312,9 +1312,9 @@ paths:
     /api/v1/chat/rooms/{id}:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get chat room by ID
+            description: Retrieve a specific chat room by its ID
             operationId: getApiV1ChatRoomsbyId
             parameters:
                 - name: id
@@ -1339,9 +1339,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Update chat room
+            description: Update a chat room's information (admin only)
             operationId: putApiV1ChatRoomsbyId
             parameters:
                 - name: id
@@ -1366,9 +1366,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Delete chat room
+            description: Delete a chat room (admin only)
             operationId: deleteApiV1ChatRoomsbyId
             parameters:
                 - name: id
@@ -1388,9 +1388,9 @@ paths:
     /api/v1/chat/rooms/{id}/members:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get room members
+            description: Retrieve all members of a chat room
             operationId: getApiV1ChatRoomsbyIdMembers
             parameters:
                 - name: id
@@ -1415,9 +1415,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Add member to room
+            description: Add a new member to a chat room (admin only)
             operationId: postApiV1ChatRoomsbyIdMembers
             parameters:
                 - name: id
@@ -1443,9 +1443,9 @@ paths:
     /api/v1/chat/rooms/{id}/members/{user_id}:
         delete:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Remove member from room
+            description: Remove a member from a chat room (admin only)
             operationId: deleteApiV1ChatRoomsbyIdMembersbyUser_id
             parameters:
                 - name: id
@@ -1472,9 +1472,9 @@ paths:
     /api/v1/chat/rooms/{id}/messages:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get messages
+            description: Retrieve messages from a chat room with pagination
             operationId: getApiV1ChatRoomsbyIdMessages
             parameters:
                 - name: id
@@ -1499,9 +1499,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Send message
+            description: Send a message to a chat room
             operationId: postApiV1ChatRoomsbyIdMessages
             parameters:
                 - name: id
@@ -1527,9 +1527,9 @@ paths:
     /api/v1/chat/rooms/{id}/messages/{message_id}:
         put:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Edit message
+            description: Edit a message (only sender can edit within 15 minutes)
             operationId: putApiV1ChatRoomsbyIdMessagesbyMessage_id
             parameters:
                 - name: id
@@ -1561,9 +1561,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Delete message
+            description: Delete a message (sender or admin only)
             operationId: deleteApiV1ChatRoomsbyIdMessagesbyMessage_id
             parameters:
                 - name: id
@@ -1590,9 +1590,9 @@ paths:
     /api/v1/chat/rooms/{id}/messages/{message_id}/reactions:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get message reactions
+            description: Retrieve all reactions for a specific message
             operationId: getApiV1ChatRoomsbyIdMessagesbyMessage_idReactions
             parameters:
                 - name: id
@@ -1624,9 +1624,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Add message reaction
+            description: Add an emoji reaction to a message
             operationId: postApiV1ChatRoomsbyIdMessagesbyMessage_idReactions
             parameters:
                 - name: id
@@ -1658,9 +1658,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Remove message reaction
+            description: Remove an emoji reaction from a message
             operationId: deleteApiV1ChatRoomsbyIdMessagesbyMessage_idReactions
             parameters:
                 - name: id
@@ -1687,9 +1687,9 @@ paths:
     /api/v1/chat/rooms/{id}/messages/{message_id}/reactions/summary:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get reaction summary
+            description: Get a summary of reactions grouped by emoji
             operationId: getApiV1ChatRoomsbyIdMessagesbyMessage_idReactionsSummary
             parameters:
                 - name: id
@@ -1722,9 +1722,9 @@ paths:
     /api/v1/chat/rooms/{id}/messages/{message_id}/threads:
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Create thread
+            description: Create a new message thread from a root message
             operationId: postApiV1ChatRoomsbyIdMessagesbyMessage_idThreads
             parameters:
                 - name: id
@@ -1757,9 +1757,9 @@ paths:
     /api/v1/chat/rooms/{id}/notifications:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get notification settings
+            description: Retrieve notification settings for the current user in a specific room
             operationId: getApiV1ChatRoomsbyIdNotifications
             parameters:
                 - name: id
@@ -1784,9 +1784,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Update notification settings
+            description: Update notification settings for the current user in a specific room
             operationId: putApiV1ChatRoomsbyIdNotifications
             parameters:
                 - name: id
@@ -1812,9 +1812,9 @@ paths:
     /api/v1/chat/rooms/{id}/read:
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Mark room as read
+            description: Mark all messages in a chat room as read by the current user
             operationId: postApiV1ChatRoomsbyIdRead
             parameters:
                 - name: id
@@ -1840,9 +1840,9 @@ paths:
     /api/v1/chat/rooms/{id}/rotate-key:
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Rotate room key
+            description: Rotate the encryption key for a chat room (admin only)
             operationId: postApiV1ChatRoomsbyIdRotate-Key
             parameters:
                 - name: id
@@ -1868,9 +1868,9 @@ paths:
     /api/v1/chat/rooms/{id}/threads:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get room threads
+            description: Retrieve all threads in a chat room
             operationId: getApiV1ChatRoomsbyIdThreads
             parameters:
                 - name: id
@@ -1896,9 +1896,9 @@ paths:
     /api/v1/chat/threads/{thread_id}:
         get:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Get thread
+            description: Retrieve a thread with all its messages
             operationId: getApiV1ChatThreadsbyThread_id
             parameters:
                 - name: thread_id
@@ -1924,9 +1924,9 @@ paths:
     /api/v1/chat/threads/{thread_id}/resolve:
         post:
             tags:
-                - Chat
-            summary: API endpoint
-            description: API endpoint
+                - chat
+            summary: Resolve thread
+            description: Mark a thread as resolved
             operationId: postApiV1ChatThreadsbyThread_idResolve
             parameters:
                 - name: thread_id
@@ -1952,9 +1952,9 @@ paths:
     /api/v1/cities:
         get:
             tags:
-                - Cities
-            summary: API endpoint
-            description: API endpoint
+                - cities
+            summary: Get all cities
+            description: Retrieve a list of all cities with optional filtering and cursor-based pagination
             operationId: getApiV1Cities
             parameters:
                 - name: cursor
@@ -1985,9 +1985,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Cities
-            summary: API endpoint
-            description: API endpoint
+                - cities
+            summary: Create a new city
+            description: Create a new city with the provided information
             operationId: postApiV1Cities
             parameters:
                 - name: cursor
@@ -2026,9 +2026,9 @@ paths:
     /api/v1/cities/{id}:
         get:
             tags:
-                - Cities
-            summary: API endpoint
-            description: API endpoint
+                - cities
+            summary: Get city by ID
+            description: Retrieve a specific city by their ID
             operationId: getApiV1CitiesbyId
             parameters:
                 - name: id
@@ -2053,9 +2053,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Cities
-            summary: API endpoint
-            description: API endpoint
+                - cities
+            summary: Update a city
+            description: Update an existing city with the provided information
             operationId: putApiV1CitiesbyId
             parameters:
                 - name: id
@@ -2087,9 +2087,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Cities
-            summary: API endpoint
-            description: API endpoint
+                - cities
+            summary: Delete a city
+            description: Remove a city from the system
             operationId: deleteApiV1CitiesbyId
             parameters:
                 - name: id
@@ -2109,9 +2109,9 @@ paths:
     /api/v1/cities/{id}/districts:
         get:
             tags:
-                - Cities
-            summary: API endpoint
-            description: API endpoint
+                - cities
+            summary: Get districts by city
+            description: Retrieve all districts for a specific city
             operationId: getApiV1CitiesbyIdDistricts
             parameters:
                 - name: id
@@ -2137,9 +2137,9 @@ paths:
     /api/v1/countries:
         get:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Get all countries
+            description: Retrieve a list of all countries with optional filtering and cursor-based pagination
             operationId: getApiV1Countries
             parameters:
                 - name: cursor
@@ -2170,9 +2170,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Create a new country
+            description: Create a new country with the provided information
             operationId: postApiV1Countries
             parameters:
                 - name: cursor
@@ -2211,9 +2211,9 @@ paths:
     /api/v1/countries/{id}:
         get:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Get country by ID
+            description: Retrieve a specific country by their ID
             operationId: getApiV1CountriesbyId
             parameters:
                 - name: id
@@ -2238,9 +2238,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Update a country
+            description: Update an existing country with the provided information
             operationId: putApiV1CountriesbyId
             parameters:
                 - name: id
@@ -2272,9 +2272,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Delete a country
+            description: Remove a country from the system
             operationId: deleteApiV1CountriesbyId
             parameters:
                 - name: id
@@ -2294,9 +2294,9 @@ paths:
     /api/v1/countries/{id}/provinces:
         get:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Get provinces by country
+            description: Retrieve all provinces for a specific country
             operationId: getApiV1CountriesbyIdProvinces
             parameters:
                 - name: id
@@ -2322,9 +2322,9 @@ paths:
     /api/v1/countries/{id}/toggle-active:
         patch:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Toggle country active status
+            description: Toggle the active status of a country
             operationId: patchApiV1CountriesbyIdToggle-Active
             parameters:
                 - name: id
@@ -2340,9 +2340,9 @@ paths:
     /api/v1/countries/bulk-delete:
         post:
             tags:
-                - Countries
-            summary: API endpoint
-            description: API endpoint
+                - countries
+            summary: Delete multiple countries
+            description: Remove multiple countries from the system
             operationId: postApiV1CountriesBulk-Delete
             requestBody:
                 description: Request data
@@ -2367,9 +2367,9 @@ paths:
     /api/v1/districts:
         get:
             tags:
-                - Districts
-            summary: API endpoint
-            description: API endpoint
+                - districts
+            summary: Get all districts
+            description: Retrieve a list of all districts with optional filtering and cursor-based pagination
             operationId: getApiV1Districts
             parameters:
                 - name: cursor
@@ -2400,9 +2400,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Districts
-            summary: API endpoint
-            description: API endpoint
+                - districts
+            summary: Create a new district
+            description: Create a new district with the provided information
             operationId: postApiV1Districts
             parameters:
                 - name: cursor
@@ -2441,9 +2441,9 @@ paths:
     /api/v1/districts/{id}:
         get:
             tags:
-                - Districts
-            summary: API endpoint
-            description: API endpoint
+                - districts
+            summary: Get district by ID
+            description: Retrieve a specific district by their ID
             operationId: getApiV1DistrictsbyId
             parameters:
                 - name: id
@@ -2468,9 +2468,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Districts
-            summary: API endpoint
-            description: API endpoint
+                - districts
+            summary: Update a district
+            description: Update an existing district with the provided information
             operationId: putApiV1DistrictsbyId
             parameters:
                 - name: id
@@ -2502,9 +2502,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Districts
-            summary: API endpoint
-            description: API endpoint
+                - districts
+            summary: Delete a district
+            description: Remove a district from the system
             operationId: deleteApiV1DistrictsbyId
             parameters:
                 - name: id
@@ -2524,9 +2524,9 @@ paths:
     /api/v1/oauth/authorize:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: OAuth2 authorization endpoint
+            description: Handle OAuth2 authorization requests
             operationId: postApiV1OauthAuthorize
             responses:
                 "201":
@@ -2542,9 +2542,9 @@ paths:
     /api/v1/oauth/clients:
         get:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Get OAuth2 clients
+            description: Get all OAuth2 clients for the authenticated user
             operationId: getApiV1OauthClients
             parameters:
                 - name: cursor
@@ -2575,9 +2575,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Create OAuth2 client
+            description: Create a new OAuth2 client
             operationId: postApiV1OauthClients
             parameters:
                 - name: cursor
@@ -2609,9 +2609,9 @@ paths:
     /api/v1/oauth/clients/{id}:
         get:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Get OAuth2 client
+            description: Get a specific OAuth2 client by ID
             operationId: getApiV1OauthClientsbyId
             parameters:
                 - name: id
@@ -2636,9 +2636,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Update OAuth2 client
+            description: Update an OAuth2 client
             operationId: putApiV1OauthClientsbyId
             parameters:
                 - name: id
@@ -2663,9 +2663,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Delete OAuth2 client
+            description: Delete an OAuth2 client
             operationId: deleteApiV1OauthClientsbyId
             parameters:
                 - name: id
@@ -2685,9 +2685,9 @@ paths:
     /api/v1/oauth/device:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: OAuth2 device authorization endpoint
+            description: Handle OAuth2 device authorization requests
             operationId: postApiV1OauthDevice
             responses:
                 "201":
@@ -2703,9 +2703,9 @@ paths:
     /api/v1/oauth/device/complete:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Complete device authorization
+            description: Complete device authorization by providing user credentials
             operationId: postApiV1OauthDeviceComplete
             responses:
                 "201":
@@ -2721,9 +2721,9 @@ paths:
     /api/v1/oauth/device/token:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: OAuth2 device token endpoint
+            description: Handle OAuth2 device token requests
             operationId: postApiV1OauthDeviceToken
             responses:
                 "201":
@@ -2739,9 +2739,9 @@ paths:
     /api/v1/oauth/introspect:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: OAuth2 token introspection
+            description: Introspect an OAuth2 token
             operationId: postApiV1OauthIntrospect
             responses:
                 "201":
@@ -2757,9 +2757,9 @@ paths:
     /api/v1/oauth/personal-access-tokens:
         get:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Get personal access tokens
+            description: Get all personal access tokens for the authenticated user
             operationId: getApiV1OauthPersonal-Access-Tokens
             parameters:
                 - name: cursor
@@ -2790,9 +2790,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Create personal access token
+            description: Create a personal access token for the authenticated user
             operationId: postApiV1OauthPersonal-Access-Tokens
             parameters:
                 - name: cursor
@@ -2824,9 +2824,9 @@ paths:
     /api/v1/oauth/personal-access-tokens/{id}:
         delete:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: Revoke personal access token
+            description: Revoke a personal access token
             operationId: deleteApiV1OauthPersonal-Access-TokensbyId
             parameters:
                 - name: id
@@ -2846,9 +2846,9 @@ paths:
     /api/v1/oauth/revoke:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: OAuth2 token revocation
+            description: Revoke an OAuth2 token
             operationId: postApiV1OauthRevoke
             responses:
                 "201":
@@ -2864,8 +2864,8 @@ paths:
     /api/v1/oauth/test:
         get:
             tags:
-                - Authentication
-            summary: API endpoint
+                - oauth
+            summary: getApiV1OauthTest
             description: API endpoint
             operationId: getApiV1OauthTest
             responses:
@@ -2884,9 +2884,9 @@ paths:
     /api/v1/oauth/token:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: OAuth2 token endpoint
+            description: Handle OAuth2 token requests (password, client_credentials, authorization_code, refresh_token grants)
             operationId: postApiV1OauthToken
             responses:
                 "201":
@@ -2902,9 +2902,9 @@ paths:
     /api/v1/oauth/token/exchange:
         post:
             tags:
-                - Authentication
-            summary: API endpoint
-            description: API endpoint
+                - OAuth2
+            summary: OAuth2 token exchange endpoint
+            description: Handle OAuth2 token exchange requests
             operationId: postApiV1OauthTokenExchange
             responses:
                 "201":
@@ -2920,9 +2920,9 @@ paths:
     /api/v1/permissions:
         get:
             tags:
-                - Permissions
-            summary: API endpoint
-            description: API endpoint
+                - permissions
+            summary: Get all permissions
+            description: Retrieve a list of all permissions with cursor-based pagination
             operationId: getApiV1Permissions
             parameters:
                 - name: cursor
@@ -2953,8 +2953,8 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Permissions
-            summary: API endpoint
+                - permissions
+            summary: postApiV1Permissions
             description: API endpoint
             operationId: postApiV1Permissions
             parameters:
@@ -2987,8 +2987,8 @@ paths:
     /api/v1/permissions/{id}:
         get:
             tags:
-                - Permissions
-            summary: API endpoint
+                - permissions
+            summary: getApiV1PermissionsbyId
             description: API endpoint
             operationId: getApiV1PermissionsbyId
             parameters:
@@ -3014,8 +3014,8 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Permissions
-            summary: API endpoint
+                - permissions
+            summary: putApiV1PermissionsbyId
             description: API endpoint
             operationId: putApiV1PermissionsbyId
             parameters:
@@ -3041,8 +3041,8 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Permissions
-            summary: API endpoint
+                - permissions
+            summary: deleteApiV1PermissionsbyId
             description: API endpoint
             operationId: deleteApiV1PermissionsbyId
             parameters:
@@ -3063,9 +3063,9 @@ paths:
     /api/v1/provinces:
         get:
             tags:
-                - Provinces
-            summary: API endpoint
-            description: API endpoint
+                - provinces
+            summary: Get all provinces
+            description: Retrieve a list of all provinces with optional filtering and cursor-based pagination
             operationId: getApiV1Provinces
             parameters:
                 - name: cursor
@@ -3096,9 +3096,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Provinces
-            summary: API endpoint
-            description: API endpoint
+                - provinces
+            summary: Create a new province
+            description: Create a new province with the provided information
             operationId: postApiV1Provinces
             parameters:
                 - name: cursor
@@ -3137,9 +3137,9 @@ paths:
     /api/v1/provinces/{id}:
         get:
             tags:
-                - Provinces
-            summary: API endpoint
-            description: API endpoint
+                - provinces
+            summary: Get province by ID
+            description: Retrieve a specific province by their ID
             operationId: getApiV1ProvincesbyId
             parameters:
                 - name: id
@@ -3164,9 +3164,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Provinces
-            summary: API endpoint
-            description: API endpoint
+                - provinces
+            summary: Update a province
+            description: Update an existing province with the provided information
             operationId: putApiV1ProvincesbyId
             parameters:
                 - name: id
@@ -3198,9 +3198,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Provinces
-            summary: API endpoint
-            description: API endpoint
+                - provinces
+            summary: Delete a province
+            description: Remove a province from the system
             operationId: deleteApiV1ProvincesbyId
             parameters:
                 - name: id
@@ -3220,9 +3220,9 @@ paths:
     /api/v1/provinces/{id}/cities:
         get:
             tags:
-                - Provinces
-            summary: API endpoint
-            description: API endpoint
+                - provinces
+            summary: Get cities by province
+            description: Retrieve all cities for a specific province
             operationId: getApiV1ProvincesbyIdCities
             parameters:
                 - name: id
@@ -3248,9 +3248,9 @@ paths:
     /api/v1/roles:
         get:
             tags:
-                - Roles
-            summary: API endpoint
-            description: API endpoint
+                - roles
+            summary: Get all roles
+            description: Retrieve a list of all roles with cursor-based pagination
             operationId: getApiV1Roles
             parameters:
                 - name: cursor
@@ -3281,8 +3281,8 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Roles
-            summary: API endpoint
+                - roles
+            summary: postApiV1Roles
             description: API endpoint
             operationId: postApiV1Roles
             parameters:
@@ -3315,8 +3315,8 @@ paths:
     /api/v1/roles/{id}:
         get:
             tags:
-                - Roles
-            summary: API endpoint
+                - roles
+            summary: getApiV1RolesbyId
             description: API endpoint
             operationId: getApiV1RolesbyId
             parameters:
@@ -3342,8 +3342,8 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Roles
-            summary: API endpoint
+                - roles
+            summary: putApiV1RolesbyId
             description: API endpoint
             operationId: putApiV1RolesbyId
             parameters:
@@ -3369,8 +3369,8 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Roles
-            summary: API endpoint
+                - roles
+            summary: deleteApiV1RolesbyId
             description: API endpoint
             operationId: deleteApiV1RolesbyId
             parameters:
@@ -3391,8 +3391,8 @@ paths:
     /api/v1/roles/{id}/permissions:
         get:
             tags:
-                - Roles
-            summary: API endpoint
+                - roles
+            summary: getApiV1RolesbyIdPermissions
             description: API endpoint
             operationId: getApiV1RolesbyIdPermissions
             parameters:
@@ -3418,8 +3418,8 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Roles
-            summary: API endpoint
+                - roles
+            summary: postApiV1RolesbyIdPermissions
             description: API endpoint
             operationId: postApiV1RolesbyIdPermissions
             parameters:
@@ -3446,8 +3446,8 @@ paths:
     /api/v1/roles/{id}/permissions/{permission_id}:
         delete:
             tags:
-                - Roles
-            summary: API endpoint
+                - roles
+            summary: deleteApiV1RolesbyIdPermissionsbyPermission_id
             description: API endpoint
             operationId: deleteApiV1RolesbyIdPermissionsbyPermission_id
             parameters:
@@ -3475,9 +3475,9 @@ paths:
     /api/v1/tenants:
         get:
             tags:
-                - Tenants
-            summary: API endpoint
-            description: API endpoint
+                - tenants
+            summary: Get all tenants
+            description: Retrieve a list of all tenants with cursor-based pagination
             operationId: getApiV1Tenants
             parameters:
                 - name: cursor
@@ -3508,8 +3508,8 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Tenants
-            summary: API endpoint
+                - tenants
+            summary: postApiV1Tenants
             description: API endpoint
             operationId: postApiV1Tenants
             parameters:
@@ -3549,8 +3549,8 @@ paths:
     /api/v1/tenants/{id}:
         get:
             tags:
-                - Tenants
-            summary: API endpoint
+                - tenants
+            summary: getApiV1TenantsbyId
             description: API endpoint
             operationId: getApiV1TenantsbyId
             parameters:
@@ -3576,8 +3576,8 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Tenants
-            summary: API endpoint
+                - tenants
+            summary: putApiV1TenantsbyId
             description: API endpoint
             operationId: putApiV1TenantsbyId
             parameters:
@@ -3603,8 +3603,8 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Tenants
-            summary: API endpoint
+                - tenants
+            summary: deleteApiV1TenantsbyId
             description: API endpoint
             operationId: deleteApiV1TenantsbyId
             parameters:
@@ -3625,8 +3625,8 @@ paths:
     /api/v1/tenants/{id}/users:
         get:
             tags:
-                - Users
-            summary: API endpoint
+                - tenants
+            summary: getApiV1TenantsbyIdUsers
             description: API endpoint
             operationId: getApiV1TenantsbyIdUsers
             parameters:
@@ -3652,8 +3652,8 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Users
-            summary: API endpoint
+                - tenants
+            summary: postApiV1TenantsbyIdUsers
             description: API endpoint
             operationId: postApiV1TenantsbyIdUsers
             parameters:
@@ -3687,8 +3687,8 @@ paths:
     /api/v1/tenants/{id}/users/{user_id}:
         delete:
             tags:
-                - Users
-            summary: API endpoint
+                - tenants
+            summary: deleteApiV1TenantsbyIdUsersbyUser_id
             description: API endpoint
             operationId: deleteApiV1TenantsbyIdUsersbyUser_id
             parameters:
@@ -3716,9 +3716,9 @@ paths:
     /api/v1/users:
         get:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Get all users
+            description: Retrieve a list of all users with cursor-based pagination
             operationId: getApiV1Users
             parameters:
                 - name: cursor
@@ -3749,9 +3749,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Create a new user
+            description: Create a new user with the provided information
             operationId: postApiV1Users
             parameters:
                 - name: cursor
@@ -3790,9 +3790,9 @@ paths:
     /api/v1/users/{id}:
         get:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Get user by ID
+            description: Retrieve a specific user by their ID
             operationId: getApiV1UsersbyId
             parameters:
                 - name: id
@@ -3817,9 +3817,9 @@ paths:
                 - bearerAuth: []
         put:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Update a user
+            description: Update an existing user's information
             operationId: putApiV1UsersbyId
             parameters:
                 - name: id
@@ -3851,9 +3851,9 @@ paths:
                 - bearerAuth: []
         delete:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Delete a user
+            description: Delete a user by their ID
             operationId: deleteApiV1UsersbyId
             parameters:
                 - name: id
@@ -3873,9 +3873,9 @@ paths:
     /api/v1/users/{id}/roles:
         get:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Get user's roles
+            description: Retrieve all roles associated with a user in a specific tenant
             operationId: getApiV1UsersbyIdRoles
             parameters:
                 - name: id
@@ -3900,9 +3900,9 @@ paths:
                 - bearerAuth: []
         post:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Assign role to user
+            description: Assign a specific role to a user in a tenant
             operationId: postApiV1UsersbyIdRoles
             parameters:
                 - name: id
@@ -3935,9 +3935,9 @@ paths:
     /api/v1/users/{id}/roles/{role_id}:
         delete:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Revoke role from user
+            description: Remove a specific role from a user in a tenant
             operationId: deleteApiV1UsersbyIdRolesbyRole_id
             parameters:
                 - name: id
@@ -3964,9 +3964,9 @@ paths:
     /api/v1/users/{id}/tenants:
         get:
             tags:
-                - Users
-            summary: API endpoint
-            description: API endpoint
+                - users
+            summary: Get user's tenants
+            description: Retrieve all tenants associated with a user
             operationId: getApiV1UsersbyIdTenants
             parameters:
                 - name: id
@@ -6561,27 +6561,39 @@ components:
 security:
     - bearerAuth: []
 tags:
+    - name: roles
+      description: ""
+    - name: users
+      description: ""
+    - name: activity-logs
+      description: ""
     - name: Authentication
-      description: Authentication and authorization operations
-    - name: Users
-      description: User management operations
-    - name: Tenants
-      description: Tenant management operations
-    - name: Roles
-      description: Role management operations
-    - name: Permissions
-      description: Permission management operations
-    - name: Activity Logs
-      description: Activity logging operations
-    - name: Countries
-      description: Country management operations
-    - name: Provinces
-      description: Province/State management operations
-    - name: Cities
-      description: City management operations
-    - name: Districts
-      description: District management operations
-    - name: Chat
-      description: Chat system operations
-    - name: Calendar Events
-      description: Calendar event management operations
+      description: ""
+    - name: calendar-events
+      description: ""
+    - name: chat
+      description: ""
+    - name: cities
+      description: ""
+    - name: districts
+      description: ""
+    - name: OAuth2
+      description: ""
+    - name: tenants
+      description: ""
+    - name: countries
+      description: ""
+    - name: permissions
+      description: ""
+    - name: provinces
+      description: ""
+    - name: docs
+      description: ""
+    - name: openapi.html
+      description: ""
+    - name: openapi.json
+      description: ""
+    - name: openapi.yaml
+      description: ""
+    - name: oauth
+      description: ""

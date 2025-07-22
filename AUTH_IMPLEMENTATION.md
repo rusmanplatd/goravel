@@ -118,7 +118,7 @@ go run main.go
 ```
 
 ### Accessing the Application
-1. Visit `http://localhost:8080`
+1. Visit `http://localhost:3000`
 2. You'll be redirected to the welcome page
 3. Click "Go to Dashboard" or wait for auto-redirect
 4. Register a new account or login
