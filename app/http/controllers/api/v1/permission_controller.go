@@ -104,6 +104,16 @@ func (pc *PermissionController) Index(ctx http.Context) http.Response {
 }
 
 // Show returns a specific permission
+// @Summary Get a specific permission
+// @Description Retrieve a single permission by its ID
+// @Tags permissions
+// @Accept json
+// @Produce json
+// @Param id path string true "Permission ID"
+// @Success 200 {object} http.Json{data=models.Permission}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /permissions/{id} [get]
 func (pc *PermissionController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")
@@ -122,6 +132,16 @@ func (pc *PermissionController) Show(ctx http.Context) http.Response {
 }
 
 // Store creates a new permission
+// @Summary Create a new permission
+// @Description Create a new permission for a tenant
+// @Tags permissions
+// @Accept json
+// @Produce json
+// @Param permission body models.Permission true "Permission data"
+// @Success 201 {object} http.Json{data=models.Permission,message=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /permissions [post]
 func (pc *PermissionController) Store(ctx http.Context) http.Response {
 	tenantID := ctx.Value("tenant_id")
 	if tenantID == nil {
@@ -154,6 +174,18 @@ func (pc *PermissionController) Store(ctx http.Context) http.Response {
 }
 
 // Update updates an existing permission
+// @Summary Update an existing permission
+// @Description Update a permission by its ID
+// @Tags permissions
+// @Accept json
+// @Produce json
+// @Param id path string true "Permission ID"
+// @Param permission body models.Permission true "Permission data"
+// @Success 200 {object} http.Json{data=models.Permission,message=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /permissions/{id} [put]
 func (pc *PermissionController) Update(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")
@@ -186,6 +218,16 @@ func (pc *PermissionController) Update(ctx http.Context) http.Response {
 }
 
 // Delete removes a permission
+// @Summary Delete a permission
+// @Description Delete a permission by its ID
+// @Tags permissions
+// @Accept json
+// @Produce json
+// @Param id path string true "Permission ID"
+// @Success 200 {object} http.Json{message=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /permissions/{id} [delete]
 func (pc *PermissionController) Delete(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")

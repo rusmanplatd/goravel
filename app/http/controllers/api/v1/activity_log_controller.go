@@ -95,6 +95,15 @@ func (alc *ActivityLogController) Index(ctx http.Context) http.Response {
 }
 
 // Show returns a specific activity log
+// @Summary Get activity log by ID
+// @Description Retrieve a specific activity log by its ID
+// @Tags activity-logs
+// @Accept json
+// @Produce json
+// @Param id path string true "Activity Log ID"
+// @Success 200 {object} http.Json{data=models.ActivityLog}
+// @Failure 404 {object} http.Json{error=string}
+// @Router /activity-logs/{id} [get]
 func (alc *ActivityLogController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")
@@ -448,6 +457,16 @@ func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) htt
 }
 
 // Store creates a new activity log entry
+// @Summary Create a new activity log
+// @Description Create a new activity log entry for a tenant
+// @Tags activity-logs
+// @Accept json
+// @Produce json
+// @Param activity_log body models.ActivityLog true "Activity log data"
+// @Success 201 {object} http.Json{data=models.ActivityLog,message=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 500 {object} http.Json{error=string}
+// @Router /activity-logs [post]
 func (alc *ActivityLogController) Store(ctx http.Context) http.Response {
 	tenantID := ctx.Value("tenant_id")
 	if tenantID == nil {

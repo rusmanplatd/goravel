@@ -22,7 +22,17 @@ func NewNotificationController() *NotificationController {
 	}
 }
 
-// SendWelcomeNotification sends a welcome notification to a user
+// @Summary Send a welcome notification to a user
+// @Description Sends a welcome notification to a user by their ID.
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/notifications/welcome/{user_id} [post]
 func (c *NotificationController) SendWelcomeNotification(ctx http.Context) http.Response {
 	// Get user ID from request
 	userID := ctx.Request().Route("user_id")
@@ -62,7 +72,17 @@ func (c *NotificationController) SendWelcomeNotification(ctx http.Context) http.
 	})
 }
 
-// SendPasswordResetNotification sends a password reset notification
+// @Summary Send a password reset notification
+// @Description Sends a password reset notification to a user by their email.
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Param email query string true "User Email"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/notifications/password-reset [post]
 func (c *NotificationController) SendPasswordResetNotification(ctx http.Context) http.Response {
 	// Get email from request
 	email := ctx.Request().Input("email")
@@ -105,7 +125,18 @@ func (c *NotificationController) SendPasswordResetNotification(ctx http.Context)
 	})
 }
 
-// GetUserNotifications retrieves notifications for a user
+// @Summary Get notifications for a user
+// @Description Retrieves notifications for a user by their ID.
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Param limit query int false "Number of notifications to return"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/notifications/{user_id} [get]
 func (c *NotificationController) GetUserNotifications(ctx http.Context) http.Response {
 	// Get user ID from request
 	userID := ctx.Request().Route("user_id")
@@ -137,7 +168,17 @@ func (c *NotificationController) GetUserNotifications(ctx http.Context) http.Res
 	})
 }
 
-// MarkNotificationAsRead marks a notification as read
+// @Summary Mark a notification as read
+// @Description Marks a notification as read by its ID.
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Param notification_id path string true "Notification ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/notifications/{notification_id}/read [put]
 func (c *NotificationController) MarkNotificationAsRead(ctx http.Context) http.Response {
 	// Get notification ID from request
 	notificationID := ctx.Request().Route("notification_id")
@@ -171,7 +212,17 @@ func (c *NotificationController) MarkNotificationAsRead(ctx http.Context) http.R
 	})
 }
 
-// MarkAllNotificationsAsRead marks all notifications for a user as read
+// @Summary Mark all notifications for a user as read
+// @Description Marks all unread notifications for a user as read.
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/notifications/read-all/{user_id} [put]
 func (c *NotificationController) MarkAllNotificationsAsRead(ctx http.Context) http.Response {
 	// Get user ID from request
 	userID := ctx.Request().Route("user_id")
@@ -199,7 +250,17 @@ func (c *NotificationController) MarkAllNotificationsAsRead(ctx http.Context) ht
 	})
 }
 
-// DeleteNotification deletes a notification
+// @Summary Delete a notification
+// @Description Deletes a notification by its ID.
+// @Tags notifications
+// @Accept json
+// @Produce json
+// @Param notification_id path string true "Notification ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/notifications/{notification_id} [delete]
 func (c *NotificationController) DeleteNotification(ctx http.Context) http.Response {
 	// Get notification ID from request
 	notificationID := ctx.Request().Route("notification_id")

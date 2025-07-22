@@ -108,6 +108,16 @@ func (rc *RoleController) Index(ctx http.Context) http.Response {
 }
 
 // Show returns a specific role
+// @Summary Get a specific role by ID
+// @Description Retrieve a single role by its ID
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param id path string true "Role ID"
+// @Success 200 {object} http.Json{data=models.Role}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /roles/{id} [get]
 func (rc *RoleController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")
@@ -126,6 +136,16 @@ func (rc *RoleController) Show(ctx http.Context) http.Response {
 }
 
 // Store creates a new role
+// @Summary Create a new role
+// @Description Create a new role for a tenant
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param role body models.Role true "Role data"
+// @Success 201 {object} http.Json{data=models.Role}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /roles [post]
 func (rc *RoleController) Store(ctx http.Context) http.Response {
 	tenantID := ctx.Value("tenant_id")
 	if tenantID == nil {
@@ -158,6 +178,18 @@ func (rc *RoleController) Store(ctx http.Context) http.Response {
 }
 
 // Update updates an existing role
+// @Summary Update a role by ID
+// @Description Update an existing role by its ID
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param id path string true "Role ID"
+// @Param role body models.Role true "Role data"
+// @Success 200 {object} http.Json{data=models.Role}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /roles/{id} [put]
 func (rc *RoleController) Update(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")
@@ -190,6 +222,16 @@ func (rc *RoleController) Update(ctx http.Context) http.Response {
 }
 
 // Delete removes a role
+// @Summary Delete a role by ID
+// @Description Delete a role by its ID
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param id path string true "Role ID"
+// @Success 200 {object} http.Json{message=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /roles/{id} [delete]
 func (rc *RoleController) Delete(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")
@@ -215,6 +257,16 @@ func (rc *RoleController) Delete(ctx http.Context) http.Response {
 }
 
 // Permissions returns all permissions for a role
+// @Summary Get all permissions for a role
+// @Description Retrieve all permissions associated with a specific role
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param id path string true "Role ID"
+// @Success 200 {object} http.Json{data=[]models.Permission}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /roles/{id}/permissions [get]
 func (rc *RoleController) Permissions(ctx http.Context) http.Response {
 	roleID := ctx.Request().Route("id")
 	tenantID := ctx.Value("tenant_id")
@@ -236,6 +288,18 @@ func (rc *RoleController) Permissions(ctx http.Context) http.Response {
 }
 
 // AssignPermission assigns a permission to a role
+// @Summary Assign a permission to a role
+// @Description Assign a permission to a specific role
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param id path string true "Role ID"
+// @Param permission_id body string true "Permission ID"
+// @Success 200 {object} http.Json{message=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /roles/{id}/permissions [post]
 func (rc *RoleController) AssignPermission(ctx http.Context) http.Response {
 	roleID := ctx.Request().Route("id")
 	permissionID := ctx.Request().Input("permission_id")
@@ -282,6 +346,17 @@ func (rc *RoleController) AssignPermission(ctx http.Context) http.Response {
 }
 
 // RevokePermission removes a permission from a role
+// @Summary Revoke a permission from a role
+// @Description Revoke a permission from a specific role
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param id path string true "Role ID"
+// @Param permission_id path string true "Permission ID"
+// @Success 200 {object} http.Json{message=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /roles/{id}/permissions/{permission_id} [delete]
 func (rc *RoleController) RevokePermission(ctx http.Context) http.Response {
 	roleID := ctx.Request().Route("id")
 	permissionID := ctx.Request().Route("permission_id")

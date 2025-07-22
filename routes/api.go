@@ -22,6 +22,7 @@ func Api() {
 	districtController := v1.NewDistrictController()
 	chatController := v1.NewChatController()
 	calendarEventController := v1.NewCalendarEventController()
+	notificationController := v1.NewNotificationController()
 
 	// Public authentication routes
 	facades.Route().Post("/api/v1/auth/login", authController.Login)
@@ -197,6 +198,14 @@ func Api() {
 	facades.Route().Put("/api/v1/chat/rooms/{id}/notifications", chatController.UpdateNotificationSettings)
 	facades.Route().Get("/api/v1/chat/notifications/global", chatController.GetGlobalNotificationSettings)
 	facades.Route().Put("/api/v1/chat/notifications/global", chatController.UpdateGlobalNotificationSettings)
+
+	// Notification routes (protected) - temporarily without middleware for testing
+	facades.Route().Post("/api/v1/notifications/welcome/{user_id}", notificationController.SendWelcomeNotification)
+	facades.Route().Post("/api/v1/notifications/password-reset", notificationController.SendPasswordResetNotification)
+	facades.Route().Get("/api/v1/notifications/{user_id}", notificationController.GetUserNotifications)
+	facades.Route().Put("/api/v1/notifications/{notification_id}/read", notificationController.MarkNotificationAsRead)
+	facades.Route().Put("/api/v1/notifications/read-all/{user_id}", notificationController.MarkAllNotificationsAsRead)
+	facades.Route().Delete("/api/v1/notifications/{notification_id}", notificationController.DeleteNotification)
 
 	// Calendar events routes (protected) - temporarily without middleware for testing
 	facades.Route().Get("/api/v1/calendar-events", calendarEventController.Index)

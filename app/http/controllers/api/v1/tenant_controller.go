@@ -100,6 +100,16 @@ func (tc *TenantController) Index(ctx http.Context) http.Response {
 }
 
 // Show returns a specific tenant
+// @Summary Get a specific tenant by ID
+// @Description Retrieve a single tenant by its unique identifier
+// @Tags tenants
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Success 200 {object} http.Json{data=models.Tenant}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /tenants/{id} [get]
 func (tc *TenantController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 
@@ -117,6 +127,16 @@ func (tc *TenantController) Show(ctx http.Context) http.Response {
 }
 
 // Store creates a new tenant
+// @Summary Create a new tenant
+// @Description Create a new tenant with the provided data
+// @Tags tenants
+// @Accept json
+// @Produce json
+// @Param tenant body models.Tenant true "Tenant data"
+// @Success 201 {object} http.Json{data=models.Tenant,message=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /tenants [post]
 func (tc *TenantController) Store(ctx http.Context) http.Response {
 	var tenant models.Tenant
 
@@ -143,6 +163,18 @@ func (tc *TenantController) Store(ctx http.Context) http.Response {
 }
 
 // Update updates an existing tenant
+// @Summary Update an existing tenant
+// @Description Update an existing tenant by its unique identifier
+// @Tags tenants
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param tenant body models.Tenant true "Updated tenant data"
+// @Success 200 {object} http.Json{data=models.Tenant,message=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /tenants/{id} [put]
 func (tc *TenantController) Update(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 
@@ -174,6 +206,16 @@ func (tc *TenantController) Update(ctx http.Context) http.Response {
 }
 
 // Delete removes a tenant
+// @Summary Delete a tenant
+// @Description Delete a tenant by its unique identifier
+// @Tags tenants
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Success 200 {object} http.Json{message=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /tenants/{id} [delete]
 func (tc *TenantController) Delete(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 
@@ -198,6 +240,17 @@ func (tc *TenantController) Delete(ctx http.Context) http.Response {
 }
 
 // Users returns all users for a specific tenant
+// @Summary Get all users for a specific tenant
+// @Description Retrieve a list of all users associated with a tenant
+// @Tags tenants
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Success 200 {object} http.Json{data=[]models.User}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /tenants/{id}/users [get]
 func (tc *TenantController) Users(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	tenantID, err := strconv.ParseUint(id, 10, 32)
@@ -224,6 +277,18 @@ func (tc *TenantController) Users(ctx http.Context) http.Response {
 }
 
 // AddUser adds a user to a tenant
+// @Summary Add a user to a tenant
+// @Description Add a user to a tenant by their unique identifier
+// @Tags tenants
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param user_id body string true "User ID"
+// @Success 200 {object} http.Json{message=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /tenants/{id}/users [post]
 func (tc *TenantController) AddUser(ctx http.Context) http.Response {
 	tenantID := ctx.Request().Route("id")
 	userID := ctx.Request().Input("user_id")
@@ -272,6 +337,18 @@ func (tc *TenantController) AddUser(ctx http.Context) http.Response {
 }
 
 // RemoveUser removes a user from a tenant
+// @Summary Remove a user from a tenant
+// @Description Remove a user from a tenant by their unique identifier
+// @Tags tenants
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param user_id path string true "User ID"
+// @Success 200 {object} http.Json{message=string}
+// @Failure 400 {object} http.Json{error=string}
+// @Failure 404 {object} http.Json{error=string}
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /tenants/{id}/users/{user_id} [delete]
 func (tc *TenantController) RemoveUser(ctx http.Context) http.Response {
 	tenantID := ctx.Request().Route("id")
 	userID := ctx.Request().Route("user_id")

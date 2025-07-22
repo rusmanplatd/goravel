@@ -211,8 +211,8 @@
         "tags": [
           "activity-logs"
         ],
-        "summary": "postApiV1Activity-Logs",
-        "description": "API endpoint",
+        "summary": "Create a new activity log",
+        "description": "Create a new activity log entry for a tenant",
         "operationId": "postApiV1Activity-Logs",
         "parameters": [
           {
@@ -397,8 +397,8 @@
         "tags": [
           "activity-logs"
         ],
-        "summary": "getApiV1Activity-LogsbyId",
-        "description": "API endpoint",
+        "summary": "Get activity log by ID",
+        "description": "Retrieve a specific activity log by its ID",
         "operationId": "getApiV1Activity-LogsbyId",
         "parameters": [
           {
@@ -4017,6 +4017,254 @@
         ]
       }
     },
+    "/api/v1/notifications/password-reset": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Send a password reset notification",
+        "description": "Sends a password reset notification to a user by their email.",
+        "operationId": "postApiV1NotificationsPassword-Reset",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/read-all/{user_id}": {
+      "put": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Mark all notifications for a user as read",
+        "description": "Marks all unread notifications for a user as read.",
+        "operationId": "putApiV1NotificationsRead-AllbyUser_id",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "user_id identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "ulid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/welcome/{user_id}": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Send a welcome notification to a user",
+        "description": "Sends a welcome notification to a user by their ID.",
+        "operationId": "postApiV1NotificationsWelcomebyUser_id",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "user_id identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "ulid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}": {
+      "delete": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Delete a notification",
+        "description": "Deletes a notification by its ID.",
+        "operationId": "deleteApiV1NotificationsbyNotification_id",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "description": "notification_id identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "ulid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "put": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Mark a notification as read",
+        "description": "Marks a notification as read by its ID.",
+        "operationId": "putApiV1NotificationsbyNotification_idRead",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "description": "notification_id identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "ulid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/{user_id}": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Get notifications for a user",
+        "description": "Retrieves notifications for a user by their ID.",
+        "operationId": "getApiV1NotificationsbyUser_id",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "user_id identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "ulid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/oauth/authorize": {
       "post": {
         "tags": [
@@ -4699,8 +4947,8 @@
         "tags": [
           "permissions"
         ],
-        "summary": "postApiV1Permissions",
-        "description": "API endpoint",
+        "summary": "Create a new permission",
+        "description": "Create a new permission for a tenant",
         "operationId": "postApiV1Permissions",
         "parameters": [
           {
@@ -4753,8 +5001,8 @@
         "tags": [
           "permissions"
         ],
-        "summary": "getApiV1PermissionsbyId",
-        "description": "API endpoint",
+        "summary": "Get a specific permission",
+        "description": "Retrieve a single permission by its ID",
         "operationId": "getApiV1PermissionsbyId",
         "parameters": [
           {
@@ -4796,8 +5044,8 @@
         "tags": [
           "permissions"
         ],
-        "summary": "putApiV1PermissionsbyId",
-        "description": "API endpoint",
+        "summary": "Update an existing permission",
+        "description": "Update a permission by its ID",
         "operationId": "putApiV1PermissionsbyId",
         "parameters": [
           {
@@ -4839,8 +5087,8 @@
         "tags": [
           "permissions"
         ],
-        "summary": "deleteApiV1PermissionsbyId",
-        "description": "API endpoint",
+        "summary": "Delete a permission",
+        "description": "Delete a permission by its ID",
         "operationId": "deleteApiV1PermissionsbyId",
         "parameters": [
           {
@@ -5220,8 +5468,8 @@
         "tags": [
           "roles"
         ],
-        "summary": "postApiV1Roles",
-        "description": "API endpoint",
+        "summary": "Create a new role",
+        "description": "Create a new role for a tenant",
         "operationId": "postApiV1Roles",
         "parameters": [
           {
@@ -5274,8 +5522,8 @@
         "tags": [
           "roles"
         ],
-        "summary": "getApiV1RolesbyId",
-        "description": "API endpoint",
+        "summary": "Get a specific role by ID",
+        "description": "Retrieve a single role by its ID",
         "operationId": "getApiV1RolesbyId",
         "parameters": [
           {
@@ -5317,8 +5565,8 @@
         "tags": [
           "roles"
         ],
-        "summary": "putApiV1RolesbyId",
-        "description": "API endpoint",
+        "summary": "Update a role by ID",
+        "description": "Update an existing role by its ID",
         "operationId": "putApiV1RolesbyId",
         "parameters": [
           {
@@ -5360,8 +5608,8 @@
         "tags": [
           "roles"
         ],
-        "summary": "deleteApiV1RolesbyId",
-        "description": "API endpoint",
+        "summary": "Delete a role by ID",
+        "description": "Delete a role by its ID",
         "operationId": "deleteApiV1RolesbyId",
         "parameters": [
           {
@@ -5395,8 +5643,8 @@
         "tags": [
           "roles"
         ],
-        "summary": "getApiV1RolesbyIdPermissions",
-        "description": "API endpoint",
+        "summary": "Get all permissions for a role",
+        "description": "Retrieve all permissions associated with a specific role",
         "operationId": "getApiV1RolesbyIdPermissions",
         "parameters": [
           {
@@ -5438,8 +5686,8 @@
         "tags": [
           "roles"
         ],
-        "summary": "postApiV1RolesbyIdPermissions",
-        "description": "API endpoint",
+        "summary": "Assign a permission to a role",
+        "description": "Assign a permission to a specific role",
         "operationId": "postApiV1RolesbyIdPermissions",
         "parameters": [
           {
@@ -5483,8 +5731,8 @@
         "tags": [
           "roles"
         ],
-        "summary": "deleteApiV1RolesbyIdPermissionsbyPermission_id",
-        "description": "API endpoint",
+        "summary": "Revoke a permission from a role",
+        "description": "Revoke a permission from a specific role",
         "operationId": "deleteApiV1RolesbyIdPermissionsbyPermission_id",
         "parameters": [
           {
@@ -5580,8 +5828,8 @@
         "tags": [
           "tenants"
         ],
-        "summary": "postApiV1Tenants",
-        "description": "API endpoint",
+        "summary": "Create a new tenant",
+        "description": "Create a new tenant with the provided data",
         "operationId": "postApiV1Tenants",
         "parameters": [
           {
@@ -5645,8 +5893,8 @@
         "tags": [
           "tenants"
         ],
-        "summary": "getApiV1TenantsbyId",
-        "description": "API endpoint",
+        "summary": "Get a specific tenant by ID",
+        "description": "Retrieve a single tenant by its unique identifier",
         "operationId": "getApiV1TenantsbyId",
         "parameters": [
           {
@@ -5688,8 +5936,8 @@
         "tags": [
           "tenants"
         ],
-        "summary": "putApiV1TenantsbyId",
-        "description": "API endpoint",
+        "summary": "Update an existing tenant",
+        "description": "Update an existing tenant by its unique identifier",
         "operationId": "putApiV1TenantsbyId",
         "parameters": [
           {
@@ -5731,8 +5979,8 @@
         "tags": [
           "tenants"
         ],
-        "summary": "deleteApiV1TenantsbyId",
-        "description": "API endpoint",
+        "summary": "Delete a tenant",
+        "description": "Delete a tenant by its unique identifier",
         "operationId": "deleteApiV1TenantsbyId",
         "parameters": [
           {
@@ -5766,8 +6014,8 @@
         "tags": [
           "tenants"
         ],
-        "summary": "getApiV1TenantsbyIdUsers",
-        "description": "API endpoint",
+        "summary": "Get all users for a specific tenant",
+        "description": "Retrieve a list of all users associated with a tenant",
         "operationId": "getApiV1TenantsbyIdUsers",
         "parameters": [
           {
@@ -5809,8 +6057,8 @@
         "tags": [
           "tenants"
         ],
-        "summary": "postApiV1TenantsbyIdUsers",
-        "description": "API endpoint",
+        "summary": "Add a user to a tenant",
+        "description": "Add a user to a tenant by their unique identifier",
         "operationId": "postApiV1TenantsbyIdUsers",
         "parameters": [
           {
@@ -5865,8 +6113,8 @@
         "tags": [
           "tenants"
         ],
-        "summary": "deleteApiV1TenantsbyIdUsersbyUser_id",
-        "description": "API endpoint",
+        "summary": "Remove a user from a tenant",
+        "description": "Remove a user from a tenant by their unique identifier",
         "operationId": "deleteApiV1TenantsbyIdUsersbyUser_id",
         "parameters": [
           {
@@ -9866,11 +10114,31 @@
       "description": ""
     },
     {
-      "name": "users",
+      "name": "tenants",
       "description": ""
     },
     {
       "name": "activity-logs",
+      "description": ""
+    },
+    {
+      "name": "cities",
+      "description": ""
+    },
+    {
+      "name": "countries",
+      "description": ""
+    },
+    {
+      "name": "districts",
+      "description": ""
+    },
+    {
+      "name": "permissions",
+      "description": ""
+    },
+    {
+      "name": "users",
       "description": ""
     },
     {
@@ -9886,27 +10154,11 @@
       "description": ""
     },
     {
-      "name": "cities",
-      "description": ""
-    },
-    {
-      "name": "districts",
+      "name": "notifications",
       "description": ""
     },
     {
       "name": "OAuth2",
-      "description": ""
-    },
-    {
-      "name": "tenants",
-      "description": ""
-    },
-    {
-      "name": "countries",
-      "description": ""
-    },
-    {
-      "name": "permissions",
       "description": ""
     },
     {
@@ -9915,10 +10167,6 @@
     },
     {
       "name": "docs",
-      "description": ""
-    },
-    {
-      "name": "openapi.html",
       "description": ""
     },
     {
@@ -9931,6 +10179,10 @@
     },
     {
       "name": "oauth",
+      "description": ""
+    },
+    {
+      "name": "openapi.html",
       "description": ""
     }
   ]
