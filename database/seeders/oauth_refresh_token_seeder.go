@@ -2,6 +2,7 @@ package seeders
 
 import (
 	"encoding/json"
+	"fmt"
 	"goravel/app/helpers"
 	"goravel/app/models"
 	"time"
@@ -19,6 +20,8 @@ func (s *OAuthRefreshTokenSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *OAuthRefreshTokenSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get a test user to associate with refresh tokens
 	var user models.User
 	err := facades.Orm().Query().First(&user)

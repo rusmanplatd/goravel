@@ -36,6 +36,9 @@ func (r *M20250115000035CreateMeetingsTable) Up() error {
 		table.String("conflict_details").Comment("Conflict details")
 		table.Integer("attendance_count").Comment("Number of attendees")
 		table.Text("meeting_minutes").Comment("Meeting minutes/notes")
+		table.Ulid("created_by").Comment("Meeting creator reference")
+		table.Ulid("updated_by").Comment("Meeting updater reference")
+		table.Ulid("deleted_by").Nullable().Comment("Meeting deleter reference")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -44,6 +47,9 @@ func (r *M20250115000035CreateMeetingsTable) Up() error {
 
 		// Foreign key
 		table.Foreign("event_id").References("id").On("calendar_events")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 
 		// Add indexes
 		table.Index("event_id")
@@ -51,6 +57,9 @@ func (r *M20250115000035CreateMeetingsTable) Up() error {
 		table.Index("platform")
 		table.Index("started_at")
 		table.Index("ended_at")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 	})
 }
 

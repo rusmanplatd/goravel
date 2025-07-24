@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/helpers"
@@ -19,7 +20,8 @@ func (s *OAuthTokenSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *OAuthTokenSeeder) Run() error {
-	facades.Log().Info("Starting OAuth token seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get OAuth clients
 	var clients []models.OAuthClient
@@ -168,6 +170,5 @@ func (s *OAuthTokenSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("OAuth token seeder completed successfully")
 	return nil
 }

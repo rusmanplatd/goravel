@@ -26,6 +26,9 @@ func (r *M20250115000034CreateEventParticipantsTable) Up() error {
 		table.Boolean("is_required").Comment("Whether participant is required")
 		table.Boolean("send_reminder").Comment("Whether to send reminders to this participant")
 		table.TimestampTz("reminder_sent_at").Nullable().Comment("When reminder was last sent")
+		table.Ulid("created_by").Comment("Participant creator reference")
+		table.Ulid("updated_by").Comment("Participant updater reference")
+		table.Ulid("deleted_by").Nullable().Comment("Participant deleter reference")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -42,6 +45,16 @@ func (r *M20250115000034CreateEventParticipantsTable) Up() error {
 		table.Index("role")
 		table.Index("event_id", "response_status")
 		table.Index("user_id", "response_status")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add Foreign
+		table.Foreign("event_id").References("id").On("calendar_events")
+		table.Foreign("user_id").References("id").On("users")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

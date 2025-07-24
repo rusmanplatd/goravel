@@ -1,8 +1,13 @@
 package seeders
 
 import (
+	"errors"
+	"fmt"
+	"time"
+
 	"github.com/goravel/framework/facades"
 
+	"goravel/app/helpers"
 	"goravel/app/models"
 )
 
@@ -16,7 +21,8 @@ func (s *RolePermissionSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *RolePermissionSeeder) Run() error {
-	facades.Log().Info("RolePermissionSeeder: Starting to create permissions...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Create default permissions
 	permissions := []map[string]interface{}{
 		// User permissions
@@ -84,8 +90,54 @@ func (s *RolePermissionSeeder) Run() error {
 				Description: permData["description"].(string),
 				BaseModel: models.BaseModel{
 					CreatedBy: &userSeederULID,
+					UpdatedBy: &userSeederULID,
 				},
 			}
+
+			// Debug log all ULID fields and their lengths
+			facades.Log().Info("About to create permission", map[string]interface{}{
+				"Name": permission.Name,
+				"ID":   permission.ID, "ID_len": len(permission.ID),
+				"CreatedBy": permission.CreatedBy, "CreatedBy_len": func() int {
+					if permission.CreatedBy != nil {
+						return len(*permission.CreatedBy)
+					} else {
+						return 0
+					}
+				}(),
+				"UpdatedBy": permission.UpdatedBy, "UpdatedBy_len": func() int {
+					if permission.UpdatedBy != nil {
+						return len(*permission.UpdatedBy)
+					} else {
+						return 0
+					}
+				}(),
+				"DeletedBy": permission.DeletedBy, "DeletedBy_len": func() int {
+					if permission.DeletedBy != nil {
+						return len(*permission.DeletedBy)
+					} else {
+						return 0
+					}
+				}(),
+			})
+
+			if permission.ID != "" && len(permission.ID) != 26 {
+				facades.Log().Error("Permission ID length is not 26 characters", map[string]interface{}{"id": permission.ID, "length": len(permission.ID)})
+				return errors.New("Permission ID length is not 26 characters")
+			}
+			if permission.CreatedBy != nil && len(*permission.CreatedBy) != 26 {
+				facades.Log().Error("Permission CreatedBy length is not 26 characters", map[string]interface{}{"created_by": *permission.CreatedBy, "length": len(*permission.CreatedBy)})
+				return errors.New("Permission CreatedBy length is not 26 characters")
+			}
+			if permission.UpdatedBy != nil && len(*permission.UpdatedBy) != 26 {
+				facades.Log().Error("Permission UpdatedBy length is not 26 characters", map[string]interface{}{"updated_by": *permission.UpdatedBy, "length": len(*permission.UpdatedBy)})
+				return errors.New("Permission UpdatedBy length is not 26 characters")
+			}
+			if permission.DeletedBy != nil && len(*permission.DeletedBy) != 26 {
+				facades.Log().Error("Permission DeletedBy length is not 26 characters", map[string]interface{}{"deleted_by": *permission.DeletedBy, "length": len(*permission.DeletedBy)})
+				return errors.New("Permission DeletedBy length is not 26 characters")
+			}
+
 			err = facades.Orm().Query().Create(&permission)
 			if err != nil {
 				facades.Log().Error("RolePermissionSeeder: Failed to create permission " + permData["name"].(string) + ": " + err.Error())
@@ -175,6 +227,7 @@ func (s *RolePermissionSeeder) Run() error {
 				Description: roleData["description"].(string),
 				BaseModel: models.BaseModel{
 					CreatedBy: &userSeederULID,
+					UpdatedBy: &userSeederULID,
 				},
 			}
 			err = facades.Orm().Query().Create(&role)
@@ -205,10 +258,14 @@ func (s *RolePermissionSeeder) Run() error {
 						continue
 					}
 					// Create role-permission relationship
-					err = facades.Orm().Query().Table("role_permissions").Create(&map[string]interface{}{
-						"role_id":       role.ID,
-						"permission_id": permission.ID,
-					})
+					rolePerm := models.RolePermission{
+						ID:           helpers.GenerateULID(),
+						RoleID:       role.ID,
+						PermissionID: permission.ID,
+						CreatedAt:    time.Now(),
+						UpdatedAt:    time.Now(),
+					}
+					err = facades.Orm().Query().Table("role_permissions").Create(&rolePerm)
 					if err != nil {
 						facades.Log().Error("RolePermissionSeeder: Failed to assign permission " + permName + " to role " + roleData["name"].(string) + ": " + err.Error())
 						return err

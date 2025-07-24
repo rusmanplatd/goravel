@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,6 +17,8 @@ func (s *PasswordResetTokenSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *PasswordResetTokenSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get users to associate with password reset tokens
 	var users []models.User
 	err := facades.Orm().Query().Limit(5).Find(&users)

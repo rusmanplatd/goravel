@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/models"
@@ -18,7 +19,8 @@ func (s *TeamProjectSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *TeamProjectSeeder) Run() error {
-	facades.Log().Info("Starting team project seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get teams
 	var teams []models.Team
@@ -109,6 +111,5 @@ func (s *TeamProjectSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Team project seeder completed successfully")
 	return nil
 }

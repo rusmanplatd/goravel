@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,7 +17,8 @@ func (s *PushSubscriptionSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *PushSubscriptionSeeder) Run() error {
-	facades.Log().Info("Starting push subscription seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get users to associate subscriptions with
 	var users []models.User
@@ -70,6 +72,5 @@ func (s *PushSubscriptionSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Push subscription seeder completed successfully")
 	return nil
 }

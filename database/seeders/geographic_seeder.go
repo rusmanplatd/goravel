@@ -1,6 +1,8 @@
 package seeders
 
 import (
+	"fmt"
+
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/models"
@@ -16,6 +18,8 @@ func (s *GeographicSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *GeographicSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get existing countries for relationships
 	var countries []models.Country
 	err := facades.Orm().Query().Find(&countries)

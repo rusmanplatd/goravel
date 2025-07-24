@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/models"
@@ -19,7 +20,8 @@ func (s *ChatSeeder) Signature() string {
 
 // Run executes the seeder.
 func (s *ChatSeeder) Run() error {
-	facades.Log().Info("Running ChatSeeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get or create a tenant
 	var tenant models.Tenant
@@ -235,6 +237,5 @@ func (s *ChatSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("ChatSeeder completed successfully")
 	return nil
 }

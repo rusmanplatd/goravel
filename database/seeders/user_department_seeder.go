@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/models"
@@ -18,7 +19,8 @@ func (s *UserDepartmentSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *UserDepartmentSeeder) Run() error {
-	facades.Log().Info("Starting user department seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get users
 	var users []models.User
@@ -91,6 +93,5 @@ func (s *UserDepartmentSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("User department seeder completed successfully")
 	return nil
 }

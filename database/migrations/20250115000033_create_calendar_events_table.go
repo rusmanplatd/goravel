@@ -34,8 +34,10 @@ func (r *M20250115000033CreateCalendarEventsTable) Up() error {
 		table.Boolean("reminders_sent").Comment("Whether reminders were sent")
 		table.TimestampTz("reminders_sent_at").Nullable().Comment("When reminders were sent")
 		table.Ulid("tenant_id").Comment("Tenant reference")
-		table.Ulid("created_by").Comment("Event creator reference")
 		table.Ulid("parent_event_id").Nullable().Comment("Parent recurring event reference")
+		table.Ulid("created_by").Comment("Event creator reference")
+		table.Ulid("updated_by").Comment("Event updater reference")
+		table.Ulid("deleted_by").Nullable().Comment("Event deleter reference")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -44,7 +46,6 @@ func (r *M20250115000033CreateCalendarEventsTable) Up() error {
 
 		// Add indexes
 		table.Index("tenant_id")
-		table.Index("created_by")
 		table.Index("parent_event_id")
 		table.Index("start_time")
 		table.Index("end_time")
@@ -52,7 +53,16 @@ func (r *M20250115000033CreateCalendarEventsTable) Up() error {
 		table.Index("status")
 		table.Index("is_recurring")
 		table.Index("tenant_id", "start_time")
-		table.Index("tenant_id", "created_by")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add Foreign
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
+		table.Foreign("tenant_id").References("id").On("tenants")
+		table.Foreign("parent_event_id").References("id").On("calendar_events")
 	})
 }
 

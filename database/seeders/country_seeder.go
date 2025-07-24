@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,6 +17,8 @@ func (s *CountrySeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *CountrySeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Check if countries already exist
 	var existingCountries []models.Country
 	err := facades.Orm().Query().Limit(1).Find(&existingCountries)

@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/helpers"
 	"goravel/app/models"
 
@@ -17,6 +18,8 @@ func (s *OAuthPersonalAccessClientSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *OAuthPersonalAccessClientSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get a test user to associate with personal access clients
 	var user models.User
 	err := facades.Orm().Query().First(&user)

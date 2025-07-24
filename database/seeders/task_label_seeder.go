@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,7 +17,8 @@ func (s *TaskLabelSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *TaskLabelSeeder) Run() error {
-	facades.Log().Info("Starting task label seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get projects to associate labels with
 	var projects []models.Project
@@ -134,6 +136,5 @@ func (s *TaskLabelSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Task label seeder completed successfully")
 	return nil
 }

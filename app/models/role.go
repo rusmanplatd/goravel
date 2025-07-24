@@ -1,5 +1,9 @@
 package models
 
+import (
+	"time"
+)
+
 // Role represents a user role within a tenant
 // @Description Role model for role-based access control
 type Role struct {
@@ -30,4 +34,14 @@ type Role struct {
 
 	// @Description Users assigned this role
 	Users []User `gorm:"many2many:user_roles;" json:"users,omitempty"`
+}
+
+// RolePermission represents the pivot table for role-permission relationship
+// @Description Role-permission relationship
+type RolePermission struct {
+	ID           string    `gorm:"primaryKey;type:char(26)" json:"id"`
+	RoleID       string    `gorm:"type:char(26);not null" json:"role_id"`
+	PermissionID string    `gorm:"type:char(26);not null" json:"permission_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }

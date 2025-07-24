@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,6 +17,8 @@ func (s *UserRoleSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *UserRoleSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get all users
 	var users []models.User
 	err := facades.Orm().Query().Find(&users)

@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/helpers"
@@ -13,12 +14,14 @@ type TaskSeeder struct {
 }
 
 // Signature The unique signature for the seeder.
-func (r *TaskSeeder) Signature() string {
+func (s *TaskSeeder) Signature() string {
 	return "task_seeder"
 }
 
 // Run executes the seeder.
-func (r *TaskSeeder) Run() error {
+func (s *TaskSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get existing projects and users for seeding
 	var projects []models.Project
 	facades.Orm().Query().Find(&projects)

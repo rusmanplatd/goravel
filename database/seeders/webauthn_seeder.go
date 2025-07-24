@@ -3,6 +3,7 @@ package seeders
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -18,6 +19,8 @@ func (s *WebAuthnSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *WebAuthnSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get a test user to associate with WebAuthn credentials
 	var user models.User
 	err := facades.Orm().Query().First(&user)

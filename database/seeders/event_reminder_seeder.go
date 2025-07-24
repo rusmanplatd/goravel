@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/goravel/framework/facades"
@@ -12,12 +13,14 @@ type EventReminderSeeder struct {
 }
 
 // Signature The unique signature for the seeder.
-func (r *EventReminderSeeder) Signature() string {
+func (s *EventReminderSeeder) Signature() string {
 	return "event_reminder_seeder"
 }
 
 // Run executes the seeder.
-func (r *EventReminderSeeder) Run() error {
+func (s *EventReminderSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get existing calendar events
 	var events []models.CalendarEvent
 	facades.Orm().Query().Limit(10).Find(&events)

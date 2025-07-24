@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/goravel/framework/facades"
@@ -9,8 +10,7 @@ import (
 	"goravel/app/models"
 )
 
-type CalendarEventSeeder struct {
-}
+type CalendarEventSeeder struct{}
 
 // Signature The unique signature for the seeder.
 func (r *CalendarEventSeeder) Signature() string {
@@ -19,6 +19,8 @@ func (r *CalendarEventSeeder) Signature() string {
 
 // Run executes the seeder.
 func (r *CalendarEventSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", r.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", r.Signature()))
 	// Get existing users and tenants for relationships
 	var users []models.User
 	facades.Orm().Query().Limit(5).Find(&users)
@@ -159,6 +161,10 @@ func (r *CalendarEventSeeder) Run() error {
 				ResponseStatus: "pending",
 				IsRequired:     true,
 				SendReminder:   true,
+				BaseModel: models.BaseModel{
+					CreatedBy: &users[0].ID,
+					UpdatedBy: &users[0].ID,
+				},
 			}
 			if j == 0 {
 				participant.Role = "organizer"
@@ -183,6 +189,10 @@ func (r *CalendarEventSeeder) Run() error {
 				AllowJoinBeforeHost:     true,
 				MuteParticipantsOnEntry: false,
 				WaitingRoom:             "enabled",
+				BaseModel: models.BaseModel{
+					CreatedBy: &users[0].ID,
+					UpdatedBy: &users[0].ID,
+				},
 			}
 			if err := facades.Orm().Query().Create(&meeting); err != nil {
 				return err

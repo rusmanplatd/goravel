@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,6 +17,8 @@ func (s *ProvinceSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *ProvinceSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Check if provinces already exist
 	var existingProvinces []models.Province
 	err := facades.Orm().Query().Limit(1).Find(&existingProvinces)

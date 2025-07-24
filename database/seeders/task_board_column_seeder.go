@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,7 +17,8 @@ func (s *TaskBoardColumnSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *TaskBoardColumnSeeder) Run() error {
-	facades.Log().Info("Starting task board column seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get task boards to associate columns with
 	var boards []models.TaskBoard
@@ -226,6 +228,5 @@ func (s *TaskBoardColumnSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Task board column seeder completed successfully")
 	return nil
 }

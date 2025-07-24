@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/models"
@@ -18,7 +19,8 @@ func (s *MilestoneSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *MilestoneSeeder) Run() error {
-	facades.Log().Info("Starting milestone seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get projects to associate milestones with
 	var projects []models.Project
@@ -170,6 +172,5 @@ func (s *MilestoneSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Milestone seeder completed successfully")
 	return nil
 }

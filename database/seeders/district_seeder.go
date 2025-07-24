@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,6 +17,8 @@ func (s *DistrictSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *DistrictSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Check if districts already exist
 	var existingDistricts []models.District
 	err := facades.Orm().Query().Limit(1).Find(&existingDistricts)

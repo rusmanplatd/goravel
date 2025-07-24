@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,7 +17,8 @@ func (s *DepartmentSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *DepartmentSeeder) Run() error {
-	facades.Log().Info("Starting department seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get organizations to associate departments with
 	var organizations []models.Organization
@@ -150,6 +152,5 @@ func (s *DepartmentSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Department seeder completed successfully")
 	return nil
 }

@@ -2,6 +2,7 @@ package seeders
 
 import (
 	"encoding/json"
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -17,6 +18,8 @@ func (s *ActivityLogSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *ActivityLogSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get some users for activity logs
 	var users []models.User
 	err := facades.Orm().Query().Limit(5).Find(&users)

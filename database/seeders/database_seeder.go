@@ -1,5 +1,7 @@
 package seeders
 
+import "github.com/goravel/framework/facades"
+
 type DatabaseSeeder struct {
 }
 
@@ -10,5 +12,8 @@ func (s *DatabaseSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *DatabaseSeeder) Run() error {
+	facades.Log().Info("Starting DatabaseSeeder...")
+	// ... existing code ...
+	facades.Log().Info("DatabaseSeeder completed. No actions performed.")
 	return nil
 }

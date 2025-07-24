@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/helpers"
 	"goravel/app/models"
 
@@ -17,7 +18,8 @@ func (s *OAuthClientSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *OAuthClientSeeder) Run() error {
-	facades.Log().Info("Starting OAuth client seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Check if clients already exist
 	var existingClients []models.OAuthClient
@@ -176,6 +178,5 @@ func (s *OAuthClientSeeder) Run() error {
 		facades.Log().Info("Created OAuth client: " + client.Name + " (ID: " + client.ID + ")")
 	}
 
-	facades.Log().Info("OAuth clients seeded successfully - Created " + string(rune(len(clients))) + " clients")
 	return nil
 }

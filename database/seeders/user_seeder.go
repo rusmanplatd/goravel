@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -17,6 +18,27 @@ func (s *UserSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *UserSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
+
+	// Ensure system user for seeding exists
+	var systemUser models.User
+	err := facades.Orm().Query().Where("id = ?", models.USER_SEEDER_ULID).First(&systemUser)
+	if err != nil || systemUser.ID == "" {
+		systemUser = models.User{
+			BaseModel: models.BaseModel{ID: models.USER_SEEDER_ULID},
+			Name:      "System Seeder",
+			Email:     "system-seeder@goravel.com",
+			Password:  "", // No password needed
+			IsActive:  false,
+		}
+		err = facades.Orm().Query().Create(&systemUser)
+		if err != nil {
+			return err
+		}
+		facades.Log().Info("Created system seeder user with ULID: " + models.USER_SEEDER_ULID)
+	}
+
 	// Create default users
 	users := []map[string]interface{}{
 		{

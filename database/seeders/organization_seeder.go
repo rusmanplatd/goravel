@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"errors"
 	"time"
 
 	"goravel/app/models"
@@ -140,6 +141,10 @@ func (s *OrganizationSeeder) Run() error {
 		}
 
 		seederID := models.USER_SEEDER_ULID
+		if len(tenant.ID) != 26 {
+			facades.Log().Error("Tenant ID length is not 26 characters", map[string]interface{}{"tenant_id": tenant.ID, "length": len(tenant.ID)})
+			return errors.New("Tenant ID length is not 26 characters")
+		}
 		organization := &models.Organization{
 			BaseModel: models.BaseModel{
 				CreatedBy: &seederID,
@@ -167,6 +172,10 @@ func (s *OrganizationSeeder) Run() error {
 			Level:        0,
 			Path:         "/",
 		}
+		if len(organization.TenantID) != 26 {
+			facades.Log().Error("Organization TenantID length is not 26 characters", map[string]interface{}{"tenant_id": organization.TenantID, "length": len(organization.TenantID)})
+			return errors.New("Organization TenantID length is not 26 characters")
+		}
 
 		// Set verification date if verified
 		if organization.IsVerified {
@@ -176,11 +185,10 @@ func (s *OrganizationSeeder) Run() error {
 
 		err = facades.Orm().Query().Create(organization)
 		if err != nil {
-			facades.Log().Error("Failed to create organization: " + err.Error())
+			facades.Log().Error("Failed to create organization: "+err.Error(), map[string]interface{}{"organization": organization})
 			return err
 		}
-
-		facades.Log().Info("Created organization: " + organization.Name)
+		facades.Log().Info("Created organization: "+organization.Name, map[string]interface{}{"organization_id": organization.ID})
 	}
 
 	// Create subsidiary organizations
@@ -256,6 +264,10 @@ func (s *OrganizationSeeder) Run() error {
 			Level:                1,
 			Path:                 goravelOrg.Path + "/" + goravelOrg.ID,
 		}
+		if len(goravelEurope.TenantID) != 26 {
+			facades.Log().Error("Subsidiary TenantID length is not 26 characters", map[string]interface{}{"tenant_id": goravelEurope.TenantID, "length": len(goravelEurope.TenantID)})
+			return errors.New("Subsidiary TenantID length is not 26 characters")
+		}
 
 		// Set verification date if verified
 		if goravelEurope.IsVerified {
@@ -265,9 +277,9 @@ func (s *OrganizationSeeder) Run() error {
 
 		err = facades.Orm().Query().Create(goravelEurope)
 		if err != nil {
-			facades.Log().Error("Failed to create subsidiary organization: " + err.Error())
+			facades.Log().Error("Failed to create subsidiary organization: "+err.Error(), map[string]interface{}{"subsidiary": goravelEurope})
 		} else {
-			facades.Log().Info("Created subsidiary organization: " + goravelEurope.Name)
+			facades.Log().Info("Created subsidiary organization: "+goravelEurope.Name, map[string]interface{}{"organization_id": goravelEurope.ID})
 		}
 	}
 
@@ -303,6 +315,10 @@ func (s *OrganizationSeeder) Run() error {
 			Level:                1,
 			Path:                 acmeOrg.Path + "/" + acmeOrg.ID,
 		}
+		if len(acmeAsiaPacific.TenantID) != 26 {
+			facades.Log().Error("Subsidiary TenantID length is not 26 characters", map[string]interface{}{"tenant_id": acmeAsiaPacific.TenantID, "length": len(acmeAsiaPacific.TenantID)})
+			return errors.New("Subsidiary TenantID length is not 26 characters")
+		}
 
 		// Set verification date if verified
 		if acmeAsiaPacific.IsVerified {
@@ -312,9 +328,9 @@ func (s *OrganizationSeeder) Run() error {
 
 		err = facades.Orm().Query().Create(acmeAsiaPacific)
 		if err != nil {
-			facades.Log().Error("Failed to create subsidiary organization: " + err.Error())
+			facades.Log().Error("Failed to create subsidiary organization: "+err.Error(), map[string]interface{}{"subsidiary": acmeAsiaPacific})
 		} else {
-			facades.Log().Info("Created subsidiary organization: " + acmeAsiaPacific.Name)
+			facades.Log().Info("Created subsidiary organization: "+acmeAsiaPacific.Name, map[string]interface{}{"organization_id": acmeAsiaPacific.ID})
 		}
 	}
 

@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/helpers"
 	"goravel/app/models"
 
@@ -17,7 +18,8 @@ func (s *OAuthSeeder) Signature() string {
 
 // Run Run the seeders.
 func (s *OAuthSeeder) Run() error {
-	facades.Log().Info("Starting OAuth seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Create personal access client if it doesn't exist
 	var personalClient models.OAuthPersonalAccessClient
@@ -135,6 +137,5 @@ func (s *OAuthSeeder) Run() error {
 		facades.Log().Info("Device authorization client already exists")
 	}
 
-	facades.Log().Info("OAuth seeder completed successfully")
 	return nil
 }

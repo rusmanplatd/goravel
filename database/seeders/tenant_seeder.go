@@ -1,6 +1,8 @@
 package seeders
 
 import (
+	"errors"
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,6 +18,8 @@ func (s *TenantSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *TenantSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Create default tenants
 	tenants := []map[string]interface{}{
 		{
@@ -68,11 +72,16 @@ func (s *TenantSeeder) Run() error {
 		},
 	}
 
+	facades.Log().Info("Starting Tenant Seeder")
 	for _, tenantData := range tenants {
 		var existingTenant models.Tenant
 		err := facades.Orm().Query().Where("slug = ?", tenantData["slug"]).First(&existingTenant)
 		if err != nil || existingTenant.ID == "" {
 			seederID := models.USER_SEEDER_ULID
+			if len(seederID) != 26 {
+				facades.Log().Error("Seeder ULID length is not 26 characters", map[string]interface{}{"seeder_id": seederID, "length": len(seederID)})
+				return errors.New("Seeder ULID length is not 26 characters")
+			}
 			// Create tenant
 			tenant := models.Tenant{
 				BaseModel: models.BaseModel{
@@ -90,13 +99,12 @@ func (s *TenantSeeder) Run() error {
 
 			err = facades.Orm().Query().Create(&tenant)
 			if err != nil {
-				facades.Log().Error("Failed to create tenant " + tenant.Name + ": " + err.Error())
+				facades.Log().Error("Failed to create tenant "+tenant.Name+": "+err.Error(), map[string]interface{}{"tenant": tenant})
 				return err
 			}
-
-			facades.Log().Info("Created tenant: " + tenant.Name + " (Slug: " + tenant.Slug + ")")
+			facades.Log().Info("Created tenant: "+tenant.Name+" (Slug: "+tenant.Slug+")", map[string]interface{}{"tenant_id": tenant.ID})
 		} else {
-			facades.Log().Info("Tenant already exists: " + existingTenant.Name + " (Slug: " + existingTenant.Slug + ")")
+			facades.Log().Info("Tenant already exists: "+existingTenant.Name+" (Slug: "+existingTenant.Slug+")", map[string]interface{}{"tenant_id": existingTenant.ID})
 		}
 	}
 

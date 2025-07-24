@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/models"
@@ -18,7 +19,8 @@ func (s *TenantUserSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *TenantUserSeeder) Run() error {
-	facades.Log().Info("Starting tenant-user relationship seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get all tenants
 	var tenants []models.Tenant
@@ -116,6 +118,5 @@ func (s *TenantUserSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Tenant-user relationship seeder completed successfully")
 	return nil
 }

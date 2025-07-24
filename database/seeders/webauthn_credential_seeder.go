@@ -2,6 +2,7 @@ package seeders
 
 import (
 	"encoding/json"
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -17,6 +18,8 @@ func (s *WebAuthnCredentialSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *WebAuthnCredentialSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get users to associate with WebAuthn credentials
 	var users []models.User
 	err := facades.Orm().Query().Limit(5).Find(&users)
@@ -173,6 +176,5 @@ func (s *WebAuthnCredentialSeeder) Run() error {
 		facades.Log().Info("Created edge case WebAuthn credential: " + credential.Name)
 	}
 
-	facades.Log().Info("WebAuthn credentials seeded successfully")
 	return nil
 }

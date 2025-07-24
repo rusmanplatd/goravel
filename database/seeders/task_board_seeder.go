@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,7 +17,8 @@ func (s *TaskBoardSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *TaskBoardSeeder) Run() error {
-	facades.Log().Info("Starting task board seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get projects to associate boards with
 	var projects []models.Project
@@ -120,6 +122,5 @@ func (s *TaskBoardSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Task board seeder completed successfully")
 	return nil
 }

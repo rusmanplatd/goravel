@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/models"
@@ -18,6 +19,8 @@ func (s *UserTenantSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *UserTenantSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Define user-tenant assignments with roles
 	assignments := []map[string]interface{}{
 		{

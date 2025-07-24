@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
@@ -16,7 +17,8 @@ func (s *TeamSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *TeamSeeder) Run() error {
-	facades.Log().Info("Starting team seeder...")
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
 	// Get organizations to associate teams with
 	var organizations []models.Organization
@@ -198,6 +200,5 @@ func (s *TeamSeeder) Run() error {
 		}
 	}
 
-	facades.Log().Info("Team seeder completed successfully")
 	return nil
 }

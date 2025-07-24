@@ -1,6 +1,7 @@
 package seeders
 
 import (
+	"fmt"
 	"time"
 
 	"goravel/app/models"
@@ -18,6 +19,8 @@ func (s *MessageThreadSeeder) Signature() string {
 
 // Run executes the seeder logic.
 func (s *MessageThreadSeeder) Run() error {
+	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
+	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 	// Get some existing chat rooms and messages for testing
 	var chatRooms []models.ChatRoom
 	err := facades.Orm().Query().Limit(5).Find(&chatRooms)
