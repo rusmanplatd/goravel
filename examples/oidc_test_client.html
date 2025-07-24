@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OIDC Test Client - Complete OAuth2 Provider</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover {
+            background-color: #545b62;
+        }
+        button.success {
+            background-color: #28a745;
+        }
+        button.success:hover {
+            background-color: #1e7e34;
+        }
+        button.danger {
+            background-color: #dc3545;
+        }
+        button.danger:hover {
+            background-color: #c82333;
+        }
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            background-color: #f8f9fa;
+        }
+        .tab.active {
+            background-color: white;
+            border-color: #ddd;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 OIDC Test Client - Complete OAuth2 Provider</h1>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="showTab('discovery')">Discovery</div>
+        <div class="tab" onclick="showTab('client-registration')">Client Registration</div>
+        <div class="tab" onclick="showTab('authorization')">Authorization</div>
+        <div class="tab" onclick="showTab('token')">Token Management</div>
+        <div class="tab" onclick="showTab('userinfo')">User Info</div>
+        <div class="tab" onclick="showTab('device')">Device Flow</div>
+        <div class="tab" onclick="showTab('introspection')">Token Introspection</div>
+    </div>
+
+    <!-- Discovery Tab -->
+    <div id="discovery" class="tab-content active">
+        <div class="container">
+            <h2>🔍 OIDC Discovery</h2>
+            <p>Discover the OIDC provider's capabilities and endpoints.</p>
+            
+            <div class="form-group">
+                <label for="discovery-issuer">Issuer URL:</label>
+                <input type="url" id="discovery-issuer" value="http://localhost:3000" placeholder="https://example.com">
+            </div>
+            
+            <button onclick="discoverOIDC()">Discover OIDC Configuration</button>
+            <button onclick="getJWKS()">Get JWKS</button>
+            
+            <div id="discovery-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Client Registration Tab -->
+    <div id="client-registration" class="tab-content">
+        <div class="container">
+            <h2>📝 Client Registration</h2>
+            <p>Register a new OIDC client dynamically.</p>
+            
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="client-name">Client Name:</label>
+                        <input type="text" id="client-name" value="Test OIDC Client" placeholder="My OIDC Client">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="client-uri">Client URI:</label>
+                        <input type="url" id="client-uri" value="https://example.com" placeholder="https://myapp.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="redirect-uris">Redirect URIs (one per line):</label>
+                        <textarea id="redirect-uris" rows="3" placeholder="https://myapp.com/callback">https://example.com/callback</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="token-auth-method">Token Endpoint Auth Method:</label>
+                        <select id="token-auth-method">
+                            <option value="client_secret_basic">client_secret_basic</option>
+                            <option value="client_secret_post">client_secret_post</option>
+                            <option value="none">none</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="form-group">
+                        <label for="grant-types">Grant Types:</label>
+                        <select id="grant-types" multiple>
+                            <option value="authorization_code" selected>authorization_code</option>
+                            <option value="refresh_token">refresh_token</option>
+                            <option value="password">password</option>
+                            <option value="client_credentials">client_credentials</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="response-types">Response Types:</label>
+                        <select id="response-types" multiple>
+                            <option value="code" selected>code</option>
+                            <option value="token">token</option>
+                            <option value="id_token">id_token</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="scopes">Scopes:</label>
+                        <input type="text" id="scopes" value="openid profile email" placeholder="openid profile email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="contacts">Contacts (comma-separated):</label>
+                        <input type="text" id="contacts" value="admin@example.com" placeholder="admin@example.com">
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="registerClient()">Register Client</button>
+            <button onclick="getClient()" class="secondary">Get Client</button>
+            <button onclick="updateClient()" class="secondary">Update Client</button>
+            <button onclick="deleteClient()" class="danger">Delete Client</button>
+            
+            <div id="client-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Authorization Tab -->
+    <div id="authorization" class="tab-content">
+        <div class="container">
+            <h2>🔑 Authorization Flow</h2>
+            <p>Test the authorization code flow with PKCE support.</p>
+            
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="auth-client-id">Client ID:</label>
+                        <input type="text" id="auth-client-id" placeholder="Enter client ID">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="auth-redirect-uri">Redirect URI:</label>
+                        <input type="url" id="auth-redirect-uri" value="https://example.com/callback" placeholder="https://example.com/callback">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="auth-scope">Scope:</label>
+                        <input type="text" id="auth-scope" value="openid profile email" placeholder="openid profile email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="auth-state">State:</label>
+                        <input type="text" id="auth-state" placeholder="Random state value">
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="form-group">
+                        <label for="auth-nonce">Nonce:</label>
+                        <input type="text" id="auth-nonce" placeholder="Random nonce value">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="auth-response-type">Response Type:</label>
+                        <select id="auth-response-type">
+                            <option value="code">code</option>
+                            <option value="token">token</option>
+                            <option value="id_token">id_token</option>
+                            <option value="code token">code token</option>
+                            <option value="code id_token">code id_token</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="auth-display">Display:</label>
+                        <select id="auth-display">
+                            <option value="page">page</option>
+                            <option value="popup">popup</option>
+                            <option value="touch">touch</option>
+                            <option value="wap">wap</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="auth-prompt">Prompt:</label>
+                        <select id="auth-prompt">
+                            <option value="">none</option>
+                            <option value="login">login</option>
+                            <option value="consent">consent</option>
+                            <option value="select_account">select_account</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="generatePKCE()">Generate PKCE</button>
+            <button onclick="startAuthorization()">Start Authorization</button>
+            <button onclick="handleCallback()">Handle Callback</button>
+            
+            <div id="pkce-result" class="result" style="display: none;"></div>
+            <div id="auth-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Token Management Tab -->
+    <div id="token" class="tab-content">
+        <div class="container">
+            <h2>🎫 Token Management</h2>
+            <p>Exchange authorization codes for tokens and manage them.</p>
+            
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="token-client-id">Client ID:</label>
+                        <input type="text" id="token-client-id" placeholder="Enter client ID">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="token-client-secret">Client Secret:</label>
+                        <input type="password" id="token-client-secret" placeholder="Enter client secret">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="token-code">Authorization Code:</label>
+                        <input type="text" id="token-code" placeholder="Enter authorization code">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="token-redirect-uri">Redirect URI:</label>
+                        <input type="url" id="token-redirect-uri" value="https://example.com/callback" placeholder="https://example.com/callback">
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="form-group">
+                        <label for="token-code-verifier">Code Verifier (PKCE):</label>
+                        <input type="text" id="token-code-verifier" placeholder="Enter code verifier">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="token-grant-type">Grant Type:</label>
+                        <select id="token-grant-type">
+                            <option value="authorization_code">authorization_code</option>
+                            <option value="refresh_token">refresh_token</option>
+                            <option value="password">password</option>
+                            <option value="client_credentials">client_credentials</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="token-username">Username (for password grant):</label>
+                        <input type="email" id="token-username" placeholder="user@example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="token-password">Password (for password grant):</label>
+                        <input type="password" id="token-password" placeholder="Enter password">
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="exchangeToken()">Exchange Token</button>
+            <button onclick="refreshToken()" class="secondary">Refresh Token</button>
+            <button onclick="revokeToken()" class="danger">Revoke Token</button>
+            
+            <div id="token-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- User Info Tab -->
+    <div id="userinfo" class="tab-content">
+        <div class="container">
+            <h2>👤 User Information</h2>
+            <p>Retrieve user information using access tokens.</p>
+            
+            <div class="form-group">
+                <label for="userinfo-token">Access Token:</label>
+                <input type="text" id="userinfo-token" placeholder="Enter access token">
+            </div>
+            
+            <button onclick="getUserInfo()">Get User Info</button>
+            <button onclick="validateIDToken()" class="secondary">Validate ID Token</button>
+            
+            <div id="userinfo-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Device Flow Tab -->
+    <div id="device" class="tab-content">
+        <div class="container">
+            <h2>📱 Device Authorization Flow</h2>
+            <p>Test the device authorization flow for devices without browsers.</p>
+            
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="device-client-id">Client ID:</label>
+                        <input type="text" id="device-client-id" placeholder="Enter client ID">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="device-scope">Scope:</label>
+                        <input type="text" id="device-scope" value="openid profile email" placeholder="openid profile email">
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="form-group">
+                        <label for="device-code">Device Code:</label>
+                        <input type="text" id="device-code" placeholder="Enter device code">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="device-user-code">User Code:</label>
+                        <input type="text" id="device-user-code" placeholder="Enter user code">
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="startDeviceAuth()">Start Device Authorization</button>
+            <button onclick="pollDeviceToken()" class="secondary">Poll for Token</button>
+            <button onclick="completeDeviceAuth()" class="success">Complete Authorization</button>
+            
+            <div id="device-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Token Introspection Tab -->
+    <div id="introspection" class="tab-content">
+        <div class="container">
+            <h2>🔍 Token Introspection</h2>
+            <p>Introspect tokens to get detailed information about them.</p>
+            
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="introspect-token">Token:</label>
+                        <input type="text" id="introspect-token" placeholder="Enter token to introspect">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="introspect-token-type">Token Type Hint:</label>
+                        <select id="introspect-token-type">
+                            <option value="">none</option>
+                            <option value="access_token">access_token</option>
+                            <option value="refresh_token">refresh_token</option>
+                            <option value="id_token">id_token</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="form-group">
+                        <label for="introspect-client-id">Client ID:</label>
+                        <input type="text" id="introspect-client-id" placeholder="Enter client ID">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="introspect-client-secret">Client Secret:</label>
+                        <input type="password" id="introspect-client-secret" placeholder="Enter client secret">
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="introspectToken()">Introspect Token</button>
+            
+            <div id="introspect-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentClient = null;
+        let pkceCodeVerifier = null;
+        let pkceCodeChallenge = null;
+        let currentTokens = null;
+
+        // Tab management
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to selected tab
+            event.target.classList.add('active');
+        }
+
+        // Utility functions
+        function generateRandomString(length) {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
+        function base64URLEncode(str) {
+            return btoa(str)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        function showResult(elementId, data) {
+            const element = document.getElementById(elementId);
+            element.textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+            element.style.display = 'block';
+        }
+
+        function showStatus(message, type = 'info') {
+            const status = document.createElement('div');
+            status.className = `status ${type}`;
+            status.textContent = message;
+            document.body.insertBefore(status, document.body.firstChild);
+            
+            setTimeout(() => {
+                status.remove();
+            }, 5000);
+        }
+
+        // Discovery functions
+        async function discoverOIDC() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const discoveryUrl = `${issuer}/.well-known/openid_configuration`;
+            
+            try {
+                const response = await fetch(discoveryUrl);
+                const data = await response.json();
+                showResult('discovery-result', data);
+                showStatus('OIDC discovery successful!', 'success');
+            } catch (error) {
+                showResult('discovery-result', `Error: ${error.message}`);
+                showStatus('OIDC discovery failed!', 'error');
+            }
+        }
+
+        async function getJWKS() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const jwksUrl = `${issuer}/.well-known/oauth2/jwks`;
+            
+            try {
+                const response = await fetch(jwksUrl);
+                const data = await response.json();
+                showResult('discovery-result', data);
+                showStatus('JWKS retrieved successfully!', 'success');
+            } catch (error) {
+                showResult('discovery-result', `Error: ${error.message}`);
+                showStatus('JWKS retrieval failed!', 'error');
+            }
+        }
+
+        // Client registration functions
+        async function registerClient() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const registrationUrl = `${issuer}/oidc/register`;
+            
+            const redirectURIs = document.getElementById('redirect-uris').value
+                .split('\n')
+                .map(uri => uri.trim())
+                .filter(uri => uri.length > 0);
+            
+            const grantTypes = Array.from(document.getElementById('grant-types').selectedOptions)
+                .map(option => option.value);
+            
+            const responseTypes = Array.from(document.getElementById('response-types').selectedOptions)
+                .map(option => option.value);
+            
+            const contacts = document.getElementById('contacts').value
+                .split(',')
+                .map(contact => contact.trim())
+                .filter(contact => contact.length > 0);
+            
+            const clientData = {
+                client_name: document.getElementById('client-name').value,
+                client_uri: document.getElementById('client-uri').value,
+                redirect_uris: redirectURIs,
+                token_endpoint_auth_method: document.getElementById('token-auth-method').value,
+                grant_types: grantTypes,
+                response_types: responseTypes,
+                scope: document.getElementById('scopes').value,
+                contacts: contacts
+            };
+            
+            try {
+                const response = await fetch(registrationUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(clientData)
+                });
+                
+                const data = await response.json();
+                showResult('client-result', data);
+                
+                if (response.ok) {
+                    currentClient = data;
+                    document.getElementById('auth-client-id').value = data.client_id;
+                    document.getElementById('token-client-id').value = data.client_id;
+                    document.getElementById('device-client-id').value = data.client_id;
+                    document.getElementById('introspect-client-id').value = data.client_id;
+                    
+                    if (data.client_secret) {
+                        document.getElementById('token-client-secret').value = data.client_secret;
+                        document.getElementById('introspect-client-secret').value = data.client_secret;
+                    }
+                    
+                    showStatus('Client registered successfully!', 'success');
+                } else {
+                    showStatus('Client registration failed!', 'error');
+                }
+            } catch (error) {
+                showResult('client-result', `Error: ${error.message}`);
+                showStatus('Client registration failed!', 'error');
+            }
+        }
+
+        async function getClient() {
+            if (!currentClient) {
+                showStatus('No client registered. Please register a client first.', 'error');
+                return;
+            }
+            
+            const issuer = document.getElementById('discovery-issuer').value;
+            const clientUrl = `${issuer}/oidc/register/${currentClient.client_id}`;
+            
+            try {
+                const response = await fetch(clientUrl);
+                const data = await response.json();
+                showResult('client-result', data);
+                showStatus('Client information retrieved!', 'success');
+            } catch (error) {
+                showResult('client-result', `Error: ${error.message}`);
+                showStatus('Failed to get client information!', 'error');
+            }
+        }
+
+        async function updateClient() {
+            if (!currentClient) {
+                showStatus('No client registered. Please register a client first.', 'error');
+                return;
+            }
+            
+            const issuer = document.getElementById('discovery-issuer').value;
+            const clientUrl = `${issuer}/oidc/register/${currentClient.client_id}`;
+            
+            const clientData = {
+                client_name: document.getElementById('client-name').value,
+                client_uri: document.getElementById('client-uri').value,
+                redirect_uris: document.getElementById('redirect-uris').value
+                    .split('\n')
+                    .map(uri => uri.trim())
+                    .filter(uri => uri.length > 0)
+            };
+            
+            try {
+                const response = await fetch(clientUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(clientData)
+                });
+                
+                const data = await response.json();
+                showResult('client-result', data);
+                showStatus('Client updated successfully!', 'success');
+            } catch (error) {
+                showResult('client-result', `Error: ${error.message}`);
+                showStatus('Client update failed!', 'error');
+            }
+        }
+
+        async function deleteClient() {
+            if (!currentClient) {
+                showStatus('No client registered. Please register a client first.', 'error');
+                return;
+            }
+            
+            const issuer = document.getElementById('discovery-issuer').value;
+            const clientUrl = `${issuer}/oidc/register/${currentClient.client_id}`;
+            
+            try {
+                const response = await fetch(clientUrl, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showResult('client-result', 'Client deleted successfully');
+                    currentClient = null;
+                    showStatus('Client deleted successfully!', 'success');
+                } else {
+                    showResult('client-result', 'Failed to delete client');
+                    showStatus('Client deletion failed!', 'error');
+                }
+            } catch (error) {
+                showResult('client-result', `Error: ${error.message}`);
+                showStatus('Client deletion failed!', 'error');
+            }
+        }
+
+        // Authorization functions
+        async function generatePKCE() {
+            pkceCodeVerifier = generateRandomString(128);
+            const hash = await sha256(pkceCodeVerifier);
+            pkceCodeChallenge = base64URLEncode(hash);
+            
+            showResult('pkce-result', {
+                code_verifier: pkceCodeVerifier,
+                code_challenge: pkceCodeChallenge,
+                code_challenge_method: 'S256'
+            });
+            
+            showStatus('PKCE values generated!', 'success');
+        }
+
+        function startAuthorization() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const clientId = document.getElementById('auth-client-id').value;
+            const redirectUri = document.getElementById('auth-redirect-uri').value;
+            const scope = document.getElementById('auth-scope').value;
+            const state = document.getElementById('auth-state').value || generateRandomString(32);
+            const nonce = document.getElementById('auth-nonce').value || generateRandomString(32);
+            const responseType = document.getElementById('auth-response-type').value;
+            const display = document.getElementById('auth-display').value;
+            const prompt = document.getElementById('auth-prompt').value;
+            
+            const authUrl = new URL(`${issuer}/.well-known/oauth2/authorize`);
+            authUrl.searchParams.set('response_type', responseType);
+            authUrl.searchParams.set('client_id', clientId);
+            authUrl.searchParams.set('redirect_uri', redirectUri);
+            authUrl.searchParams.set('scope', scope);
+            authUrl.searchParams.set('state', state);
+            authUrl.searchParams.set('nonce', nonce);
+            
+            if (pkceCodeChallenge) {
+                authUrl.searchParams.set('code_challenge', pkceCodeChallenge);
+                authUrl.searchParams.set('code_challenge_method', 'S256');
+            }
+            
+            if (display) {
+                authUrl.searchParams.set('display', display);
+            }
+            
+            if (prompt) {
+                authUrl.searchParams.set('prompt', prompt);
+            }
+            
+            showResult('auth-result', `Authorization URL: ${authUrl.toString()}\n\nRedirecting to authorization endpoint...`);
+            
+            // Store state for callback handling
+            localStorage.setItem('auth_state', state);
+            localStorage.setItem('auth_nonce', nonce);
+            localStorage.setItem('auth_redirect_uri', redirectUri);
+            
+            // Open authorization in new window
+            window.open(authUrl.toString(), '_blank', 'width=800,height=600');
+            
+            showStatus('Authorization started! Check the new window.', 'info');
+        }
+
+        function handleCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+            
+            if (error) {
+                showResult('auth-result', {
+                    error: error,
+                    error_description: errorDescription
+                });
+                showStatus('Authorization failed!', 'error');
+                return;
+            }
+            
+            if (code && state) {
+                const storedState = localStorage.getItem('auth_state');
+                if (state === storedState) {
+                    document.getElementById('token-code').value = code;
+                    showResult('auth-result', {
+                        code: code,
+                        state: state,
+                        message: 'Authorization successful! You can now exchange the code for tokens.'
+                    });
+                    showStatus('Authorization successful!', 'success');
+                } else {
+                    showResult('auth-result', {
+                        error: 'State mismatch',
+                        message: 'The state parameter does not match the stored state.'
+                    });
+                    showStatus('State mismatch!', 'error');
+                }
+            } else {
+                showResult('auth-result', 'No authorization code found in URL parameters.');
+            }
+        }
+
+        // Token management functions
+        async function exchangeToken() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const tokenUrl = `${issuer}/.well-known/oauth2/token`;
+            
+            const grantType = document.getElementById('token-grant-type').value;
+            const clientId = document.getElementById('token-client-id').value;
+            const clientSecret = document.getElementById('token-client-secret').value;
+            
+            const formData = new FormData();
+            formData.append('grant_type', grantType);
+            formData.append('client_id', clientId);
+            
+            if (clientSecret) {
+                formData.append('client_secret', clientSecret);
+            }
+            
+            if (grantType === 'authorization_code') {
+                const code = document.getElementById('token-code').value;
+                const redirectUri = document.getElementById('token-redirect-uri').value;
+                const codeVerifier = document.getElementById('token-code-verifier').value || pkceCodeVerifier;
+                
+                formData.append('code', code);
+                formData.append('redirect_uri', redirectUri);
+                
+                if (codeVerifier) {
+                    formData.append('code_verifier', codeVerifier);
+                }
+            } else if (grantType === 'password') {
+                const username = document.getElementById('token-username').value;
+                const password = document.getElementById('token-password').value;
+                const scope = document.getElementById('auth-scope').value;
+                
+                formData.append('username', username);
+                formData.append('password', password);
+                formData.append('scope', scope);
+            } else if (grantType === 'refresh_token') {
+                const refreshToken = currentTokens?.refresh_token;
+                if (refreshToken) {
+                    formData.append('refresh_token', refreshToken);
+                } else {
+                    showStatus('No refresh token available!', 'error');
+                    return;
+                }
+            }
+            
+            try {
+                const response = await fetch(tokenUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                showResult('token-result', data);
+                
+                if (response.ok) {
+                    currentTokens = data;
+                    if (data.access_token) {
+                        document.getElementById('userinfo-token').value = data.access_token;
+                        document.getElementById('introspect-token').value = data.access_token;
+                    }
+                    showStatus('Token exchange successful!', 'success');
+                } else {
+                    showStatus('Token exchange failed!', 'error');
+                }
+            } catch (error) {
+                showResult('token-result', `Error: ${error.message}`);
+                showStatus('Token exchange failed!', 'error');
+            }
+        }
+
+        async function refreshToken() {
+            if (!currentTokens?.refresh_token) {
+                showStatus('No refresh token available!', 'error');
+                return;
+            }
+            
+            document.getElementById('token-grant-type').value = 'refresh_token';
+            await exchangeToken();
+        }
+
+        async function revokeToken() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const revokeUrl = `${issuer}/.well-known/oauth2/revoke`;
+            
+            const token = document.getElementById('introspect-token').value;
+            const clientId = document.getElementById('introspect-client-id').value;
+            const clientSecret = document.getElementById('introspect-client-secret').value;
+            
+            const formData = new FormData();
+            formData.append('token', token);
+            formData.append('client_id', clientId);
+            
+            if (clientSecret) {
+                formData.append('client_secret', clientSecret);
+            }
+            
+            try {
+                const response = await fetch(revokeUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    showResult('token-result', 'Token revoked successfully');
+                    showStatus('Token revoked successfully!', 'success');
+                } else {
+                    const data = await response.json();
+                    showResult('token-result', data);
+                    showStatus('Token revocation failed!', 'error');
+                }
+            } catch (error) {
+                showResult('token-result', `Error: ${error.message}`);
+                showStatus('Token revocation failed!', 'error');
+            }
+        }
+
+        // User info functions
+        async function getUserInfo() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const userinfoUrl = `${issuer}/.well-known/oauth2/userinfo`;
+            const token = document.getElementById('userinfo-token').value;
+            
+            try {
+                const response = await fetch(userinfoUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                showResult('userinfo-result', data);
+                
+                if (response.ok) {
+                    showStatus('User info retrieved successfully!', 'success');
+                } else {
+                    showStatus('Failed to get user info!', 'error');
+                }
+            } catch (error) {
+                showResult('userinfo-result', `Error: ${error.message}`);
+                showStatus('Failed to get user info!', 'error');
+            }
+        }
+
+        async function validateIDToken() {
+            const token = currentTokens?.id_token;
+            if (!token) {
+                showStatus('No ID token available!', 'error');
+                return;
+            }
+            
+            // Basic JWT validation (in production, use a proper JWT library)
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid JWT format');
+                }
+                
+                const payload = JSON.parse(atob(parts[1]));
+                showResult('userinfo-result', {
+                    message: 'ID Token validation (basic)',
+                    payload: payload,
+                    note: 'This is a basic validation. In production, verify the signature and claims properly.'
+                });
+                showStatus('ID token validated (basic)!', 'success');
+            } catch (error) {
+                showResult('userinfo-result', `Error: ${error.message}`);
+                showStatus('ID token validation failed!', 'error');
+            }
+        }
+
+        // Device flow functions
+        async function startDeviceAuth() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const deviceUrl = `${issuer}/.well-known/oauth2/device`;
+            
+            const clientId = document.getElementById('device-client-id').value;
+            const scope = document.getElementById('device-scope').value;
+            
+            const formData = new FormData();
+            formData.append('client_id', clientId);
+            formData.append('scope', scope);
+            
+            try {
+                const response = await fetch(deviceUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                showResult('device-result', data);
+                
+                if (response.ok) {
+                    document.getElementById('device-code').value = data.device_code;
+                    document.getElementById('device-user-code').value = data.user_code;
+                    showStatus('Device authorization started!', 'success');
+                } else {
+                    showStatus('Device authorization failed!', 'error');
+                }
+            } catch (error) {
+                showResult('device-result', `Error: ${error.message}`);
+                showStatus('Device authorization failed!', 'error');
+            }
+        }
+
+        async function pollDeviceToken() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const deviceTokenUrl = `${issuer}/.well-known/oauth2/device/token`;
+            
+            const deviceCode = document.getElementById('device-code').value;
+            const clientId = document.getElementById('device-client-id').value;
+            
+            const formData = new FormData();
+            formData.append('device_code', deviceCode);
+            formData.append('client_id', clientId);
+            
+            try {
+                const response = await fetch(deviceTokenUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                showResult('device-result', data);
+                
+                if (response.ok) {
+                    currentTokens = data;
+                    showStatus('Device token received!', 'success');
+                } else if (data.error === 'authorization_pending') {
+                    showStatus('Authorization pending. Please complete the authorization.', 'info');
+                } else {
+                    showStatus('Device token polling failed!', 'error');
+                }
+            } catch (error) {
+                showResult('device-result', `Error: ${error.message}`);
+                showStatus('Device token polling failed!', 'error');
+            }
+        }
+
+        async function completeDeviceAuth() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const completeUrl = `${issuer}/.well-known/oauth2/device/complete`;
+            
+            const userCode = document.getElementById('device-user-code').value;
+            const email = prompt('Enter your email:');
+            const password = prompt('Enter your password:');
+            
+            if (!email || !password) {
+                showStatus('Email and password are required!', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('user_code', userCode);
+            formData.append('email', email);
+            formData.append('password', password);
+            
+            try {
+                const response = await fetch(completeUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                showResult('device-result', data);
+                
+                if (response.ok) {
+                    showStatus('Device authorization completed!', 'success');
+                } else {
+                    showStatus('Device authorization failed!', 'error');
+                }
+            } catch (error) {
+                showResult('device-result', `Error: ${error.message}`);
+                showStatus('Device authorization failed!', 'error');
+            }
+        }
+
+        // Token introspection functions
+        async function introspectToken() {
+            const issuer = document.getElementById('discovery-issuer').value;
+            const introspectUrl = `${issuer}/.well-known/oauth2/introspect`;
+            
+            const token = document.getElementById('introspect-token').value;
+            const tokenTypeHint = document.getElementById('introspect-token-type').value;
+            const clientId = document.getElementById('introspect-client-id').value;
+            const clientSecret = document.getElementById('introspect-client-secret').value;
+            
+            const formData = new FormData();
+            formData.append('token', token);
+            formData.append('client_id', clientId);
+            
+            if (clientSecret) {
+                formData.append('client_secret', clientSecret);
+            }
+            
+            if (tokenTypeHint) {
+                formData.append('token_type_hint', tokenTypeHint);
+            }
+            
+            try {
+                const response = await fetch(introspectUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                showResult('introspect-result', data);
+                
+                if (response.ok) {
+                    showStatus('Token introspection successful!', 'success');
+                } else {
+                    showStatus('Token introspection failed!', 'error');
+                }
+            } catch (error) {
+                showResult('introspect-result', `Error: ${error.message}`);
+                showStatus('Token introspection failed!', 'error');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Generate default values
+            document.getElementById('auth-state').value = generateRandomString(32);
+            document.getElementById('auth-nonce').value = generateRandomString(32);
+            
+            // Check for callback parameters
+            if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
+                handleCallback();
+            }
+            
+            showStatus('OIDC Test Client loaded! Configure your issuer URL and start testing.', 'info');
+        });
+    </script>
+</body>
+</html> 

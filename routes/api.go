@@ -63,6 +63,31 @@ func Api() {
 	facades.Route().Post("/api/v1/oauth/device/complete", oauthController.CompleteDeviceAuthorization)
 	facades.Route().Post("/api/v1/oauth/token/exchange", oauthController.TokenExchange)
 
+	// OIDC routes (public)
+	oidcController := v1.NewOIDCController()
+	facades.Route().Get("/.well-known/openid_configuration", oidcController.Discovery)
+	facades.Route().Get("/.well-known/oauth2/jwks", oidcController.JWKS)
+	facades.Route().Get("/.well-known/oauth2/userinfo", oidcController.UserInfo)
+	facades.Route().Get("/.well-known/oauth2/end_session", oidcController.EndSession)
+	facades.Route().Get("/.well-known/oauth2/check_session", oidcController.CheckSession)
+	facades.Route().Get("/.well-known/oauth2/authorize", oidcController.Authorize)
+	facades.Route().Post("/.well-known/oauth2/token", oidcController.Token)
+	facades.Route().Post("/.well-known/oauth2/introspect", oidcController.IntrospectToken)
+	facades.Route().Post("/.well-known/oauth2/revoke", oidcController.RevokeToken)
+	facades.Route().Post("/.well-known/oauth2/device", oidcController.DeviceAuthorization)
+	facades.Route().Post("/.well-known/oauth2/device/token", oidcController.DeviceToken)
+	facades.Route().Post("/.well-known/oauth2/device/complete", oidcController.CompleteDeviceAuthorization)
+
+	// OIDC Client Management routes
+	oidcClientController := v1.NewOIDCClientController()
+	facades.Route().Post("/oidc/register", oidcClientController.RegisterClient)
+	facades.Route().Get("/oidc/register/{client_id}", oidcClientController.GetClient)
+	facades.Route().Put("/oidc/register/{client_id}", oidcClientController.UpdateClient)
+	facades.Route().Delete("/oidc/register/{client_id}", oidcClientController.DeleteClient)
+	facades.Route().Post("/oidc/validate", oidcClientController.ValidateClient)
+	facades.Route().Get("/oidc/clients", oidcClientController.ListClients)
+	facades.Route().Get("/oidc/client/{client_id}/metadata", oidcClientController.GetClientMetadata)
+
 	// Test OAuth endpoint
 	facades.Route().Get("/api/v1/oauth/test", func(ctx http.Context) http.Response {
 		return ctx.Response().Success().Json(http.Json{

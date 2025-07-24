@@ -120,6 +120,7 @@ func init() {
 			&providers.EventServiceProvider{},
 			&providers.ValidationServiceProvider{},
 			&providers.DatabaseServiceProvider{},
+			&providers.OIDCServiceProvider{},
 			&gin.ServiceProvider{},
 			&postgres.ServiceProvider{},
 		},

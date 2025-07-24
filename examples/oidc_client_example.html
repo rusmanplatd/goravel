@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OIDC Client Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button.secondary {
+            background-color: #6c757d;
+        }
+        .button.secondary:hover {
+            background-color: #545b62;
+        }
+        .info {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            color: #721c24;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            color: #155724;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OpenID Connect Client Example</h1>
+        
+        <div class="info">
+            <h3>About this example</h3>
+            <p>This page demonstrates how to use the OIDC server as a client. It shows the OIDC discovery, authorization flow, and token exchange process.</p>
+        </div>
+
+        <h2>1. OIDC Discovery</h2>
+        <p>First, let's discover the OIDC server configuration:</p>
+        <button class="button" onclick="discoverOIDC()">Discover OIDC Configuration</button>
+        <div id="discovery-result"></div>
+
+        <h2>2. Authorization Flow</h2>
+        <p>Configure your OIDC client settings:</p>
+        
+        <div class="form-group">
+            <label for="clientId">Client ID:</label>
+            <input type="text" id="clientId" value="01HXYZ123456789ABCDEFGHIJK" placeholder="Enter your client ID">
+        </div>
+        
+        <div class="form-group">
+            <label for="redirectUri">Redirect URI:</label>
+            <input type="text" id="redirectUri" value="http://localhost:3000/callback" placeholder="Enter your redirect URI">
+        </div>
+        
+        <div class="form-group">
+            <label for="scope">Scopes:</label>
+            <input type="text" id="scope" value="openid profile email" placeholder="Enter requested scopes">
+        </div>
+        
+        <div class="form-group">
+            <label for="responseType">Response Type:</label>
+            <select id="responseType">
+                <option value="code">Authorization Code</option>
+                <option value="token">Implicit (Token)</option>
+                <option value="id_token">Implicit (ID Token)</option>
+            </select>
+        </div>
+
+        <button class="button" onclick="startAuthorization()">Start Authorization Flow</button>
+        <button class="button secondary" onclick="generatePKCE()">Generate PKCE Parameters</button>
+        
+        <div id="pkce-result"></div>
+        <div id="auth-result"></div>
+
+        <h2>3. Token Exchange</h2>
+        <p>Exchange authorization code for tokens:</p>
+        
+        <div class="form-group">
+            <label for="authCode">Authorization Code:</label>
+            <input type="text" id="authCode" placeholder="Enter authorization code from callback">
+        </div>
+        
+        <div class="form-group">
+            <label for="codeVerifier">Code Verifier (PKCE):</label>
+            <input type="text" id="codeVerifier" placeholder="Enter code verifier if using PKCE">
+        </div>
+
+        <button class="button" onclick="exchangeToken()">Exchange for Tokens</button>
+        <div id="token-result"></div>
+
+        <h2>4. User Info</h2>
+        <p>Get user information using the access token:</p>
+        
+        <div class="form-group">
+            <label for="accessToken">Access Token:</label>
+            <input type="text" id="accessToken" placeholder="Enter access token">
+        </div>
+
+        <button class="button" onclick="getUserInfo()">Get User Info</button>
+        <div id="userinfo-result"></div>
+
+        <h2>5. Token Validation</h2>
+        <p>Validate and decode ID token:</p>
+        
+        <div class="form-group">
+            <label for="idToken">ID Token:</label>
+            <input type="text" id="idToken" placeholder="Enter ID token">
+        </div>
+
+        <button class="button" onclick="validateIdToken()">Validate ID Token</button>
+        <div id="validation-result"></div>
+    </div>
+
+    <script>
+        const OIDC_BASE_URL = 'http://localhost:8000';
+        let pkceCodeVerifier = '';
+        let pkceCodeChallenge = '';
+
+        // Generate PKCE parameters
+        function generatePKCE() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            pkceCodeVerifier = base64URLEncode(array);
+            
+            // Generate code challenge
+            const encoder = new TextEncoder();
+            const data = encoder.encode(pkceCodeVerifier);
+            crypto.subtle.digest('SHA-256', data).then(hash => {
+                pkceCodeChallenge = base64URLEncode(new Uint8Array(hash));
+                
+                document.getElementById('pkce-result').innerHTML = `
+                    <div class="success">
+                        <h4>PKCE Parameters Generated:</h4>
+                        <p><strong>Code Verifier:</strong> ${pkceCodeVerifier}</p>
+                        <p><strong>Code Challenge:</strong> ${pkceCodeChallenge}</p>
+                        <p><strong>Code Challenge Method:</strong> S256</p>
+                    </div>
+                `;
+                
+                document.getElementById('codeVerifier').value = pkceCodeVerifier;
+            });
+        }
+
+        function base64URLEncode(buffer) {
+            return btoa(String.fromCharCode(...buffer))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        // Discover OIDC configuration
+        async function discoverOIDC() {
+            try {
+                const response = await fetch(`${OIDC_BASE_URL}/.well-known/openid_configuration`);
+                const config = await response.json();
+                
+                document.getElementById('discovery-result').innerHTML = `
+                    <div class="success">
+                        <h4>OIDC Configuration Discovered:</h4>
+                        <pre>${JSON.stringify(config, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('discovery-result').innerHTML = `
+                    <div class="error">
+                        <h4>Error discovering OIDC configuration:</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Start authorization flow
+        function startAuthorization() {
+            const clientId = document.getElementById('clientId').value;
+            const redirectUri = document.getElementById('redirectUri').value;
+            const scope = document.getElementById('scope').value;
+            const responseType = document.getElementById('responseType').value;
+            
+            if (!clientId || !redirectUri) {
+                alert('Please enter Client ID and Redirect URI');
+                return;
+            }
+
+            const state = generateRandomString(32);
+            const nonce = generateRandomString(32);
+            
+            let authUrl = `${OIDC_BASE_URL}/.well-known/oauth2/authorize?` +
+                `response_type=${responseType}&` +
+                `client_id=${encodeURIComponent(clientId)}&` +
+                `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+                `scope=${encodeURIComponent(scope)}&` +
+                `state=${state}&` +
+                `nonce=${nonce}`;
+
+            // Add PKCE if available
+            if (pkceCodeChallenge) {
+                authUrl += `&code_challenge=${pkceCodeChallenge}&code_challenge_method=S256`;
+            }
+
+            document.getElementById('auth-result').innerHTML = `
+                <div class="info">
+                    <h4>Authorization URL:</h4>
+                    <p><a href="${authUrl}" target="_blank">${authUrl}</a></p>
+                    <button class="button" onclick="window.open('${authUrl}', '_blank')">Open Authorization URL</button>
+                </div>
+            `;
+        }
+
+        function generateRandomString(length) {
+            const array = new Uint8Array(length);
+            crypto.getRandomValues(array);
+            return base64URLEncode(array);
+        }
+
+        // Exchange authorization code for tokens
+        async function exchangeToken() {
+            const clientId = document.getElementById('clientId').value;
+            const authCode = document.getElementById('authCode').value;
+            const codeVerifier = document.getElementById('codeVerifier').value;
+            
+            if (!clientId || !authCode) {
+                alert('Please enter Client ID and Authorization Code');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('grant_type', 'authorization_code');
+            formData.append('client_id', clientId);
+            formData.append('code', authCode);
+            formData.append('redirect_uri', document.getElementById('redirectUri').value);
+            
+            if (codeVerifier) {
+                formData.append('code_verifier', codeVerifier);
+            }
+
+            try {
+                const response = await fetch(`${OIDC_BASE_URL}/.well-known/oauth2/token`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('token-result').innerHTML = `
+                        <div class="success">
+                            <h4>Token Exchange Successful:</h4>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                    
+                    // Auto-fill access token and ID token
+                    if (result.access_token) {
+                        document.getElementById('accessToken').value = result.access_token;
+                    }
+                    if (result.id_token) {
+                        document.getElementById('idToken').value = result.id_token;
+                    }
+                } else {
+                    document.getElementById('token-result').innerHTML = `
+                        <div class="error">
+                            <h4>Token Exchange Failed:</h4>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('token-result').innerHTML = `
+                    <div class="error">
+                        <h4>Error exchanging token:</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Get user info
+        async function getUserInfo() {
+            const accessToken = document.getElementById('accessToken').value;
+            
+            if (!accessToken) {
+                alert('Please enter Access Token');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${OIDC_BASE_URL}/.well-known/oauth2/userinfo`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('userinfo-result').innerHTML = `
+                        <div class="success">
+                            <h4>User Info Retrieved:</h4>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('userinfo-result').innerHTML = `
+                        <div class="error">
+                            <h4>Failed to get user info:</h4>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('userinfo-result').innerHTML = `
+                    <div class="error">
+                        <h4>Error getting user info:</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Validate ID token
+        async function validateIdToken() {
+            const idToken = document.getElementById('idToken').value;
+            
+            if (!idToken) {
+                alert('Please enter ID Token');
+                return;
+            }
+
+            try {
+                // Decode JWT (this is a simple decode, not validation)
+                const parts = idToken.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid JWT format');
+                }
+
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+                
+                document.getElementById('validation-result').innerHTML = `
+                    <div class="success">
+                        <h4>ID Token Decoded:</h4>
+                        <h5>Header:</h5>
+                        <pre>${JSON.stringify(header, null, 2)}</pre>
+                        <h5>Payload:</h5>
+                        <pre>${JSON.stringify(payload, null, 2)}</pre>
+                        <p><strong>Note:</strong> This is a simple decode. In production, you should validate the signature using the JWKS endpoint.</p>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('validation-result').innerHTML = `
+                    <div class="error">
+                        <h4>Error validating ID token:</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-generate PKCE on page load
+        window.onload = function() {
+            generatePKCE();
+        };
+    </script>
+</body>
+</html> 
