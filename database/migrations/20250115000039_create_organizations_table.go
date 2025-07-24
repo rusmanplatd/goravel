@@ -17,6 +17,7 @@ func (r *M20250115000039CreateOrganizationsTable) Signature() string {
 func (r *M20250115000039CreateOrganizationsTable) Up() error {
 	return facades.Schema().Create("organizations", func(table schema.Blueprint) {
 		table.Ulid("id").Comment("Unique organization identifier")
+		table.Ulid("tenant_id").Comment("Tenant reference for one-to-one relationship")
 		table.String("name").Comment("Organization name")
 		table.String("slug").Nullable().Comment("URL-friendly organization identifier")
 		table.String("domain").Nullable().Comment("Organization domain")
@@ -50,6 +51,7 @@ func (r *M20250115000039CreateOrganizationsTable) Up() error {
 		table.Primary("id")
 
 		// Add indexes
+		table.Unique("tenant_id")
 		table.Index("name")
 		table.Index("type")
 		table.Index("industry")
@@ -60,6 +62,7 @@ func (r *M20250115000039CreateOrganizationsTable) Up() error {
 		table.Index("parent_organization_id")
 
 		// Add foreign key constraints
+		table.Foreign("tenant_id").References("id").On("tenants")
 		table.Foreign("country_id").References("id").On("countries")
 		table.Foreign("province_id").References("id").On("provinces")
 		table.Foreign("city_id").References("id").On("cities")

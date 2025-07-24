@@ -28,6 +28,9 @@ func (r *M20250115000009CreateWebauthnCredentialsTable) Up() error {
 		table.Boolean("backed_up").Default(false).Comment("Whether credential is backed up")
 		table.Integer("sign_count").Default(0).Comment("Signature counter")
 		table.TimestampTz("last_used_at").Nullable().Comment("When credential was last used")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -39,6 +42,14 @@ func (r *M20250115000009CreateWebauthnCredentialsTable) Up() error {
 		table.Index("credential_id")
 		table.Index("last_used_at")
 		table.Unique("credential_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

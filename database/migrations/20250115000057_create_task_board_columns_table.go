@@ -25,6 +25,9 @@ func (r *M20250115000057CreateTaskBoardColumnsTable) Up() error {
 		table.Integer("task_limit").Default(0).Comment("Maximum number of tasks in column (0 = unlimited)")
 		table.Boolean("is_active").Default(true).Comment("Whether column is active")
 		table.Ulid("board_id").Comment("Board reference")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -37,9 +40,15 @@ func (r *M20250115000057CreateTaskBoardColumnsTable) Up() error {
 		table.Index("status_filter")
 		table.Index("is_active")
 		table.Index("board_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("board_id").References("id").On("task_boards")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

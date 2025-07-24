@@ -21,6 +21,9 @@ func (r *M20250115000054CreateTaskDependenciesTable) Up() error {
 		table.Ulid("dependent_task_id").Comment("Dependent task reference")
 		table.String("type").Default("blocks").Comment("Dependency type (blocks, requires, relates_to)")
 		table.Boolean("is_active").Default(true).Comment("Whether dependency is active")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -32,10 +35,16 @@ func (r *M20250115000054CreateTaskDependenciesTable) Up() error {
 		table.Index("dependent_task_id")
 		table.Index("type")
 		table.Index("is_active")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("task_id").References("id").On("tasks")
 		table.Foreign("dependent_task_id").References("id").On("tasks")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

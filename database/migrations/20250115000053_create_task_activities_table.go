@@ -22,6 +22,9 @@ func (r *M20250115000053CreateTaskActivitiesTable) Up() error {
 		table.Ulid("task_id").Comment("Task reference")
 		table.Ulid("user_id").Comment("User who performed the activity")
 		table.Json("data").Comment("Additional activity data")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -32,10 +35,16 @@ func (r *M20250115000053CreateTaskActivitiesTable) Up() error {
 		table.Index("type")
 		table.Index("task_id")
 		table.Index("user_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("task_id").References("id").On("tasks")
 		table.Foreign("user_id").References("id").On("users")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

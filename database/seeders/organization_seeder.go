@@ -20,6 +20,8 @@ func (s *OrganizationSeeder) Signature() string {
 func (s *OrganizationSeeder) Run() error {
 	facades.Log().Info("Starting organization seeder...")
 
+	var err error
+
 	// Create sample organizations
 	organizations := []map[string]interface{}{
 		{
@@ -117,6 +119,26 @@ func (s *OrganizationSeeder) Run() error {
 
 	// Create organizations
 	for _, orgData := range organizations {
+		// Find or create a tenant for this organization
+		var tenant models.Tenant
+		err := facades.Orm().Query().Where("slug = ?", orgData["slug"].(string)).First(&tenant)
+		if err != nil {
+			// Create a new tenant for this organization
+			tenant = models.Tenant{
+				Name:        orgData["name"].(string),
+				Slug:        orgData["slug"].(string),
+				Domain:      orgData["domain"].(string),
+				Description: orgData["description"].(string),
+				IsActive:    orgData["is_active"].(bool),
+				Settings:    orgData["settings"].(string),
+			}
+			err = facades.Orm().Query().Create(&tenant)
+			if err != nil {
+				facades.Log().Error("Failed to create tenant for organization: " + err.Error())
+				return err
+			}
+		}
+
 		organization := &models.Organization{
 			Name:         orgData["name"].(string),
 			Slug:         orgData["slug"].(string),
@@ -135,6 +157,7 @@ func (s *OrganizationSeeder) Run() error {
 			IsActive:     orgData["is_active"].(bool),
 			IsVerified:   orgData["is_verified"].(bool),
 			Settings:     orgData["settings"].(string),
+			TenantID:     tenant.ID,
 			Level:        0,
 			Path:         "/",
 		}
@@ -145,7 +168,7 @@ func (s *OrganizationSeeder) Run() error {
 			organization.VerifiedAt = &now
 		}
 
-		err := facades.Orm().Query().Create(organization)
+		err = facades.Orm().Query().Create(organization)
 		if err != nil {
 			facades.Log().Error("Failed to create organization: " + err.Error())
 			return err
@@ -196,7 +219,7 @@ func (s *OrganizationSeeder) Run() error {
 
 	// Get parent organizations
 	var goravelOrg models.Organization
-	err := facades.Orm().Query().Where("slug = ?", "goravel-corp").First(&goravelOrg)
+	err = facades.Orm().Query().Where("slug = ?", "goravel-corp").First(&goravelOrg)
 	if err == nil {
 		// Create Goravel Europe subsidiary
 		goravelEurope := &models.Organization{
@@ -216,6 +239,7 @@ func (s *OrganizationSeeder) Run() error {
 			IsActive:             subsidiaries[0]["is_active"].(bool),
 			IsVerified:           subsidiaries[0]["is_verified"].(bool),
 			Settings:             subsidiaries[0]["settings"].(string),
+			TenantID:             goravelOrg.TenantID,
 			ParentOrganizationID: &goravelOrg.ID,
 			Level:                1,
 			Path:                 goravelOrg.Path + "/" + goravelOrg.ID,
@@ -256,6 +280,7 @@ func (s *OrganizationSeeder) Run() error {
 			IsActive:             subsidiaries[1]["is_active"].(bool),
 			IsVerified:           subsidiaries[1]["is_verified"].(bool),
 			Settings:             subsidiaries[1]["settings"].(string),
+			TenantID:             acmeOrg.TenantID,
 			ParentOrganizationID: &acmeOrg.ID,
 			Level:                1,
 			Path:                 acmeOrg.Path + "/" + acmeOrg.ID,

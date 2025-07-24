@@ -23,6 +23,9 @@ func (r *M20250115000052CreateTaskCommentsTable) Up() error {
 		table.Ulid("parent_comment_id").Nullable().Comment("Parent comment reference for replies")
 		table.Boolean("is_internal").Default(false).Comment("Whether comment is internal (not visible to external users)")
 		table.String("type").Default("comment").Comment("Comment type (comment, review, system)")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -35,11 +38,17 @@ func (r *M20250115000052CreateTaskCommentsTable) Up() error {
 		table.Index("parent_comment_id")
 		table.Index("is_internal")
 		table.Index("type")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("task_id").References("id").On("tasks")
 		table.Foreign("author_id").References("id").On("users")
 		table.Foreign("parent_comment_id").References("id").On("task_comments")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

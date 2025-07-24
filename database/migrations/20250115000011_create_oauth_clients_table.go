@@ -25,6 +25,9 @@ func (r *M20250115000011CreateOauthClientsTable) Up() error {
 		table.Boolean("personal_access_client").Default(false).Comment("Whether this is a personal access client")
 		table.Boolean("password_client").Default(false).Comment("Whether this is a password client")
 		table.Boolean("revoked").Default(false).Comment("Whether client is revoked")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.Timestamps()
 
 		// Primary key
@@ -35,6 +38,14 @@ func (r *M20250115000011CreateOauthClientsTable) Up() error {
 		table.Index("personal_access_client")
 		table.Index("password_client")
 		table.Index("revoked")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

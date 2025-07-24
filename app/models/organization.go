@@ -101,9 +101,9 @@ type Organization struct {
 	// @example {"theme":"dark","timezone":"UTC","features":{"api_access":true,"analytics":true}}
 	Settings string `gorm:"type:json" json:"settings" example:"{\"theme\":\"dark\",\"timezone\":\"UTC\",\"features\":{\"api_access\":true,\"analytics\":true}}"`
 
-	// Tenant ID that this organization belongs to
+	// Tenant ID that this organization belongs to (one-to-one relationship)
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID *string `gorm:"index;type:varchar(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TenantID string `gorm:"unique;not null;index;type:varchar(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Parent organization ID for hierarchical structure
 	// @example 01HXYZ123456789ABCDEFGHIJK

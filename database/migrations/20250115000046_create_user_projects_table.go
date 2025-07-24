@@ -16,6 +16,7 @@ func (r *M20250115000046CreateUserProjectsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000046CreateUserProjectsTable) Up() error {
 	return facades.Schema().Create("user_projects", func(table schema.Blueprint) {
+		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("user_id").Comment("User reference")
 		table.Ulid("project_id").Comment("Project reference")
 		table.String("role").Default("member").Comment("User role in project (manager, member, viewer)")
@@ -24,7 +25,7 @@ func (r *M20250115000046CreateUserProjectsTable) Up() error {
 		table.Float("allocation").Default(100).Comment("User's time allocation percentage (0-100)")
 
 		// Primary key
-		table.Primary("user_id", "project_id")
+		table.Primary("id")
 
 		// Add indexes
 		table.Index("user_id")
@@ -36,6 +37,9 @@ func (r *M20250115000046CreateUserProjectsTable) Up() error {
 		// Add foreign key constraints
 		table.Foreign("user_id").References("id").On("users")
 		table.Foreign("project_id").References("id").On("projects")
+
+		// Unique constraint
+		table.Unique("user_id", "project_id")
 	})
 }
 

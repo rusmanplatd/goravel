@@ -16,10 +16,18 @@ func (s *DatabaseSeeder) Signature() string {
 func (s *DatabaseSeeder) Run() error {
 	facades.Log().Info("Starting DatabaseSeeder...")
 
+	// Run user seeder
+	userSeeder := &UserSeeder{}
+	err := userSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run UserSeeder: " + err.Error())
+		return err
+	}
+
 	// Run OAuth seeder first
 	facades.Log().Info("Running OAuthSeeder...")
 	oauthSeeder := &OAuthSeeder{}
-	err := oauthSeeder.Run()
+	err = oauthSeeder.Run()
 	if err != nil {
 		facades.Log().Error("Failed to run OAuthSeeder: " + err.Error())
 		return err
@@ -48,14 +56,6 @@ func (s *DatabaseSeeder) Run() error {
 	err = tenantSeeder.Run()
 	if err != nil {
 		facades.Log().Error("Failed to run TenantSeeder: " + err.Error())
-		return err
-	}
-
-	// Run user seeder
-	userSeeder := &UserSeeder{}
-	err = userSeeder.Run()
-	if err != nil {
-		facades.Log().Error("Failed to run UserSeeder: " + err.Error())
 		return err
 	}
 

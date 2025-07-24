@@ -25,6 +25,9 @@ func (r *M20250115000055CreateTaskTimeEntriesTable) Up() error {
 		table.Float("duration").Default(0).Comment("Duration in hours")
 		table.Boolean("is_billable").Default(true).Comment("Whether time entry is billable")
 		table.Float("rate").Default(0).Comment("Hourly rate for this time entry")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -37,10 +40,16 @@ func (r *M20250115000055CreateTaskTimeEntriesTable) Up() error {
 		table.Index("start_time")
 		table.Index("end_time")
 		table.Index("is_billable")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("task_id").References("id").On("tasks")
 		table.Foreign("user_id").References("id").On("users")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

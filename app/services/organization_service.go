@@ -117,8 +117,9 @@ func (s *OrganizationService) CreateOrganization(data map[string]interface{}) (*
 		organization.PostalCode = postalCode.(string)
 	}
 	if tenantID, exists := data["tenant_id"]; exists && tenantID != nil {
-		tenantIDStr := tenantID.(string)
-		organization.TenantID = &tenantIDStr
+		organization.TenantID = tenantID.(string)
+	} else {
+		return nil, errors.New("tenant_id is required")
 	}
 	if parentOrgID, exists := data["parent_organization_id"]; exists && parentOrgID != nil {
 		parentOrgIDStr := parentOrgID.(string)
@@ -200,13 +201,12 @@ func (s *OrganizationService) UpdateOrganization(id string, data map[string]inte
 		organization.IsVerified = isVerified.(bool)
 	}
 
-	// Handle optional fields
+	// Handle tenant_id field (required)
 	if tenantID, exists := data["tenant_id"]; exists {
 		if tenantID != nil {
-			tenantIDStr := tenantID.(string)
-			organization.TenantID = &tenantIDStr
+			organization.TenantID = tenantID.(string)
 		} else {
-			organization.TenantID = nil
+			return nil, errors.New("tenant_id is required")
 		}
 	}
 	if parentOrgID, exists := data["parent_organization_id"]; exists {

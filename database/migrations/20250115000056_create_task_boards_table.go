@@ -25,8 +25,10 @@ func (r *M20250115000056CreateTaskBoardsTable) Up() error {
 		table.Boolean("is_active").Default(true).Comment("Whether board is active")
 		table.Boolean("is_default").Default(false).Comment("Whether board is the default board")
 		table.Ulid("project_id").Comment("Project reference")
-		table.Ulid("created_by").Comment("Board creator reference")
 		table.Json("settings").Comment("Board-specific settings")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -40,10 +42,14 @@ func (r *M20250115000056CreateTaskBoardsTable) Up() error {
 		table.Index("is_default")
 		table.Index("project_id")
 		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("project_id").References("id").On("projects")
 		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

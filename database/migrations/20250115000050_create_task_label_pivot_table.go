@@ -16,13 +16,14 @@ func (r *M20250115000050CreateTaskLabelPivotTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000050CreateTaskLabelPivotTable) Up() error {
 	return facades.Schema().Create("task_label_pivot", func(table schema.Blueprint) {
+		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("task_id").Comment("Task reference")
 		table.Ulid("label_id").Comment("Label reference")
 		table.TimestampTz("added_at").Comment("When label was added to task")
 		table.Ulid("added_by").Comment("User who added the label")
 
 		// Primary key
-		table.Primary("task_id", "label_id")
+		table.Primary("id")
 
 		// Add indexes
 		table.Index("task_id")
@@ -34,6 +35,9 @@ func (r *M20250115000050CreateTaskLabelPivotTable) Up() error {
 		table.Foreign("task_id").References("id").On("tasks")
 		table.Foreign("label_id").References("id").On("task_labels")
 		table.Foreign("added_by").References("id").On("users")
+
+		// Unique constraints
+		table.Unique("task_id", "label_id")
 	})
 }
 

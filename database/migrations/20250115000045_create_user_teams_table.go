@@ -16,6 +16,7 @@ func (r *M20250115000045CreateUserTeamsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000045CreateUserTeamsTable) Up() error {
 	return facades.Schema().Create("user_teams", func(table schema.Blueprint) {
+		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("user_id").Comment("User reference")
 		table.Ulid("team_id").Comment("Team reference")
 		table.String("role").Default("member").Comment("User role in team (lead, member)")
@@ -23,7 +24,7 @@ func (r *M20250115000045CreateUserTeamsTable) Up() error {
 		table.TimestampTz("joined_at").Comment("When user joined the team")
 
 		// Primary key
-		table.Primary("user_id", "team_id")
+		table.Primary("id")
 
 		// Add indexes
 		table.Index("user_id")
@@ -34,6 +35,9 @@ func (r *M20250115000045CreateUserTeamsTable) Up() error {
 		// Add foreign key constraints
 		table.Foreign("user_id").References("id").On("users")
 		table.Foreign("team_id").References("id").On("teams")
+
+		// Unique constraints
+		table.Unique("user_id", "team_id")
 	})
 }
 

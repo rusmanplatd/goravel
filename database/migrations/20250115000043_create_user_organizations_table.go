@@ -16,6 +16,7 @@ func (r *M20250115000043CreateUserOrganizationsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000043CreateUserOrganizationsTable) Up() error {
 	return facades.Schema().Create("user_organizations", func(table schema.Blueprint) {
+		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("user_id").Comment("User reference")
 		table.Ulid("organization_id").Comment("Organization reference")
 		table.String("role").Default("member").Comment("User role in organization (owner, admin, member)")
@@ -34,7 +35,7 @@ func (r *M20250115000043CreateUserOrganizationsTable) Up() error {
 		table.Json("permissions").Comment("User-specific permissions")
 
 		// Primary key
-		table.Primary("user_id", "organization_id")
+		table.Primary("id")
 
 		// Add indexes
 		table.Index("user_id")
@@ -54,6 +55,9 @@ func (r *M20250115000043CreateUserOrganizationsTable) Up() error {
 		table.Foreign("department_id").References("id").On("departments")
 		table.Foreign("team_id").References("id").On("teams")
 		table.Foreign("manager_id").References("id").On("users")
+
+		// Unique constraint
+		table.Unique("user_id", "organization_id")
 	})
 }
 

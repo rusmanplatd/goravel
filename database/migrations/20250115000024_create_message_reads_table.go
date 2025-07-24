@@ -20,6 +20,9 @@ func (r *M20250115000024CreateMessageReadsTable) Up() error {
 		table.Ulid("message_id").Comment("Message reference")
 		table.Ulid("user_id").Comment("User reference")
 		table.Timestamp("read_at").Comment("When message was read")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -31,6 +34,14 @@ func (r *M20250115000024CreateMessageReadsTable) Up() error {
 		table.Index("user_id")
 		table.Index("read_at")
 		table.Index("message_id", "user_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

@@ -16,12 +16,13 @@ func (r *M20250115000006CreateRolePermissionsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000006CreateRolePermissionsTable) Up() error {
 	return facades.Schema().Create("role_permissions", func(table schema.Blueprint) {
+		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("role_id").Comment("Role reference")
 		table.Ulid("permission_id").Comment("Permission reference")
 		table.TimestampsTz()
 
 		// Primary key
-		table.Primary("role_id", "permission_id")
+		table.Primary("id")
 
 		// Foreign keys
 		table.Foreign("role_id").References("id").On("roles")
@@ -30,6 +31,9 @@ func (r *M20250115000006CreateRolePermissionsTable) Up() error {
 		// Indexes
 		table.Index("role_id")
 		table.Index("permission_id")
+
+		// Unique constraint
+		table.Unique("role_id", "permission_id")
 	})
 }
 

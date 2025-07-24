@@ -20,6 +20,13 @@ func (s *UserSeeder) Run() error {
 	// Create default users
 	users := []map[string]interface{}{
 		{
+			"name":     "Seed User",
+			"email":    "seed@goravel.com",
+			"password": "password123",
+			"role":     "super-admin",
+			"isActive": false,
+		},
+		{
 			"name":     "Super Administrator",
 			"email":    "superadmin@goravel.com",
 			"password": "password123",

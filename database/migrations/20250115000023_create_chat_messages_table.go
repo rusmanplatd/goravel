@@ -27,6 +27,9 @@ func (r *M20250115000023CreateChatMessagesTable) Up() error {
 		table.Text("original_content").Comment("Original message content before edit")
 		table.String("status").Comment("Message status (sent, delivered, read, failed)")
 		table.Integer("encryption_version").Comment("Encryption algorithm version")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -42,6 +45,14 @@ func (r *M20250115000023CreateChatMessagesTable) Up() error {
 		table.Index("encryption_version")
 		table.Index("chat_room_id", "created_at")
 		table.Index("chat_room_id", "sender_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

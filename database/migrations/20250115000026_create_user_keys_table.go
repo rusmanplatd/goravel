@@ -24,6 +24,9 @@ func (r *M20250115000026CreateUserKeysTable) Up() error {
 		table.Integer("version").Comment("Key version number")
 		table.Boolean("is_active").Comment("Whether key is currently active")
 		table.Timestamp("expires_at").Comment("Key expiration timestamp")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -38,6 +41,14 @@ func (r *M20250115000026CreateUserKeysTable) Up() error {
 		table.Index("expires_at")
 		table.Index("user_id", "key_type")
 		table.Index("user_id", "is_active")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

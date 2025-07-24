@@ -16,14 +16,17 @@ func (r *M20250115000005CreateUserRolesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000005CreateUserRolesTable) Up() error {
 	return facades.Schema().Create("user_roles", func(table schema.Blueprint) {
+		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("user_id").Comment("User reference")
 		table.Ulid("role_id").Comment("Role reference")
 		table.Ulid("tenant_id").Nullable().Comment("Tenant reference for tenant-specific roles")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 
 		// Primary key
-		// table.Primary("user_id", "role_id", "tenant_id")
-		table.Primary("user_id", "role_id")
+		table.Primary("id")
 
 		// Foreign keys
 		table.Foreign("user_id").References("id").On("users")
@@ -34,6 +37,17 @@ func (r *M20250115000005CreateUserRolesTable) Up() error {
 		table.Index("user_id")
 		table.Index("role_id")
 		table.Index("tenant_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
+
+		// Unique constraint
+		table.Unique("user_id", "role_id", "tenant_id")
 	})
 }
 

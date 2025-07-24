@@ -23,6 +23,9 @@ func (r *M20250115000001CreateTenantsTable) Up() error {
 		table.Text("description").Comment("Tenant description")
 		table.Boolean("is_active").Default(false).Comment("Whether tenant is active")
 		table.Json("settings").Comment("Tenant-specific settings")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -32,6 +35,14 @@ func (r *M20250115000001CreateTenantsTable) Up() error {
 		// Add indexes
 		table.Unique("slug")
 		table.Unique("domain")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

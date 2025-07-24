@@ -32,6 +32,9 @@ func (r *M20250115000042CreateProjectsTable) Up() error {
 		table.Float("budget").Default(0).Comment("Project budget")
 		table.Float("progress").Default(0).Comment("Project completion percentage (0-100)")
 		table.Json("settings").Comment("Project-specific settings")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -48,10 +51,16 @@ func (r *M20250115000042CreateProjectsTable) Up() error {
 		table.Index("project_manager_id")
 		table.Index("start_date")
 		table.Index("end_date")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("organization_id").References("id").On("organizations")
 		table.Foreign("project_manager_id").References("id").On("users")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

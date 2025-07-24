@@ -21,6 +21,9 @@ func (r *M20250115000018CreateProvincesTable) Up() error {
 		table.String("code").Comment("Province code")
 		table.Boolean("is_active").Comment("Whether province is active")
 		table.Ulid("country_id").Comment("Country reference")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -35,6 +38,14 @@ func (r *M20250115000018CreateProvincesTable) Up() error {
 		table.Index("code")
 		table.Index("is_active")
 		table.Index("country_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

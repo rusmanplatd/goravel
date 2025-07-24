@@ -16,6 +16,7 @@ func (r *M20250115000044CreateUserDepartmentsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000044CreateUserDepartmentsTable) Up() error {
 	return facades.Schema().Create("user_departments", func(table schema.Blueprint) {
+		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("user_id").Comment("User reference")
 		table.Ulid("department_id").Comment("Department reference")
 		table.String("role").Default("member").Comment("User role in department (manager, member)")
@@ -23,7 +24,7 @@ func (r *M20250115000044CreateUserDepartmentsTable) Up() error {
 		table.TimestampTz("joined_at").Comment("When user joined the department")
 
 		// Primary key
-		table.Primary("user_id", "department_id")
+		table.Primary("id")
 
 		// Add indexes
 		table.Index("user_id")
@@ -34,6 +35,9 @@ func (r *M20250115000044CreateUserDepartmentsTable) Up() error {
 		// Add foreign key constraints
 		table.Foreign("user_id").References("id").On("users")
 		table.Foreign("department_id").References("id").On("departments")
+
+		// Unique constraint
+		table.Unique("user_id", "department_id")
 	})
 }
 

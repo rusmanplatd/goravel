@@ -23,7 +23,9 @@ func (r *M20250115000021CreateChatRoomsTable) Up() error {
 		table.Boolean("is_active").Comment("Whether chat room is active")
 		table.String("avatar").Comment("Chat room avatar URL")
 		table.Ulid("tenant_id").Comment("Tenant reference")
-		table.Ulid("created_by").Comment("Chat room creator reference")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.Timestamp("last_activity_at").Comment("Last activity timestamp")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
@@ -33,10 +35,17 @@ func (r *M20250115000021CreateChatRoomsTable) Up() error {
 
 		// Add indexes
 		table.Index("tenant_id")
-		table.Index("created_by")
 		table.Index("type")
 		table.Index("last_activity_at")
 		table.Index("tenant_id", "is_active")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

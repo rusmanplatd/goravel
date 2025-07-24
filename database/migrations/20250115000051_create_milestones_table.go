@@ -23,10 +23,12 @@ func (r *M20250115000051CreateMilestonesTable) Up() error {
 		table.String("color").Nullable().Comment("Milestone color for UI display")
 		table.String("icon").Nullable().Comment("Milestone icon for UI display")
 		table.Ulid("project_id").Comment("Project reference")
-		table.Ulid("created_by").Comment("Milestone creator reference")
 		table.TimestampTz("due_date").Nullable().Comment("Milestone due date")
 		table.TimestampTz("completed_at").Nullable().Comment("When milestone was completed")
 		table.Float("progress").Default(0).Comment("Milestone completion percentage (0-100)")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -37,13 +39,17 @@ func (r *M20250115000051CreateMilestonesTable) Up() error {
 		table.Index("title")
 		table.Index("status")
 		table.Index("project_id")
-		table.Index("created_by")
 		table.Index("due_date")
 		table.Index("completed_at")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("project_id").References("id").On("projects")
 		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

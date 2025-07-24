@@ -24,6 +24,9 @@ func (r *M20250115000022CreateChatRoomMembersTable) Up() error {
 		table.Timestamp("joined_at").Comment("When user joined the room")
 		table.Timestamp("last_read_at").Comment("Last message read timestamp")
 		table.Text("public_key").Comment("User's public key for encryption")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -37,6 +40,14 @@ func (r *M20250115000022CreateChatRoomMembersTable) Up() error {
 		table.Index("last_read_at")
 		table.Index("chat_room_id", "user_id")
 		table.Index("chat_room_id", "is_active")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

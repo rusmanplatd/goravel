@@ -28,6 +28,9 @@ func (r *M20250115000040CreateDepartmentsTable) Up() error {
 		table.Integer("level").Default(0).Comment("Hierarchy level in department tree")
 		table.String("path").Comment("Hierarchical path in department tree")
 		table.Ulid("manager_id").Nullable().Comment("Department manager reference")
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -43,11 +46,17 @@ func (r *M20250115000040CreateDepartmentsTable) Up() error {
 		table.Index("level")
 		table.Index("path")
 		table.Index("manager_id")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 
 		// Add foreign key constraints
 		table.Foreign("organization_id").References("id").On("organizations")
 		table.Foreign("parent_department_id").References("id").On("departments")
 		table.Foreign("manager_id").References("id").On("users")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 
