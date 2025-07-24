@@ -68,6 +68,7 @@ func (s *RolePermissionSeeder) Run() error {
 		{"name": "system.logs", "guard": "api", "description": "View system logs"},
 	}
 
+	userSeederULID := models.USER_SEEDER_ULID
 	for _, permData := range permissions {
 		var permission models.Permission
 		err := facades.Orm().Query().Where("name = ? AND guard = ?", permData["name"], permData["guard"]).First(&permission)
@@ -81,6 +82,9 @@ func (s *RolePermissionSeeder) Run() error {
 				Name:        permData["name"].(string),
 				Guard:       permData["guard"].(string),
 				Description: permData["description"].(string),
+				BaseModel: models.BaseModel{
+					CreatedBy: &userSeederULID,
+				},
 			}
 			err = facades.Orm().Query().Create(&permission)
 			if err != nil {
@@ -169,6 +173,9 @@ func (s *RolePermissionSeeder) Run() error {
 				Name:        roleData["name"].(string),
 				Guard:       roleData["guard"].(string),
 				Description: roleData["description"].(string),
+				BaseModel: models.BaseModel{
+					CreatedBy: &userSeederULID,
+				},
 			}
 			err = facades.Orm().Query().Create(&role)
 			if err != nil {
@@ -183,6 +190,20 @@ func (s *RolePermissionSeeder) Run() error {
 				var permission models.Permission
 				err = facades.Orm().Query().Where("name = ?", permName).First(&permission)
 				if err == nil {
+					// Debug: log role and permission IDs
+					facades.Log().Info("Assigning permission to role:", map[string]interface{}{
+						"role_name":       role.Name,
+						"role_id":         role.ID,
+						"permission_name": permission.Name,
+						"permission_id":   permission.ID,
+					})
+					if len(role.ID) != 26 || len(permission.ID) != 26 || role.ID == "" || permission.ID == "" {
+						facades.Log().Error("Invalid ULID length for role or permission", map[string]interface{}{
+							"role_id":       role.ID,
+							"permission_id": permission.ID,
+						})
+						continue
+					}
 					// Create role-permission relationship
 					err = facades.Orm().Query().Table("role_permissions").Create(&map[string]interface{}{
 						"role_id":       role.ID,

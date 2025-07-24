@@ -72,8 +72,14 @@ func (s *TenantSeeder) Run() error {
 		var existingTenant models.Tenant
 		err := facades.Orm().Query().Where("slug = ?", tenantData["slug"]).First(&existingTenant)
 		if err != nil || existingTenant.ID == "" {
+			seederID := models.USER_SEEDER_ULID
 			// Create tenant
 			tenant := models.Tenant{
+				BaseModel: models.BaseModel{
+					CreatedBy: &seederID,
+					UpdatedBy: &seederID,
+					DeletedBy: nil,
+				},
 				Name:        tenantData["name"].(string),
 				Slug:        tenantData["slug"].(string),
 				Domain:      tenantData["domain"].(string),

@@ -124,7 +124,13 @@ func (s *DepartmentSeeder) Run() error {
 				continue // Department already exists
 			}
 
+			seederID := models.USER_SEEDER_ULID
 			dept := models.Department{
+				BaseModel: models.BaseModel{
+					CreatedBy: &seederID,
+					UpdatedBy: &seederID,
+					DeletedBy: nil,
+				},
 				Name:           deptData["name"].(string),
 				Description:    deptData["description"].(string),
 				Code:           deptData["code"].(string),

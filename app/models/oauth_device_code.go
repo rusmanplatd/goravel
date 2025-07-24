@@ -10,8 +10,8 @@ import (
 // OAuthDeviceCode represents an OAuth2 device authorization code
 type OAuthDeviceCode struct {
 	ID         string    `json:"id" gorm:"primaryKey;type:varchar(100)"`
-	UserID     *string   `json:"user_id" gorm:"type:varchar(26);index"`
-	ClientID   string    `json:"client_id" gorm:"type:varchar(26);index"`
+	UserID     *string   `json:"user_id" gorm:"type:char(26);index"`
+	ClientID   string    `json:"client_id" gorm:"type:char(26);index"`
 	Scopes     *string   `json:"scopes" gorm:"type:text"`
 	UserCode   string    `json:"user_code" gorm:"type:varchar(10);uniqueIndex"`
 	Revoked    bool      `json:"revoked" gorm:"default:false"`

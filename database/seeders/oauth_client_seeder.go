@@ -43,6 +43,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       false,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -51,6 +55,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       true,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -58,6 +66,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       false,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -66,6 +78,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       false,
 			Revoked:              true,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -73,6 +89,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       true,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -81,6 +101,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       true,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -88,6 +112,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       false,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -96,6 +124,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       true,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -103,6 +135,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       true,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 		{
 			ID:                   helpers.GenerateULID(),
@@ -111,6 +147,10 @@ func (s *OAuthClientSeeder) Run() error {
 			PersonalAccessClient: false,
 			PasswordClient:       true,
 			Revoked:              false,
+			BaseModel: models.BaseModel{
+				CreatedBy: &user.ID,
+				UpdatedBy: &user.ID,
+			},
 		},
 	}
 

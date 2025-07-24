@@ -176,7 +176,13 @@ func (s *CitySeeder) Run() error {
 	allCities = append(allCities, englandCities...)
 
 	// Create cities in database
+	seederID := models.USER_SEEDER_ULID
 	for _, city := range allCities {
+		city.BaseModel = models.BaseModel{
+			CreatedBy: &seederID,
+			UpdatedBy: &seederID,
+			DeletedBy: nil,
+		}
 		err := facades.Orm().Query().Create(&city)
 		if err != nil {
 			facades.Log().Error("Failed to create city " + city.Name + ": " + err.Error())

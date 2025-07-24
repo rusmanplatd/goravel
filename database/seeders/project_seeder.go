@@ -48,6 +48,8 @@ func (s *ProjectSeeder) Run() error {
 			"status":      "active",
 			"priority":    "high",
 			"color":       "#3B82F6",
+			"created_by":  models.USER_SEEDER_ULID,
+			"updated_by":  models.USER_SEEDER_ULID,
 			"icon":        "portal",
 			"is_active":   true,
 			"budget":      75000.00,
@@ -168,7 +170,13 @@ func (s *ProjectSeeder) Run() error {
 			startDate := time.Now().AddDate(0, -2, 0) // 2 months ago
 			endDate := time.Now().AddDate(0, 4, 0)    // 4 months from now
 
+			seederID := models.USER_SEEDER_ULID
 			project := models.Project{
+				BaseModel: models.BaseModel{
+					CreatedBy: &seederID,
+					UpdatedBy: &seederID,
+					DeletedBy: nil,
+				},
 				Name:             projectData["name"].(string),
 				Description:      projectData["description"].(string),
 				Code:             projectData["code"].(string),

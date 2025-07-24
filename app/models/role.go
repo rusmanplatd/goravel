@@ -15,7 +15,7 @@ type Role struct {
 
 	// Tenant ID for role scope
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID *string `gorm:"index;type:varchar(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TenantID *string `gorm:"index;type:char(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Role description
 	// @example Administrator role with full access

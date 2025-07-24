@@ -91,7 +91,9 @@ func (s *ChatSeeder) Run() error {
 			Type:        "group",
 			IsActive:    true,
 			TenantID:    tenant.ID,
-			CreatedBy:   users[0].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[0].ID,
+			},
 		},
 		{
 			Name:        "Direct Chat",
@@ -99,7 +101,9 @@ func (s *ChatSeeder) Run() error {
 			Type:        "direct",
 			IsActive:    true,
 			TenantID:    tenant.ID,
-			CreatedBy:   users[0].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[0].ID,
+			},
 		},
 		{
 			Name:        "Project Updates",
@@ -107,7 +111,9 @@ func (s *ChatSeeder) Run() error {
 			Type:        "channel",
 			IsActive:    true,
 			TenantID:    tenant.ID,
-			CreatedBy:   users[1].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[1].ID,
+			},
 		},
 	}
 

@@ -23,6 +23,9 @@ func (r *M20210101000001CreateUsersTable) Up() error {
 		table.String("remember_token").Comment("Remember me token")
 		table.Boolean("is_active").Comment("Whether user account is active")
 
+		table.Ulid("created_by").Nullable().Comment("User who created data")
+		table.Ulid("updated_by").Nullable().Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
@@ -32,6 +35,14 @@ func (r *M20210101000001CreateUsersTable) Up() error {
 		// Add indexes
 		table.Index("email")
 		table.Index("is_active")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
+
+		// Add foreign key constraints
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

@@ -28,7 +28,8 @@ func (r *M20250115000011CreateOauthClientsTable) Up() error {
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.Timestamps()
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

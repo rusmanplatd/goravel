@@ -169,7 +169,13 @@ func (s *TeamSeeder) Run() error {
 				}
 			}
 
+			seederID := models.USER_SEEDER_ULID
 			team := models.Team{
+				BaseModel: models.BaseModel{
+					CreatedBy: &seederID,
+					UpdatedBy: &seederID,
+					DeletedBy: nil,
+				},
 				Name:           teamData["name"].(string),
 				Description:    teamData["description"].(string),
 				Code:           teamData["code"].(string),

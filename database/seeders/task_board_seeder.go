@@ -104,8 +104,10 @@ func (s *TaskBoardSeeder) Run() error {
 				IsActive:    boardData["is_active"].(bool),
 				IsDefault:   boardData["is_default"].(bool),
 				ProjectID:   project.ID,
-				CreatedBy:   createdBy,
 				Settings:    boardData["settings"].(string),
+				BaseModel: models.BaseModel{
+					CreatedBy: &createdBy,
+				},
 			}
 
 			err = facades.Orm().Query().Create(&board)

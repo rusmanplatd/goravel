@@ -154,7 +154,13 @@ func (s *ProvinceSeeder) Run() error {
 	allProvinces = append(allProvinces, ukProvinces...)
 
 	// Create provinces in database
+	seederID := models.USER_SEEDER_ULID
 	for _, province := range allProvinces {
+		province.BaseModel = models.BaseModel{
+			CreatedBy: &seederID,
+			UpdatedBy: &seederID,
+			DeletedBy: nil,
+		}
 		err := facades.Orm().Query().Create(&province)
 		if err != nil {
 			facades.Log().Error("Failed to create province " + province.Name + ": " + err.Error())

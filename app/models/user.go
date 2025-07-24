@@ -176,11 +176,11 @@ func (u *User) ShouldReceiveNotification(notification notificationcore.Notificat
 type UserTenant struct {
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"primaryKey;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"primaryKey;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Tenant ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"primaryKey;type:varchar(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TenantID string `gorm:"primaryKey;type:char(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Whether the user is active in this tenant
 	// @example true
@@ -200,15 +200,15 @@ type UserTenant struct {
 type UserRole struct {
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"primaryKey;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"primaryKey;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Role ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	RoleID string `gorm:"primaryKey;type:varchar(26)" json:"role_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	RoleID string `gorm:"primaryKey;type:char(26)" json:"role_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Tenant ID for role context
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID *string `gorm:"type:varchar(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TenantID *string `gorm:"type:char(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	User   User    `gorm:"foreignKey:UserID" json:"user,omitempty"`

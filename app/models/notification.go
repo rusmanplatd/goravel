@@ -2,13 +2,10 @@ package models
 
 import (
 	"time"
-
-	"github.com/goravel/framework/database/orm"
 )
 
 type Notification struct {
-	orm.Model
-	ID             string                 `json:"id" gorm:"primaryKey;type:ulid"`
+	BaseModel
 	Type           string                 `json:"type" gorm:"not null"`
 	Data           map[string]interface{} `json:"data" gorm:"type:json"`
 	NotifiableID   string                 `json:"notifiable_id" gorm:"not null"`
@@ -18,9 +15,6 @@ type Notification struct {
 	SentAt         *time.Time             `json:"sent_at"`
 	FailedAt       *time.Time             `json:"failed_at"`
 	FailureReason  *string                `json:"failure_reason"`
-	CreatedAt      time.Time              `json:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at"`
-	DeletedAt      *time.Time             `json:"deleted_at" gorm:"index"`
 
 	// Relationships
 	Notifiable interface{} `json:"notifiable" gorm:"-"`

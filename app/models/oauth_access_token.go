@@ -10,8 +10,8 @@ import (
 // OAuthAccessToken represents an OAuth2 access token
 type OAuthAccessToken struct {
 	ID        string    `json:"id" gorm:"primaryKey;type:varchar(100)"`
-	UserID    *string   `json:"user_id" gorm:"type:varchar(26);index"`
-	ClientID  string    `json:"client_id" gorm:"type:varchar(26);index"`
+	UserID    *string   `json:"user_id" gorm:"type:char(26);index"`
+	ClientID  string    `json:"client_id" gorm:"type:char(26);index"`
 	Name      *string   `json:"name" gorm:"type:varchar(255)"`
 	Scopes    *string   `json:"scopes" gorm:"type:text"`
 	Revoked   bool      `json:"revoked" gorm:"default:false"`

@@ -20,53 +20,67 @@ func (s *UserSeeder) Run() error {
 	// Create default users
 	users := []map[string]interface{}{
 		{
-			"name":     "Seed User",
-			"email":    "seed@goravel.com",
-			"password": "password123",
-			"role":     "super-admin",
-			"isActive": false,
+			"name":       "Seed User",
+			"email":      "seed@goravel.com",
+			"password":   "password123",
+			"role":       "super-admin",
+			"isActive":   false,
+			"created_by": models.USER_SEEDER_ULID,
+			"updated_by": models.USER_SEEDER_ULID,
 		},
 		{
-			"name":     "Super Administrator",
-			"email":    "superadmin@goravel.com",
-			"password": "password123",
-			"role":     "super-admin",
-			"isActive": true,
+			"name":       "Super Administrator",
+			"email":      "superadmin@goravel.com",
+			"password":   "password123",
+			"role":       "super-admin",
+			"isActive":   true,
+			"created_by": models.USER_SEEDER_ULID, // System-created
+			"updated_by": models.USER_SEEDER_ULID, // System-created
 		},
 		{
-			"name":     "Admin User",
-			"email":    "admin@goravel.com",
-			"password": "password123",
-			"role":     "admin",
-			"isActive": true,
+			"name":       "Admin User",
+			"email":      "admin@goravel.com",
+			"password":   "password123",
+			"role":       "admin",
+			"isActive":   true,
+			"created_by": models.USER_SEEDER_ULID, // System-created
+			"updated_by": models.USER_SEEDER_ULID, // System-created
 		},
 		{
-			"name":     "Manager User",
-			"email":    "manager@goravel.com",
-			"password": "password123",
-			"role":     "manager",
-			"isActive": true,
+			"name":       "Manager User",
+			"email":      "manager@goravel.com",
+			"password":   "password123",
+			"role":       "manager",
+			"isActive":   true,
+			"created_by": models.USER_SEEDER_ULID, // System-created
+			"updated_by": models.USER_SEEDER_ULID, // System-created
 		},
 		{
-			"name":     "Regular User",
-			"email":    "user@goravel.com",
-			"password": "password123",
-			"role":     "user",
-			"isActive": true,
+			"name":       "Regular User",
+			"email":      "user@goravel.com",
+			"password":   "password123",
+			"role":       "user",
+			"isActive":   true,
+			"created_by": models.USER_SEEDER_ULID, // System-created
+			"updated_by": models.USER_SEEDER_ULID, // System-created
 		},
 		{
-			"name":     "Test User",
-			"email":    "test@goravel.com",
-			"password": "password123",
-			"role":     "user",
-			"isActive": true,
+			"name":       "Test User",
+			"email":      "test@goravel.com",
+			"password":   "password123",
+			"role":       "user",
+			"isActive":   true,
+			"created_by": models.USER_SEEDER_ULID, // System-created
+			"updated_by": models.USER_SEEDER_ULID, // System-created
 		},
 		{
-			"name":     "Guest User",
-			"email":    "guest@goravel.com",
-			"password": "password123",
-			"role":     "guest",
-			"isActive": true,
+			"name":       "Guest User",
+			"email":      "guest@goravel.com",
+			"password":   "password123",
+			"role":       "guest",
+			"isActive":   true,
+			"created_by": models.USER_SEEDER_ULID, // System-created
+			"updated_by": models.USER_SEEDER_ULID, // System-created
 		},
 	}
 

@@ -30,11 +30,7 @@ type ChatRoom struct {
 
 	// Tenant ID for multi-tenant support
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"index;type:varchar(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
-
-	// Created by user ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	CreatedBy string `gorm:"index;type:varchar(26)" json:"created_by" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TenantID string `gorm:"index;type:char(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Last activity timestamp
 	// @example 2024-01-15T10:30:00Z
@@ -42,7 +38,6 @@ type ChatRoom struct {
 
 	// Relationships
 	Tenant   *Tenant          `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Creator  *User            `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
 	Members  []ChatRoomMember `gorm:"foreignKey:ChatRoomID" json:"members,omitempty"`
 	Messages []ChatMessage    `gorm:"foreignKey:ChatRoomID" json:"messages,omitempty"`
 	Keys     []ChatRoomKey    `gorm:"foreignKey:ChatRoomID" json:"keys,omitempty"`
@@ -54,11 +49,11 @@ type ChatRoomMember struct {
 	BaseModel
 	// Chat room ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ChatRoomID string `gorm:"index;type:varchar(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ChatRoomID string `gorm:"index;type:char(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"index;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Member role (admin, moderator, member)
 	// @example member
@@ -91,11 +86,11 @@ type ChatMessage struct {
 	BaseModel
 	// Chat room ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ChatRoomID string `gorm:"index;type:varchar(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ChatRoomID string `gorm:"index;type:char(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Sender user ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	SenderID string `gorm:"index;type:varchar(26)" json:"sender_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	SenderID string `gorm:"index;type:char(26)" json:"sender_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Message type (text, image, file, system)
 	// @example text
@@ -111,11 +106,11 @@ type ChatMessage struct {
 
 	// Reply to message ID (for threaded conversations)
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ReplyToID *string `gorm:"index;type:varchar(26)" json:"reply_to_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ReplyToID *string `gorm:"index;type:char(26)" json:"reply_to_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Thread ID (for advanced threading)
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ThreadID *string `gorm:"index;type:varchar(26)" json:"thread_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ThreadID *string `gorm:"index;type:char(26)" json:"thread_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Whether the message is edited
 	// @example false
@@ -151,11 +146,11 @@ type MessageRead struct {
 	BaseModel
 	// Message ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	MessageID string `gorm:"index;type:varchar(26)" json:"message_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	MessageID string `gorm:"index;type:char(26)" json:"message_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User ID who read the message
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"index;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// When the message was read
 	// @example 2024-01-15T10:30:00Z
@@ -172,7 +167,7 @@ type ChatRoomKey struct {
 	BaseModel
 	// Chat room ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ChatRoomID string `gorm:"index;type:varchar(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ChatRoomID string `gorm:"index;type:char(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Key type (room_key, user_key)
 	// @example room_key
@@ -204,7 +199,7 @@ type UserKey struct {
 	BaseModel
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"index;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Key type (identity, signed_prekey, one_time_prekey)
 	// @example identity
@@ -226,10 +221,6 @@ type UserKey struct {
 	// @example true
 	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
 
-	// Key creation timestamp
-	// @example 2024-01-15T10:30:00Z
-	CreatedAt time.Time `json:"created_at" example:"2024-01-15T10:30:00Z"`
-
 	// Key expiration timestamp (for prekeys)
 	// @example 2024-01-15T10:30:00Z
 	ExpiresAt *time.Time `json:"expires_at,omitempty" example:"2024-01-15T10:30:00Z"`
@@ -244,15 +235,15 @@ type ChatInvitation struct {
 	BaseModel
 	// Chat room ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ChatRoomID string `gorm:"index;type:varchar(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ChatRoomID string `gorm:"index;type:char(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Invited user ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	InvitedUserID string `gorm:"index;type:varchar(26)" json:"invited_user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	InvitedUserID string `gorm:"index;type:char(26)" json:"invited_user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Inviter user ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	InviterID string `gorm:"index;type:varchar(26)" json:"inviter_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	InviterID string `gorm:"index;type:char(26)" json:"inviter_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Invitation status (pending, accepted, declined, expired)
 	// @example pending
@@ -282,11 +273,11 @@ type MessageReaction struct {
 	BaseModel
 	// Message ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	MessageID string `gorm:"index;type:varchar(26)" json:"message_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	MessageID string `gorm:"index;type:char(26)" json:"message_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User ID who reacted
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"index;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Emoji reaction
 	// @example 👍
@@ -307,11 +298,11 @@ type MessageThread struct {
 	BaseModel
 	// Chat room ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ChatRoomID string `gorm:"index;type:varchar(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ChatRoomID string `gorm:"index;type:char(26)" json:"chat_room_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Root message ID that started the thread
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	RootMessageID string `gorm:"index;type:varchar(26)" json:"root_message_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	RootMessageID string `gorm:"index;type:char(26)" json:"root_message_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Thread title
 	// @example Bug Discussion
@@ -331,7 +322,7 @@ type MessageThread struct {
 
 	// User who resolved the thread
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ResolvedBy *string `gorm:"index;type:varchar(26)" json:"resolved_by,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ResolvedBy *string `gorm:"index;type:char(26)" json:"resolved_by,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// When the thread was resolved
 	// @example 2024-01-15T10:30:00Z
@@ -350,11 +341,11 @@ type ChatNotificationSettings struct {
 	BaseModel
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"index;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Chat room ID (null for global settings)
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ChatRoomID *string `gorm:"index;type:varchar(26)" json:"chat_room_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ChatRoomID *string `gorm:"index;type:char(26)" json:"chat_room_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Email notifications enabled
 	// @example true

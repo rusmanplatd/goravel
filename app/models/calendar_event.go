@@ -76,10 +76,6 @@ type CalendarEvent struct {
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
-	// Creator user ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	CreatedBy string `gorm:"not null" json:"created_by" example:"01HXYZ123456789ABCDEFGHIJK"`
-
 	// Parent event ID for recurring event instances
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	ParentEventID *string `json:"parent_event_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
@@ -87,9 +83,6 @@ type CalendarEvent struct {
 	// Relationships
 	// @Description Event's associated tenant
 	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-
-	// @Description Event creator
-	Creator *User `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
 
 	// @Description Parent event for recurring instances
 	ParentEvent *CalendarEvent `gorm:"foreignKey:ParentEventID" json:"parent_event,omitempty"`

@@ -10,8 +10,8 @@ import (
 // OAuthAuthCode represents an OAuth2 authorization code
 type OAuthAuthCode struct {
 	ID                  string    `json:"id" gorm:"primaryKey;type:varchar(100)"`
-	UserID              string    `json:"user_id" gorm:"type:varchar(26);index"`
-	ClientID            string    `json:"client_id" gorm:"type:varchar(26);index"`
+	UserID              string    `json:"user_id" gorm:"type:char(26);index"`
+	ClientID            string    `json:"client_id" gorm:"type:char(26);index"`
 	Scopes              *string   `json:"scopes" gorm:"type:text"`
 	Revoked             bool      `json:"revoked" gorm:"default:false"`
 	ExpiresAt           time.Time `json:"expires_at"`

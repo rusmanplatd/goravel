@@ -135,7 +135,6 @@ func (s *MilestoneSeeder) Run() error {
 				continue // Milestone already exists
 			}
 
-			dueDate := milestoneData["due_date"].(time.Time)
 			// Get a user ID for CreatedBy (use first user if available)
 			var createdBy string
 			if project.ProjectManagerID != nil {
@@ -151,12 +150,14 @@ func (s *MilestoneSeeder) Run() error {
 			milestone := models.Milestone{
 				Title:       milestoneData["name"].(string),
 				Description: milestoneData["description"].(string),
-				DueDate:     &dueDate,
 				Status:      milestoneData["status"].(string),
 				Color:       milestoneData["color"].(string),
 				Icon:        milestoneData["icon"].(string),
 				ProjectID:   project.ID,
-				CreatedBy:   createdBy,
+				DueDate:     milestoneData["due_date"].(*time.Time),
+				BaseModel: models.BaseModel{
+					CreatedBy: &createdBy,
+				},
 			}
 
 			err = facades.Orm().Query().Create(&milestone)

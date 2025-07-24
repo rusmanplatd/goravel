@@ -67,19 +67,19 @@ type Organization struct {
 
 	// Country ID for address
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	CountryID *string `gorm:"index;type:varchar(26)" json:"country_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	CountryID *string `gorm:"index;type:char(26)" json:"country_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Province/State ID for address
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProvinceID *string `gorm:"index;type:varchar(26)" json:"province_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProvinceID *string `gorm:"index;type:char(26)" json:"province_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// City ID for address
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	CityID *string `gorm:"index;type:varchar(26)" json:"city_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	CityID *string `gorm:"index;type:char(26)" json:"city_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// District ID for address
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	DistrictID *string `gorm:"index;type:varchar(26)" json:"district_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	DistrictID *string `gorm:"index;type:char(26)" json:"district_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Postal/ZIP code
 	// @example 12345
@@ -103,11 +103,11 @@ type Organization struct {
 
 	// Tenant ID that this organization belongs to (one-to-one relationship)
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"unique;not null;index;type:varchar(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TenantID string `gorm:"unique;not null;index;type:char(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Parent organization ID for hierarchical structure
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ParentOrganizationID *string `gorm:"index;type:varchar(26)" json:"parent_organization_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ParentOrganizationID *string `gorm:"index;type:char(26)" json:"parent_organization_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Organization level in hierarchy (0 = root, 1 = subsidiary, etc.)
 	// @example 0
@@ -183,11 +183,11 @@ type Department struct {
 
 	// Organization ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	OrganizationID string `gorm:"not null;index;type:varchar(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null;index;type:char(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Parent department ID for hierarchical structure
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ParentDepartmentID *string `gorm:"index;type:varchar(26)" json:"parent_department_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ParentDepartmentID *string `gorm:"index;type:char(26)" json:"parent_department_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Department level in hierarchy
 	// @example 0
@@ -199,7 +199,7 @@ type Department struct {
 
 	// Department manager ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ManagerID *string `gorm:"index;type:varchar(26)" json:"manager_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ManagerID *string `gorm:"index;type:char(26)" json:"manager_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Organization this department belongs to
@@ -256,15 +256,15 @@ type Team struct {
 
 	// Organization ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	OrganizationID string `gorm:"not null;index;type:varchar(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null;index;type:char(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Department ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	DepartmentID *string `gorm:"index;type:varchar(26)" json:"department_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	DepartmentID *string `gorm:"index;type:char(26)" json:"department_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Team lead ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TeamLeadID *string `gorm:"index;type:varchar(26)" json:"team_lead_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TeamLeadID *string `gorm:"index;type:char(26)" json:"team_lead_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Maximum team size
 	// @example 10
@@ -330,11 +330,11 @@ type Project struct {
 
 	// Organization ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	OrganizationID string `gorm:"not null;index;type:varchar(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null;index;type:char(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Project manager ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProjectManagerID *string `gorm:"index;type:varchar(26)" json:"project_manager_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProjectManagerID *string `gorm:"index;type:char(26)" json:"project_manager_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Project start date
 	// @example 2024-01-15T00:00:00Z
@@ -387,11 +387,11 @@ type Project struct {
 type UserOrganization struct {
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"primaryKey;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"primaryKey;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Organization ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	OrganizationID string `gorm:"primaryKey;type:varchar(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"primaryKey;type:char(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User role in organization (owner, admin, member, guest)
 	// @example member
@@ -423,15 +423,15 @@ type UserOrganization struct {
 
 	// User's department ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	DepartmentID *string `gorm:"index;type:varchar(26)" json:"department_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	DepartmentID *string `gorm:"index;type:char(26)" json:"department_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User's team ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TeamID *string `gorm:"index;type:varchar(26)" json:"team_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TeamID *string `gorm:"index;type:char(26)" json:"team_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User's manager ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ManagerID *string `gorm:"index;type:varchar(26)" json:"manager_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ManagerID *string `gorm:"index;type:char(26)" json:"manager_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User's hire date
 	// @example 2024-01-15T00:00:00Z
@@ -462,11 +462,11 @@ type UserOrganization struct {
 type UserDepartment struct {
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"primaryKey;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"primaryKey;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Department ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	DepartmentID string `gorm:"primaryKey;type:varchar(26)" json:"department_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	DepartmentID string `gorm:"primaryKey;type:char(26)" json:"department_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User role in department (manager, member, lead)
 	// @example member
@@ -490,11 +490,11 @@ type UserDepartment struct {
 type UserTeam struct {
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"primaryKey;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"primaryKey;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Team ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TeamID string `gorm:"primaryKey;type:varchar(26)" json:"team_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TeamID string `gorm:"primaryKey;type:char(26)" json:"team_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User role in team (lead, member, contributor)
 	// @example member
@@ -518,11 +518,11 @@ type UserTeam struct {
 type UserProject struct {
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"primaryKey;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"primaryKey;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Project ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProjectID string `gorm:"primaryKey;type:varchar(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProjectID string `gorm:"primaryKey;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User role in project (manager, member, contributor, reviewer)
 	// @example member
@@ -550,11 +550,11 @@ type UserProject struct {
 type TeamProject struct {
 	// Team ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TeamID string `gorm:"primaryKey;type:varchar(26)" json:"team_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TeamID string `gorm:"primaryKey;type:char(26)" json:"team_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Project ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProjectID string `gorm:"primaryKey;type:varchar(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProjectID string `gorm:"primaryKey;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Team role in project (lead, contributor, reviewer)
 	// @example contributor

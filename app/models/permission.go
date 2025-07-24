@@ -15,7 +15,7 @@ type Permission struct {
 
 	// Tenant ID for permission scope
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID *string `gorm:"index;type:varchar(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TenantID *string `gorm:"index;type:char(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Permission description
 	// @example Create new users

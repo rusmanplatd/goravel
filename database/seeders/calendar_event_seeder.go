@@ -49,10 +49,13 @@ func (r *CalendarEventSeeder) Run() error {
 				t := time.Now().AddDate(0, 1, 0) // 1 month from now
 				return &t
 			}(),
-			Timezone:  "UTC",
-			Status:    "scheduled",
-			TenantID:  tenants[0].ID,
-			CreatedBy: users[0].ID,
+			Timezone: "UTC",
+			Status:   "scheduled",
+			TenantID: tenants[0].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[0].ID,
+				UpdatedBy: &users[0].ID,
+			},
 		},
 		{
 			Title:          "Project Review",
@@ -69,10 +72,13 @@ func (r *CalendarEventSeeder) Run() error {
 				t := time.Now().AddDate(1, 0, 0) // 1 year from now
 				return &t
 			}(),
-			Timezone:  "UTC",
-			Status:    "scheduled",
-			TenantID:  tenants[0].ID,
-			CreatedBy: users[0].ID,
+			Timezone: "UTC",
+			Status:   "scheduled",
+			TenantID: tenants[0].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[0].ID,
+				UpdatedBy: &users[0].ID,
+			},
 		},
 		{
 			Title:       "Client Meeting",
@@ -87,7 +93,10 @@ func (r *CalendarEventSeeder) Run() error {
 			Timezone:    "UTC",
 			Status:      "scheduled",
 			TenantID:    tenants[0].ID,
-			CreatedBy:   users[1].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[1].ID,
+				UpdatedBy: &users[1].ID,
+			},
 		},
 		{
 			Title:          "All Hands Meeting",
@@ -104,10 +113,13 @@ func (r *CalendarEventSeeder) Run() error {
 				t := time.Now().AddDate(0, 6, 0) // 6 months from now
 				return &t
 			}(),
-			Timezone:  "UTC",
-			Status:    "scheduled",
-			TenantID:  tenants[0].ID,
-			CreatedBy: users[0].ID,
+			Timezone: "UTC",
+			Status:   "scheduled",
+			TenantID: tenants[0].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[0].ID,
+				UpdatedBy: &users[0].ID,
+			},
 		},
 		{
 			Title:       "Birthday Party",
@@ -122,7 +134,10 @@ func (r *CalendarEventSeeder) Run() error {
 			Timezone:    "UTC",
 			Status:      "scheduled",
 			TenantID:    tenants[0].ID,
-			CreatedBy:   users[2].ID,
+			BaseModel: models.BaseModel{
+				CreatedBy: &users[2].ID,
+				UpdatedBy: &users[2].ID,
+			},
 		},
 	}
 

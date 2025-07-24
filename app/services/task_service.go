@@ -47,6 +47,9 @@ func (s *TaskService) CreateTask(data map[string]interface{}) (*models.Task, err
 
 	// Create task
 	task := &models.Task{
+		BaseModel: models.BaseModel{
+			CreatedBy: data["created_by"].(*string),
+		},
 		Title:       data["title"].(string),
 		Description: data["description"].(string),
 		Number:      data["number"].(int),
@@ -58,7 +61,6 @@ func (s *TaskService) CreateTask(data map[string]interface{}) (*models.Task, err
 		IsActive:    data["is_active"].(bool),
 		IsArchived:  data["is_archived"].(bool),
 		ProjectID:   data["project_id"].(string),
-		CreatedBy:   data["created_by"].(string),
 		Progress:    data["progress"].(float64),
 		ActualHours: data["actual_hours"].(float64),
 		Position:    data["position"].(int),
@@ -353,7 +355,9 @@ func (s *TaskService) CreateTaskLabel(data map[string]interface{}) (*models.Task
 		Icon:        data["icon"].(string),
 		IsActive:    data["is_active"].(bool),
 		ProjectID:   data["project_id"].(string),
-		CreatedBy:   data["created_by"].(string),
+		BaseModel: models.BaseModel{
+			CreatedBy: data["created_by"].(*string),
+		},
 	}
 
 	err := facades.Orm().Query().Create(label)
@@ -534,13 +538,15 @@ func (s *TaskService) CreateMilestone(data map[string]interface{}) (*models.Mile
 
 	// Create milestone
 	milestone := &models.Milestone{
+		BaseModel: models.BaseModel{
+			CreatedBy: data["created_by"].(*string),
+		},
 		Title:       data["title"].(string),
 		Description: data["description"].(string),
 		Status:      data["status"].(string),
 		Color:       data["color"].(string),
 		Icon:        data["icon"].(string),
 		ProjectID:   data["project_id"].(string),
-		CreatedBy:   data["created_by"].(string),
 		Progress:    data["progress"].(float64),
 	}
 
@@ -716,7 +722,9 @@ func (s *TaskService) CreateTaskBoard(data map[string]interface{}) (*models.Task
 		IsActive:    data["is_active"].(bool),
 		IsDefault:   data["is_default"].(bool),
 		ProjectID:   data["project_id"].(string),
-		CreatedBy:   data["created_by"].(string),
+		BaseModel: models.BaseModel{
+			CreatedBy: data["created_by"].(*string),
+		},
 	}
 
 	// Set optional fields

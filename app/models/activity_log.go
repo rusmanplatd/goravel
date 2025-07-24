@@ -14,11 +14,11 @@ type ActivityLog struct {
 	LogName     string          `gorm:"index" json:"log_name"`
 	Description string          `json:"description"`
 	SubjectType string          `gorm:"index" json:"subject_type"`
-	SubjectID   string          `gorm:"index;type:varchar(26)" json:"subject_id"`
+	SubjectID   string          `gorm:"index;type:char(26)" json:"subject_id"`
 	CauserType  string          `gorm:"index" json:"causer_type"`
-	CauserID    string          `gorm:"index;type:varchar(26)" json:"causer_id"`
+	CauserID    string          `gorm:"index;type:char(26)" json:"causer_id"`
 	Properties  json.RawMessage `gorm:"type:json" json:"properties"`
-	TenantID    string          `gorm:"index;type:varchar(26)" json:"tenant_id"`
+	TenantID    string          `gorm:"index;type:char(26)" json:"tenant_id"`
 
 	// Relationships
 	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`

@@ -139,7 +139,13 @@ func (s *OrganizationSeeder) Run() error {
 			}
 		}
 
+		seederID := models.USER_SEEDER_ULID
 		organization := &models.Organization{
+			BaseModel: models.BaseModel{
+				CreatedBy: &seederID,
+				UpdatedBy: &seederID,
+				DeletedBy: nil,
+			},
 			Name:         orgData["name"].(string),
 			Slug:         orgData["slug"].(string),
 			Domain:       orgData["domain"].(string),
@@ -222,7 +228,13 @@ func (s *OrganizationSeeder) Run() error {
 	err = facades.Orm().Query().Where("slug = ?", "goravel-corp").First(&goravelOrg)
 	if err == nil {
 		// Create Goravel Europe subsidiary
+		seederID := models.USER_SEEDER_ULID
 		goravelEurope := &models.Organization{
+			BaseModel: models.BaseModel{
+				CreatedBy: &seederID,
+				UpdatedBy: &seederID,
+				DeletedBy: nil,
+			},
 			Name:                 subsidiaries[0]["name"].(string),
 			Slug:                 subsidiaries[0]["slug"].(string),
 			Domain:               subsidiaries[0]["domain"].(string),
@@ -263,7 +275,13 @@ func (s *OrganizationSeeder) Run() error {
 	err = facades.Orm().Query().Where("slug = ?", "acme-solutions").First(&acmeOrg)
 	if err == nil {
 		// Create Acme Asia Pacific subsidiary
+		seederID := models.USER_SEEDER_ULID
 		acmeAsiaPacific := &models.Organization{
+			BaseModel: models.BaseModel{
+				CreatedBy: &seederID,
+				UpdatedBy: &seederID,
+				DeletedBy: nil,
+			},
 			Name:                 subsidiaries[1]["name"].(string),
 			Slug:                 subsidiaries[1]["slug"].(string),
 			Domain:               subsidiaries[1]["domain"].(string),

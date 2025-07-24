@@ -51,27 +51,23 @@ type Task struct {
 
 	// Project ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProjectID string `gorm:"not null;index;type:varchar(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
-
-	// Creator user ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	CreatedBy string `gorm:"not null;index;type:varchar(26)" json:"created_by" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Assignee user ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	AssigneeID *string `gorm:"index;type:varchar(26)" json:"assignee_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	AssigneeID *string `gorm:"index;type:char(26)" json:"assignee_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Reviewer user ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ReviewerID *string `gorm:"index;type:varchar(26)" json:"reviewer_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ReviewerID *string `gorm:"index;type:char(26)" json:"reviewer_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Milestone ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	MilestoneID *string `gorm:"index;type:varchar(26)" json:"milestone_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	MilestoneID *string `gorm:"index;type:char(26)" json:"milestone_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Parent task ID for subtasks
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ParentTaskID *string `gorm:"index;type:varchar(26)" json:"parent_task_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ParentTaskID *string `gorm:"index;type:char(26)" json:"parent_task_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Task start date
 	// @example 2024-01-15T00:00:00Z
@@ -104,9 +100,6 @@ type Task struct {
 	// Relationships
 	// @Description Project this task belongs to
 	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
-
-	// @Description Task creator
-	Creator *User `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
 
 	// @Description Task assignee
 	Assignee *User `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
@@ -169,18 +162,11 @@ type TaskLabel struct {
 
 	// Project ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProjectID string `gorm:"not null;index;type:varchar(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
-
-	// Creator user ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	CreatedBy string `gorm:"not null;index;type:varchar(26)" json:"created_by" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Project this label belongs to
 	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
-
-	// @Description Label creator
-	Creator *User `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
 
 	// @Description Tasks with this label
 	Tasks []Task `gorm:"many2many:task_label_pivot;" json:"tasks,omitempty"`
@@ -191,11 +177,11 @@ type TaskLabel struct {
 type TaskLabelPivot struct {
 	// Task ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TaskID string `gorm:"primaryKey;type:varchar(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TaskID string `gorm:"primaryKey;type:char(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Label ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	LabelID string `gorm:"primaryKey;type:varchar(26)" json:"label_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	LabelID string `gorm:"primaryKey;type:char(26)" json:"label_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// When the label was added to the task
 	// @example 2024-01-15T10:30:00Z
@@ -203,7 +189,7 @@ type TaskLabelPivot struct {
 
 	// User who added the label
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	AddedBy string `gorm:"index;type:varchar(26)" json:"added_by" example:"01HXYZ123456789ABCDEFGHIJK"`
+	AddedBy string `gorm:"index;type:char(26)" json:"added_by" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	Task      Task      `gorm:"foreignKey:TaskID" json:"task,omitempty"`
@@ -238,11 +224,7 @@ type Milestone struct {
 
 	// Project ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProjectID string `gorm:"not null;index;type:varchar(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
-
-	// Creator user ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	CreatedBy string `gorm:"not null;index;type:varchar(26)" json:"created_by" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Milestone due date
 	// @example 2024-03-31T00:00:00Z
@@ -260,9 +242,6 @@ type Milestone struct {
 	// @Description Project this milestone belongs to
 	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
 
-	// @Description Milestone creator
-	Creator *User `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
-
 	// @Description Tasks in this milestone
 	Tasks []Task `gorm:"foreignKey:MilestoneID" json:"tasks,omitempty"`
 }
@@ -278,15 +257,15 @@ type TaskComment struct {
 
 	// Task ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TaskID string `gorm:"not null;index;type:varchar(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TaskID string `gorm:"not null;index;type:char(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Comment author ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	AuthorID string `gorm:"not null;index;type:varchar(26)" json:"author_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	AuthorID string `gorm:"not null;index;type:char(26)" json:"author_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Parent comment ID for replies
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ParentCommentID *string `gorm:"index;type:varchar(26)" json:"parent_comment_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ParentCommentID *string `gorm:"index;type:char(26)" json:"parent_comment_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Whether the comment is internal (not visible to external users)
 	// @example false
@@ -325,11 +304,11 @@ type TaskActivity struct {
 
 	// Task ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TaskID string `gorm:"not null;index;type:varchar(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TaskID string `gorm:"not null;index;type:char(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User who performed the activity
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"not null;index;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"not null;index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Activity data as JSON
 	// @example {"old_value":"todo","new_value":"in_progress"}
@@ -350,11 +329,11 @@ type TaskDependency struct {
 
 	// Task ID (the task that depends on another)
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TaskID string `gorm:"not null;index;type:varchar(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TaskID string `gorm:"not null;index;type:char(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Dependent task ID (the task that is depended upon)
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	DependentTaskID string `gorm:"not null;index;type:varchar(26)" json:"dependent_task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	DependentTaskID string `gorm:"not null;index;type:char(26)" json:"dependent_task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Dependency type (blocks, requires, relates_to)
 	// @example blocks
@@ -383,11 +362,11 @@ type TaskTimeEntry struct {
 
 	// Task ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TaskID string `gorm:"not null;index;type:varchar(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	TaskID string `gorm:"not null;index;type:char(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// User ID who logged the time
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"not null;index;type:varchar(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	UserID string `gorm:"not null;index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Time entry start time
 	// @example 2024-01-15T09:00:00Z
@@ -452,11 +431,7 @@ type TaskBoard struct {
 
 	// Project ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	ProjectID string `gorm:"not null;index;type:varchar(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
-
-	// Creator user ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	CreatedBy string `gorm:"not null;index;type:varchar(26)" json:"created_by" example:"01HXYZ123456789ABCDEFGHIJK"`
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Board settings as JSON
 	// @example {"columns":["todo","in_progress","done"],"filters":{"assignee":"all"}}
@@ -465,9 +440,6 @@ type TaskBoard struct {
 	// Relationships
 	// @Description Project this board belongs to
 	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
-
-	// @Description Board creator
-	Creator *User `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
 
 	// @Description Board columns
 	Columns []TaskBoardColumn `gorm:"foreignKey:BoardID" json:"columns,omitempty"`
@@ -508,7 +480,7 @@ type TaskBoardColumn struct {
 
 	// Board ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	BoardID string `gorm:"not null;index;type:varchar(26)" json:"board_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	BoardID string `gorm:"not null;index;type:char(26)" json:"board_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Board this column belongs to

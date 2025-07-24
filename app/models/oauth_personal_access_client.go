@@ -8,8 +8,8 @@ import (
 
 // OAuthPersonalAccessClient represents a personal access client
 type OAuthPersonalAccessClient struct {
-	ID        string    `json:"id" gorm:"primaryKey;type:varchar(26)"`
-	ClientID  string    `json:"client_id" gorm:"type:varchar(26);index"`
+	ID        string    `json:"id" gorm:"primaryKey;type:char(26)"`
+	ClientID  string    `json:"client_id" gorm:"type:char(26);index"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 

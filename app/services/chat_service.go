@@ -31,7 +31,9 @@ func (s *ChatService) CreateChatRoom(name, description, roomType, tenantID, crea
 		Type:        roomType,
 		IsActive:    true,
 		TenantID:    tenantID,
-		CreatedBy:   createdBy,
+		BaseModel: models.BaseModel{
+			CreatedBy: &createdBy,
+		},
 	}
 
 	err := facades.Orm().Query().Create(chatRoom)

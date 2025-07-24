@@ -196,6 +196,7 @@ func (cec *CalendarEventController) Store(ctx http.Context) http.Response {
 	}
 
 	// Create event
+	userID := ctx.Request().Input("user_id", "")
 	event := models.CalendarEvent{
 		Title:           request.Title,
 		Description:     request.Description,
@@ -211,7 +212,9 @@ func (cec *CalendarEventController) Store(ctx http.Context) http.Response {
 		Timezone:        request.Timezone,
 		Status:          request.Status,
 		TenantID:        request.TenantID,
-		CreatedBy:       ctx.Request().Input("user_id", ""), // Get from auth context
+		BaseModel: models.BaseModel{
+			CreatedBy: &userID,
+		},
 	}
 
 	// Start transaction

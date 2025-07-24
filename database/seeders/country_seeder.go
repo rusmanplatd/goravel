@@ -99,7 +99,13 @@ func (s *CountrySeeder) Run() error {
 	}
 
 	// Create countries in database
+	seederID := models.USER_SEEDER_ULID
 	for _, country := range countries {
+		country.BaseModel = models.BaseModel{
+			CreatedBy: &seederID,
+			UpdatedBy: &seederID,
+			DeletedBy: nil,
+		}
 		err = facades.Orm().Query().Create(&country)
 		if err != nil {
 			facades.Log().Error("Failed to create country " + country.Name + ": " + err.Error())

@@ -1,24 +1,15 @@
 package models
 
-import (
-	"time"
-
-	"github.com/goravel/framework/database/orm"
-)
-
 // PushSubscription represents a web push subscription
 type PushSubscription struct {
-	orm.Model
-	ID              string     `json:"id" gorm:"primaryKey;type:ulid"`
-	UserID          string     `json:"user_id" gorm:"not null"`
-	Endpoint        string     `json:"endpoint" gorm:"not null;size:500"`
-	P256dhKey       string     `json:"p256dh_key" gorm:"not null;size:255"`
-	AuthToken       string     `json:"auth_token" gorm:"not null;size:255"`
-	ContentEncoding string     `json:"content_encoding" gorm:"default:aes128gcm;size:20"`
-	IsActive        bool       `json:"is_active" gorm:"default:true"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-	DeletedAt       *time.Time `json:"deleted_at" gorm:"index"`
+	BaseModel
+	ID              string `json:"id" gorm:"primaryKey;type:ulid"`
+	UserID          string `json:"user_id" gorm:"not null"`
+	Endpoint        string `json:"endpoint" gorm:"not null;size:500"`
+	P256dhKey       string `json:"p256dh_key" gorm:"not null;size:255"`
+	AuthToken       string `json:"auth_token" gorm:"not null;size:255"`
+	ContentEncoding string `json:"content_encoding" gorm:"default:aes128gcm;size:20"`
+	IsActive        bool   `json:"is_active" gorm:"default:true"`
 
 	// Relationships
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`

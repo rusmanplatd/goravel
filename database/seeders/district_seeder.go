@@ -185,7 +185,13 @@ func (s *DistrictSeeder) Run() error {
 	allDistricts = append(allDistricts, londonDistricts...)
 
 	// Create districts in database
+	seederID := models.USER_SEEDER_ULID
 	for _, district := range allDistricts {
+		district.BaseModel = models.BaseModel{
+			CreatedBy: &seederID,
+			UpdatedBy: &seederID,
+			DeletedBy: nil,
+		}
 		err := facades.Orm().Query().Create(&district)
 		if err != nil {
 			facades.Log().Error("Failed to create district " + district.Name + ": " + err.Error())
