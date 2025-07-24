@@ -227,6 +227,110 @@ func (s *DatabaseSeeder) Run() error {
 		return err
 	}
 
+	// Run department seeder
+	departmentSeeder := &DepartmentSeeder{}
+	err = departmentSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run DepartmentSeeder: " + err.Error())
+		return err
+	}
+
+	// Run team seeder
+	teamSeeder := &TeamSeeder{}
+	err = teamSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run TeamSeeder: " + err.Error())
+		return err
+	}
+
+	// Run project seeder
+	projectSeeder := &ProjectSeeder{}
+	err = projectSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run ProjectSeeder: " + err.Error())
+		return err
+	}
+
+	// Run user organization seeder
+	userOrganizationSeeder := &UserOrganizationSeeder{}
+	err = userOrganizationSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run UserOrganizationSeeder: " + err.Error())
+		return err
+	}
+
+	// Run user department seeder
+	userDepartmentSeeder := &UserDepartmentSeeder{}
+	err = userDepartmentSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run UserDepartmentSeeder: " + err.Error())
+		return err
+	}
+
+	// Run user team seeder
+	userTeamSeeder := &UserTeamSeeder{}
+	err = userTeamSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run UserTeamSeeder: " + err.Error())
+		return err
+	}
+
+	// Run user project seeder
+	userProjectSeeder := &UserProjectSeeder{}
+	err = userProjectSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run UserProjectSeeder: " + err.Error())
+		return err
+	}
+
+	// Run team project seeder
+	teamProjectSeeder := &TeamProjectSeeder{}
+	err = teamProjectSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run TeamProjectSeeder: " + err.Error())
+		return err
+	}
+
+	// Run task label seeder
+	taskLabelSeeder := &TaskLabelSeeder{}
+	err = taskLabelSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run TaskLabelSeeder: " + err.Error())
+		return err
+	}
+
+	// Run milestone seeder
+	milestoneSeeder := &MilestoneSeeder{}
+	err = milestoneSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run MilestoneSeeder: " + err.Error())
+		return err
+	}
+
+	// Run task board seeder
+	taskBoardSeeder := &TaskBoardSeeder{}
+	err = taskBoardSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run TaskBoardSeeder: " + err.Error())
+		return err
+	}
+
+	// Run task board column seeder
+	taskBoardColumnSeeder := &TaskBoardColumnSeeder{}
+	err = taskBoardColumnSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run TaskBoardColumnSeeder: " + err.Error())
+		return err
+	}
+
+	// Run push subscription seeder
+	pushSubscriptionSeeder := &PushSubscriptionSeeder{}
+	err = pushSubscriptionSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run PushSubscriptionSeeder: " + err.Error())
+		return err
+	}
+
 	// Run task seeder
 	taskSeeder := &TaskSeeder{}
 	err = taskSeeder.Run()
