@@ -16,12 +16,12 @@ func (r *M20250115000017CreateCountriesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000017CreateCountriesTable) Up() error {
 	return facades.Schema().Create("countries", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.String("code", 2).Nullable()
-		table.String("code3", 3).Nullable()
-		table.String("numeric_code", 3).Nullable()
-		table.Boolean("is_active")
+		table.Ulid("id").Comment("Unique country identifier")
+		table.String("name").Comment("Country name")
+		table.String("code", 2).Nullable().Comment("ISO 3166-1 alpha-2 country code")
+		table.String("code3", 3).Nullable().Comment("ISO 3166-1 alpha-3 country code")
+		table.String("numeric_code", 3).Nullable().Comment("ISO 3166-1 numeric country code")
+		table.Boolean("is_active").Comment("Whether country is active")
 
 		table.TimestampsTz()
 		table.SoftDeletesTz()

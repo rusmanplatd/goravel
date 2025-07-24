@@ -16,16 +16,16 @@ func (r *M20250115000034CreateEventParticipantsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000034CreateEventParticipantsTable) Up() error {
 	return facades.Schema().Create("event_participants", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("event_id")
-		table.Ulid("user_id")
-		table.String("role")
-		table.String("response_status")
-		table.TimestampTz("responded_at").Nullable()
-		table.Text("response_comment")
-		table.Boolean("is_required")
-		table.Boolean("send_reminder")
-		table.TimestampTz("reminder_sent_at").Nullable()
+		table.Ulid("id").Comment("Unique participant identifier")
+		table.Ulid("event_id").Comment("Calendar event reference")
+		table.Ulid("user_id").Comment("User reference")
+		table.String("role").Comment("Participant role (organizer, attendee, optional)")
+		table.String("response_status").Comment("Response status (accepted, declined, tentative, pending)")
+		table.TimestampTz("responded_at").Nullable().Comment("When participant responded")
+		table.Text("response_comment").Comment("Participant's response comment")
+		table.Boolean("is_required").Comment("Whether participant is required")
+		table.Boolean("send_reminder").Comment("Whether to send reminders to this participant")
+		table.TimestampTz("reminder_sent_at").Nullable().Comment("When reminder was last sent")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

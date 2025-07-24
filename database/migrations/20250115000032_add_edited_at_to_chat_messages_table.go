@@ -16,7 +16,7 @@ func (r *M20250115000032AddEditedAtToChatMessagesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000032AddEditedAtToChatMessagesTable) Up() error {
 	return facades.Schema().Table("chat_messages", func(table schema.Blueprint) {
-		table.Timestamp("edited_at").Nullable()
+		table.Timestamp("edited_at").Nullable().Comment("When message was last edited")
 		table.Index("edited_at")
 	})
 }

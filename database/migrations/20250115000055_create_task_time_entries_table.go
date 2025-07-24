@@ -16,15 +16,15 @@ func (r *M20250115000055CreateTaskTimeEntriesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000055CreateTaskTimeEntriesTable) Up() error {
 	return facades.Schema().Create("task_time_entries", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Text("description")
-		table.Ulid("task_id")
-		table.Ulid("user_id")
-		table.TimestampTz("start_time")
-		table.TimestampTz("end_time").Nullable()
-		table.Float("duration").Default(0)
-		table.Boolean("is_billable").Default(true)
-		table.Float("rate").Default(0)
+		table.Ulid("id").Comment("Unique time entry identifier")
+		table.Text("description").Comment("Time entry description")
+		table.Ulid("task_id").Comment("Task reference")
+		table.Ulid("user_id").Comment("User who logged the time")
+		table.TimestampTz("start_time").Comment("Time entry start time")
+		table.TimestampTz("end_time").Nullable().Comment("Time entry end time")
+		table.Float("duration").Default(0).Comment("Duration in hours")
+		table.Boolean("is_billable").Default(true).Comment("Whether time entry is billable")
+		table.Float("rate").Default(0).Comment("Hourly rate for this time entry")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

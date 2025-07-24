@@ -16,11 +16,11 @@ func (r *M20250115000044CreateUserDepartmentsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000044CreateUserDepartmentsTable) Up() error {
 	return facades.Schema().Create("user_departments", func(table schema.Blueprint) {
-		table.Ulid("user_id")
-		table.Ulid("department_id")
-		table.String("role").Default("member")
-		table.Boolean("is_active").Default(true)
-		table.TimestampTz("joined_at")
+		table.Ulid("user_id").Comment("User reference")
+		table.Ulid("department_id").Comment("Department reference")
+		table.String("role").Default("member").Comment("User role in department (manager, member)")
+		table.Boolean("is_active").Default(true).Comment("Whether user is active in department")
+		table.TimestampTz("joined_at").Comment("When user joined the department")
 
 		// Primary key
 		table.Primary("user_id", "department_id")

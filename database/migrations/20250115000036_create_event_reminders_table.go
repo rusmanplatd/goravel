@@ -16,16 +16,16 @@ func (r *M20250115000036CreateEventRemindersTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000036CreateEventRemindersTable) Up() error {
 	return facades.Schema().Create("event_reminders", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("event_id")
-		table.Ulid("user_id")
-		table.String("type")
-		table.Integer("minutes_before")
-		table.TimestampTz("scheduled_at")
-		table.Boolean("sent")
-		table.TimestampTz("sent_at").Nullable()
-		table.String("status")
-		table.String("error_message")
+		table.Ulid("id").Comment("Unique reminder identifier")
+		table.Ulid("event_id").Comment("Calendar event reference")
+		table.Ulid("user_id").Comment("User reference")
+		table.String("type").Comment("Reminder type (email, push, sms, etc.)")
+		table.Integer("minutes_before").Comment("Minutes before event to send reminder")
+		table.TimestampTz("scheduled_at").Comment("When reminder is scheduled to be sent")
+		table.Boolean("sent").Comment("Whether reminder was sent")
+		table.TimestampTz("sent_at").Nullable().Comment("When reminder was actually sent")
+		table.String("status").Comment("Reminder status (pending, sent, failed)")
+		table.String("error_message").Comment("Error message if reminder failed")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

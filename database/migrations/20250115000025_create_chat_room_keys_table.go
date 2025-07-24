@@ -16,13 +16,13 @@ func (r *M20250115000025CreateChatRoomKeysTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000025CreateChatRoomKeysTable) Up() error {
 	return facades.Schema().Create("chat_room_keys", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("chat_room_id")
-		table.String("key_type")
-		table.Text("encrypted_key")
-		table.Integer("version")
-		table.Boolean("is_active")
-		table.Timestamp("rotated_at")
+		table.Ulid("id").Comment("Unique key identifier")
+		table.Ulid("chat_room_id").Comment("Chat room reference")
+		table.String("key_type").Comment("Key type (message, room, etc.)")
+		table.Text("encrypted_key").Comment("Encrypted key data")
+		table.Integer("version").Comment("Key version number")
+		table.Boolean("is_active").Comment("Whether key is currently active")
+		table.Timestamp("rotated_at").Comment("When key was last rotated")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

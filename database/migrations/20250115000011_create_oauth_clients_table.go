@@ -16,15 +16,15 @@ func (r *M20250115000011CreateOauthClientsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000011CreateOauthClientsTable) Up() error {
 	return facades.Schema().Create("oauth_clients", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("user_id").Nullable()
-		table.String("name", 255)
-		table.String("secret", 100).Nullable()
-		table.String("provider", 255).Nullable()
-		table.Text("redirect")
-		table.Boolean("personal_access_client").Default(false)
-		table.Boolean("password_client").Default(false)
-		table.Boolean("revoked").Default(false)
+		table.Ulid("id").Comment("Unique OAuth client identifier")
+		table.Ulid("user_id").Nullable().Comment("User who created the client")
+		table.String("name", 255).Comment("Client name")
+		table.String("secret", 100).Nullable().Comment("Client secret")
+		table.String("provider", 255).Nullable().Comment("Provider name")
+		table.Text("redirect").Comment("Redirect URI")
+		table.Boolean("personal_access_client").Default(false).Comment("Whether this is a personal access client")
+		table.Boolean("password_client").Default(false).Comment("Whether this is a password client")
+		table.Boolean("revoked").Default(false).Comment("Whether client is revoked")
 		table.Timestamps()
 
 		// Primary key

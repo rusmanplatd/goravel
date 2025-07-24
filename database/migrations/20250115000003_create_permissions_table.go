@@ -16,11 +16,11 @@ func (r *M20250115000003CreatePermissionsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000003CreatePermissionsTable) Up() error {
 	return facades.Schema().Create("permissions", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.String("guard")
-		table.Ulid("tenant_id").Nullable()
-		table.Text("description")
+		table.Ulid("id").Comment("Unique permission identifier")
+		table.String("name").Comment("Permission name")
+		table.String("guard").Comment("Authentication guard name")
+		table.Ulid("tenant_id").Nullable().Comment("Tenant reference")
+		table.Text("description").Comment("Permission description")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

@@ -16,10 +16,10 @@ func (r *M20250115000013CreateOauthRefreshTokensTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000013CreateOauthRefreshTokensTable) Up() error {
 	return facades.Schema().Create("oauth_refresh_tokens", func(table schema.Blueprint) {
-		table.String("id", 100)
-		table.String("access_token_id", 100)
-		table.Boolean("revoked")
-		table.TimestampTz("expires_at")
+		table.String("id", 100).Comment("Refresh token identifier")
+		table.String("access_token_id", 100).Comment("Associated access token reference")
+		table.Boolean("revoked").Comment("Whether refresh token is revoked")
+		table.TimestampTz("expires_at").Comment("Token expiration timestamp")
 
 		// Primary key
 		table.Primary("id")

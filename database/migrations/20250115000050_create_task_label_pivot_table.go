@@ -16,10 +16,10 @@ func (r *M20250115000050CreateTaskLabelPivotTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000050CreateTaskLabelPivotTable) Up() error {
 	return facades.Schema().Create("task_label_pivot", func(table schema.Blueprint) {
-		table.Ulid("task_id")
-		table.Ulid("label_id")
-		table.TimestampTz("added_at")
-		table.Ulid("added_by")
+		table.Ulid("task_id").Comment("Task reference")
+		table.Ulid("label_id").Comment("Label reference")
+		table.TimestampTz("added_at").Comment("When label was added to task")
+		table.Ulid("added_by").Comment("User who added the label")
 
 		// Primary key
 		table.Primary("task_id", "label_id")

@@ -16,12 +16,12 @@ func (r *M20250115000053CreateTaskActivitiesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000053CreateTaskActivitiesTable) Up() error {
 	return facades.Schema().Create("task_activities", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("type")
-		table.Text("description")
-		table.Ulid("task_id")
-		table.Ulid("user_id")
-		table.Json("data")
+		table.Ulid("id").Comment("Unique activity identifier")
+		table.String("type").Comment("Activity type (created, updated, assigned, commented, etc.)")
+		table.Text("description").Comment("Activity description")
+		table.Ulid("task_id").Comment("Task reference")
+		table.Ulid("user_id").Comment("User who performed the activity")
+		table.Json("data").Comment("Additional activity data")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

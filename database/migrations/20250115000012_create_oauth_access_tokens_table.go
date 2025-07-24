@@ -16,12 +16,12 @@ func (r *M20250115000012CreateOauthAccessTokensTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000012CreateOauthAccessTokensTable) Up() error {
 	return facades.Schema().Create("oauth_access_tokens", func(table schema.Blueprint) {
-		table.String("id", 100)
-		table.Ulid("user_id").Nullable()
-		table.Ulid("client_id")
-		table.String("name", 255).Nullable()
-		table.Text("scopes").Nullable()
-		table.Boolean("revoked")
+		table.String("id", 100).Comment("Access token identifier")
+		table.Ulid("user_id").Nullable().Comment("User reference")
+		table.Ulid("client_id").Comment("OAuth client reference")
+		table.String("name", 255).Nullable().Comment("Token name")
+		table.Text("scopes").Nullable().Comment("Token scopes")
+		table.Boolean("revoked").Comment("Whether token is revoked")
 		table.TimestampsTz()
 
 		// Primary key

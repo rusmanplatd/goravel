@@ -16,13 +16,13 @@ func (r *M20250115000052CreateTaskCommentsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000052CreateTaskCommentsTable) Up() error {
 	return facades.Schema().Create("task_comments", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Text("content")
-		table.Ulid("task_id")
-		table.Ulid("author_id")
-		table.Ulid("parent_comment_id").Nullable()
-		table.Boolean("is_internal").Default(false)
-		table.String("type").Default("comment")
+		table.Ulid("id").Comment("Unique comment identifier")
+		table.Text("content").Comment("Comment content")
+		table.Ulid("task_id").Comment("Task reference")
+		table.Ulid("author_id").Comment("Comment author reference")
+		table.Ulid("parent_comment_id").Nullable().Comment("Parent comment reference for replies")
+		table.Boolean("is_internal").Default(false).Comment("Whether comment is internal (not visible to external users)")
+		table.String("type").Default("comment").Comment("Comment type (comment, review, system)")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

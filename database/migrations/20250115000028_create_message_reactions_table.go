@@ -16,11 +16,11 @@ func (r *M20250115000028CreateMessageReactionsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000028CreateMessageReactionsTable) Up() error {
 	return facades.Schema().Create("message_reactions", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("message_id")
-		table.Ulid("user_id")
-		table.String("emoji")
-		table.Timestamp("reacted_at")
+		table.Ulid("id").Comment("Unique reaction identifier")
+		table.Ulid("message_id").Comment("Message reference")
+		table.Ulid("user_id").Comment("User who reacted")
+		table.String("emoji").Comment("Emoji reaction")
+		table.Timestamp("reacted_at").Comment("When reaction was added")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

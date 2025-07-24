@@ -16,11 +16,11 @@ func (r *M20250115000054CreateTaskDependenciesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000054CreateTaskDependenciesTable) Up() error {
 	return facades.Schema().Create("task_dependencies", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("task_id")
-		table.Ulid("dependent_task_id")
-		table.String("type").Default("blocks")
-		table.Boolean("is_active").Default(true)
+		table.Ulid("id").Comment("Unique dependency identifier")
+		table.Ulid("task_id").Comment("Task reference")
+		table.Ulid("dependent_task_id").Comment("Dependent task reference")
+		table.String("type").Default("blocks").Comment("Dependency type (blocks, requires, relates_to)")
+		table.Boolean("is_active").Default(true).Comment("Whether dependency is active")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

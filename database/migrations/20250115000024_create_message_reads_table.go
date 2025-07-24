@@ -16,10 +16,10 @@ func (r *M20250115000024CreateMessageReadsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000024CreateMessageReadsTable) Up() error {
 	return facades.Schema().Create("message_reads", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("message_id")
-		table.Ulid("user_id")
-		table.Timestamp("read_at")
+		table.Ulid("id").Comment("Unique read record identifier")
+		table.Ulid("message_id").Comment("Message reference")
+		table.Ulid("user_id").Comment("User reference")
+		table.Timestamp("read_at").Comment("When message was read")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

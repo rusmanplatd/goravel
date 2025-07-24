@@ -16,11 +16,11 @@ func (r *M20250115000002CreateRolesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000002CreateRolesTable) Up() error {
 	return facades.Schema().Create("roles", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.String("guard")
-		table.Ulid("tenant_id").Nullable()
-		table.Text("description")
+		table.Ulid("id").Comment("Unique role identifier")
+		table.String("name").Comment("Role name")
+		table.String("guard").Comment("Authentication guard name")
+		table.Ulid("tenant_id").Nullable().Comment("Tenant reference")
+		table.Text("description").Comment("Role description")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

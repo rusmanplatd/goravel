@@ -16,16 +16,16 @@ func (r *M20250115000016CreateOauthDeviceCodesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000016CreateOauthDeviceCodesTable) Up() error {
 	return facades.Schema().Create("oauth_device_codes", func(table schema.Blueprint) {
-		table.String("id", 100)
-		table.Ulid("user_id").Nullable()
-		table.Ulid("client_id")
-		table.Text("scopes").Nullable()
-		table.String("user_code", 10)
-		table.Boolean("revoked")
-		table.Boolean("authorized")
-		table.TimestampTz("expires_at")
-		table.TimestampTz("created_at")
-		table.TimestampTz("updated_at")
+		table.String("id", 100).Comment("Device code identifier")
+		table.Ulid("user_id").Nullable().Comment("User reference (set after authorization)")
+		table.Ulid("client_id").Comment("OAuth client reference")
+		table.Text("scopes").Nullable().Comment("Requested scopes")
+		table.String("user_code", 10).Comment("User-friendly code for device authorization")
+		table.Boolean("revoked").Comment("Whether device code is revoked")
+		table.Boolean("authorized").Comment("Whether device is authorized")
+		table.TimestampTz("expires_at").Comment("Device code expiration timestamp")
+		table.TimestampTz("created_at").Comment("Code creation timestamp")
+		table.TimestampTz("updated_at").Comment("Code update timestamp")
 
 		// Primary key
 		table.Primary("id")

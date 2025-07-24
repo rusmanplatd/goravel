@@ -16,9 +16,9 @@ func (r *M20250115000010CreatePasswordResetTokensTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000010CreatePasswordResetTokensTable) Up() error {
 	return facades.Schema().Create("password_reset_tokens", func(table schema.Blueprint) {
-		table.String("email")
-		table.String("token")
-		table.TimestampTz("created_at")
+		table.String("email").Comment("User email address")
+		table.String("token").Comment("Password reset token")
+		table.TimestampTz("created_at").Comment("Token creation timestamp")
 
 		// Primary key
 		table.Primary("email")

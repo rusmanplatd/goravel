@@ -16,17 +16,17 @@ func (r *M20250115000023CreateChatMessagesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000023CreateChatMessagesTable) Up() error {
 	return facades.Schema().Create("chat_messages", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("chat_room_id")
-		table.Ulid("sender_id")
-		table.String("type")
-		table.Text("encrypted_content")
-		table.Json("metadata")
-		table.Ulid("reply_to_id")
-		table.Boolean("is_edited")
-		table.Text("original_content")
-		table.String("status")
-		table.Integer("encryption_version")
+		table.Ulid("id").Comment("Unique message identifier")
+		table.Ulid("chat_room_id").Comment("Chat room reference")
+		table.Ulid("sender_id").Comment("Message sender reference")
+		table.String("type").Comment("Message type (text, image, file, system, etc.)")
+		table.Text("encrypted_content").Comment("Encrypted message content")
+		table.Json("metadata").Comment("Message metadata (file info, reactions, etc.)")
+		table.Ulid("reply_to_id").Comment("Reply to message reference")
+		table.Boolean("is_edited").Comment("Whether message was edited")
+		table.Text("original_content").Comment("Original message content before edit")
+		table.String("status").Comment("Message status (sent, delivered, read, failed)")
+		table.Integer("encryption_version").Comment("Encryption algorithm version")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

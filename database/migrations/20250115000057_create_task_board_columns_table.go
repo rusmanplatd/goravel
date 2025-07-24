@@ -16,15 +16,15 @@ func (r *M20250115000057CreateTaskBoardColumnsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000057CreateTaskBoardColumnsTable) Up() error {
 	return facades.Schema().Create("task_board_columns", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.Text("description")
-		table.String("color").Nullable()
-		table.Integer("position")
-		table.String("status_filter").Nullable()
-		table.Integer("task_limit").Default(0)
-		table.Boolean("is_active").Default(true)
-		table.Ulid("board_id")
+		table.Ulid("id").Comment("Unique column identifier")
+		table.String("name").Comment("Column name")
+		table.Text("description").Comment("Column description")
+		table.String("color").Nullable().Comment("Column color for UI display")
+		table.Integer("position").Comment("Column position in board")
+		table.String("status_filter").Nullable().Comment("Status filter for this column")
+		table.Integer("task_limit").Default(0).Comment("Maximum number of tasks in column (0 = unlimited)")
+		table.Boolean("is_active").Default(true).Comment("Whether column is active")
+		table.Ulid("board_id").Comment("Board reference")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

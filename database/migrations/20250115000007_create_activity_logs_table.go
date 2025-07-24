@@ -16,15 +16,15 @@ func (r *M20250115000007CreateActivityLogsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000007CreateActivityLogsTable) Up() error {
 	return facades.Schema().Create("activity_logs", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("log_name")
-		table.Text("description")
-		table.String("subject_type")
-		table.Ulid("subject_id")
-		table.String("causer_type")
-		table.Ulid("causer_id")
-		table.Json("properties")
-		table.Ulid("tenant_id")
+		table.Ulid("id").Comment("Unique activity log identifier")
+		table.String("log_name").Comment("Log name/category")
+		table.Text("description").Comment("Activity description")
+		table.String("subject_type").Comment("Subject model type")
+		table.Ulid("subject_id").Comment("Subject model identifier")
+		table.String("causer_type").Comment("Causer model type")
+		table.Ulid("causer_id").Comment("Causer model identifier")
+		table.Json("properties").Comment("Additional activity properties")
+		table.Ulid("tenant_id").Comment("Tenant reference")
 		table.TimestampsTz()
 
 		// Primary key

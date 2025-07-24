@@ -16,12 +16,12 @@ func (r *M20250115000047CreateTeamProjectsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000047CreateTeamProjectsTable) Up() error {
 	return facades.Schema().Create("team_projects", func(table schema.Blueprint) {
-		table.Ulid("team_id")
-		table.Ulid("project_id")
-		table.String("role").Default("contributor")
-		table.Boolean("is_active").Default(true)
-		table.TimestampTz("joined_at")
-		table.Float("allocation").Default(100)
+		table.Ulid("team_id").Comment("Team reference")
+		table.Ulid("project_id").Comment("Project reference")
+		table.String("role").Default("contributor").Comment("Team role in project (owner, contributor, viewer)")
+		table.Boolean("is_active").Default(true).Comment("Whether team is active in project")
+		table.TimestampTz("joined_at").Comment("When team joined the project")
+		table.Float("allocation").Default(100).Comment("Team's time allocation percentage (0-100)")
 
 		// Primary key
 		table.Primary("team_id", "project_id")

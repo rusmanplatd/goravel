@@ -16,15 +16,15 @@ func (r *M20250115000030CreateMessageThreadsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000030CreateMessageThreadsTable) Up() error {
 	return facades.Schema().Create("message_threads", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("chat_room_id")
-		table.Ulid("root_message_id")
-		table.String("title")
-		table.Integer("message_count").Default(0)
-		table.Timestamp("last_activity_at")
-		table.Boolean("is_resolved").Default(false)
-		table.Ulid("resolved_by").Nullable()
-		table.Timestamp("resolved_at").Nullable()
+		table.Ulid("id").Comment("Unique thread identifier")
+		table.Ulid("chat_room_id").Comment("Chat room reference")
+		table.Ulid("root_message_id").Comment("Root message that started the thread")
+		table.String("title").Comment("Thread title")
+		table.Integer("message_count").Default(0).Comment("Number of messages in thread")
+		table.Timestamp("last_activity_at").Comment("Last activity timestamp")
+		table.Boolean("is_resolved").Default(false).Comment("Whether thread is resolved")
+		table.Ulid("resolved_by").Nullable().Comment("User who resolved the thread")
+		table.Timestamp("resolved_at").Nullable().Comment("When thread was resolved")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

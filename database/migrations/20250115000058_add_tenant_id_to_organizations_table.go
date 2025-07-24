@@ -16,7 +16,7 @@ func (r *M20250115000058AddTenantIdToOrganizationsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000058AddTenantIdToOrganizationsTable) Up() error {
 	return facades.Schema().Table("organizations", func(table schema.Blueprint) {
-		table.Ulid("tenant_id").Nullable()
+		table.Ulid("tenant_id").Nullable().Comment("Tenant reference for multi-tenancy")
 		table.Index("tenant_id")
 		table.Foreign("tenant_id").References("id").On("tenants")
 	})

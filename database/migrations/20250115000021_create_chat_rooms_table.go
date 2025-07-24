@@ -16,15 +16,15 @@ func (r *M20250115000021CreateChatRoomsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000021CreateChatRoomsTable) Up() error {
 	return facades.Schema().Create("chat_rooms", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.Text("description")
-		table.String("type")
-		table.Boolean("is_active")
-		table.String("avatar")
-		table.Ulid("tenant_id")
-		table.Ulid("created_by")
-		table.Timestamp("last_activity_at")
+		table.Ulid("id").Comment("Unique chat room identifier")
+		table.String("name").Comment("Chat room name")
+		table.Text("description").Comment("Chat room description")
+		table.String("type").Comment("Chat room type (direct, group, channel)")
+		table.Boolean("is_active").Comment("Whether chat room is active")
+		table.String("avatar").Comment("Chat room avatar URL")
+		table.Ulid("tenant_id").Comment("Tenant reference")
+		table.Ulid("created_by").Comment("Chat room creator reference")
+		table.Timestamp("last_activity_at").Comment("Last activity timestamp")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

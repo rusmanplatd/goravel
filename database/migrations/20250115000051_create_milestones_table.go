@@ -16,17 +16,17 @@ func (r *M20250115000051CreateMilestonesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000051CreateMilestonesTable) Up() error {
 	return facades.Schema().Create("milestones", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("title")
-		table.Text("description")
-		table.String("status").Default("open")
-		table.String("color").Nullable()
-		table.String("icon").Nullable()
-		table.Ulid("project_id")
-		table.Ulid("created_by")
-		table.TimestampTz("due_date").Nullable()
-		table.TimestampTz("completed_at").Nullable()
-		table.Float("progress").Default(0)
+		table.Ulid("id").Comment("Unique milestone identifier")
+		table.String("title").Comment("Milestone title")
+		table.Text("description").Comment("Milestone description")
+		table.String("status").Default("open").Comment("Milestone status (open, in_progress, completed, cancelled)")
+		table.String("color").Nullable().Comment("Milestone color for UI display")
+		table.String("icon").Nullable().Comment("Milestone icon for UI display")
+		table.Ulid("project_id").Comment("Project reference")
+		table.Ulid("created_by").Comment("Milestone creator reference")
+		table.TimestampTz("due_date").Nullable().Comment("Milestone due date")
+		table.TimestampTz("completed_at").Nullable().Comment("When milestone was completed")
+		table.Float("progress").Default(0).Comment("Milestone completion percentage (0-100)")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

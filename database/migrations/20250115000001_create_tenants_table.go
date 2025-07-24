@@ -16,13 +16,13 @@ func (r *M20250115000001CreateTenantsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000001CreateTenantsTable) Up() error {
 	return facades.Schema().Create("tenants", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.String("slug").Nullable()
-		table.String("domain").Nullable()
-		table.Text("description")
-		table.Boolean("is_active").Default(false)
-		table.Json("settings")
+		table.Ulid("id").Comment("Unique tenant identifier")
+		table.String("name").Comment("Tenant name")
+		table.String("slug").Nullable().Comment("URL-friendly tenant identifier")
+		table.String("domain").Nullable().Comment("Custom domain for tenant")
+		table.Text("description").Comment("Tenant description")
+		table.Boolean("is_active").Default(false).Comment("Whether tenant is active")
+		table.Json("settings").Comment("Tenant-specific settings")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

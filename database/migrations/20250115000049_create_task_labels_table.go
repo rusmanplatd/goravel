@@ -16,14 +16,14 @@ func (r *M20250115000049CreateTaskLabelsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000049CreateTaskLabelsTable) Up() error {
 	return facades.Schema().Create("task_labels", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.Text("description")
-		table.String("color")
-		table.String("icon").Nullable()
-		table.Boolean("is_active").Default(true)
-		table.Ulid("project_id")
-		table.Ulid("created_by")
+		table.Ulid("id").Comment("Unique label identifier")
+		table.String("name").Comment("Label name")
+		table.Text("description").Comment("Label description")
+		table.String("color").Comment("Label color for UI display")
+		table.String("icon").Nullable().Comment("Label icon for UI display")
+		table.Boolean("is_active").Default(true).Comment("Whether label is active")
+		table.Ulid("project_id").Comment("Project reference")
+		table.Ulid("created_by").Comment("Label creator reference")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

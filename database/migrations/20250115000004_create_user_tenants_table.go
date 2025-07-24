@@ -16,10 +16,10 @@ func (r *M20250115000004CreateUserTenantsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000004CreateUserTenantsTable) Up() error {
 	return facades.Schema().Create("user_tenants", func(table schema.Blueprint) {
-		table.Ulid("user_id")
-		table.Ulid("tenant_id")
-		table.Boolean("is_active")
-		table.TimestampTz("joined_at")
+		table.Ulid("user_id").Comment("User reference")
+		table.Ulid("tenant_id").Comment("Tenant reference")
+		table.Boolean("is_active").Comment("Whether user is active in this tenant")
+		table.TimestampTz("joined_at").Comment("When user joined the tenant")
 		table.TimestampsTz()
 
 		// Primary key

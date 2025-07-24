@@ -16,8 +16,8 @@ func (r *M20250115000015CreateOauthPersonalAccessClientsTable) Signature() strin
 // Up Run the migrations.
 func (r *M20250115000015CreateOauthPersonalAccessClientsTable) Up() error {
 	return facades.Schema().Create("oauth_personal_access_clients", func(table schema.Blueprint) {
-		table.String("id", 26)
-		table.String("client_id", 26)
+		table.String("id", 26).Comment("Personal access client identifier")
+		table.String("client_id", 26).Comment("OAuth client reference")
 		table.TimestampsTz()
 
 		// Primary key

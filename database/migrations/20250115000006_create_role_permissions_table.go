@@ -16,8 +16,8 @@ func (r *M20250115000006CreateRolePermissionsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000006CreateRolePermissionsTable) Up() error {
 	return facades.Schema().Create("role_permissions", func(table schema.Blueprint) {
-		table.Ulid("role_id")
-		table.Ulid("permission_id")
+		table.Ulid("role_id").Comment("Role reference")
+		table.Ulid("permission_id").Comment("Permission reference")
 		table.TimestampsTz()
 
 		// Primary key

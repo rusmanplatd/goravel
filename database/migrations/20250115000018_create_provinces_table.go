@@ -16,12 +16,11 @@ func (r *M20250115000018CreateProvincesTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000018CreateProvincesTable) Up() error {
 	return facades.Schema().Create("provinces", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.String("code")
-		table.Boolean("is_active")
-		table.Ulid("country_id")
-
+		table.Ulid("id").Comment("Unique province identifier")
+		table.String("name").Comment("Province name")
+		table.String("code").Comment("Province code")
+		table.Boolean("is_active").Comment("Whether province is active")
+		table.Ulid("country_id").Comment("Country reference")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

@@ -16,14 +16,14 @@ func (r *M20250115000026CreateUserKeysTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000026CreateUserKeysTable) Up() error {
 	return facades.Schema().Create("user_keys", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("user_id")
-		table.String("key_type")
-		table.Text("public_key")
-		table.Text("encrypted_private_key")
-		table.Integer("version")
-		table.Boolean("is_active")
-		table.Timestamp("expires_at")
+		table.Ulid("id").Comment("Unique key identifier")
+		table.Ulid("user_id").Comment("User reference")
+		table.String("key_type").Comment("Key type (encryption, signing, etc.)")
+		table.Text("public_key").Comment("Public key data")
+		table.Text("encrypted_private_key").Comment("Encrypted private key data")
+		table.Integer("version").Comment("Key version number")
+		table.Boolean("is_active").Comment("Whether key is currently active")
+		table.Timestamp("expires_at").Comment("Key expiration timestamp")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

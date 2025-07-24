@@ -16,17 +16,17 @@ func (r *M20250115000056CreateTaskBoardsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000056CreateTaskBoardsTable) Up() error {
 	return facades.Schema().Create("task_boards", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.Text("description")
-		table.String("type").Default("kanban")
-		table.String("color").Nullable()
-		table.String("icon").Nullable()
-		table.Boolean("is_active").Default(true)
-		table.Boolean("is_default").Default(false)
-		table.Ulid("project_id")
-		table.Ulid("created_by")
-		table.Json("settings")
+		table.Ulid("id").Comment("Unique board identifier")
+		table.String("name").Comment("Board name")
+		table.Text("description").Comment("Board description")
+		table.String("type").Default("kanban").Comment("Board type (kanban, scrum, list)")
+		table.String("color").Nullable().Comment("Board color for UI display")
+		table.String("icon").Nullable().Comment("Board icon for UI display")
+		table.Boolean("is_active").Default(true).Comment("Whether board is active")
+		table.Boolean("is_default").Default(false).Comment("Whether board is the default board")
+		table.Ulid("project_id").Comment("Project reference")
+		table.Ulid("created_by").Comment("Board creator reference")
+		table.Json("settings").Comment("Board-specific settings")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

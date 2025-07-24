@@ -16,12 +16,11 @@ func (r *M20250115000020CreateDistrictsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000020CreateDistrictsTable) Up() error {
 	return facades.Schema().Create("districts", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.String("code")
-		table.Boolean("is_active")
-		table.Ulid("city_id")
-
+		table.Ulid("id").Comment("Unique district identifier")
+		table.String("name").Comment("District name")
+		table.String("code").Comment("District code")
+		table.Boolean("is_active").Comment("Whether district is active")
+		table.Ulid("city_id").Comment("City reference")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 

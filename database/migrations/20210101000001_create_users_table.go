@@ -15,13 +15,13 @@ func (r *M20210101000001CreateUsersTable) Signature() string {
 // Up Run the migrations.
 func (r *M20210101000001CreateUsersTable) Up() error {
 	return facades.Schema().Create("users", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.String("name")
-		table.String("email")
-		table.String("password")
-		table.TimestampTz("email_verified_at").Nullable()
-		table.String("remember_token")
-		table.Boolean("is_active")
+		table.Ulid("id").Comment("Unique user identifier")
+		table.String("name").Comment("User's full name")
+		table.String("email").Comment("User's email address")
+		table.String("password").Comment("Hashed user password")
+		table.TimestampTz("email_verified_at").Nullable().Comment("When email was verified")
+		table.String("remember_token").Comment("Remember me token")
+		table.Boolean("is_active").Comment("Whether user account is active")
 
 		table.TimestampsTz()
 		table.SoftDeletesTz()

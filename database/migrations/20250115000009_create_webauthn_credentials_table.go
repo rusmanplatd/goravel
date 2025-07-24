@@ -16,19 +16,18 @@ func (r *M20250115000009CreateWebauthnCredentialsTable) Signature() string {
 // Up Run the migrations.
 func (r *M20250115000009CreateWebauthnCredentialsTable) Up() error {
 	return facades.Schema().Create("webauthn_credentials", func(table schema.Blueprint) {
-		table.Ulid("id")
-		table.Ulid("user_id")
-		table.String("name")
-		table.String("credential_id")
-		table.Text("public_key")
-		table.String("attestation_type")
-		table.Text("transports")
-		table.String("flags")
-		table.Boolean("backup_eligible").Default(false)
-		table.Boolean("backed_up").Default(false)
-		table.Integer("sign_count").Default(0)
-		table.TimestampTz("last_used_at").Nullable()
-
+		table.Ulid("id").Comment("Unique credential identifier")
+		table.Ulid("user_id").Comment("User reference")
+		table.String("name").Comment("Credential name/description")
+		table.String("credential_id").Comment("WebAuthn credential ID")
+		table.Text("public_key").Comment("Public key data")
+		table.String("attestation_type").Comment("Attestation type")
+		table.Text("transports").Comment("Supported transports (usb, nfc, ble, internal)")
+		table.String("flags").Comment("Credential flags")
+		table.Boolean("backup_eligible").Default(false).Comment("Whether credential is backup eligible")
+		table.Boolean("backed_up").Default(false).Comment("Whether credential is backed up")
+		table.Integer("sign_count").Default(0).Comment("Signature counter")
+		table.TimestampTz("last_used_at").Nullable().Comment("When credential was last used")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 
