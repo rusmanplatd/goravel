@@ -13,6 +13,10 @@ func Api() {
 	oauthController := v1.NewOAuthController()
 	userController := v1.NewUserController()
 	tenantController := v1.NewTenantController()
+	organizationController := v1.NewOrganizationController()
+	departmentController := v1.NewDepartmentController()
+	teamController := v1.NewTeamController()
+	projectController := v1.NewProjectController()
 	roleController := v1.NewRoleController()
 	permissionController := v1.NewPermissionController()
 	activityLogController := v1.NewActivityLogController()
@@ -101,6 +105,52 @@ func Api() {
 	facades.Route().Get("/api/v1/tenants/{id}/users", tenantController.Users)
 	facades.Route().Post("/api/v1/tenants/{id}/users", tenantController.AddUser)
 	facades.Route().Delete("/api/v1/tenants/{id}/users/{user_id}", tenantController.RemoveUser)
+
+	// Organization management routes (protected) - temporarily without middleware for testing
+	facades.Route().Get("/api/v1/organizations", organizationController.Index)
+	facades.Route().Post("/api/v1/organizations", organizationController.Store)
+	facades.Route().Get("/api/v1/organizations/{id}", organizationController.Show)
+	facades.Route().Put("/api/v1/organizations/{id}", organizationController.Update)
+	facades.Route().Delete("/api/v1/organizations/{id}", organizationController.Delete)
+	facades.Route().Get("/api/v1/organizations/{id}/users", organizationController.Users)
+	facades.Route().Post("/api/v1/organizations/{id}/users", organizationController.AddUser)
+	facades.Route().Delete("/api/v1/organizations/{id}/users/{user_id}", organizationController.RemoveUser)
+	facades.Route().Get("/api/v1/organizations/{id}/hierarchy", organizationController.Hierarchy)
+	facades.Route().Get("/api/v1/organizations/{id}/stats", organizationController.Stats)
+	facades.Route().Post("/api/v1/organizations/{id}/verify", organizationController.Verify)
+
+	// Department management routes (protected) - temporarily without middleware for testing
+	facades.Route().Get("/api/v1/organizations/{organization_id}/departments", departmentController.Index)
+	facades.Route().Post("/api/v1/organizations/{organization_id}/departments", departmentController.Store)
+	facades.Route().Get("/api/v1/organizations/{organization_id}/departments/{id}", departmentController.Show)
+	facades.Route().Put("/api/v1/organizations/{organization_id}/departments/{id}", departmentController.Update)
+	facades.Route().Delete("/api/v1/organizations/{organization_id}/departments/{id}", departmentController.Delete)
+	facades.Route().Get("/api/v1/organizations/{organization_id}/departments/{id}/users", departmentController.Users)
+	facades.Route().Post("/api/v1/organizations/{organization_id}/departments/{id}/users", departmentController.AddUser)
+	facades.Route().Delete("/api/v1/organizations/{organization_id}/departments/{id}/users/{user_id}", departmentController.RemoveUser)
+
+	// Team management routes (protected) - temporarily without middleware for testing
+	facades.Route().Get("/api/v1/organizations/{organization_id}/teams", teamController.Index)
+	facades.Route().Post("/api/v1/organizations/{organization_id}/teams", teamController.Store)
+	facades.Route().Get("/api/v1/organizations/{organization_id}/teams/{id}", teamController.Show)
+	facades.Route().Put("/api/v1/organizations/{organization_id}/teams/{id}", teamController.Update)
+	facades.Route().Delete("/api/v1/organizations/{organization_id}/teams/{id}", teamController.Delete)
+	facades.Route().Get("/api/v1/organizations/{organization_id}/teams/{id}/users", teamController.Users)
+	facades.Route().Post("/api/v1/organizations/{organization_id}/teams/{id}/users", teamController.AddUser)
+	facades.Route().Delete("/api/v1/organizations/{organization_id}/teams/{id}/users/{user_id}", teamController.RemoveUser)
+
+	// Project management routes (protected) - temporarily without middleware for testing
+	facades.Route().Get("/api/v1/organizations/{organization_id}/projects", projectController.Index)
+	facades.Route().Post("/api/v1/organizations/{organization_id}/projects", projectController.Store)
+	facades.Route().Get("/api/v1/organizations/{organization_id}/projects/{id}", projectController.Show)
+	facades.Route().Put("/api/v1/organizations/{organization_id}/projects/{id}", projectController.Update)
+	facades.Route().Delete("/api/v1/organizations/{organization_id}/projects/{id}", projectController.Delete)
+	facades.Route().Get("/api/v1/organizations/{organization_id}/projects/{id}/users", projectController.Users)
+	facades.Route().Post("/api/v1/organizations/{organization_id}/projects/{id}/users", projectController.AddUser)
+	facades.Route().Delete("/api/v1/organizations/{organization_id}/projects/{id}/users/{user_id}", projectController.RemoveUser)
+	facades.Route().Get("/api/v1/organizations/{organization_id}/projects/{id}/teams", projectController.Teams)
+	facades.Route().Post("/api/v1/organizations/{organization_id}/projects/{id}/teams", projectController.AddTeam)
+	facades.Route().Delete("/api/v1/organizations/{organization_id}/projects/{id}/teams/{team_id}", projectController.RemoveTeam)
 
 	// Role management routes (protected) - temporarily without middleware for testing
 	facades.Route().Get("/api/v1/roles", roleController.Index)

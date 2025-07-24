@@ -35,6 +35,15 @@ func (kernel Kernel) Migrations() []schema.Migration {
 		&migrations.M20250115000018CreateProvincesTable{},
 		&migrations.M20250115000019CreateCitiesTable{},
 		&migrations.M20250115000020CreateDistrictsTable{},
+		&migrations.M20250115000039CreateOrganizationsTable{},
+		&migrations.M20250115000040CreateDepartmentsTable{},
+		&migrations.M20250115000041CreateTeamsTable{},
+		&migrations.M20250115000042CreateProjectsTable{},
+		&migrations.M20250115000043CreateUserOrganizationsTable{},
+		&migrations.M20250115000044CreateUserDepartmentsTable{},
+		&migrations.M20250115000045CreateUserTeamsTable{},
+		&migrations.M20250115000046CreateUserProjectsTable{},
+		&migrations.M20250115000047CreateTeamProjectsTable{},
 	}
 }
 

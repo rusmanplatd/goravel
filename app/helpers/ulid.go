@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"crypto/rand"
+	"strings"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -28,4 +29,37 @@ func ParseULID(ulidStr string) (time.Time, error) {
 func IsValidULID(ulidStr string) bool {
 	_, err := ulid.Parse(ulidStr)
 	return err == nil
+}
+
+// GenerateSlug generates a URL-friendly slug from a string
+func GenerateSlug(text string) string {
+	// Convert to lowercase
+	slug := strings.ToLower(text)
+
+	// Replace spaces and special characters with hyphens
+	slug = strings.ReplaceAll(slug, " ", "-")
+	slug = strings.ReplaceAll(slug, "_", "-")
+	slug = strings.ReplaceAll(slug, ".", "-")
+	slug = strings.ReplaceAll(slug, ",", "-")
+	slug = strings.ReplaceAll(slug, "&", "-and-")
+	slug = strings.ReplaceAll(slug, "+", "-plus-")
+
+	// Remove any non-alphanumeric characters except hyphens
+	var result strings.Builder
+	for _, char := range slug {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
+			result.WriteRune(char)
+		}
+	}
+
+	// Remove multiple consecutive hyphens
+	slug = result.String()
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+
+	// Remove leading and trailing hyphens
+	slug = strings.Trim(slug, "-")
+
+	return slug
 }
