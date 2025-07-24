@@ -3071,6 +3071,1615 @@ paths:
                     description: Bad request
                 "422":
                     description: Validation error
+    /api/v1/organizations:
+        get:
+            tags:
+                - organizations
+            summary: Get all organizations
+            description: Retrieve a list of all organizations with filtering and cursor-based pagination
+            operationId: getApiV1Organizations
+            parameters:
+                - name: cursor
+                  in: query
+                  description: Cursor for pagination
+                  required: false
+                  schema:
+                    type: string
+                - name: limit
+                  in: query
+                  description: Items per page
+                  required: false
+                  schema:
+                    type: integer
+                    default: 10
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - organizations
+            summary: Create organization
+            description: Create a new organization
+            operationId: postApiV1Organizations
+            parameters:
+                - name: cursor
+                  in: query
+                  description: Cursor for pagination
+                  required: false
+                  schema:
+                    type: string
+                - name: limit
+                  in: query
+                  description: Items per page
+                  required: false
+                  schema:
+                    type: integer
+                    default: 10
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}:
+        get:
+            tags:
+                - organizations
+            summary: Get organization by ID
+            description: Retrieve a specific organization by its ID
+            operationId: getApiV1OrganizationsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        put:
+            tags:
+                - organizations
+            summary: Update organization
+            description: Update an existing organization
+            operationId: putApiV1OrganizationsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Updated
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Not found
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+        delete:
+            tags:
+                - organizations
+            summary: Delete organization
+            description: Delete an organization
+            operationId: deleteApiV1OrganizationsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/departments:
+        get:
+            tags:
+                - departments
+            summary: Get all departments
+            description: Retrieve a list of all departments in an organization with filtering and cursor-based pagination
+            operationId: getApiV1OrganizationsbyIdDepartments
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - departments
+            summary: Create a new department
+            description: Create a new department in an organization
+            operationId: postApiV1OrganizationsbyIdDepartments
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/departments/{department_id}:
+        get:
+            tags:
+                - departments
+            summary: Get a specific department by ID
+            description: Retrieve a specific department by its ID
+            operationId: getApiV1OrganizationsbyIdDepartmentsbyDepartment_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: department_id
+                  in: path
+                  description: department_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        put:
+            tags:
+                - departments
+            summary: Update a department
+            description: Update an existing department
+            operationId: putApiV1OrganizationsbyIdDepartmentsbyDepartment_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: department_id
+                  in: path
+                  description: department_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Updated
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Not found
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+        delete:
+            tags:
+                - departments
+            summary: Delete a department
+            description: Delete an existing department
+            operationId: deleteApiV1OrganizationsbyIdDepartmentsbyDepartment_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: department_id
+                  in: path
+                  description: department_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/departments/{department_id}/users:
+        get:
+            tags:
+                - departments
+            summary: Get department users
+            description: Retrieve users in a specific department
+            operationId: getApiV1OrganizationsbyIdDepartmentsbyDepartment_idUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: department_id
+                  in: path
+                  description: department_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - departments
+            summary: Add user to department
+            description: Add a user to a specific department
+            operationId: postApiV1OrganizationsbyIdDepartmentsbyDepartment_idUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: department_id
+                  in: path
+                  description: department_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/departments/{department_id}/users/{user_id}:
+        delete:
+            tags:
+                - departments
+            summary: Remove user from department
+            description: Remove a user from a specific department
+            operationId: deleteApiV1OrganizationsbyIdDepartmentsbyDepartment_idUsersbyUser_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: department_id
+                  in: path
+                  description: department_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: user_id
+                  in: path
+                  description: user_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/hierarchy:
+        get:
+            tags:
+                - organizations
+            summary: Get organization hierarchy
+            description: Retrieve the organization hierarchy (parents and subsidiaries)
+            operationId: getApiV1OrganizationsbyIdHierarchy
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects:
+        get:
+            tags:
+                - projects
+            summary: Get all projects
+            description: Retrieve a list of all projects in an organization with filtering and cursor-based pagination
+            operationId: getApiV1OrganizationsbyIdProjects
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - projects
+            summary: Create a new project
+            description: Create a new project in an organization
+            operationId: postApiV1OrganizationsbyIdProjects
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}:
+        get:
+            tags:
+                - projects
+            summary: Get a specific project by ID
+            description: Retrieve a specific project by its ID
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        put:
+            tags:
+                - projects
+            summary: Update a project
+            description: Update an existing project
+            operationId: putApiV1OrganizationsbyIdProjectsbyProject_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Updated
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Not found
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+        delete:
+            tags:
+                - projects
+            summary: Delete a project
+            description: Delete an existing project
+            operationId: deleteApiV1OrganizationsbyIdProjectsbyProject_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/milestones:
+        get:
+            tags:
+                - milestones
+            summary: Get all milestones
+            description: Retrieve a list of all milestones in a project
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_idMilestones
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - milestones
+            summary: Create a new milestone
+            description: Create a new milestone in a project
+            operationId: postApiV1OrganizationsbyIdProjectsbyProject_idMilestones
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/task-boards:
+        get:
+            tags:
+                - task-boards
+            summary: Get all task boards
+            description: Retrieve a list of all task boards in a project
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_idTask-Boards
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - task-boards
+            summary: Create a new task board
+            description: Create a new task board in a project
+            operationId: postApiV1OrganizationsbyIdProjectsbyProject_idTask-Boards
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/task-labels:
+        get:
+            tags:
+                - task-labels
+            summary: Get all task labels
+            description: Retrieve a list of all task labels in a project
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_idTask-Labels
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - task-labels
+            summary: Create a new task label
+            description: Create a new task label in a project
+            operationId: postApiV1OrganizationsbyIdProjectsbyProject_idTask-Labels
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/tasks:
+        get:
+            tags:
+                - tasks
+            summary: Get all tasks
+            description: Retrieve a list of all tasks in a project with filtering and cursor-based pagination
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_idTasks
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - tasks
+            summary: Create a new task
+            description: Create a new task in a project
+            operationId: postApiV1OrganizationsbyIdProjectsbyProject_idTasks
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/tasks/{task_id}:
+        get:
+            tags:
+                - tasks
+            summary: Get a specific task by ID
+            description: Retrieve a specific task by its ID
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_idTasksbyTask_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: task_id
+                  in: path
+                  description: task_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        put:
+            tags:
+                - tasks
+            summary: Update a task
+            description: Update an existing task
+            operationId: putApiV1OrganizationsbyIdProjectsbyProject_idTasksbyTask_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: task_id
+                  in: path
+                  description: task_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Updated
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Not found
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+        delete:
+            tags:
+                - tasks
+            summary: Delete a task
+            description: Delete an existing task
+            operationId: deleteApiV1OrganizationsbyIdProjectsbyProject_idTasksbyTask_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: task_id
+                  in: path
+                  description: task_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/teams:
+        get:
+            tags:
+                - projects
+            summary: Get project teams
+            description: Retrieve teams in a specific project
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_idTeams
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - projects
+            summary: Add team to project
+            description: Add a team to a specific project
+            operationId: postApiV1OrganizationsbyIdProjectsbyProject_idTeams
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/teams/{team_id}:
+        delete:
+            tags:
+                - projects
+            summary: Remove team from project
+            description: Remove a team from a specific project
+            operationId: deleteApiV1OrganizationsbyIdProjectsbyProject_idTeamsbyTeam_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: team_id
+                  in: path
+                  description: team_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/users:
+        get:
+            tags:
+                - projects
+            summary: Get project users
+            description: Retrieve users in a specific project
+            operationId: getApiV1OrganizationsbyIdProjectsbyProject_idUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - projects
+            summary: Add user to project
+            description: Add a user to a specific project
+            operationId: postApiV1OrganizationsbyIdProjectsbyProject_idUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/projects/{project_id}/users/{user_id}:
+        delete:
+            tags:
+                - projects
+            summary: Remove user from project
+            description: Remove a user from a specific project
+            operationId: deleteApiV1OrganizationsbyIdProjectsbyProject_idUsersbyUser_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: project_id
+                  in: path
+                  description: project_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: user_id
+                  in: path
+                  description: user_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/stats:
+        get:
+            tags:
+                - organizations
+            summary: Get organization statistics
+            description: Retrieve statistics for an organization
+            operationId: getApiV1OrganizationsbyIdStats
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/teams:
+        get:
+            tags:
+                - teams
+            summary: Get all teams
+            description: Retrieve a list of all teams in an organization with filtering and cursor-based pagination
+            operationId: getApiV1OrganizationsbyIdTeams
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - teams
+            summary: Create a new team
+            description: Create a new team in an organization
+            operationId: postApiV1OrganizationsbyIdTeams
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/teams/{team_id}:
+        get:
+            tags:
+                - teams
+            summary: Get a specific team by ID
+            description: Retrieve a specific team by its ID
+            operationId: getApiV1OrganizationsbyIdTeamsbyTeam_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: team_id
+                  in: path
+                  description: team_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        put:
+            tags:
+                - teams
+            summary: Update a team
+            description: Update an existing team
+            operationId: putApiV1OrganizationsbyIdTeamsbyTeam_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: team_id
+                  in: path
+                  description: team_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Updated
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Not found
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+        delete:
+            tags:
+                - teams
+            summary: Delete a team
+            description: Delete an existing team
+            operationId: deleteApiV1OrganizationsbyIdTeamsbyTeam_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: team_id
+                  in: path
+                  description: team_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/teams/{team_id}/users:
+        get:
+            tags:
+                - teams
+            summary: Get team users
+            description: Retrieve users in a specific team
+            operationId: getApiV1OrganizationsbyIdTeamsbyTeam_idUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: team_id
+                  in: path
+                  description: team_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - teams
+            summary: Add user to team
+            description: Add a user to a specific team
+            operationId: postApiV1OrganizationsbyIdTeamsbyTeam_idUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: team_id
+                  in: path
+                  description: team_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/teams/{team_id}/users/{user_id}:
+        delete:
+            tags:
+                - teams
+            summary: Remove user from team
+            description: Remove a user from a specific team
+            operationId: deleteApiV1OrganizationsbyIdTeamsbyTeam_idUsersbyUser_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: team_id
+                  in: path
+                  description: team_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: user_id
+                  in: path
+                  description: user_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/users:
+        get:
+            tags:
+                - organizations
+            summary: Get organization users
+            description: Retrieve users in an organization
+            operationId: getApiV1OrganizationsbyIdUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - bearerAuth: []
+        post:
+            tags:
+                - organizations
+            summary: Add user to organization
+            description: Add a user to an organization
+            operationId: postApiV1OrganizationsbyIdUsers
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/users/{user_id}:
+        delete:
+            tags:
+                - organizations
+            summary: Remove user from organization
+            description: Remove a user from an organization
+            operationId: deleteApiV1OrganizationsbyIdUsersbyUser_id
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+                - name: user_id
+                  in: path
+                  description: user_id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "404":
+                    description: Not found
+            security:
+                - bearerAuth: []
+    /api/v1/organizations/{id}/verify:
+        post:
+            tags:
+                - organizations
+            summary: Verify organization
+            description: Mark an organization as verified
+            operationId: postApiV1OrganizationsbyIdVerify
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "422":
+                    description: Validation error
+            security:
+                - bearerAuth: []
     /api/v1/permissions:
         get:
             tags:
@@ -5031,6 +6640,115 @@ components:
                 - Name
                 - Email
                 - Password
+        Department:
+            type: object
+            description: Department model
+            properties:
+                Code:
+                    type: string
+                    example: ENG
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                Description:
+                    type: string
+                    example: Software engineering and development
+                Icon:
+                    type: string
+                    example: engineering
+                IsActive:
+                    type: boolean
+                    example: "true"
+                Level:
+                    type: integer
+                    example: "0"
+                Manager:
+                    type: string
+                    description: Department manager
+                    nullable: true
+                ManagerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Name:
+                    type: string
+                    example: Engineering
+                Organization:
+                    type: string
+                    description: Organization this department belongs to
+                    nullable: true
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                ParentDepartment:
+                    type: string
+                    description: Parent department
+                    nullable: true
+                ParentDepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Path:
+                    type: string
+                    example: /01HXYZ123456789ABCDEFGHIJK/01HXYZ123456789ABCDEFGHIJL
+                SubDepartments:
+                    type: array
+                    description: Sub-departments
+                    items:
+                        type: string
+                Teams:
+                    type: array
+                    description: Teams in this department
+                    items:
+                        type: string
+                Users:
+                    type: array
+                    description: Users in this department
+                    items:
+                        type: string
+        DepartmentRequest:
+            type: object
+            description: DepartmentRequest model
+            properties:
+                Code:
+                    type: string
+                    example: ENG
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                Description:
+                    type: string
+                    example: Software engineering and development
+                Icon:
+                    type: string
+                    example: engineering
+                IsActive:
+                    type: boolean
+                    example: "true"
+                ManagerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Name:
+                    type: string
+                    example: Engineering
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                ParentDepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+        DepartmentUserRequest:
+            type: object
+            description: DepartmentUserRequest model
+            properties:
+                Role:
+                    type: string
+                    example: member
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         DisableMfaRequest:
             type: object
             description: DisableMfaRequest model
@@ -5432,6 +7150,81 @@ components:
                 Title:
                     type: string
                     example: Bug Discussion
+        Milestone:
+            type: object
+            description: Milestone model
+            properties:
+                Color:
+                    type: string
+                    example: '#10B981'
+                CompletedAt:
+                    type: string
+                    example: "2024-03-25T00:00:00Z"
+                    nullable: true
+                CreatedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Creator:
+                    type: string
+                    description: Milestone creator
+                    nullable: true
+                Description:
+                    type: string
+                    example: Major feature release with new UI
+                DueDate:
+                    type: string
+                    example: "2024-03-31T00:00:00Z"
+                    nullable: true
+                Icon:
+                    type: string
+                    example: milestone
+                Progress:
+                    type: number
+                    example: "75.0"
+                Project:
+                    type: string
+                    description: Project this milestone belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Status:
+                    type: string
+                    example: open
+                Tasks:
+                    type: array
+                    description: Tasks in this milestone
+                    items:
+                        type: string
+                Title:
+                    type: string
+                    example: Version 2.0 Release
+        MilestoneRequest:
+            type: object
+            description: MilestoneRequest model
+            properties:
+                Color:
+                    type: string
+                    example: '#10B981'
+                Description:
+                    type: string
+                    example: Major feature release with new UI
+                DueDate:
+                    type: string
+                    example: "2024-03-31T00:00:00Z"
+                    nullable: true
+                Icon:
+                    type: string
+                    example: milestone
+                Progress:
+                    type: number
+                    example: "75.0"
+                Status:
+                    type: string
+                    example: open
+                Title:
+                    type: string
+                    example: Version 2.0 Release
         Notification:
             type: object
             description: Notification model
@@ -5915,6 +7708,267 @@ components:
                     example: access_token
             required:
                 - Token
+        Organization:
+            type: object
+            description: Organization model
+            properties:
+                Address:
+                    type: string
+                    example: 123 Main St, City, State 12345
+                Banner:
+                    type: string
+                    example: https://acme.com/banner.png
+                City:
+                    type: string
+                    description: Organization's city
+                    nullable: true
+                CityID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                ContactEmail:
+                    type: string
+                    example: contact@acme.com
+                ContactPhone:
+                    type: string
+                    example: +1-555-123-4567
+                Country:
+                    type: string
+                    description: Organization's country
+                    nullable: true
+                CountryID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Departments:
+                    type: array
+                    description: Organization's departments
+                    items:
+                        type: string
+                Description:
+                    type: string
+                    example: Leading technology solutions provider
+                District:
+                    type: string
+                    description: Organization's district
+                    nullable: true
+                DistrictID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Domain:
+                    type: string
+                    example: acme.com
+                FoundedAt:
+                    type: string
+                    example: "2020-01-15T00:00:00Z"
+                    nullable: true
+                Industry:
+                    type: string
+                    example: Technology
+                IsActive:
+                    type: boolean
+                    example: "true"
+                IsVerified:
+                    type: boolean
+                    example: "false"
+                Level:
+                    type: integer
+                    example: "0"
+                Logo:
+                    type: string
+                    example: https://acme.com/logo.png
+                Name:
+                    type: string
+                    example: Acme Corporation
+                ParentOrganization:
+                    type: string
+                    description: Parent organization
+                    nullable: true
+                ParentOrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Path:
+                    type: string
+                    example: /01HXYZ123456789ABCDEFGHIJK/01HXYZ123456789ABCDEFGHIJL
+                PostalCode:
+                    type: string
+                    example: "12345"
+                Projects:
+                    type: array
+                    description: Organization's projects
+                    items:
+                        type: string
+                Province:
+                    type: string
+                    description: Organization's province/state
+                    nullable: true
+                ProvinceID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Settings:
+                    type: string
+                    example: '{"theme":"dark","timezone":"UTC","features":{"api_access":true,"analytics":true}}'
+                Size:
+                    type: string
+                    example: medium
+                Slug:
+                    type: string
+                    example: acme-corp
+                Subsidiaries:
+                    type: array
+                    description: Subsidiary organizations
+                    items:
+                        type: string
+                Teams:
+                    type: array
+                    description: Organization's teams
+                    items:
+                        type: string
+                Tenant:
+                    type: string
+                    description: Tenant that this organization belongs to
+                    nullable: true
+                TenantID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Type:
+                    type: string
+                    example: company
+                Users:
+                    type: array
+                    description: Users associated with this organization
+                    items:
+                        type: string
+                VerifiedAt:
+                    type: string
+                    example: "2024-01-15T10:30:00Z"
+                    nullable: true
+                Website:
+                    type: string
+                    example: https://acme.com
+        OrganizationRequest:
+            type: object
+            description: OrganizationRequest model
+            properties:
+                Address:
+                    type: string
+                    example: 123 Main St, City, State 12345
+                Banner:
+                    type: string
+                    example: https://acme.com/banner.png
+                CityID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                ContactEmail:
+                    type: string
+                    example: contact@acme.com
+                ContactPhone:
+                    type: string
+                    example: +1-555-123-4567
+                CountryID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Description:
+                    type: string
+                    example: Leading technology solutions provider
+                DistrictID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Domain:
+                    type: string
+                    example: acme.com
+                FoundedAt:
+                    type: string
+                    example: "2020-01-15T00:00:00Z"
+                    nullable: true
+                Industry:
+                    type: string
+                    example: Technology
+                Logo:
+                    type: string
+                    example: https://acme.com/logo.png
+                Name:
+                    type: string
+                    example: Acme Corporation
+                ParentOrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                PostalCode:
+                    type: string
+                    example: "12345"
+                ProvinceID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Settings:
+                    type: string
+                    example: '{"theme":"dark","timezone":"UTC","features":{"api_access":true,"analytics":true}}'
+                Size:
+                    type: string
+                    example: medium
+                Slug:
+                    type: string
+                    example: acme-corp
+                TenantID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Type:
+                    type: string
+                    example: company
+                Website:
+                    type: string
+                    example: https://acme.com
+        OrganizationUserRequest:
+            type: object
+            description: OrganizationUserRequest model
+            properties:
+                DepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                EmployeeID:
+                    type: string
+                    example: EMP001
+                ExpiresAt:
+                    type: string
+                    example: "2025-01-15T10:30:00Z"
+                    nullable: true
+                HireDate:
+                    type: string
+                    example: "2024-01-15T00:00:00Z"
+                    nullable: true
+                ManagerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Permissions:
+                    type: string
+                    example: '["read:projects","write:reports"]'
+                Role:
+                    type: string
+                    example: member
+                Status:
+                    type: string
+                    example: active
+                TeamID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Title:
+                    type: string
+                    example: Senior Software Engineer
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         PaginatedResponse:
             type: object
             description: PaginatedResponse model
@@ -5973,6 +8027,155 @@ components:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
                     nullable: true
+        Project:
+            type: object
+            description: Project model
+            properties:
+                Budget:
+                    type: number
+                    example: "50000.00"
+                Code:
+                    type: string
+                    example: CPR-2024
+                Color:
+                    type: string
+                    example: '#F59E0B'
+                Description:
+                    type: string
+                    example: Redesign and modernize the customer portal
+                EndDate:
+                    type: string
+                    example: "2024-06-15T00:00:00Z"
+                    nullable: true
+                Icon:
+                    type: string
+                    example: project
+                IsActive:
+                    type: boolean
+                    example: "true"
+                Milestones:
+                    type: array
+                    description: Project milestones
+                    items:
+                        type: string
+                Name:
+                    type: string
+                    example: Customer Portal Redesign
+                Organization:
+                    type: string
+                    description: Organization this project belongs to
+                    nullable: true
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Priority:
+                    type: string
+                    example: high
+                Progress:
+                    type: number
+                    example: "65.5"
+                ProjectManager:
+                    type: string
+                    description: Project manager
+                    nullable: true
+                ProjectManagerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Settings:
+                    type: string
+                    example: '{"timezone":"UTC","working_hours":{"start":"09:00","end":"17:00"}}'
+                StartDate:
+                    type: string
+                    example: "2024-01-15T00:00:00Z"
+                    nullable: true
+                Status:
+                    type: string
+                    example: active
+                TaskBoards:
+                    type: array
+                    description: Project task boards
+                    items:
+                        type: string
+                TaskLabels:
+                    type: array
+                    description: Project task labels
+                    items:
+                        type: string
+                Tasks:
+                    type: array
+                    description: Project tasks
+                    items:
+                        type: string
+                Teams:
+                    type: array
+                    description: Teams working on this project
+                    items:
+                        type: string
+                Users:
+                    type: array
+                    description: Users assigned to this project
+                    items:
+                        type: string
+        ProjectRequest:
+            type: object
+            description: ProjectRequest model
+            properties:
+                Budget:
+                    type: number
+                    example: "50000.00"
+                Code:
+                    type: string
+                    example: CPR-2024
+                Color:
+                    type: string
+                    example: '#F59E0B'
+                Description:
+                    type: string
+                    example: Redesign and modernize the customer portal
+                EndDate:
+                    type: string
+                    example: "2024-06-15T00:00:00Z"
+                    nullable: true
+                Icon:
+                    type: string
+                    example: project
+                Name:
+                    type: string
+                    example: Customer Portal Redesign
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Priority:
+                    type: string
+                    example: high
+                ProjectManagerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Settings:
+                    type: string
+                    example: '{"timezone":"UTC","working_hours":{"start":"09:00","end":"17:00"}}'
+                StartDate:
+                    type: string
+                    example: "2024-01-15T00:00:00Z"
+                    nullable: true
+                Status:
+                    type: string
+                    example: active
+        ProjectUserRequest:
+            type: object
+            description: ProjectUserRequest model
+            properties:
+                Allocation:
+                    type: number
+                    example: "100.0"
+                Role:
+                    type: string
+                    example: member
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         Province:
             type: object
             description: Province model
@@ -6143,6 +8346,794 @@ components:
                     type: string
                 Type:
                     type: string
+        Task:
+            type: object
+            description: Task model
+            properties:
+                Activities:
+                    type: array
+                    description: Task activities
+                    items:
+                        type: string
+                ActualHours:
+                    type: number
+                    example: "6.5"
+                Assignee:
+                    type: string
+                    description: Task assignee
+                    nullable: true
+                AssigneeID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                Comments:
+                    type: array
+                    description: Task comments
+                    items:
+                        type: string
+                CreatedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Creator:
+                    type: string
+                    description: Task creator
+                    nullable: true
+                Dependencies:
+                    type: array
+                    description: Task dependencies (tasks that depend on this task)
+                    items:
+                        type: string
+                Dependents:
+                    type: array
+                    description: Tasks this task depends on
+                    items:
+                        type: string
+                Description:
+                    type: string
+                    example: Add JWT-based authentication with refresh tokens
+                DueDate:
+                    type: string
+                    example: "2024-01-31T00:00:00Z"
+                    nullable: true
+                EstimatedHours:
+                    type: number
+                    example: "8.0"
+                Icon:
+                    type: string
+                    example: feature
+                IsActive:
+                    type: boolean
+                    example: "true"
+                IsArchived:
+                    type: boolean
+                    example: "false"
+                Labels:
+                    type: array
+                    description: Task labels
+                    items:
+                        type: string
+                Milestone:
+                    type: string
+                    description: Associated milestone
+                    nullable: true
+                MilestoneID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Number:
+                    type: integer
+                    example: "1"
+                ParentTask:
+                    type: string
+                    description: Parent task
+                    nullable: true
+                ParentTaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Position:
+                    type: integer
+                    example: "1"
+                Priority:
+                    type: string
+                    example: high
+                Progress:
+                    type: number
+                    example: "75.0"
+                Project:
+                    type: string
+                    description: Project this task belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Reviewer:
+                    type: string
+                    description: Task reviewer
+                    nullable: true
+                ReviewerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Settings:
+                    type: string
+                    example: '{"auto_assign":true,"require_review":false}'
+                StartDate:
+                    type: string
+                    example: "2024-01-15T00:00:00Z"
+                    nullable: true
+                Status:
+                    type: string
+                    example: in_progress
+                Subtasks:
+                    type: array
+                    description: Subtasks
+                    items:
+                        type: string
+                TimeEntries:
+                    type: array
+                    description: Task time entries
+                    items:
+                        type: string
+                Title:
+                    type: string
+                    example: Implement user authentication
+                Type:
+                    type: string
+                    example: feature
+        TaskActivity:
+            type: object
+            description: TaskActivity model
+            properties:
+                Data:
+                    type: string
+                    example: '{"old_value":"todo","new_value":"in_progress"}'
+                Description:
+                    type: string
+                    example: Task assigned to John Doe
+                Task:
+                    type: string
+                    description: Task this activity belongs to
+                    nullable: true
+                TaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Type:
+                    type: string
+                    example: assigned
+                User:
+                    type: string
+                    description: User who performed the activity
+                    nullable: true
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+        TaskBoard:
+            type: object
+            description: TaskBoard model
+            properties:
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                Columns:
+                    type: array
+                    description: Board columns
+                    items:
+                        type: string
+                CreatedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Creator:
+                    type: string
+                    description: Board creator
+                    nullable: true
+                Description:
+                    type: string
+                    example: Main development workflow board
+                Icon:
+                    type: string
+                    example: board
+                IsActive:
+                    type: boolean
+                    example: "true"
+                IsDefault:
+                    type: boolean
+                    example: "true"
+                Name:
+                    type: string
+                    example: Development Board
+                Project:
+                    type: string
+                    description: Project this board belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Settings:
+                    type: string
+                    example: '{"columns":["todo","in_progress","done"],"filters":{"assignee":"all"}}'
+                Type:
+                    type: string
+                    example: kanban
+        TaskBoardColumn:
+            type: object
+            description: TaskBoardColumn model
+            properties:
+                Board:
+                    type: string
+                    description: Board this column belongs to
+                    nullable: true
+                BoardID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Color:
+                    type: string
+                    example: '#F59E0B'
+                Description:
+                    type: string
+                    example: Tasks currently being worked on
+                IsActive:
+                    type: boolean
+                    example: "true"
+                Name:
+                    type: string
+                    example: In Progress
+                Position:
+                    type: integer
+                    example: "2"
+                StatusFilter:
+                    type: string
+                    example: in_progress
+                TaskLimit:
+                    type: integer
+                    example: "10"
+        TaskBoardColumnRequest:
+            type: object
+            description: TaskBoardColumnRequest model
+            properties:
+                Color:
+                    type: string
+                    example: '#F59E0B'
+                Description:
+                    type: string
+                    example: Tasks currently being worked on
+                Name:
+                    type: string
+                    example: In Progress
+                Position:
+                    type: integer
+                    example: "2"
+                StatusFilter:
+                    type: string
+                    example: in_progress
+                TaskLimit:
+                    type: integer
+                    example: "10"
+        TaskBoardRequest:
+            type: object
+            description: TaskBoardRequest model
+            properties:
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                Description:
+                    type: string
+                    example: Main development workflow board
+                Icon:
+                    type: string
+                    example: board
+                IsDefault:
+                    type: boolean
+                    example: "true"
+                Name:
+                    type: string
+                    example: Development Board
+                Settings:
+                    type: string
+                    example: '{"columns":["todo","in_progress","done"],"filters":{"assignee":"all"}}'
+                Type:
+                    type: string
+                    example: kanban
+        TaskComment:
+            type: object
+            description: TaskComment model
+            properties:
+                Author:
+                    type: string
+                    description: Comment author
+                    nullable: true
+                AuthorID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Content:
+                    type: string
+                    example: This looks good! Ready for review.
+                IsInternal:
+                    type: boolean
+                    example: "false"
+                ParentComment:
+                    type: string
+                    description: Parent comment
+                    nullable: true
+                ParentCommentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Replies:
+                    type: array
+                    description: Reply comments
+                    items:
+                        type: string
+                Task:
+                    type: string
+                    description: Task this comment belongs to
+                    nullable: true
+                TaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Type:
+                    type: string
+                    example: comment
+        TaskCommentRequest:
+            type: object
+            description: TaskCommentRequest model
+            properties:
+                Content:
+                    type: string
+                    example: This looks good! Ready for review.
+                IsInternal:
+                    type: boolean
+                    example: "false"
+                ParentCommentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Type:
+                    type: string
+                    example: comment
+        TaskDependency:
+            type: object
+            description: TaskDependency model
+            properties:
+                DependentTask:
+                    type: string
+                    description: Task that is depended upon
+                    nullable: true
+                DependentTaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                IsActive:
+                    type: boolean
+                    example: "true"
+                Task:
+                    type: string
+                    description: Task that depends on another
+                    nullable: true
+                TaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Type:
+                    type: string
+                    example: blocks
+        TaskDependencyRequest:
+            type: object
+            description: TaskDependencyRequest model
+            properties:
+                DependentTaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Type:
+                    type: string
+                    example: blocks
+        TaskFilterRequest:
+            type: object
+            description: TaskFilterRequest model
+            properties:
+                AssigneeID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                DueDateFrom:
+                    type: string
+                    example: "2024-01-01T00:00:00Z"
+                    nullable: true
+                DueDateTo:
+                    type: string
+                    example: "2024-12-31T23:59:59Z"
+                    nullable: true
+                IsActive:
+                    type: boolean
+                    example: "true"
+                    nullable: true
+                IsArchived:
+                    type: boolean
+                    example: "false"
+                    nullable: true
+                LabelIDs:
+                    type: array
+                    example: '["01HXYZ123456789ABCDEFGHIJK","01HXYZ123456789ABCDEFGHIJL"]'
+                    items:
+                        type: string
+                MilestoneID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                ParentTaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Priority:
+                    type: string
+                    example: high
+                Search:
+                    type: string
+                    example: authentication
+                SortBy:
+                    type: string
+                    example: created_at
+                SortDirection:
+                    type: string
+                    example: desc
+                Status:
+                    type: string
+                    example: in_progress
+                Type:
+                    type: string
+                    example: feature
+        TaskLabel:
+            type: object
+            description: TaskLabel model
+            properties:
+                Color:
+                    type: string
+                    example: '#EF4444'
+                CreatedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Creator:
+                    type: string
+                    description: Label creator
+                    nullable: true
+                Description:
+                    type: string
+                    example: Issues that need to be fixed
+                Icon:
+                    type: string
+                    example: bug
+                IsActive:
+                    type: boolean
+                    example: "true"
+                Name:
+                    type: string
+                    example: Bug
+                Project:
+                    type: string
+                    description: Project this label belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Tasks:
+                    type: array
+                    description: Tasks with this label
+                    items:
+                        type: string
+        TaskLabelPivot:
+            type: object
+            description: TaskLabelPivot model
+            properties:
+                AddedAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                AddedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                LabelID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Task:
+                    type: string
+                TaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                TaskLabel:
+                    type: string
+                User:
+                    type: string
+        TaskLabelRequest:
+            type: object
+            description: TaskLabelRequest model
+            properties:
+                Color:
+                    type: string
+                    example: '#EF4444'
+                Description:
+                    type: string
+                    example: Issues that need to be fixed
+                Icon:
+                    type: string
+                    example: bug
+                Name:
+                    type: string
+                    example: Bug
+        TaskRequest:
+            type: object
+            description: TaskRequest model
+            properties:
+                AssigneeID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                Description:
+                    type: string
+                    example: Add JWT-based authentication with refresh tokens
+                DueDate:
+                    type: string
+                    example: "2024-01-31T00:00:00Z"
+                    nullable: true
+                EstimatedHours:
+                    type: number
+                    example: "8.0"
+                Icon:
+                    type: string
+                    example: feature
+                MilestoneID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                ParentTaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Position:
+                    type: integer
+                    example: "1"
+                Priority:
+                    type: string
+                    example: high
+                Progress:
+                    type: number
+                    example: "75.0"
+                ReviewerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Settings:
+                    type: string
+                    example: '{"auto_assign":true,"require_review":false}'
+                StartDate:
+                    type: string
+                    example: "2024-01-15T00:00:00Z"
+                    nullable: true
+                Status:
+                    type: string
+                    example: in_progress
+                Title:
+                    type: string
+                    example: Implement user authentication
+                Type:
+                    type: string
+                    example: feature
+        TaskTimeEntry:
+            type: object
+            description: TaskTimeEntry model
+            properties:
+                Description:
+                    type: string
+                    example: Implemented user authentication
+                Duration:
+                    type: number
+                    example: "8.0"
+                EndTime:
+                    type: string
+                    example: "2024-01-15T17:00:00Z"
+                    nullable: true
+                IsBillable:
+                    type: boolean
+                    example: "true"
+                Rate:
+                    type: number
+                    example: "50.00"
+                StartTime:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T09:00:00Z"
+                Task:
+                    type: string
+                    description: Task this time entry belongs to
+                    nullable: true
+                TaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                User:
+                    type: string
+                    description: User who logged the time
+                    nullable: true
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+        TaskTimeEntryRequest:
+            type: object
+            description: TaskTimeEntryRequest model
+            properties:
+                Description:
+                    type: string
+                    example: Implemented user authentication
+                Duration:
+                    type: number
+                    example: "8.0"
+                EndTime:
+                    type: string
+                    example: "2024-01-15T17:00:00Z"
+                    nullable: true
+                IsBillable:
+                    type: boolean
+                    example: "true"
+                Rate:
+                    type: number
+                    example: "50.00"
+                StartTime:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T09:00:00Z"
+        Team:
+            type: object
+            description: Team model
+            properties:
+                Code:
+                    type: string
+                    example: BE-DEV
+                Color:
+                    type: string
+                    example: '#10B981'
+                CurrentSize:
+                    type: integer
+                    example: "8"
+                Department:
+                    type: string
+                    description: Department this team belongs to
+                    nullable: true
+                DepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Description:
+                    type: string
+                    example: Backend development and API team
+                Icon:
+                    type: string
+                    example: backend
+                IsActive:
+                    type: boolean
+                    example: "true"
+                MaxSize:
+                    type: integer
+                    example: "10"
+                Name:
+                    type: string
+                    example: Backend Development
+                Organization:
+                    type: string
+                    description: Organization this team belongs to
+                    nullable: true
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Projects:
+                    type: array
+                    description: Projects this team works on
+                    items:
+                        type: string
+                TeamLead:
+                    type: string
+                    description: Team lead
+                    nullable: true
+                TeamLeadID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Type:
+                    type: string
+                    example: functional
+                Users:
+                    type: array
+                    description: Users in this team
+                    items:
+                        type: string
+        TeamProject:
+            type: object
+            description: TeamProject model
+            properties:
+                Allocation:
+                    type: number
+                    example: "100.0"
+                IsActive:
+                    type: boolean
+                    example: "true"
+                JoinedAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                Project:
+                    type: string
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Role:
+                    type: string
+                    example: contributor
+                Team:
+                    type: string
+                TeamID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+        TeamProjectRequest:
+            type: object
+            description: TeamProjectRequest model
+            properties:
+                Allocation:
+                    type: number
+                    example: "100.0"
+                Role:
+                    type: string
+                    example: contributor
+                TeamID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+        TeamRequest:
+            type: object
+            description: TeamRequest model
+            properties:
+                Code:
+                    type: string
+                    example: BE-DEV
+                Color:
+                    type: string
+                    example: '#10B981'
+                DepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Description:
+                    type: string
+                    example: Backend development and API team
+                Icon:
+                    type: string
+                    example: backend
+                MaxSize:
+                    type: integer
+                    example: "10"
+                Name:
+                    type: string
+                    example: Backend Development
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                TeamLeadID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Type:
+                    type: string
+                    example: functional
+        TeamUserRequest:
+            type: object
+            description: TeamUserRequest model
+            properties:
+                Allocation:
+                    type: number
+                    example: "100.0"
+                Role:
+                    type: string
+                    example: member
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         Tenant:
             type: object
             description: Tenant model
@@ -6159,6 +9150,11 @@ components:
                 Name:
                     type: string
                     example: Acme Corporation
+                Organizations:
+                    type: array
+                    description: Organizations associated with this tenant
+                    items:
+                        type: string
                 Settings:
                     type: string
                     example: '{"theme":"dark","timezone":"UTC"}'
@@ -6559,6 +9555,30 @@ components:
                     type: string
                     example: "2024-01-15T10:30:00Z"
                     nullable: true
+        UserDepartment:
+            type: object
+            description: UserDepartment model
+            properties:
+                Department:
+                    type: string
+                DepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                IsActive:
+                    type: boolean
+                    example: "true"
+                JoinedAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                Role:
+                    type: string
+                    example: member
+                User:
+                    type: string
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         UserKey:
             type: object
             description: UserKey model
@@ -6592,6 +9612,105 @@ components:
                 Version:
                     type: integer
                     example: "1"
+        UserOrganization:
+            type: object
+            description: UserOrganization model
+            properties:
+                Department:
+                    type: string
+                    nullable: true
+                DepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                EmployeeID:
+                    type: string
+                    example: EMP001
+                ExpiresAt:
+                    type: string
+                    example: "2025-01-15T10:30:00Z"
+                    nullable: true
+                HireDate:
+                    type: string
+                    example: "2024-01-15T00:00:00Z"
+                    nullable: true
+                IsActive:
+                    type: boolean
+                    example: "true"
+                JoinedAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                Manager:
+                    type: string
+                    nullable: true
+                ManagerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Organization:
+                    type: string
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Permissions:
+                    type: string
+                    example: '["read:projects","write:reports"]'
+                Role:
+                    type: string
+                    example: member
+                Salary:
+                    type: string
+                    example: encrypted_salary_data
+                Status:
+                    type: string
+                    example: active
+                Team:
+                    type: string
+                    nullable: true
+                TeamID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                TerminationDate:
+                    type: string
+                    example: "2024-12-31T00:00:00Z"
+                    nullable: true
+                Title:
+                    type: string
+                    example: Senior Software Engineer
+                User:
+                    type: string
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+        UserProject:
+            type: object
+            description: UserProject model
+            properties:
+                Allocation:
+                    type: number
+                    example: "100.0"
+                IsActive:
+                    type: boolean
+                    example: "true"
+                JoinedAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                Project:
+                    type: string
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Role:
+                    type: string
+                    example: member
+                User:
+                    type: string
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         UserRole:
             type: object
             description: UserRole model
@@ -6608,6 +9727,30 @@ components:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
                     nullable: true
+                User:
+                    type: string
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+        UserTeam:
+            type: object
+            description: UserTeam model
+            properties:
+                IsActive:
+                    type: boolean
+                    example: "true"
+                JoinedAt:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                Role:
+                    type: string
+                    example: member
+                Team:
+                    type: string
+                TeamID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
                 User:
                     type: string
                 UserID:
@@ -6715,41 +9858,57 @@ components:
 security:
     - bearerAuth: []
 tags:
-    - name: roles
-      description: ""
-    - name: tenants
-      description: ""
-    - name: activity-logs
-      description: ""
-    - name: cities
-      description: ""
-    - name: countries
-      description: ""
     - name: districts
-      description: ""
-    - name: permissions
-      description: ""
-    - name: users
-      description: ""
-    - name: Authentication
-      description: ""
-    - name: calendar-events
-      description: ""
-    - name: chat
-      description: ""
-    - name: notifications
-      description: ""
-    - name: OAuth2
       description: ""
     - name: provinces
       description: ""
-    - name: docs
+    - name: milestones
       description: ""
-    - name: openapi.json
+    - name: teams
+      description: ""
+    - name: Authentication
+      description: ""
+    - name: chat
+      description: ""
+    - name: cities
+      description: ""
+    - name: OAuth2
+      description: ""
+    - name: projects
+      description: ""
+    - name: users
+      description: ""
+    - name: countries
+      description: ""
+    - name: notifications
+      description: ""
+    - name: organizations
+      description: ""
+    - name: tasks
+      description: ""
+    - name: tenants
+      description: ""
+    - name: calendar-events
+      description: ""
+    - name: permissions
+      description: ""
+    - name: roles
+      description: ""
+    - name: task-labels
+      description: ""
+    - name: task-boards
+      description: ""
+    - name: activity-logs
+      description: ""
+    - name: departments
+      description: ""
+    - name: oauth
       description: ""
     - name: openapi.yaml
       description: ""
-    - name: oauth
+    - name: openapi.json
+      description: ""
+    - name: docs
       description: ""
     - name: openapi.html
       description: ""

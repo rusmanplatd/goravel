@@ -84,6 +84,10 @@ type OrganizationRequest struct {
 	// @example 12345
 	PostalCode string `json:"postal_code" validate:"omitempty,max=20" example:"12345"`
 
+	// Tenant ID that this organization belongs to
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TenantID *string `json:"tenant_id" validate:"omitempty,ulid" example:"01HXYZ123456789ABCDEFGHIJK"`
+
 	// Parent organization ID for hierarchical structure
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	ParentOrganizationID *string `json:"parent_organization_id" validate:"omitempty,ulid" example:"01HXYZ123456789ABCDEFGHIJK"`

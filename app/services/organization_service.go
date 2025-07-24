@@ -116,6 +116,10 @@ func (s *OrganizationService) CreateOrganization(data map[string]interface{}) (*
 	if postalCode, exists := data["postal_code"]; exists && postalCode != nil {
 		organization.PostalCode = postalCode.(string)
 	}
+	if tenantID, exists := data["tenant_id"]; exists && tenantID != nil {
+		tenantIDStr := tenantID.(string)
+		organization.TenantID = &tenantIDStr
+	}
 	if parentOrgID, exists := data["parent_organization_id"]; exists && parentOrgID != nil {
 		parentOrgIDStr := parentOrgID.(string)
 		organization.ParentOrganizationID = &parentOrgIDStr
@@ -194,6 +198,80 @@ func (s *OrganizationService) UpdateOrganization(id string, data map[string]inte
 	}
 	if isVerified, exists := data["is_verified"]; exists {
 		organization.IsVerified = isVerified.(bool)
+	}
+
+	// Handle optional fields
+	if tenantID, exists := data["tenant_id"]; exists {
+		if tenantID != nil {
+			tenantIDStr := tenantID.(string)
+			organization.TenantID = &tenantIDStr
+		} else {
+			organization.TenantID = nil
+		}
+	}
+	if parentOrgID, exists := data["parent_organization_id"]; exists {
+		if parentOrgID != nil {
+			parentOrgIDStr := parentOrgID.(string)
+			organization.ParentOrganizationID = &parentOrgIDStr
+		} else {
+			organization.ParentOrganizationID = nil
+		}
+	}
+	if website, exists := data["website"]; exists {
+		organization.Website = website.(string)
+	}
+	if logo, exists := data["logo"]; exists {
+		organization.Logo = logo.(string)
+	}
+	if banner, exists := data["banner"]; exists {
+		organization.Banner = banner.(string)
+	}
+	if contactEmail, exists := data["contact_email"]; exists {
+		organization.ContactEmail = contactEmail.(string)
+	}
+	if contactPhone, exists := data["contact_phone"]; exists {
+		organization.ContactPhone = contactPhone.(string)
+	}
+	if address, exists := data["address"]; exists {
+		organization.Address = address.(string)
+	}
+	if countryID, exists := data["country_id"]; exists {
+		if countryID != nil {
+			countryIDStr := countryID.(string)
+			organization.CountryID = &countryIDStr
+		} else {
+			organization.CountryID = nil
+		}
+	}
+	if provinceID, exists := data["province_id"]; exists {
+		if provinceID != nil {
+			provinceIDStr := provinceID.(string)
+			organization.ProvinceID = &provinceIDStr
+		} else {
+			organization.ProvinceID = nil
+		}
+	}
+	if cityID, exists := data["city_id"]; exists {
+		if cityID != nil {
+			cityIDStr := cityID.(string)
+			organization.CityID = &cityIDStr
+		} else {
+			organization.CityID = nil
+		}
+	}
+	if districtID, exists := data["district_id"]; exists {
+		if districtID != nil {
+			districtIDStr := districtID.(string)
+			organization.DistrictID = &districtIDStr
+		} else {
+			organization.DistrictID = nil
+		}
+	}
+	if postalCode, exists := data["postal_code"]; exists {
+		organization.PostalCode = postalCode.(string)
+	}
+	if settings, exists := data["settings"]; exists {
+		organization.Settings = settings.(string)
 	}
 
 	// Save organization
@@ -283,6 +361,14 @@ func (s *OrganizationService) ListOrganizations(filters map[string]interface{}, 
 			query = query.Where("parent_organization_id IS NULL")
 		} else {
 			query = query.Where("parent_organization_id = ?", parentID)
+		}
+	}
+
+	if tenantID, exists := filters["tenant_id"]; exists {
+		if tenantID == nil {
+			query = query.Where("tenant_id IS NULL")
+		} else {
+			query = query.Where("tenant_id = ?", tenantID)
 		}
 	}
 

@@ -32,4 +32,7 @@ type Tenant struct {
 	// Relationships
 	// @Description Users associated with this tenant
 	Users []User `gorm:"many2many:user_tenants;" json:"users,omitempty"`
+
+	// @Description Organizations associated with this tenant
+	Organizations []Organization `gorm:"foreignKey:TenantID" json:"organizations,omitempty"`
 }

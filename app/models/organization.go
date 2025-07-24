@@ -101,6 +101,10 @@ type Organization struct {
 	// @example {"theme":"dark","timezone":"UTC","features":{"api_access":true,"analytics":true}}
 	Settings string `gorm:"type:json" json:"settings" example:"{\"theme\":\"dark\",\"timezone\":\"UTC\",\"features\":{\"api_access\":true,\"analytics\":true}}"`
 
+	// Tenant ID that this organization belongs to
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TenantID *string `gorm:"index;type:varchar(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
 	// Parent organization ID for hierarchical structure
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	ParentOrganizationID *string `gorm:"index;type:varchar(26)" json:"parent_organization_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
@@ -114,6 +118,9 @@ type Organization struct {
 	Path string `gorm:"index" json:"path" example:"/01HXYZ123456789ABCDEFGHIJK/01HXYZ123456789ABCDEFGHIJL"`
 
 	// Relationships
+	// @Description Tenant that this organization belongs to
+	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+
 	// @Description Users associated with this organization
 	Users []User `gorm:"many2many:user_organizations;" json:"users,omitempty"`
 

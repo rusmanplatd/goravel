@@ -49,6 +49,7 @@ func (oc *OrganizationController) Index(ctx http.Context) http.Response {
 	isActive := ctx.Request().Input("is_active", "")
 	isVerified := ctx.Request().Input("is_verified", "")
 	parentOrgID := ctx.Request().Input("parent_organization_id", "")
+	tenantID := ctx.Request().Input("tenant_id", "")
 
 	// Build filters
 	filters := make(map[string]interface{})
@@ -72,6 +73,9 @@ func (oc *OrganizationController) Index(ctx http.Context) http.Response {
 	}
 	if parentOrgID != "" {
 		filters["parent_organization_id"] = parentOrgID
+	}
+	if tenantID != "" {
+		filters["tenant_id"] = tenantID
 	}
 
 	// Get organizations
@@ -169,6 +173,7 @@ func (oc *OrganizationController) Store(ctx http.Context) http.Response {
 		"city_id":                req.CityID,
 		"district_id":            req.DistrictID,
 		"postal_code":            req.PostalCode,
+		"tenant_id":              req.TenantID,
 		"parent_organization_id": req.ParentOrganizationID,
 		"settings":               req.Settings,
 	}
@@ -240,6 +245,7 @@ func (oc *OrganizationController) Update(ctx http.Context) http.Response {
 		"city_id":                req.CityID,
 		"district_id":            req.DistrictID,
 		"postal_code":            req.PostalCode,
+		"tenant_id":              req.TenantID,
 		"parent_organization_id": req.ParentOrganizationID,
 		"settings":               req.Settings,
 	}
