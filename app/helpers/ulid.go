@@ -63,3 +63,8 @@ func GenerateSlug(text string) string {
 
 	return slug
 }
+
+// TimePtr returns a pointer to the given time.Time value
+func TimePtr(t time.Time) *time.Time {
+	return &t
+}

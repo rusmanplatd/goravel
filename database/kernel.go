@@ -44,6 +44,16 @@ func (kernel Kernel) Migrations() []schema.Migration {
 		&migrations.M20250115000045CreateUserTeamsTable{},
 		&migrations.M20250115000046CreateUserProjectsTable{},
 		&migrations.M20250115000047CreateTeamProjectsTable{},
+		&migrations.M20250115000048CreateTasksTable{},
+		&migrations.M20250115000049CreateTaskLabelsTable{},
+		&migrations.M20250115000050CreateTaskLabelPivotTable{},
+		&migrations.M20250115000051CreateMilestonesTable{},
+		&migrations.M20250115000052CreateTaskCommentsTable{},
+		&migrations.M20250115000053CreateTaskActivitiesTable{},
+		&migrations.M20250115000054CreateTaskDependenciesTable{},
+		&migrations.M20250115000055CreateTaskTimeEntriesTable{},
+		&migrations.M20250115000056CreateTaskBoardsTable{},
+		&migrations.M20250115000057CreateTaskBoardColumnsTable{},
 	}
 }
 

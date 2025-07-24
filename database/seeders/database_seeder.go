@@ -227,6 +227,14 @@ func (s *DatabaseSeeder) Run() error {
 		return err
 	}
 
+	// Run task seeder
+	taskSeeder := &TaskSeeder{}
+	err = taskSeeder.Run()
+	if err != nil {
+		facades.Log().Error("Failed to run TaskSeeder: " + err.Error())
+		return err
+	}
+
 	facades.Log().Info("Database seeding completed successfully")
 	return nil
 }

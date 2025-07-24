@@ -361,6 +361,18 @@ type Project struct {
 
 	// @Description Users assigned to this project
 	Users []User `gorm:"many2many:user_projects;" json:"users,omitempty"`
+
+	// @Description Project tasks
+	Tasks []Task `gorm:"foreignKey:ProjectID" json:"tasks,omitempty"`
+
+	// @Description Project task boards
+	TaskBoards []TaskBoard `gorm:"foreignKey:ProjectID" json:"task_boards,omitempty"`
+
+	// @Description Project milestones
+	Milestones []Milestone `gorm:"foreignKey:ProjectID" json:"milestones,omitempty"`
+
+	// @Description Project task labels
+	TaskLabels []TaskLabel `gorm:"foreignKey:ProjectID" json:"task_labels,omitempty"`
 }
 
 // UserOrganization represents the pivot table for user-organization relationship
