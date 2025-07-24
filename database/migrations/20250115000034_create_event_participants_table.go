@@ -21,12 +21,13 @@ func (r *M20250115000034CreateEventParticipantsTable) Up() error {
 		table.Ulid("user_id")
 		table.String("role")
 		table.String("response_status")
-		table.TimestampTz("responded_at")
+		table.TimestampTz("responded_at").Nullable()
 		table.Text("response_comment")
 		table.Boolean("is_required")
 		table.Boolean("send_reminder")
-		table.TimestampTz("reminder_sent_at")
+		table.TimestampTz("reminder_sent_at").Nullable()
 		table.TimestampsTz()
+		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

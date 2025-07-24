@@ -23,7 +23,7 @@ func (r *M20250115000036CreateEventRemindersTable) Up() error {
 		table.Integer("minutes_before")
 		table.TimestampTz("scheduled_at")
 		table.Boolean("sent")
-		table.TimestampTz("sent_at")
+		table.TimestampTz("sent_at").Nullable()
 		table.String("status")
 		table.String("error_message")
 		table.TimestampsTz()
