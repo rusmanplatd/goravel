@@ -1,8 +1,10 @@
 package config
 
 import (
+	"github.com/goravel/framework/contracts/filesystem"
 	"github.com/goravel/framework/facades"
 	"github.com/goravel/framework/support/path"
+	miniofacades "github.com/goravel/minio/facades"
 )
 
 func init() {
@@ -13,7 +15,7 @@ func init() {
 		// Here you may specify the default filesystem disk that should be used
 		// by the framework. The "local" disk, as well as a variety of cloud
 		// based disks are available to your application. Just store away!
-		"default": config.Env("FILESYSTEM_DISK", "local"),
+		"default": config.Env("FILESYSTEM_DISK", "minio"),
 
 		// Filesystem Disks
 		//
@@ -31,6 +33,19 @@ func init() {
 				"driver": "local",
 				"root":   path.Storage("app/public"),
 				"url":    config.Env("APP_URL", "").(string) + "/storage",
+			},
+			"minio": map[string]any{
+				"driver":   "custom",
+				"key":      config.Env("MINIO_ACCESS_KEY_ID"),
+				"secret":   config.Env("MINIO_ACCESS_KEY_SECRET"),
+				"region":   config.Env("MINIO_REGION"),
+				"bucket":   config.Env("MINIO_BUCKET"),
+				"url":      config.Env("MINIO_URL"),
+				"endpoint": config.Env("MINIO_ENDPOINT"),
+				"ssl":      config.Env("MINIO_SSL", false),
+				"via": func() (filesystem.Driver, error) {
+					return miniofacades.Minio("minio") // The `minio` value is the `disks` key
+				},
 			},
 		},
 	})

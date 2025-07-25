@@ -60,6 +60,7 @@ func (c *OAuthPlaygroundController) Index(ctx http.Context) http.Response {
 		"clients":           clients,
 		"allowedScopes":     allowedScopes,
 		"scopeDescriptions": c.getScopeDescriptions(),
+		"timestamp":         time.Now().Unix(),
 		"grantTypes": []map[string]interface{}{
 			{
 				"value":       "authorization_code",
