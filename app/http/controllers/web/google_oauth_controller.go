@@ -12,17 +12,19 @@ import (
 )
 
 type GoogleOAuthController struct {
-	googleOAuthService *services.GoogleOAuthService
-	authService        *services.AuthService
-	jwtService         *services.JWTService
+	googleOAuthService  *services.GoogleOAuthService
+	authService         *services.AuthService
+	jwtService          *services.JWTService
+	multiAccountService *services.MultiAccountService
 }
 
 // NewGoogleOAuthController creates a new Google OAuth controller
 func NewGoogleOAuthController() *GoogleOAuthController {
 	return &GoogleOAuthController{
-		googleOAuthService: services.NewGoogleOAuthService(),
-		authService:        services.NewAuthService(),
-		jwtService:         services.NewJWTService(),
+		googleOAuthService:  services.NewGoogleOAuthService(),
+		authService:         services.NewAuthService(),
+		jwtService:          services.NewJWTService(),
+		multiAccountService: services.NewMultiAccountService(),
 	}
 }
 
@@ -108,7 +110,16 @@ func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 		ctx.Request().Session().Put("refresh_token", refreshToken)
 	}
 
-	// Set session data for web authentication (consistent with other login methods)
+	// Add account to multi-account session
+	err = c.multiAccountService.AddAccount(ctx, user, "google_oauth")
+	if err != nil {
+		facades.Log().Error("Failed to add account to multi-account session", map[string]interface{}{
+			"error":   err.Error(),
+			"user_id": user.ID,
+		})
+	}
+
+	// Set session data for web authentication (backward compatibility)
 	ctx.Request().Session().Put("user_id", user.ID)
 	ctx.Request().Session().Put("user_email", user.Email)
 

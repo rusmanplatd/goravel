@@ -11,12 +11,14 @@ import (
 )
 
 type AuthController struct {
-	authService *services.AuthService
+	authService         *services.AuthService
+	multiAccountService *services.MultiAccountService
 }
 
 func NewAuthController() *AuthController {
 	return &AuthController{
-		authService: services.NewAuthService(),
+		authService:         services.NewAuthService(),
+		multiAccountService: services.NewMultiAccountService(),
 	}
 }
 
@@ -65,11 +67,24 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 		"users":       userCount,
 	}
 
+	// Get multi-account session info
+	accounts, _ := c.multiAccountService.GetAllAccounts(ctx)
+	activeAccount, _ := c.multiAccountService.GetActiveAccount(ctx)
+	hasMultipleAccounts := len(accounts) > 1
+
+	// Check for messages
+	message := ctx.Request().Query("message", "")
+
 	return ctx.Response().View().Make("dashboard.tmpl", map[string]interface{}{
-		"title":   "Dashboard",
-		"user":    authenticatedUser,
-		"stats":   stats,
-		"version": support.Version,
+		"title":                 "Dashboard",
+		"user":                  authenticatedUser,
+		"stats":                 stats,
+		"version":               support.Version,
+		"accounts":              accounts,
+		"active_account":        activeAccount,
+		"has_multiple_accounts": hasMultipleAccounts,
+		"account_count":         len(accounts),
+		"message":               message,
 	})
 }
 
@@ -144,7 +159,16 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		})
 	}
 
-	// Set session data for web authentication
+	// Add account to multi-account session
+	err = c.multiAccountService.AddAccount(ctx, user, "password")
+	if err != nil {
+		facades.Log().Error("Failed to add account to multi-account session", map[string]interface{}{
+			"error":   err.Error(),
+			"user_id": user.ID,
+		})
+	}
+
+	// Set session data for web authentication (backward compatibility)
 	ctx.Request().Session().Put("user_id", user.ID)
 	ctx.Request().Session().Put("user_email", user.Email)
 
@@ -183,7 +207,16 @@ func (c *AuthController) Register(ctx http.Context) http.Response {
 		})
 	}
 
-	// Set session data for web authentication
+	// Add account to multi-account session
+	err = c.multiAccountService.AddAccount(ctx, user, "registration")
+	if err != nil {
+		facades.Log().Error("Failed to add account to multi-account session", map[string]interface{}{
+			"error":   err.Error(),
+			"user_id": user.ID,
+		})
+	}
+
+	// Set session data for web authentication (backward compatibility)
 	ctx.Request().Session().Put("user_id", user.ID)
 	ctx.Request().Session().Put("user_email", user.Email)
 
@@ -193,12 +226,37 @@ func (c *AuthController) Register(ctx http.Context) http.Response {
 
 // Logout handles user logout
 func (c *AuthController) Logout(ctx http.Context) http.Response {
-	// Clear session data
-	ctx.Request().Session().Forget("user_id")
-	ctx.Request().Session().Forget("user_email")
-	ctx.Request().Session().Flush()
+	// Get current user ID
+	userID := ctx.Request().Session().Get("user_id")
 
-	return ctx.Response().Redirect(302, "/login?message=Logged out successfully")
+	// Check if we should logout all accounts or just the current one
+	logoutAll := ctx.Request().Input("all", "false") == "true"
+
+	if logoutAll || userID == nil {
+		// Clear all accounts
+		c.multiAccountService.ClearAllAccounts(ctx)
+		ctx.Request().Session().Flush()
+		return ctx.Response().Redirect(302, "/login?message=Logged out of all accounts successfully")
+	} else {
+		// Remove only the current account
+		err := c.multiAccountService.RemoveAccount(ctx, userID.(string))
+		if err != nil {
+			facades.Log().Error("Failed to remove account from multi-account session", map[string]interface{}{
+				"error":   err.Error(),
+				"user_id": userID,
+			})
+		}
+
+		// Check if there are other accounts to switch to
+		accountCount := c.multiAccountService.GetAccountCount(ctx)
+		if accountCount > 0 {
+			return ctx.Response().Redirect(302, "/dashboard?message=Switched to another account")
+		} else {
+			// No other accounts, clear session completely
+			ctx.Request().Session().Flush()
+			return ctx.Response().Redirect(302, "/login?message=Logged out successfully")
+		}
+	}
 }
 
 // ForgotPassword handles forgot password form submission

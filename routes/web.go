@@ -21,6 +21,7 @@ func Web() {
 	mfaController := web.NewMfaController()
 	webauthnController := web.NewWebAuthnController()
 	securityController := web.NewSecurityController()
+	accountSwitcherController := web.NewAccountSwitcherController()
 
 	// Authentication routes
 	facades.Route().Group(func(router route.Router) {
@@ -51,6 +52,9 @@ func Web() {
 		// WebAuthn authentication for login (guest routes)
 		router.Post("/auth/webauthn/begin-authentication", webauthnController.BeginAuthentication)
 		router.Post("/auth/webauthn/finish-authentication", webauthnController.FinishAuthentication)
+
+		// Account addition (guest route for adding accounts to existing session)
+		router.Get("/auth/add-account", accountSwitcherController.AddAccountPrompt)
 
 		// Protected routes (authentication required)
 		router.Group(func(router route.Router) {
@@ -117,6 +121,18 @@ func Web() {
 			router.Get("/security/webauthn/credentials", webauthnController.ShowCredentials)
 			router.Put("/security/webauthn/credentials/{id}/name", webauthnController.UpdateCredentialName)
 			router.Get("/security/webauthn/credentials/{id}/delete", webauthnController.DeleteCredential)
+
+			// Multi-Account Management
+			router.Get("/auth/accounts", accountSwitcherController.ShowAccountSwitcher)
+			router.Get("/auth/accounts/api", accountSwitcherController.GetAccounts)
+			router.Post("/auth/switch-account", accountSwitcherController.SwitchAccount)
+			router.Post("/auth/remove-account", accountSwitcherController.RemoveAccount)
+
+			// Enhanced Multi-Account API endpoints
+			router.Get("/auth/accounts/statistics", accountSwitcherController.GetSessionStatistics)
+			router.Post("/auth/accounts/refresh", accountSwitcherController.RefreshAccount)
+			router.Post("/auth/accounts/extend-session", accountSwitcherController.ExtendSession)
+			router.Post("/auth/accounts/validate", accountSwitcherController.ValidateAccount)
 		})
 	})
 

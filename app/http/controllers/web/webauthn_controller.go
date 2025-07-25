@@ -9,14 +9,16 @@ import (
 )
 
 type WebAuthnController struct {
-	authService     *services.AuthService
-	webauthnService *services.WebAuthnService
+	authService         *services.AuthService
+	webauthnService     *services.WebAuthnService
+	multiAccountService *services.MultiAccountService
 }
 
 func NewWebAuthnController() *WebAuthnController {
 	return &WebAuthnController{
-		authService:     services.NewAuthService(),
-		webauthnService: services.NewWebAuthnService(),
+		authService:         services.NewAuthService(),
+		webauthnService:     services.NewWebAuthnService(),
+		multiAccountService: services.NewMultiAccountService(),
 	}
 }
 
@@ -179,7 +181,16 @@ func (c *WebAuthnController) FinishAuthentication(ctx http.Context) http.Respons
 		})
 	}
 
-	// Set session for web authentication
+	// Add account to multi-account session
+	err = c.multiAccountService.AddAccount(ctx, &user, "webauthn")
+	if err != nil {
+		facades.Log().Error("Failed to add account to multi-account session", map[string]interface{}{
+			"error":   err.Error(),
+			"user_id": user.ID,
+		})
+	}
+
+	// Set session for web authentication (backward compatibility)
 	ctx.Request().Session().Put("user_id", user.ID)
 	ctx.Request().Session().Put("user_email", user.Email)
 

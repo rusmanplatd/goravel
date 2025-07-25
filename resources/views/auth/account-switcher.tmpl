@@ -1,0 +1,585 @@
+{{define "auth/account-switcher.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container-fluid">
+        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <div class="mx-auto bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                <i class="fas fa-users text-primary fs-4"></i>
+                            </div>
+                            <h2 class="h3 fw-bold text-dark mb-2">
+                                Switch Account
+                            </h2>
+                            <p class="text-muted small mb-0">
+                                Choose an account to continue with or add a new one
+                            </p>
+                        </div>
+
+                        <!-- Session Statistics (if available) -->
+                        {{if .statistics}}
+                        <div class="alert alert-info border-0 mb-4" style="background: rgba(13, 110, 253, 0.05);">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-info-circle text-info me-2"></i>
+                                <small class="text-info mb-0">
+                                    Session active for {{printf "%.1f" .statistics.session_age_hours}} hours • 
+                                    {{.statistics.switch_count}} switches made
+                                    {{if .statistics.active_session_expires}}
+                                    • Active account expires {{.statistics.active_session_expires.Format "Jan 2, 15:04"}}
+                                    {{end}}
+                                </small>
+                            </div>
+                        </div>
+                        {{end}}
+                        
+                        <!-- Account List -->
+                        <div class="mb-4" id="accounts-container">
+                            {{range $index, $account := .accounts}}
+                            <div class="account-item border rounded-3 p-3 mb-3 position-relative {{if eq $account.UserID $.active_account.UserID}}bg-primary bg-opacity-10 border-primary{{else}}bg-white{{end}}" 
+                                 data-user-id="{{$account.UserID}}" 
+                                 style="cursor: pointer; transition: all 0.3s ease; overflow: hidden;">
+                                
+                                <!-- Loading overlay -->
+                                <div class="loading-overlay position-absolute top-0 start-0 w-100 h-100 d-none align-items-center justify-content-center" 
+                                     style="background: rgba(255,255,255,0.9); z-index: 10;">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-shrink-0">
+                                        {{if $account.Avatar}}
+                                        <img src="{{$account.Avatar}}" alt="{{$account.Name}}" 
+                                             class="rounded-circle account-avatar" width="48" height="48"
+                                             style="transition: transform 0.2s ease;">
+                                        {{else}}
+                                        <div class="bg-secondary bg-opacity-25 rounded-circle d-flex align-items-center justify-content-center account-avatar" 
+                                             style="width: 48px; height: 48px; transition: transform 0.2s ease;">
+                                            <i class="fas fa-user text-secondary"></i>
+                                        </div>
+                                        {{end}}
+                                        
+                                        <!-- Online indicator -->
+                                        <div class="position-relative">
+                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success" 
+                                                  style="font-size: 0.5rem; margin-top: -35px; margin-left: -10px;">
+                                                <span class="visually-hidden">Online</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <h6 class="mb-1 fw-semibold account-name">{{$account.Name}}</h6>
+                                                <p class="mb-0 text-muted small account-email">{{$account.Email}}</p>
+                                            </div>
+                                            <div class="text-end">
+                                                {{if eq $account.UserID $.active_account.UserID}}
+                                                <span class="badge bg-primary">
+                                                    <i class="fas fa-check me-1"></i>Active
+                                                </span>
+                                                {{else}}
+                                                <button class="btn btn-sm btn-outline-primary switch-account-btn" 
+                                                        data-user-id="{{$account.UserID}}"
+                                                        style="transition: all 0.2s ease;">
+                                                    <i class="fas fa-exchange-alt me-1"></i>Switch
+                                                </button>
+                                                {{end}}
+                                            </div>
+                                        </div>
+                                        <div class="mt-2 d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-sign-in-alt me-1"></i>
+                                                    {{$account.LoginMethod}}
+                                                    {{if $account.LastAccessed}}
+                                                    <span class="mx-2">•</span>
+                                                    <span class="last-accessed" data-timestamp="{{$account.LastAccessed.Unix}}">
+                                                        {{$account.LastAccessed.Format "Jan 2, 15:04"}}
+                                                    </span>
+                                                    {{end}}
+                                                </small>
+                                            </div>
+                                            {{if ne $account.UserID $.active_account.UserID}}
+                                            <div class="dropdown">
+                                                <button class="btn btn-link btn-sm p-0 text-muted" type="button" 
+                                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="fas fa-ellipsis-v"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li>
+                                                        <button class="dropdown-item refresh-account-btn" data-user-id="{{$account.UserID}}">
+                                                            <i class="fas fa-sync me-2"></i>Refresh Data
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <button class="dropdown-item extend-session-btn" data-user-id="{{$account.UserID}}">
+                                                            <i class="fas fa-clock me-2"></i>Extend Session
+                                                        </button>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <button class="dropdown-item text-danger remove-account-btn" data-user-id="{{$account.UserID}}">
+                                                            <i class="fas fa-times me-2"></i>Remove
+                                                        </button>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                            {{end}}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2">
+                            <a href="/auth/add-account" class="btn btn-outline-primary" style="transition: all 0.2s ease;">
+                                <i class="fas fa-plus me-2"></i>
+                                Add Another Account
+                            </a>
+                            <button class="btn btn-outline-secondary refresh-all-btn" style="transition: all 0.2s ease;">
+                                <i class="fas fa-sync me-2"></i>
+                                Refresh All Accounts
+                            </button>
+                            <a href="/dashboard" class="btn btn-secondary" style="transition: all 0.2s ease;">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Back to Dashboard
+                            </a>
+                        </div>
+
+                        <!-- Account Info -->
+                        <div class="text-center mt-4">
+                            <small class="text-muted">
+                                <span id="account-count">{{.account_count}}</span> of 5 accounts • 
+                                <a href="/logout?all=true" class="text-decoration-none text-danger">
+                                    <i class="fas fa-sign-out-alt me-1"></i>Sign out of all accounts
+                                </a>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+        <div id="toast-template" class="toast align-items-center border-0 d-none" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <!-- Toast message will be inserted here -->
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced JavaScript with better error handling and animations
+        class AccountSwitcher {
+            constructor() {
+                this.initializeEventListeners();
+                this.updateRelativeTimes();
+                this.startPeriodicUpdates();
+            }
+
+            initializeEventListeners() {
+                // Handle account switching
+                document.querySelectorAll('.switch-account-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.handleAccountSwitch(e));
+                });
+
+                // Handle account removal
+                document.querySelectorAll('.remove-account-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.handleAccountRemoval(e));
+                });
+
+                // Handle account refresh
+                document.querySelectorAll('.refresh-account-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.handleAccountRefresh(e));
+                });
+
+                // Handle session extension
+                document.querySelectorAll('.extend-session-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.handleSessionExtension(e));
+                });
+
+                // Handle refresh all accounts
+                document.querySelector('.refresh-all-btn')?.addEventListener('click', (e) => {
+                    this.handleRefreshAll(e);
+                });
+
+                // Handle clicking on account items (for switching)
+                document.querySelectorAll('.account-item').forEach(item => {
+                    item.addEventListener('click', (e) => this.handleAccountItemClick(e));
+                });
+
+                // Add hover effects
+                this.addHoverEffects();
+            }
+
+            async handleAccountSwitch(e) {
+                e.stopPropagation();
+                const btn = e.target.closest('.switch-account-btn');
+                const userID = btn.dataset.userId;
+                const accountItem = btn.closest('.account-item');
+                
+                try {
+                    this.showLoading(accountItem, true);
+                    this.setButtonLoading(btn, 'Switching...', 'fas fa-spinner fa-spin');
+                    
+                    const response = await this.makeRequest('/auth/switch-account', {
+                        method: 'POST',
+                        body: JSON.stringify({ user_id: userID })
+                    });
+                    
+                    if (response.success) {
+                        this.showToast('Account switched successfully!', 'success');
+                        // Add success animation
+                        accountItem.style.transform = 'scale(1.02)';
+                        setTimeout(() => {
+                            window.location.href = '/dashboard?message=Account switched successfully';
+                        }, 500);
+                    } else {
+                        throw new Error(response.message || 'Failed to switch account');
+                    }
+                } catch (error) {
+                    console.error('Switch account error:', error);
+                    this.handleError(error, 'Failed to switch account');
+                    this.setButtonLoading(btn, 'Switch', 'fas fa-exchange-alt', false);
+                } finally {
+                    this.showLoading(accountItem, false);
+                }
+            }
+
+            async handleAccountRemoval(e) {
+                e.stopPropagation();
+                const btn = e.target.closest('.remove-account-btn');
+                const userID = btn.dataset.userId;
+                const accountItem = btn.closest('.account-item');
+                
+                if (!confirm('Are you sure you want to remove this account from your session?')) {
+                    return;
+                }
+                
+                try {
+                    this.showLoading(accountItem, true);
+                    
+                    const response = await this.makeRequest('/auth/remove-account', {
+                        method: 'POST',
+                        body: JSON.stringify({ user_id: userID })
+                    });
+                    
+                    if (response.success) {
+                        // Animate removal
+                        accountItem.style.transform = 'translateX(100%)';
+                        accountItem.style.opacity = '0';
+                        
+                        setTimeout(() => {
+                            accountItem.remove();
+                            this.updateAccountCount(-1);
+                            this.showToast('Account removed successfully', 'success');
+                        }, 300);
+                    } else {
+                        throw new Error(response.message || 'Failed to remove account');
+                    }
+                } catch (error) {
+                    console.error('Remove account error:', error);
+                    this.handleError(error, 'Failed to remove account');
+                    this.showLoading(accountItem, false);
+                }
+            }
+
+            async handleAccountRefresh(e) {
+                e.stopPropagation();
+                const btn = e.target.closest('.refresh-account-btn');
+                const userID = btn.dataset.userId;
+                const accountItem = document.querySelector(`[data-user-id="${userID}"]`);
+                
+                try {
+                    this.showLoading(accountItem, true);
+                    
+                    const response = await this.makeRequest('/auth/accounts/refresh', {
+                        method: 'POST',
+                        body: JSON.stringify({ user_id: userID })
+                    });
+                    
+                    if (response.success) {
+                        this.showToast('Account data refreshed', 'success');
+                        // Optionally reload the page to show updated data
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        throw new Error(response.message || 'Failed to refresh account');
+                    }
+                } catch (error) {
+                    console.error('Refresh account error:', error);
+                    this.handleError(error, 'Failed to refresh account data');
+                } finally {
+                    this.showLoading(accountItem, false);
+                }
+            }
+
+            async handleSessionExtension(e) {
+                e.stopPropagation();
+                const btn = e.target.closest('.extend-session-btn');
+                const userID = btn.dataset.userId;
+                const accountItem = document.querySelector(`[data-user-id="${userID}"]`);
+                
+                try {
+                    this.showLoading(accountItem, true);
+                    
+                    const response = await this.makeRequest('/auth/accounts/extend-session', {
+                        method: 'POST',
+                        body: JSON.stringify({ user_id: userID })
+                    });
+                    
+                    if (response.success) {
+                        this.showToast('Session extended successfully', 'success');
+                    } else {
+                        throw new Error(response.message || 'Failed to extend session');
+                    }
+                } catch (error) {
+                    console.error('Extend session error:', error);
+                    this.handleError(error, 'Failed to extend session');
+                } finally {
+                    this.showLoading(accountItem, false);
+                }
+            }
+
+            async handleRefreshAll(e) {
+                const btn = e.target.closest('.refresh-all-btn');
+                const originalText = btn.innerHTML;
+                
+                try {
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Refreshing...';
+                    btn.disabled = true;
+                    
+                    // Refresh all accounts
+                    const accounts = document.querySelectorAll('.account-item');
+                    const promises = Array.from(accounts).map(item => {
+                        const userID = item.dataset.userId;
+                        return this.makeRequest('/auth/accounts/refresh', {
+                            method: 'POST',
+                            body: JSON.stringify({ user_id: userID })
+                        });
+                    });
+                    
+                    await Promise.all(promises);
+                    this.showToast('All accounts refreshed', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                    
+                } catch (error) {
+                    console.error('Refresh all error:', error);
+                    this.handleError(error, 'Failed to refresh accounts');
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            }
+
+            handleAccountItemClick(e) {
+                if (e.target.closest('.dropdown, .btn, button')) {
+                    return; // Don't trigger if clicking on buttons or dropdown
+                }
+                
+                const accountItem = e.currentTarget;
+                const userID = accountItem.dataset.userId;
+                const activeUserID = '{{.active_account.UserID}}';
+                
+                if (userID !== activeUserID) {
+                    const switchBtn = accountItem.querySelector('.switch-account-btn');
+                    if (switchBtn) {
+                        switchBtn.click();
+                    }
+                }
+            }
+
+            addHoverEffects() {
+                document.querySelectorAll('.account-item').forEach(item => {
+                    item.addEventListener('mouseenter', () => {
+                        if (!item.classList.contains('border-primary')) {
+                            item.style.transform = 'translateY(-2px)';
+                            item.style.boxShadow = '0 8px 25px rgba(0,0,0,0.1)';
+                            
+                            const avatar = item.querySelector('.account-avatar');
+                            if (avatar) {
+                                avatar.style.transform = 'scale(1.1)';
+                            }
+                        }
+                    });
+                    
+                    item.addEventListener('mouseleave', () => {
+                        if (!item.classList.contains('border-primary')) {
+                            item.style.transform = 'none';
+                            item.style.boxShadow = 'none';
+                            
+                            const avatar = item.querySelector('.account-avatar');
+                            if (avatar) {
+                                avatar.style.transform = 'scale(1)';
+                            }
+                        }
+                    });
+                });
+            }
+
+            showLoading(element, show) {
+                const overlay = element.querySelector('.loading-overlay');
+                if (overlay) {
+                    if (show) {
+                        overlay.classList.remove('d-none');
+                        overlay.classList.add('d-flex');
+                    } else {
+                        overlay.classList.add('d-none');
+                        overlay.classList.remove('d-flex');
+                    }
+                }
+            }
+
+            setButtonLoading(btn, text, iconClass, loading = true) {
+                if (loading) {
+                    btn.innerHTML = `<i class="${iconClass} me-1"></i>${text}`;
+                    btn.disabled = true;
+                } else {
+                    btn.disabled = false;
+                }
+            }
+
+            async makeRequest(url, options = {}) {
+                const defaultOptions = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    ...options
+                };
+                
+                const response = await fetch(url, defaultOptions);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.message || `HTTP error! status: ${response.status}`);
+                }
+                
+                return data;
+            }
+
+            handleError(error, defaultMessage) {
+                let message = defaultMessage;
+                
+                if (error.message) {
+                    if (error.message.includes('rate limit')) {
+                        message = 'You\'re switching accounts too frequently. Please wait a moment.';
+                    } else if (error.message.includes('expired')) {
+                        message = 'Your session has expired. Please log in again.';
+                    } else {
+                        message = error.message;
+                    }
+                }
+                
+                this.showToast(message, 'error');
+            }
+
+            showToast(message, type = 'info') {
+                const template = document.getElementById('toast-template');
+                const toast = template.cloneNode(true);
+                toast.id = '';
+                toast.classList.remove('d-none');
+                
+                // Set toast styling based on type
+                const typeClasses = {
+                    success: 'text-bg-success',
+                    error: 'text-bg-danger',
+                    warning: 'text-bg-warning',
+                    info: 'text-bg-info'
+                };
+                
+                toast.classList.add(typeClasses[type] || typeClasses.info);
+                toast.querySelector('.toast-body').textContent = message;
+                
+                document.querySelector('.toast-container').appendChild(toast);
+                
+                const bsToast = new bootstrap.Toast(toast, {
+                    autohide: true,
+                    delay: type === 'error' ? 8000 : 5000
+                });
+                
+                bsToast.show();
+                
+                // Remove toast element after it's hidden
+                toast.addEventListener('hidden.bs.toast', () => {
+                    toast.remove();
+                });
+            }
+
+            updateAccountCount(delta) {
+                const countElement = document.getElementById('account-count');
+                if (countElement) {
+                    const currentCount = parseInt(countElement.textContent);
+                    countElement.textContent = currentCount + delta;
+                }
+            }
+
+            updateRelativeTimes() {
+                document.querySelectorAll('.last-accessed').forEach(element => {
+                    const timestamp = parseInt(element.dataset.timestamp);
+                    if (timestamp) {
+                        const date = new Date(timestamp * 1000);
+                        const now = new Date();
+                        const diffMinutes = Math.floor((now - date) / (1000 * 60));
+                        
+                        let relativeTime;
+                        if (diffMinutes < 1) {
+                            relativeTime = 'Just now';
+                        } else if (diffMinutes < 60) {
+                            relativeTime = `${diffMinutes}m ago`;
+                        } else if (diffMinutes < 1440) {
+                            relativeTime = `${Math.floor(diffMinutes / 60)}h ago`;
+                        } else {
+                            relativeTime = date.toLocaleDateString();
+                        }
+                        
+                        element.textContent = relativeTime;
+                    }
+                });
+            }
+
+            startPeriodicUpdates() {
+                // Update relative times every minute
+                setInterval(() => this.updateRelativeTimes(), 60000);
+                
+                // Validate active session every 5 minutes
+                setInterval(() => this.validateActiveSession(), 300000);
+            }
+
+            async validateActiveSession() {
+                try {
+                    const response = await this.makeRequest('/auth/accounts/validate', {
+                        method: 'POST',
+                        body: JSON.stringify({ user_id: '{{.active_account.UserID}}' })
+                    });
+                    
+                    if (!response.valid) {
+                        this.showToast('Your session has expired. Please log in again.', 'warning');
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 3000);
+                    }
+                } catch (error) {
+                    console.warn('Session validation failed:', error);
+                }
+            }
+        }
+
+        // Initialize the account switcher when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AccountSwitcher();
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

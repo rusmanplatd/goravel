@@ -15,10 +15,14 @@
                                 Welcome back
                             </h2>
                             <p class="text-muted small mb-0">
-                                Sign in to your account or
-                                <a href="/register" class="text-decoration-none fw-medium">
-                                    create a new account
-                                </a>
+                                {{if .add_account_mode}}
+                                    Sign in to add another account to your session
+                                {{else}}
+                                    Sign in to your account or
+                                    <a href="/register" class="text-decoration-none fw-medium">
+                                        create a new account
+                                    </a>
+                                {{end}}
                             </p>
                         </div>
                         
@@ -187,6 +191,16 @@
                                     <path fill="#EA4335" d="M8.98 3.77c1.18 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1 8 8 0 0 0 1.83 5.45L4.5 7.52C5.12 5.19 6.9 3.77 8.98 3.77Z"/>
                                 </svg>
                                 Continue with Google
+                            </a>
+                        </div>
+                        {{end}}
+
+                        <!-- Add Account Mode Actions -->
+                        {{if .add_account_mode}}
+                        <div class="text-center mt-4">
+                            <a href="/auth/accounts" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Back to Account Switcher
                             </a>
                         </div>
                         {{end}}
