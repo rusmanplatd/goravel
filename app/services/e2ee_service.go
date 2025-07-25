@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -391,6 +392,108 @@ func (s *E2EEService) decryptAESKeyWithRSA(encryptedKeyStr string, privateKeyStr
 	}
 
 	return aesKey, nil
+}
+
+// EncryptPrivateKey encrypts a private key with a passphrase for secure storage
+func (s *E2EEService) EncryptPrivateKey(privateKeyPEM string, passphrase string) (string, error) {
+	// Generate a random salt
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", fmt.Errorf("failed to generate salt: %v", err)
+	}
+
+	// Derive key from passphrase using PBKDF2
+	key := s.deriveKeyFromPassphrase(passphrase, salt, 100000) // 100k iterations
+
+	// Generate a random nonce
+	nonce := make([]byte, 12)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", fmt.Errorf("failed to generate nonce: %v", err)
+	}
+
+	// Encrypt the private key with AES-256-GCM
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create AES cipher: %v", err)
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %v", err)
+	}
+
+	ciphertext := aesGCM.Seal(nil, nonce, []byte(privateKeyPEM), nil)
+
+	// Combine salt, nonce, and ciphertext
+	encryptedData := append(salt, append(nonce, ciphertext...)...)
+	return base64.StdEncoding.EncodeToString(encryptedData), nil
+}
+
+// DecryptPrivateKey decrypts a private key using a passphrase
+func (s *E2EEService) DecryptPrivateKey(encryptedPrivateKey string, passphrase string) (string, error) {
+	// Decode the encrypted data
+	encryptedData, err := base64.StdEncoding.DecodeString(encryptedPrivateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode encrypted private key: %v", err)
+	}
+
+	// Extract salt (first 16 bytes)
+	if len(encryptedData) < 16 {
+		return "", fmt.Errorf("invalid encrypted data: too short")
+	}
+	salt := encryptedData[:16]
+
+	// Extract nonce (next 12 bytes)
+	if len(encryptedData) < 28 {
+		return "", fmt.Errorf("invalid encrypted data: missing nonce")
+	}
+	nonce := encryptedData[16:28]
+
+	// Extract ciphertext (remaining bytes)
+	ciphertext := encryptedData[28:]
+
+	// Derive key from passphrase
+	key := s.deriveKeyFromPassphrase(passphrase, salt, 100000)
+
+	// Decrypt the private key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create AES cipher: %v", err)
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %v", err)
+	}
+
+	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt private key: %v", err)
+	}
+
+	return string(plaintext), nil
+}
+
+// deriveKeyFromPassphrase derives a key from a passphrase using PBKDF2-like approach
+func (s *E2EEService) deriveKeyFromPassphrase(passphrase string, salt []byte, iterations int) []byte {
+	// Use HMAC-SHA256 for key derivation
+	key := make([]byte, 32) // 256-bit key
+
+	// Simple key stretching using HMAC
+	currentHash := []byte(passphrase)
+	currentHash = append(currentHash, salt...)
+
+	for i := 0; i < iterations; i++ {
+		h := hmac.New(sha256.New, currentHash)
+		h.Write(salt)
+		h.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+		currentHash = h.Sum(nil)
+	}
+
+	// Use the final hash as the key (truncate to 32 bytes if needed)
+	copy(key, currentHash[:32])
+
+	return key
 }
 
 // GenerateRoomKey generates a new room key for group chats

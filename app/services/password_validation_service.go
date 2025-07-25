@@ -1,7 +1,9 @@
 package services
 
 import (
+	"crypto/rand"
 	"fmt"
+	mathRand "math/rand"
 	"strings"
 	"unicode"
 )
@@ -377,15 +379,49 @@ func (s *PasswordValidationService) GenerateStrongPassword(length int) string {
 	password := make([]byte, length)
 
 	// Ensure at least one character from each category
-	password[0] = lowercase[0]
-	password[1] = uppercase[0]
-	password[2] = numbers[0]
-	password[3] = symbols[0]
+	password[0] = lowercase[s.getRandomIndex(len(lowercase))]
+	password[1] = uppercase[s.getRandomIndex(len(uppercase))]
+	password[2] = numbers[s.getRandomIndex(len(numbers))]
+	password[3] = symbols[s.getRandomIndex(len(symbols))]
 
 	// Fill the rest randomly
 	for i := 4; i < length; i++ {
-		password[i] = allChars[0] // This would be random in real implementation
+		password[i] = allChars[s.getRandomIndex(len(allChars))]
 	}
 
+	// Shuffle the password to avoid predictable patterns
+	s.shuffleBytes(password)
+
 	return string(password)
+}
+
+// getRandomIndex returns a cryptographically secure random index
+func (s *PasswordValidationService) getRandomIndex(max int) int {
+	if max <= 0 {
+		return 0
+	}
+
+	// Use crypto/rand for cryptographically secure random numbers
+	bytes := make([]byte, 4)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		// Fallback to math/rand if crypto/rand fails
+		return mathRand.Intn(max)
+	}
+
+	// Convert bytes to int and mod by max
+	randomInt := int(bytes[0])<<24 | int(bytes[1])<<16 | int(bytes[2])<<8 | int(bytes[3])
+	if randomInt < 0 {
+		randomInt = -randomInt
+	}
+
+	return randomInt % max
+}
+
+// shuffleBytes shuffles a byte slice using Fisher-Yates algorithm
+func (s *PasswordValidationService) shuffleBytes(slice []byte) {
+	for i := len(slice) - 1; i > 0; i-- {
+		j := s.getRandomIndex(i + 1)
+		slice[i], slice[j] = slice[j], slice[i]
+	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
+	"goravel/app/models"
 	"goravel/app/services"
 )
 
@@ -184,7 +185,7 @@ func (tc *TaskController) Store(ctx http.Context) http.Response {
 	}
 
 	// Get current user ID (you'll need to implement this based on your auth system)
-	userID := "current-user-id" // TODO: Get from auth context
+	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data
 	data := map[string]interface{}{
@@ -436,7 +437,7 @@ func (tc *TaskController) CreateLabel(ctx http.Context) http.Response {
 	}
 
 	// Get current user ID (you'll need to implement this based on your auth system)
-	userID := "current-user-id" // TODO: Get from auth context
+	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data
 	data := map[string]interface{}{
@@ -532,7 +533,7 @@ func (tc *TaskController) CreateMilestone(ctx http.Context) http.Response {
 	}
 
 	// Get current user ID (you'll need to implement this based on your auth system)
-	userID := "current-user-id" // TODO: Get from auth context
+	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data
 	data := map[string]interface{}{
@@ -632,7 +633,7 @@ func (tc *TaskController) CreateBoard(ctx http.Context) http.Response {
 	}
 
 	// Get current user ID (you'll need to implement this based on your auth system)
-	userID := "current-user-id" // TODO: Get from auth context
+	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data
 	data := map[string]interface{}{
@@ -662,4 +663,38 @@ func (tc *TaskController) CreateBoard(ctx http.Context) http.Response {
 		Data:      board,
 		Timestamp: time.Now(),
 	})
+}
+
+// Helper methods
+
+// getCurrentUser gets the current authenticated user from context
+func (tc *TaskController) getCurrentUser(ctx http.Context) *models.User {
+	// Get user from context (set by auth middleware)
+	user := ctx.Value("user")
+	if user == nil {
+		return nil
+	}
+
+	// Type assertion
+	if userModel, ok := user.(*models.User); ok {
+		return userModel
+	}
+
+	return nil
+}
+
+// getCurrentUserID gets the current authenticated user ID from context
+func (tc *TaskController) getCurrentUserID(ctx http.Context) string {
+	// Get user ID from context (set by auth middleware)
+	userID := ctx.Value("user_id")
+	if userID == nil {
+		return ""
+	}
+
+	// Type assertion
+	if userIDStr, ok := userID.(string); ok {
+		return userIDStr
+	}
+
+	return ""
 }

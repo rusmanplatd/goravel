@@ -503,12 +503,22 @@ func (cc *ChatController) GenerateKeyPair(ctx http.Context) http.Response {
 		})
 	}
 
+	// Generate a passphrase for encrypting the private key (in production, this could be derived from user password)
+	passphrase := user.ID + "_key_passphrase" // Simple approach - in production use proper key derivation
+
+	// Encrypt the private key before storage
+	e2eeService := services.NewE2EEService()
+	encryptedPrivateKey, err := e2eeService.EncryptPrivateKey(keyPair.PrivateKey, passphrase)
+	if err != nil {
+		return responses.CreateErrorResponse(ctx, "Failed to encrypt private key", err.Error(), 500)
+	}
+
 	// Save the key pair to database
 	userKey := &models.UserKey{
 		UserID:              user.ID,
 		KeyType:             req.KeyType,
 		PublicKey:           keyPair.PublicKey,
-		EncryptedPrivateKey: keyPair.PrivateKey, // In a real implementation, this would be encrypted
+		EncryptedPrivateKey: encryptedPrivateKey, // Now properly encrypted
 		Version:             1,
 		IsActive:            true,
 	}

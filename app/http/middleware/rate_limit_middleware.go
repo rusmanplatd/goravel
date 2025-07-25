@@ -118,10 +118,17 @@ func (m *RateLimitMiddleware) getClientIP(ctx http.Context) string {
 	return ctx.Request().Ip()
 }
 
-// RateLimit helper function
-func RateLimit() func(ctx http.Context) http.Response {
-	middleware := NewRateLimitMiddleware()
-	return middleware.Handle
+// RateLimit returns a middleware function for rate limiting
+func RateLimit() http.Middleware {
+	return func(ctx http.Context) {
+		middleware := NewRateLimitMiddleware()
+		response := middleware.Handle(ctx)
+		if response != nil {
+			// If middleware returned a response, it means rate limit was exceeded
+			response.Render()
+			ctx.Request().Abort()
+		}
+	}
 }
 
 // RateLimitWithConfig allows custom rate limiting configuration

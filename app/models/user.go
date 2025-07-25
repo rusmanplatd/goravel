@@ -82,6 +82,18 @@ type User struct {
 	// @Description User's push subscriptions
 	PushSubscriptions []PushSubscription `gorm:"foreignKey:UserID" json:"push_subscriptions,omitempty"`
 
+	// Notification fields
+	// @example +1234567890
+	Phone string `json:"phone,omitempty" example:"+1234567890"`
+	// @example https://hooks.slack.com/services/...
+	SlackWebhook string `json:"slack_webhook,omitempty" example:"https://hooks.slack.com/services/..."`
+	// @example https://discord.com/api/webhooks/...
+	DiscordWebhook string `json:"discord_webhook,omitempty" example:"https://discord.com/api/webhooks/..."`
+	// @example 123456789
+	TelegramChatID string `json:"telegram_chat_id,omitempty" example:"123456789"`
+	// @example https://example.com/webhook
+	WebhookURL string `json:"webhook_url,omitempty" example:"https://example.com/webhook"`
+
 	// Notification preferences
 	// @Description User's preferred notification channels
 	PreferredNotificationChannels []string `gorm:"-" json:"preferred_notification_channels,omitempty"`
@@ -104,27 +116,27 @@ func (u *User) GetEmail() string {
 	return u.Email
 }
 
-// GetPhone returns the user's phone number (not implemented)
+// GetPhone returns the user's phone number
 func (u *User) GetPhone() string {
-	return ""
+	return u.Phone
 }
 
-// GetSlackWebhook returns the user's Slack webhook URL (not implemented)
+// GetSlackWebhook returns the user's Slack webhook URL
 func (u *User) GetSlackWebhook() string {
-	return ""
+	return u.SlackWebhook
 }
 
-// GetDiscordWebhook returns the user's Discord webhook URL (not implemented)
+// GetDiscordWebhook returns the user's Discord webhook URL
 func (u *User) GetDiscordWebhook() string {
-	return ""
+	return u.DiscordWebhook
 }
 
-// GetTelegramChatID returns the user's Telegram chat ID (not implemented)
+// GetTelegramChatID returns the user's Telegram chat ID
 func (u *User) GetTelegramChatID() string {
-	return ""
+	return u.TelegramChatID
 }
 
-// GetPushTokens returns the user's push notification tokens (not implemented)
+// GetPushTokens returns the user's push notification tokens
 func (u *User) GetPushTokens() []string {
 	// Return active push subscription endpoints
 	var tokens []string
@@ -136,9 +148,9 @@ func (u *User) GetPushTokens() []string {
 	return tokens
 }
 
-// GetWebhookURL returns the user's webhook URL (not implemented)
+// GetWebhookURL returns the user's webhook URL
 func (u *User) GetWebhookURL() string {
-	return ""
+	return u.WebhookURL
 }
 
 // GetPreferredChannels returns the user's preferred notification channels

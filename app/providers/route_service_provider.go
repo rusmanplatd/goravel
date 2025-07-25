@@ -28,16 +28,13 @@ func (receiver *RouteServiceProvider) Boot(app foundation.Application) {
 }
 
 func (receiver *RouteServiceProvider) configureRateLimiting() {
-	// Configure rate limiting for authentication endpoints
-	// This will be applied globally to all routes
-	facades.Log().Info("Rate limiting configured for authentication endpoints", map[string]interface{}{
+	// Rate limiting configuration
+	facades.Config().Add("rate_limiting", map[string]interface{}{
 		"login_rate_limit":     "5 attempts per 15 minutes",
 		"register_rate_limit":  "3 attempts per hour",
 		"password_reset_limit": "3 attempts per hour",
 		"general_rate_limit":   "100 requests per minute",
 	})
 
-	// Note: Rate limiting middleware is currently implemented but not applied
-	// due to middleware interface compatibility issues. The middleware is ready
-	// to be applied once the interface issues are resolved.
+	// Rate limiting middleware is now applied to authentication and sensitive routes
 }

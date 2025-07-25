@@ -241,15 +241,19 @@ func (c *WebSocketController) handleUnsubscribe(wsConn *services.WebSocketConnec
 }
 
 // getUserIDFromContext extracts the user ID from the context
-// This is a placeholder - implement based on your authentication system
 func (c *WebSocketController) getUserIDFromContext(ctx goravelhttp.Context) string {
-	// In a real application, you'd get this from your authentication middleware
-	// For now, we'll use a query parameter or header
-	userID := ctx.Request().Query("user_id")
-	if userID == "" {
-		userID = ctx.Request().Header("X-User-ID")
+	// Get user ID from context (set by auth middleware)
+	userID := ctx.Value("user_id")
+	if userID == nil {
+		return ""
 	}
-	return userID
+
+	// Type assertion
+	if userIDStr, ok := userID.(string); ok {
+		return userIDStr
+	}
+
+	return ""
 }
 
 // GetConnectionStats returns statistics about WebSocket connections

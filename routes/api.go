@@ -29,14 +29,14 @@ func Api() {
 	calendarEventController := v1.NewCalendarEventController()
 	notificationController := v1.NewNotificationController()
 
-	// Public authentication routes
-	facades.Route().Post("/api/v1/auth/login", authController.Login)
-	facades.Route().Post("/api/v1/auth/register", authController.Register)
-	facades.Route().Post("/api/v1/auth/forgot-password", authController.ForgotPassword)
-	facades.Route().Post("/api/v1/auth/reset-password", authController.ResetPassword)
+	// Public authentication routes with rate limiting
+	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/login", authController.Login)
+	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/register", authController.Register)
+	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/forgot-password", authController.ForgotPassword)
+	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/reset-password", authController.ResetPassword)
 
-	// WebAuthn public routes (for authentication)
-	facades.Route().Post("/api/v1/auth/webauthn/authenticate", authController.WebauthnAuthenticate)
+	// WebAuthn public routes (for authentication) with rate limiting
+	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/webauthn/authenticate", authController.WebauthnAuthenticate)
 
 	// Protected routes (require authentication)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/refresh", authController.RefreshToken)

@@ -1,13 +1,15 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/goravel/framework/facades"
-
 	"goravel/app/models"
+	"goravel/app/notifications"
+
+	"github.com/goravel/framework/facades"
 )
 
 type CalendarService struct {
@@ -138,21 +140,70 @@ func (cs *CalendarService) sendEmailReminder(reminder *models.EventReminder) err
 
 // sendPushReminder sends a push notification reminder
 func (cs *CalendarService) sendPushReminder(reminder *models.EventReminder) error {
-	// TODO: Implement push notification service
-	facades.Log().Info("Push reminder would be sent", map[string]interface{}{
+	// Create a notification for the event reminder
+	notificationService := NewNotificationService()
+
+	// Create notification using BaseNotification
+	notification := notifications.NewBaseNotification()
+	notification.SetType("event_reminder")
+	notification.SetTitle("Event Reminder")
+	notification.SetBody(fmt.Sprintf("Reminder: %s is starting at %s", reminder.Event.Title, reminder.Event.StartTime.Format("2006-01-02 15:04")))
+	notification.SetChannels([]string{"push"})
+	notification.SetAction("/calendar", "View Event")
+	notification.AddData("event_title", reminder.Event.Title)
+	notification.AddData("event_time", reminder.Event.StartTime)
+
+	// Send push notification
+	ctx := context.Background()
+	err := notificationService.SendNow(ctx, notification, reminder.User)
+	if err != nil {
+		facades.Log().Error("Failed to send push reminder", map[string]interface{}{
+			"user_id": reminder.UserID,
+			"event":   reminder.Event.Title,
+			"error":   err.Error(),
+		})
+		return err
+	}
+
+	facades.Log().Info("Push reminder sent successfully", map[string]interface{}{
 		"user_id": reminder.UserID,
 		"event":   reminder.Event.Title,
 	})
+
 	return nil
 }
 
 // sendSMSReminder sends an SMS reminder
 func (cs *CalendarService) sendSMSReminder(reminder *models.EventReminder) error {
-	// TODO: Implement SMS service
-	facades.Log().Info("SMS reminder would be sent", map[string]interface{}{
+	// Create a notification for the event reminder
+	notificationService := NewNotificationService()
+
+	// Create notification using BaseNotification
+	notification := notifications.NewBaseNotification()
+	notification.SetType("event_reminder")
+	notification.SetTitle("Event Reminder")
+	notification.SetBody(fmt.Sprintf("Reminder: %s is starting at %s", reminder.Event.Title, reminder.Event.StartTime.Format("2006-01-02 15:04")))
+	notification.SetChannels([]string{"sms"})
+	notification.AddData("event_title", reminder.Event.Title)
+	notification.AddData("event_time", reminder.Event.StartTime)
+
+	// Send SMS notification
+	ctx := context.Background()
+	err := notificationService.SendNow(ctx, notification, reminder.User)
+	if err != nil {
+		facades.Log().Error("Failed to send SMS reminder", map[string]interface{}{
+			"user_id": reminder.UserID,
+			"event":   reminder.Event.Title,
+			"error":   err.Error(),
+		})
+		return err
+	}
+
+	facades.Log().Info("SMS reminder sent successfully", map[string]interface{}{
 		"user_id": reminder.UserID,
 		"event":   reminder.Event.Title,
 	})
+
 	return nil
 }
 
