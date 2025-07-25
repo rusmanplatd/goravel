@@ -1,0 +1,262 @@
+{{define "oauth/playground/callback.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Callback CSS -->
+    <style>
+        .callback-container {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .callback-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            margin: 20px;
+        }
+        
+        .callback-header {
+            padding: 40px 40px 20px;
+            text-align: center;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .callback-body {
+            padding: 40px;
+        }
+        
+        .success-icon {
+            width: 64px;
+            height: 64px;
+            background: #34a853;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        
+        .error-icon {
+            width: 64px;
+            height: 64px;
+            background: #ea4335;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        
+        .code-display {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 16px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            word-break: break-all;
+            margin: 16px 0;
+        }
+        
+        .btn-playground {
+            background: #4285f4;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-playground:hover {
+            background: #3367d6;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            border: 1px solid #dadce0;
+            color: #3c4043;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: #f1f3f4;
+            border-color: #c4c7c5;
+            color: #3c4043;
+            text-decoration: none;
+        }
+    </style>
+
+    <div class="callback-container">
+        <div class="callback-card">
+            <div class="callback-header">
+                {{if .success}}
+                    <div class="success-icon">
+                        <i class="fas fa-check text-white fs-3"></i>
+                    </div>
+                    <h2 class="h4 fw-bold text-success mb-2">Authorization Successful!</h2>
+                    <p class="text-muted mb-0">
+                        You have successfully authorized the OAuth2 application.
+                    </p>
+                {{else}}
+                    <div class="error-icon">
+                        <i class="fas fa-times text-white fs-3"></i>
+                    </div>
+                    <h2 class="h4 fw-bold text-danger mb-2">Authorization Failed</h2>
+                    <p class="text-muted mb-0">
+                        There was an error during the authorization process.
+                    </p>
+                {{end}}
+            </div>
+            
+            <div class="callback-body">
+                {{if .success}}
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3">Authorization Code</h6>
+                        <p class="text-muted mb-2">
+                            Copy this authorization code and paste it into the playground to exchange for tokens:
+                        </p>
+                        <div class="code-display">{{.code}}</div>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="copyCode()">
+                            <i class="fas fa-copy me-2"></i>Copy Code
+                        </button>
+                    </div>
+                    
+                    {{if .state}}
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3">State Parameter</h6>
+                        <p class="text-muted mb-2">
+                            The state parameter for CSRF protection:
+                        </p>
+                        <div class="code-display">{{.state}}</div>
+                    </div>
+                    {{end}}
+                    
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3">Next Steps</h6>
+                        <ol class="text-muted">
+                            <li>Copy the authorization code above</li>
+                            <li>Return to the OAuth2 Playground</li>
+                            <li>Paste the code in the "Exchange Code for Tokens" section</li>
+                            <li>Click "Exchange for Tokens" to get your access token</li>
+                        </ol>
+                    </div>
+                {{else}}
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3">Error Details</h6>
+                        {{if .error}}
+                        <div class="alert alert-danger">
+                            <strong>Error:</strong> {{.error}}
+                            {{if .error_description}}
+                            <br><small>{{.error_description}}</small>
+                            {{end}}
+                        </div>
+                        {{end}}
+                        
+                        <div class="mt-3">
+                            <h6 class="fw-bold">Common Solutions:</h6>
+                            <ul class="text-muted">
+                                <li>Check that your client ID is correct</li>
+                                <li>Verify that the redirect URI matches exactly</li>
+                                <li>Ensure the requested scopes are allowed</li>
+                                <li>Make sure you're signed in to your account</li>
+                            </ul>
+                        </div>
+                    </div>
+                {{end}}
+                
+                <div class="text-center">
+                    <a href="/oauth/playground" class="btn btn-playground">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        Return to Playground
+                    </a>
+                    {{if .success}}
+                    <button type="button" class="btn btn-secondary ms-2" onclick="openInNewTab()">
+                        <i class="fas fa-external-link-alt me-2"></i>
+                        Open Playground in New Tab
+                    </button>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function copyCode() {
+            const code = '{{.code}}';
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Authorization code copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = code;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('Authorization code copied to clipboard!');
+            });
+        }
+        
+        function openInNewTab() {
+            window.open('/oauth/playground', '_blank');
+        }
+        
+        // Auto-focus and select the authorization code for easy copying
+        document.addEventListener('DOMContentLoaded', function() {
+            {{if .success}}
+            // If there's a parent window (popup), send the code back
+            if (window.opener) {
+                try {
+                    window.opener.postMessage({
+                        type: 'oauth_callback',
+                        code: '{{.code}}',
+                        state: '{{.state}}',
+                        success: true
+                    }, '*');
+                    
+                    // Close the popup after a short delay
+                    setTimeout(() => {
+                        window.close();
+                    }, 2000);
+                } catch (e) {
+                    console.log('Could not communicate with parent window');
+                }
+            }
+            {{else}}
+            // If there was an error and this is a popup, notify parent
+            if (window.opener) {
+                try {
+                    window.opener.postMessage({
+                        type: 'oauth_callback',
+                        error: '{{.error}}',
+                        error_description: '{{.error_description}}',
+                        success: false
+                    }, '*');
+                } catch (e) {
+                    console.log('Could not communicate with parent window');
+                }
+            }
+            {{end}}
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

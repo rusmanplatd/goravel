@@ -2,27 +2,322 @@ package services
 
 import (
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
 	"goravel/app/helpers"
 	"goravel/app/models"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/goravel/framework/facades"
 )
 
 type OAuthService struct {
-	jwtService *JWTService
+	jwtService    *JWTService
+	rsaPrivateKey *rsa.PrivateKey
+	rsaPublicKey  *rsa.PublicKey
 }
 
 func NewOAuthService() *OAuthService {
-	return &OAuthService{
+	service := &OAuthService{
 		jwtService: NewJWTService(),
 	}
+
+	// Initialize RSA keys for JWT signing
+	service.initializeRSAKeys()
+
+	return service
+}
+
+// initializeRSAKeys initializes RSA key pair for JWT signing
+func (s *OAuthService) initializeRSAKeys() {
+	// Try to load existing keys or generate new ones
+	privateKeyPEM := facades.Config().GetString("oauth.rsa_private_key", "")
+	if privateKeyPEM == "" {
+		// Generate new RSA key pair
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			facades.Log().Error("Failed to generate RSA key pair: " + err.Error())
+			return
+		}
+
+		s.rsaPrivateKey = privateKey
+		s.rsaPublicKey = &privateKey.PublicKey
+
+		// Save keys to config for persistence (in production, use secure storage)
+		privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
+		privateKeyPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: privateKeyBytes,
+		})
+
+		publicKeyBytes, _ := x509.MarshalPKIXPublicKey(s.rsaPublicKey)
+		publicKeyPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: publicKeyBytes,
+		})
+
+		facades.Log().Info("Generated new RSA key pair for OAuth2 JWT signing")
+		facades.Log().Info("Private Key: " + string(privateKeyPEM))
+		facades.Log().Info("Public Key: " + string(publicKeyPEM))
+	} else {
+		// Load existing keys
+		block, _ := pem.Decode([]byte(privateKeyPEM))
+		if block == nil {
+			facades.Log().Error("Failed to decode RSA private key")
+			return
+		}
+
+		privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			facades.Log().Error("Failed to parse RSA private key: " + err.Error())
+			return
+		}
+
+		s.rsaPrivateKey = privateKey
+		s.rsaPublicKey = &privateKey.PublicKey
+	}
+}
+
+// CreateJWTAccessToken creates a JWT access token
+func (s *OAuthService) CreateJWTAccessToken(userID *string, clientID string, scopes []string, name *string) (string, error) {
+	if s.rsaPrivateKey == nil {
+		return "", fmt.Errorf("RSA private key not initialized")
+	}
+
+	ttl := facades.Config().GetInt("oauth.access_token_ttl", 60)
+
+	// Get client information
+	client, err := s.GetClient(clientID)
+	if err != nil {
+		return "", err
+	}
+
+	// Get user information if userID is provided
+	var userEmail string
+	if userID != nil {
+		var user models.User
+		if err := facades.Orm().Query().Where("id", *userID).First(&user); err == nil {
+			userEmail = user.Email
+		}
+	}
+
+	// Create JWT claims
+	claims := jwt.MapClaims{
+		"iss":    facades.Config().GetString("app.url", "http://localhost"),
+		"sub":    userID,
+		"aud":    clientID,
+		"exp":    time.Now().Add(time.Duration(ttl) * time.Minute).Unix(),
+		"iat":    time.Now().Unix(),
+		"nbf":    time.Now().Unix(),
+		"jti":    helpers.GenerateULID(),
+		"scope":  strings.Join(scopes, " "),
+		"client": client.Name,
+		"email":  userEmail,
+		"type":   "access_token",
+	}
+
+	// Create and sign token
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	return token.SignedString(s.rsaPrivateKey)
+}
+
+// GetJWKS returns the JSON Web Key Set for JWT verification
+func (s *OAuthService) GetJWKS() map[string]interface{} {
+	if s.rsaPublicKey == nil {
+		return map[string]interface{}{
+			"keys": []interface{}{},
+		}
+	}
+
+	// Convert public key to JWK format
+	_, _ = x509.MarshalPKIXPublicKey(s.rsaPublicKey)
+
+	return map[string]interface{}{
+		"keys": []interface{}{
+			map[string]interface{}{
+				"kty": "RSA",
+				"use": "sig",
+				"kid": "oauth2-key-1",
+				"alg": "RS256",
+				"n":   base64.RawURLEncoding.EncodeToString(s.rsaPublicKey.N.Bytes()),
+				"e":   base64.RawURLEncoding.EncodeToString([]byte{1, 0, 1}), // 65537
+			},
+		},
+	}
+}
+
+// DetectSuspiciousActivity detects suspicious OAuth2 activity
+func (s *OAuthService) DetectSuspiciousActivity(userID, clientID, ipAddress string, userAgent string) *SuspiciousActivityReport {
+	report := &SuspiciousActivityReport{
+		UserID:    userID,
+		ClientID:  clientID,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+		Timestamp: time.Now(),
+		Flags:     []string{},
+		RiskScore: 0,
+	}
+
+	// Check for unusual IP address
+	if s.isUnusualIP(userID, ipAddress) {
+		report.Flags = append(report.Flags, "unusual_ip")
+		report.RiskScore += 30
+	}
+
+	// Check for unusual user agent
+	if s.isUnusualUserAgent(userID, userAgent) {
+		report.Flags = append(report.Flags, "unusual_user_agent")
+		report.RiskScore += 20
+	}
+
+	// Check for rapid successive requests
+	if s.hasRapidRequests(userID, clientID) {
+		report.Flags = append(report.Flags, "rapid_requests")
+		report.RiskScore += 40
+	}
+
+	// Check for suspicious client
+	if s.isSuspiciousClient(clientID) {
+		report.Flags = append(report.Flags, "suspicious_client")
+		report.RiskScore += 50
+	}
+
+	// Determine risk level
+	if report.RiskScore >= 80 {
+		report.RiskLevel = "HIGH"
+	} else if report.RiskScore >= 50 {
+		report.RiskLevel = "MEDIUM"
+	} else if report.RiskScore >= 20 {
+		report.RiskLevel = "LOW"
+	} else {
+		report.RiskLevel = "MINIMAL"
+	}
+
+	// Log suspicious activity
+	if report.RiskScore > 0 {
+		facades.Log().Warning("Suspicious OAuth2 activity detected", map[string]interface{}{
+			"user_id":    userID,
+			"client_id":  clientID,
+			"ip_address": ipAddress,
+			"risk_score": report.RiskScore,
+			"risk_level": report.RiskLevel,
+			"flags":      report.Flags,
+		})
+	}
+
+	return report
+}
+
+type SuspiciousActivityReport struct {
+	UserID    string    `json:"user_id"`
+	ClientID  string    `json:"client_id"`
+	IPAddress string    `json:"ip_address"`
+	UserAgent string    `json:"user_agent"`
+	Timestamp time.Time `json:"timestamp"`
+	Flags     []string  `json:"flags"`
+	RiskScore int       `json:"risk_score"`
+	RiskLevel string    `json:"risk_level"`
+}
+
+// Helper methods for suspicious activity detection
+func (s *OAuthService) isUnusualIP(userID, ipAddress string) bool {
+	// Check if this IP is from a different country/region than usual
+	// This is a simplified implementation
+	ip := net.ParseIP(ipAddress)
+	if ip == nil {
+		return true
+	}
+
+	// Check if it's a private IP (less suspicious)
+	if ip.IsPrivate() {
+		return false
+	}
+
+	// In a real implementation, you would:
+	// 1. Use a GeoIP service to determine location
+	// 2. Compare with user's historical locations
+	// 3. Check against known VPN/proxy ranges
+
+	return false
+}
+
+func (s *OAuthService) isUnusualUserAgent(userID, userAgent string) bool {
+	// Check if this user agent is significantly different from user's history
+	// This is a simplified implementation
+
+	// Basic checks for suspicious patterns
+	suspiciousPatterns := []string{
+		"curl", "wget", "python", "bot", "crawler", "scanner",
+	}
+
+	userAgentLower := strings.ToLower(userAgent)
+	for _, pattern := range suspiciousPatterns {
+		if strings.Contains(userAgentLower, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *OAuthService) hasRapidRequests(userID, clientID string) bool {
+	// Check for rapid successive requests in the last minute
+	// This would typically use a cache or rate limiting service
+
+	// In a real implementation, you would:
+	// 1. Use Redis to track request timestamps
+	// 2. Count requests in the last minute
+	// 3. Flag if more than a threshold (e.g., 10 requests/minute)
+
+	return false
+}
+
+func (s *OAuthService) isSuspiciousClient(clientID string) bool {
+	// Check if the client has been flagged as suspicious
+	client, err := s.GetClient(clientID)
+	if err != nil {
+		return true
+	}
+
+	// Check for suspicious client patterns
+	if client.IsRevoked() {
+		return true
+	}
+
+	// In a real implementation, you might check:
+	// 1. Client reputation score
+	// 2. Recent security incidents
+	// 3. Unusual permission requests
+
+	return false
+}
+
+// CreateDeviceCodeWithQR creates a device code with QR code generation
+func (s *OAuthService) CreateDeviceCodeWithQR(clientID string, scopes []string, expiresAt time.Time) (*models.OAuthDeviceCode, string, error) {
+	// Create the device code
+	deviceCode, err := s.CreateDeviceCode(clientID, scopes, expiresAt)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Generate verification URL with user code
+	verificationURI := facades.Config().GetString("oauth.device_verification_uri", "https://example.com/device")
+	verificationURIComplete := fmt.Sprintf("%s?user_code=%s", verificationURI, deviceCode.UserCode)
+
+	// Generate QR code data (URL for QR code generation)
+	qrCodeURL := fmt.Sprintf("https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=%s",
+		fmt.Sprintf("Visit: %s", verificationURIComplete))
+
+	return deviceCode, qrCodeURL, nil
 }
 
 // CreateClient creates a new OAuth2 client

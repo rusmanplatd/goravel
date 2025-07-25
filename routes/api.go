@@ -72,6 +72,10 @@ func Api() {
 	facades.Route().Get("/api/v1/oauth/userinfo", oauthController.UserInfo)
 	facades.Route().Get("/api/v1/oauth/jwks", oauthController.JWKS)
 
+	// Enhanced OAuth2 endpoints
+	facades.Route().Post("/api/v1/oauth/jwt-token", oauthController.CreateJWTToken)
+	facades.Route().Post("/api/v1/oauth/security-report", oauthController.SecurityReport)
+
 	// Test OAuth endpoint
 	facades.Route().Get("/api/v1/oauth/test", func(ctx http.Context) http.Response {
 		return ctx.Response().Success().Json(http.Json{

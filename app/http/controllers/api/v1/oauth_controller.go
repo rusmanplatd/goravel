@@ -1123,13 +1123,74 @@ func (c *OAuthController) UserInfo(ctx http.Context) http.Response {
 // @Success 200 {object} map[string]interface{}
 // @Router /oauth/jwks [get]
 func (c *OAuthController) JWKS(ctx http.Context) http.Response {
-	// For now, return empty key set - implement when JWT signing is added
-	jwks := map[string]interface{}{
-		"keys": []map[string]interface{}{},
+	// Get JWKS from OAuth service
+	jwks := c.oauthService.GetJWKS()
+	return ctx.Response().Json(200, jwks)
+}
+
+// CreateJWTToken creates a JWT access token (enhanced version)
+func (c *OAuthController) CreateJWTToken(ctx http.Context) http.Response {
+	var req requests.OAuthTokenRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return responses.CreateErrorResponse(ctx, "Invalid request data", err.Error(), 400)
 	}
 
-	// TODO: Add actual public keys when JWT signing is implemented
-	// This would include RSA/ECDSA public keys used for signing tokens
+	// Validate client
+	client, err := c.oauthService.ValidateClient(req.ClientID, req.ClientSecret)
+	if err != nil {
+		return responses.CreateErrorResponse(ctx, "Invalid client", err.Error(), 401)
+	}
 
-	return ctx.Response().Json(200, jwks)
+	// Parse scopes
+	scopes := c.oauthService.ParseScopes(req.Scope)
+	if len(scopes) == 0 {
+		scopes = facades.Config().Get("oauth.default_scopes").([]string)
+	}
+
+	// Create JWT access token
+	var userID *string
+	if req.GrantType == "client_credentials" {
+		// For client credentials, no user context
+		userID = nil
+	} else {
+		// For other flows, get user from context or request
+		if user := ctx.Value("user"); user != nil {
+			u := user.(*models.User)
+			userID = &u.ID
+		}
+	}
+
+	jwtToken, err := c.oauthService.CreateJWTAccessToken(userID, client.ID, scopes, nil)
+	if err != nil {
+		return responses.CreateErrorResponse(ctx, "Failed to create JWT token", err.Error(), 500)
+	}
+
+	response := map[string]interface{}{
+		"access_token": jwtToken,
+		"token_type":   "Bearer",
+		"expires_in":   facades.Config().GetInt("oauth.access_token_ttl", 60) * 60,
+		"scope":        c.oauthService.FormatScopes(scopes),
+	}
+
+	return responses.SuccessResponse(ctx, "JWT token created successfully", response)
+}
+
+// SecurityReport provides security analysis for OAuth2 requests
+func (c *OAuthController) SecurityReport(ctx http.Context) http.Response {
+	userID := ctx.Request().Input("user_id")
+	clientID := ctx.Request().Input("client_id")
+	ipAddress := ctx.Request().Ip()
+	userAgent := ctx.Request().Header("User-Agent")
+
+	if userID == "" || clientID == "" {
+		return responses.CreateErrorResponse(ctx, "Missing parameters", "user_id and client_id are required", 400)
+	}
+
+	// Generate security report
+	report := c.oauthService.DetectSuspiciousActivity(userID, clientID, ipAddress, userAgent)
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"success": true,
+		"report":  report,
+	})
 }

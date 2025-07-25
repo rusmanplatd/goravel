@@ -1,0 +1,897 @@
+{{define "oauth/playground/index.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- OAuth2 Playground CSS -->
+    <style>
+        .playground-container {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        .playground-header {
+            background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        .playground-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            padding: 16px 24px;
+            font-weight: 600;
+            color: #202124;
+        }
+        
+        .card-body {
+            padding: 24px;
+        }
+        
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #e9ecef;
+            color: #6c757d;
+            font-weight: 600;
+            margin-right: 12px;
+        }
+        
+        .step.active {
+            background: #4285f4;
+            color: white;
+        }
+        
+        .step.completed {
+            background: #34a853;
+            color: white;
+        }
+        
+        .endpoint-badge {
+            display: inline-block;
+            background: #e8f0fe;
+            color: #1967d2;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 2px;
+        }
+        
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 16px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        
+        .scope-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .scope-item:last-child {
+            border-bottom: none;
+        }
+        
+        .scope-checkbox {
+            margin-right: 12px;
+        }
+        
+        .scope-info {
+            flex: 1;
+        }
+        
+        .scope-title {
+            font-weight: 500;
+            color: #202124;
+        }
+        
+        .scope-description {
+            font-size: 14px;
+            color: #5f6368;
+            margin-top: 2px;
+        }
+        
+        .sensitive-scope {
+            border-left: 4px solid #ea4335;
+            padding-left: 12px;
+            background: #fef7f0;
+        }
+        
+        .btn-playground {
+            background: #4285f4;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-playground:hover {
+            background: #3367d6;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            border: 1px solid #dadce0;
+            color: #3c4043;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: #f1f3f4;
+            border-color: #c4c7c5;
+        }
+        
+        .result-section {
+            margin-top: 24px;
+            display: none;
+        }
+        
+        .result-section.show {
+            display: block;
+        }
+        
+        .alert {
+            padding: 16px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+        
+        .alert-success {
+            background: #e8f5e8;
+            border: 1px solid #c3e6c3;
+            color: #0d5016;
+        }
+        
+        .alert-error {
+            background: #fce8e6;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .tab-nav {
+            display: flex;
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 24px;
+        }
+        
+        .tab-nav-item {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            color: #5f6368;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-nav-item:hover {
+            color: #202124;
+        }
+        
+        .tab-nav-item.active {
+            color: #4285f4;
+            border-bottom-color: #4285f4;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .quick-test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+        
+        .quick-test-card {
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .quick-test-card:hover {
+            border-color: #4285f4;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.1);
+        }
+        
+        .quick-test-icon {
+            font-size: 32px;
+            color: #4285f4;
+            margin-bottom: 12px;
+        }
+        
+        .quick-test-title {
+            font-weight: 600;
+            color: #202124;
+            margin-bottom: 8px;
+        }
+        
+        .quick-test-description {
+            font-size: 14px;
+            color: #5f6368;
+        }
+    </style>
+
+    <div class="playground-container">
+        <!-- Header -->
+        <div class="playground-header">
+            <div class="container">
+                <h1 class="display-4 fw-bold mb-3">
+                    <i class="fas fa-code me-3"></i>
+                    OAuth2 Playground
+                </h1>
+                <p class="lead mb-0">
+                    Test and explore OAuth2 flows with our interactive developer tool
+                </p>
+            </div>
+        </div>
+
+        <div class="container py-5">
+            <!-- Step Indicator -->
+            <div class="step-indicator justify-content-center">
+                <div class="step active" id="step-1">1</div>
+                <div class="mx-3 text-muted">Configure</div>
+                <div class="step" id="step-2">2</div>
+                <div class="mx-3 text-muted">Authorize</div>
+                <div class="step" id="step-3">3</div>
+                <div class="mx-3 text-muted">Exchange</div>
+                <div class="step" id="step-4">4</div>
+                <div class="mx-3 text-muted">Test</div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="tab-nav-item active" onclick="switchTab('flow-builder')">
+                    <i class="fas fa-stream me-2"></i>Flow Builder
+                </button>
+                <button class="tab-nav-item" onclick="switchTab('quick-tests')">
+                    <i class="fas fa-bolt me-2"></i>Quick Tests
+                </button>
+                <button class="tab-nav-item" onclick="switchTab('endpoints')">
+                    <i class="fas fa-link me-2"></i>Endpoints
+                </button>
+                <button class="tab-nav-item" onclick="switchTab('documentation')">
+                    <i class="fas fa-book me-2"></i>Documentation
+                </button>
+            </div>
+
+            <!-- Flow Builder Tab -->
+            <div id="flow-builder" class="tab-content active">
+                <!-- Step 1: Configuration -->
+                <div class="playground-card" id="config-card">
+                    <div class="card-header">
+                        <i class="fas fa-cog me-2"></i>
+                        Step 1: Configure OAuth2 Client
+                    </div>
+                    <div class="card-body">
+                        <form id="oauth-config-form">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium">OAuth2 Client</label>
+                                        <select class="form-select" id="client-select" name="client_id" required>
+                                            <option value="">Select a client...</option>
+                                            {{range .clients}}
+                                            <option value="{{.ID}}" data-secret="{{.Secret}}">{{.Name}}</option>
+                                            {{end}}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium">Grant Type</label>
+                                        <select class="form-select" id="grant-type" name="grant_type" required>
+                                            {{range .grantTypes}}
+                                            <option value="{{.value}}" title="{{.description}}">{{.name}}</option>
+                                            {{end}}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium">Redirect URI</label>
+                                        <input type="url" class="form-control" id="redirect-uri" name="redirect_uri" 
+                                               value="http://localhost:8080/oauth/playground/callback" required>
+                                        <div class="form-text">Where to redirect after authorization</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium">Client Secret</label>
+                                        <input type="password" class="form-control" id="client-secret" name="client_secret">
+                                        <div class="form-text">Required for confidential clients</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="use-pkce" name="use_pkce">
+                                            <label class="form-check-label" for="use-pkce">
+                                                Use PKCE (Proof Key for Code Exchange)
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Recommended for public clients and enhanced security</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium">State Parameter</label>
+                                        <input type="text" class="form-control" id="state-param" name="state" 
+                                               value="playground-{{time.Now.Unix}}">
+                                        <div class="form-text">CSRF protection (auto-generated)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Step 2: Scope Selection -->
+                <div class="playground-card" id="scope-card">
+                    <div class="card-header">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        Step 2: Select Scopes & Permissions
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="scope-selection">
+                                    {{range .allowedScopes}}
+                                    {{$scopeInfo := index $.scopeDescriptions .}}
+                                    <div class="scope-item {{if $scopeInfo.sensitive}}sensitive-scope{{end}}">
+                                        <input type="checkbox" class="form-check-input scope-checkbox" 
+                                               id="scope-{{.}}" name="scopes[]" value="{{.}}">
+                                        <div class="scope-info">
+                                            <div class="scope-title">{{$scopeInfo.title}}</div>
+                                            <div class="scope-description">{{$scopeInfo.description}}</div>
+                                        </div>
+                                        {{if $scopeInfo.sensitive}}
+                                        <span class="badge bg-warning">Sensitive</span>
+                                        {{end}}
+                                    </div>
+                                    {{end}}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="bg-light p-3 rounded">
+                                    <h6 class="fw-bold mb-3">Selected Scopes</h6>
+                                    <div id="selected-scopes" class="text-muted">
+                                        No scopes selected
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="button" class="btn btn-playground" onclick="buildAuthorizationURL()">
+                                <i class="fas fa-link me-2"></i>
+                                Build Authorization URL
+                            </button>
+                            <button type="button" class="btn btn-secondary ms-2" onclick="selectCommonScopes()">
+                                <i class="fas fa-check-double me-2"></i>
+                                Select Common Scopes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Authorization URL -->
+                <div class="playground-card result-section" id="auth-url-card">
+                    <div class="card-header">
+                        <i class="fas fa-external-link-alt me-2"></i>
+                        Step 3: Authorization URL Generated
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success">
+                            <strong>Success!</strong> Your authorization URL has been generated.
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-medium">Authorization URL</label>
+                            <div class="code-block" id="authorization-url"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-playground" onclick="openAuthorizationURL()">
+                                <i class="fas fa-external-link-alt me-2"></i>
+                                Open Authorization URL
+                            </button>
+                            <button type="button" class="btn btn-secondary ms-2" onclick="copyAuthorizationURL()">
+                                <i class="fas fa-copy me-2"></i>
+                                Copy URL
+                            </button>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6 class="fw-bold">Next Steps:</h6>
+                            <ol>
+                                <li>Click "Open Authorization URL" to start the OAuth2 flow</li>
+                                <li>Sign in and authorize the application</li>
+                                <li>You'll be redirected back with an authorization code</li>
+                                <li>Use the code to exchange for access tokens</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Token Exchange -->
+                <div class="playground-card result-section" id="token-exchange-card">
+                    <div class="card-header">
+                        <i class="fas fa-key me-2"></i>
+                        Step 4: Exchange Code for Tokens
+                    </div>
+                    <div class="card-body">
+                        <form id="token-exchange-form">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium">Authorization Code</label>
+                                        <input type="text" class="form-control" id="auth-code" name="code" 
+                                               placeholder="Paste the authorization code here" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium">State (for verification)</label>
+                                        <input type="text" class="form-control" id="state-verify" name="state" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-playground" onclick="exchangeCode()">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Exchange for Tokens
+                            </button>
+                        </form>
+                        
+                        <div id="token-result" class="result-section">
+                            <hr class="my-4">
+                            <h6 class="fw-bold">cURL Command</h6>
+                            <div class="code-block" id="curl-command"></div>
+                            
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-secondary" onclick="copyCurlCommand()">
+                                    <i class="fas fa-copy me-2"></i>
+                                    Copy cURL Command
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Tests Tab -->
+            <div id="quick-tests" class="tab-content">
+                <div class="playground-card">
+                    <div class="card-header">
+                        <i class="fas fa-bolt me-2"></i>
+                        Quick OAuth2 Tests
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">
+                            Test common OAuth2 scenarios with pre-configured settings.
+                        </p>
+                        
+                        <div class="quick-test-grid">
+                            <div class="quick-test-card" onclick="quickTest('client-credentials')">
+                                <div class="quick-test-icon">
+                                    <i class="fas fa-server"></i>
+                                </div>
+                                <div class="quick-test-title">Client Credentials</div>
+                                <div class="quick-test-description">
+                                    Server-to-server authentication without user interaction
+                                </div>
+                            </div>
+                            
+                            <div class="quick-test-card" onclick="quickTest('device-flow')">
+                                <div class="quick-test-icon">
+                                    <i class="fas fa-tv"></i>
+                                </div>
+                                <div class="quick-test-title">Device Flow</div>
+                                <div class="quick-test-description">
+                                    OAuth2 for devices with limited input capabilities
+                                </div>
+                            </div>
+                            
+                            <div class="quick-test-card" onclick="quickTest('userinfo')">
+                                <div class="quick-test-icon">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="quick-test-title">UserInfo Endpoint</div>
+                                <div class="quick-test-description">
+                                    Test the OpenID Connect UserInfo endpoint
+                                </div>
+                            </div>
+                            
+                            <div class="quick-test-card" onclick="quickTest('jwks')">
+                                <div class="quick-test-icon">
+                                    <i class="fas fa-key"></i>
+                                </div>
+                                <div class="quick-test-title">JWKS Endpoint</div>
+                                <div class="quick-test-description">
+                                    View JSON Web Key Set for token verification
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Endpoints Tab -->
+            <div id="endpoints" class="tab-content">
+                <div class="playground-card">
+                    <div class="card-header">
+                        <i class="fas fa-link me-2"></i>
+                        OAuth2 Endpoints
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {{range $name, $path := .endpoints}}
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3">
+                                    <h6 class="fw-bold text-capitalize">{{$name}} Endpoint</h6>
+                                    <div class="endpoint-badge">{{$path}}</div>
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="testEndpoint('{{$name}}')">
+                                            Test Endpoint
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documentation Tab -->
+            <div id="documentation" class="tab-content">
+                <div class="playground-card">
+                    <div class="card-header">
+                        <i class="fas fa-book me-2"></i>
+                        OAuth2 Documentation
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5>OAuth2 Flow Types</h5>
+                                <div class="accordion" id="documentationAccordion">
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header">
+                                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#authCodeFlow">
+                                                Authorization Code Flow
+                                            </button>
+                                        </h2>
+                                        <div id="authCodeFlow" class="accordion-collapse collapse show">
+                                            <div class="accordion-body">
+                                                <p>The most secure OAuth2 flow for web applications. Involves redirecting the user to the authorization server, getting an authorization code, and exchanging it for tokens.</p>
+                                                <h6>Use Cases:</h6>
+                                                <ul>
+                                                    <li>Web applications with a backend server</li>
+                                                    <li>Applications that can securely store client secrets</li>
+                                                    <li>When you need both access and refresh tokens</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#clientCredentials">
+                                                Client Credentials Flow
+                                            </button>
+                                        </h2>
+                                        <div id="clientCredentials" class="accordion-collapse collapse">
+                                            <div class="accordion-body">
+                                                <p>Used for server-to-server authentication where no user interaction is required.</p>
+                                                <h6>Use Cases:</h6>
+                                                <ul>
+                                                    <li>API-to-API communication</li>
+                                                    <li>Background services</li>
+                                                    <li>Automated systems</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#deviceFlow">
+                                                Device Authorization Flow
+                                            </button>
+                                        </h2>
+                                        <div id="deviceFlow" class="accordion-collapse collapse">
+                                            <div class="accordion-body">
+                                                <p>Designed for devices with limited input capabilities like smart TVs, IoT devices, or CLI tools.</p>
+                                                <h6>Use Cases:</h6>
+                                                <ul>
+                                                    <li>Smart TV applications</li>
+                                                    <li>IoT devices</li>
+                                                    <li>Command-line tools</li>
+                                                    <li>Gaming consoles</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="bg-light p-3 rounded">
+                                    <h6 class="fw-bold">Quick Links</h6>
+                                    <ul class="list-unstyled">
+                                        <li><a href="/.well-known/oauth-authorization-server" target="_blank">OAuth2 Discovery</a></li>
+                                        <li><a href="/api/v1/oauth/jwks" target="_blank">JWKS Endpoint</a></li>
+                                        <li><a href="#" onclick="window.open('/docs/openapi.html')">API Documentation</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        let currentConfig = {};
+        
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all nav items
+            document.querySelectorAll('.tab-nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        // Update client secret when client is selected
+        document.getElementById('client-select').addEventListener('change', function(e) {
+            const selectedOption = e.target.selectedOptions[0];
+            const clientSecret = selectedOption.getAttribute('data-secret');
+            document.getElementById('client-secret').value = clientSecret || '';
+        });
+        
+        // Update selected scopes display
+        document.querySelectorAll('.scope-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectedScopes);
+        });
+        
+        function updateSelectedScopes() {
+            const selectedScopes = Array.from(document.querySelectorAll('.scope-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+            
+            const display = document.getElementById('selected-scopes');
+            if (selectedScopes.length === 0) {
+                display.innerHTML = '<span class="text-muted">No scopes selected</span>';
+            } else {
+                display.innerHTML = selectedScopes.map(scope => 
+                    `<span class="endpoint-badge">${scope}</span>`
+                ).join(' ');
+            }
+        }
+        
+        function selectCommonScopes() {
+            const commonScopes = ['profile', 'email', 'openid'];
+            document.querySelectorAll('.scope-checkbox').forEach(checkbox => {
+                checkbox.checked = commonScopes.includes(checkbox.value);
+            });
+            updateSelectedScopes();
+        }
+        
+        function buildAuthorizationURL() {
+            const form = document.getElementById('oauth-config-form');
+            const formData = new FormData(form);
+            
+            // Get selected scopes
+            const selectedScopes = Array.from(document.querySelectorAll('.scope-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+            
+            if (selectedScopes.length === 0) {
+                alert('Please select at least one scope');
+                return;
+            }
+            
+            const data = {
+                client_id: formData.get('client_id'),
+                redirect_uri: formData.get('redirect_uri'),
+                scopes: selectedScopes.join(' '),
+                state: formData.get('state'),
+                response_type: 'code',
+                use_pkce: document.getElementById('use-pkce').checked
+            };
+            
+            // Store config for later use
+            currentConfig = {
+                ...data,
+                client_secret: formData.get('client_secret')
+            };
+            
+            fetch('/oauth/playground/build-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    document.getElementById('authorization-url').textContent = result.authorization_url;
+                    document.getElementById('state-verify').value = result.state;
+                    document.getElementById('auth-url-card').classList.add('show');
+                    
+                    // Update step indicator
+                    document.getElementById('step-2').classList.add('completed');
+                    document.getElementById('step-3').classList.add('active');
+                    
+                    // Scroll to result
+                    document.getElementById('auth-url-card').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while building the authorization URL');
+            });
+        }
+        
+        function openAuthorizationURL() {
+            const url = document.getElementById('authorization-url').textContent;
+            window.open(url, '_blank');
+            
+            // Show token exchange section
+            setTimeout(() => {
+                document.getElementById('token-exchange-card').classList.add('show');
+                document.getElementById('step-3').classList.add('completed');
+                document.getElementById('step-4').classList.add('active');
+            }, 1000);
+        }
+        
+        function copyAuthorizationURL() {
+            const url = document.getElementById('authorization-url').textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Authorization URL copied to clipboard!');
+            });
+        }
+        
+        function exchangeCode() {
+            const code = document.getElementById('auth-code').value;
+            if (!code) {
+                alert('Please enter the authorization code');
+                return;
+            }
+            
+            const data = {
+                code: code,
+                client_id: currentConfig.client_id,
+                client_secret: currentConfig.client_secret,
+                redirect_uri: currentConfig.redirect_uri,
+                state: currentConfig.state
+            };
+            
+            fetch('/oauth/playground/exchange-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    document.getElementById('curl-command').textContent = result.curl_command;
+                    document.getElementById('token-result').classList.add('show');
+                    
+                    // Update step indicator
+                    document.getElementById('step-4').classList.add('completed');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while exchanging the code');
+            });
+        }
+        
+        function copyCurlCommand() {
+            const command = document.getElementById('curl-command').textContent;
+            navigator.clipboard.writeText(command).then(() => {
+                alert('cURL command copied to clipboard!');
+            });
+        }
+        
+        function quickTest(testType) {
+            alert(`Quick test for ${testType} will be implemented in the next version!`);
+        }
+        
+        function testEndpoint(endpoint) {
+            const accessToken = prompt('Enter your access token (if required):');
+            
+            const data = {
+                endpoint: endpoint,
+                access_token: accessToken || ''
+            };
+            
+            fetch('/oauth/playground/test-endpoint', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    const message = `Test URL: ${result.test_url}\nMethod: ${result.method}\n\ncURL Command:\n${result.curl_command}`;
+                    alert(message);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while testing the endpoint');
+            });
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSelectedScopes();
+            
+            // Auto-fill state parameter
+            document.getElementById('state-param').value = 'playground-state-' + Date.now();
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

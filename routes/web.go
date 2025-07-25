@@ -176,6 +176,17 @@ func Web() {
 		router.Delete("/oauth/app-passwords/{id}", appPasswordController.Delete)
 	})
 
+	// OAuth2 Playground routes (public for development)
+	oauthPlaygroundController := web.NewOAuthPlaygroundController()
+	facades.Route().Group(func(router route.Router) {
+		// OAuth2 Playground
+		router.Get("/oauth/playground", oauthPlaygroundController.Index)
+		router.Post("/oauth/playground/build-url", oauthPlaygroundController.BuildAuthorizationURL)
+		router.Post("/oauth/playground/exchange-code", oauthPlaygroundController.ExchangeCode)
+		router.Post("/oauth/playground/test-endpoint", oauthPlaygroundController.TestEndpoint)
+		router.Get("/oauth/playground/callback", oauthPlaygroundController.Callback)
+	})
+
 	// Google OAuth routes (public)
 	googleOAuthController := web.NewGoogleOAuthController()
 	facades.Route().Get("/auth/google", googleOAuthController.Redirect)
