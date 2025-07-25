@@ -1,0 +1,53 @@
+{{define "oauth/error.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container-fluid">
+        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
+            <div class="col-12 col-sm-8 col-md-6 col-lg-4 col-xl-3">
+                <div class="card shadow border-0">
+                    <div class="card-body p-4 p-md-5 text-center">
+                        <!-- Error Icon -->
+                        <div class="mx-auto bg-danger bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-4" style="width: 80px; height: 80px;">
+                            <i class="fas fa-exclamation-triangle text-danger fs-2"></i>
+                        </div>
+                        
+                        <!-- Error Title -->
+                        <h2 class="h4 fw-bold text-dark mb-3">
+                            Authorization Error
+                        </h2>
+                        
+                        <!-- Error Details -->
+                        <div class="mb-4">
+                            <div class="alert alert-danger text-start" role="alert">
+                                <div class="fw-medium mb-1">Error: {{.error}}</div>
+                                <div class="small">{{.description}}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Help Text -->
+                        <p class="text-muted small mb-4">
+                            If you believe this is an error, please contact the application developer or try again later.
+                        </p>
+                        
+                        <!-- Action Button -->
+                        <button type="button" class="btn btn-primary" onclick="history.back()">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Go Back
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="text-center mt-4">
+                    <div class="text-muted small">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        OAuth 2.0 Authorization Server
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

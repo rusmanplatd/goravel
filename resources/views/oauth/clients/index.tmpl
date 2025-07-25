@@ -1,0 +1,268 @@
+{{define "oauth/clients/index.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+    {{template "layouts/nav.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container py-4">
+        <div class="mb-4">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="/dashboard" class="text-decoration-none">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">OAuth Clients</li>
+                </ol>
+            </nav>
+        </div>
+
+        <!-- Page Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 fw-bold mb-1">
+                    <i class="fas fa-key me-2"></i>
+                    OAuth 2.0 Clients
+                </h1>
+                <p class="text-muted mb-0">
+                    Manage OAuth 2.0 applications that can access your account
+                </p>
+            </div>
+            <div>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createClientModal">
+                    <i class="fas fa-plus me-2"></i>
+                    Create Client
+                </button>
+            </div>
+        </div>
+
+        <!-- Clients List -->
+        <div class="row">
+            {{if .clients}}
+                {{range .clients}}
+                <div class="col-12 col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm border-0">
+                        <div class="card-body">
+                            <!-- Client Header -->
+                            <div class="d-flex align-items-start justify-content-between mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-primary bg-opacity-10 rounded d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                        <i class="fas fa-cube text-primary"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-1">{{.Name}}</h6>
+                                        <small class="text-muted">{{.ID}}</small>
+                                    </div>
+                                </div>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#" onclick="editClient('{{.ID}}')">
+                                            <i class="fas fa-edit me-2"></i>Edit
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="viewClient('{{.ID}}')">
+                                            <i class="fas fa-eye me-2"></i>View Details
+                                        </a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteClient('{{.ID}}', '{{.Name}}')">
+                                            <i class="fas fa-trash me-2"></i>Delete
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Client Type -->
+                            <div class="mb-3">
+                                {{if .PersonalAccessClient}}
+                                    <span class="badge bg-info">Personal Access Client</span>
+                                {{else if .PasswordClient}}
+                                    <span class="badge bg-warning">Password Client</span>
+                                {{else if .IsConfidential}}
+                                    <span class="badge bg-success">Confidential</span>
+                                {{else}}
+                                    <span class="badge bg-secondary">Public</span>
+                                {{end}}
+                                
+                                {{if .Revoked}}
+                                    <span class="badge bg-danger ms-1">Revoked</span>
+                                {{else}}
+                                    <span class="badge bg-success ms-1">Active</span>
+                                {{end}}
+                            </div>
+
+                            <!-- Client Info -->
+                            <div class="small text-muted mb-3">
+                                <div class="mb-1">
+                                    <i class="fas fa-calendar-alt me-1"></i>
+                                    Created: {{.CreatedAt.Format "Jan 2, 2006"}}
+                                </div>
+                                {{if .GetRedirectURIs}}
+                                <div class="mb-1">
+                                    <i class="fas fa-external-link-alt me-1"></i>
+                                    {{len .GetRedirectURIs}} redirect URI(s)
+                                </div>
+                                {{end}}
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-primary flex-fill" onclick="viewClient('{{.ID}}')">
+                                    <i class="fas fa-eye me-1"></i>
+                                    View
+                                </button>
+                                {{if not .Revoked}}
+                                <button class="btn btn-sm btn-outline-secondary" onclick="manageTokens('{{.ID}}')">
+                                    <i class="fas fa-key me-1"></i>
+                                    Tokens
+                                </button>
+                                {{end}}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+            {{else}}
+                <!-- Empty State -->
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <div class="mb-4">
+                            <i class="fas fa-key text-muted" style="font-size: 4rem; opacity: 0.3;"></i>
+                        </div>
+                        <h4 class="fw-bold mb-2">No OAuth clients yet</h4>
+                        <p class="text-muted mb-4">
+                            Create your first OAuth 2.0 client to enable third-party applications to access your account.
+                        </p>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createClientModal">
+                            <i class="fas fa-plus me-2"></i>
+                            Create Your First Client
+                        </button>
+                    </div>
+                </div>
+            {{end}}
+        </div>
+    </main>
+
+    <!-- Create Client Modal -->
+    <div class="modal fade" id="createClientModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus me-2"></i>
+                        Create OAuth 2.0 Client
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="createClientForm" method="POST" action="/oauth/clients">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="clientName" class="form-label fw-medium">Application Name</label>
+                            <input type="text" class="form-control" id="clientName" name="name" required>
+                            <div class="form-text">A user-friendly name for your application</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="redirectUris" class="form-label fw-medium">Authorized Redirect URIs</label>
+                            <textarea class="form-control" id="redirectUris" name="redirect_uris" rows="3" placeholder="https://example.com/callback&#10;https://example.com/oauth/callback"></textarea>
+                            <div class="form-text">One URI per line. These are the URIs where users will be redirected after authorization.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-medium">Client Type</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="client_type" id="confidential" value="confidential" checked>
+                                <label class="form-check-label" for="confidential">
+                                    <strong>Confidential</strong> - Web applications that can securely store secrets
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="client_type" id="public" value="public">
+                                <label class="form-check-label" for="public">
+                                    <strong>Public</strong> - Mobile apps, SPAs, or other applications that cannot securely store secrets
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="client_type" id="personal" value="personal">
+                                <label class="form-check-label" for="personal">
+                                    <strong>Personal Access</strong> - For personal use or testing
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>
+                            Create Client
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function viewClient(clientId) {
+            window.location.href = '/oauth/clients/' + clientId;
+        }
+
+        function editClient(clientId) {
+            window.location.href = '/oauth/clients/' + clientId + '/edit';
+        }
+
+        function manageTokens(clientId) {
+            window.location.href = '/oauth/clients/' + clientId + '/tokens';
+        }
+
+        function deleteClient(clientId, clientName) {
+            Swal.fire({
+                title: 'Delete OAuth Client?',
+                text: `Are you sure you want to delete "${clientName}"? This action cannot be undone and will revoke all associated tokens.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Create a form to submit DELETE request
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/oauth/clients/' + clientId;
+                    
+                    const methodInput = document.createElement('input');
+                    methodInput.type = 'hidden';
+                    methodInput.name = '_method';
+                    methodInput.value = 'DELETE';
+                    form.appendChild(methodInput);
+                    
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        }
+
+        // Handle create client form submission
+        document.getElementById('createClientForm').addEventListener('submit', function(e) {
+            const redirectUris = document.getElementById('redirectUris').value.trim();
+            if (redirectUris) {
+                // Convert textarea content to array
+                const uris = redirectUris.split('\n').filter(uri => uri.trim() !== '');
+                
+                // Create hidden inputs for each URI
+                uris.forEach((uri, index) => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = `redirect_uris[${index}]`;
+                    input.value = uri.trim();
+                    this.appendChild(input);
+                });
+            }
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

@@ -15,6 +15,8 @@ func Web() {
 	tenantController := web.NewTenantController()
 	roleController := web.NewRoleController()
 	permissionController := web.NewPermissionController()
+	oauthController := web.NewOAuthController()
+	oauthClientController := web.NewOAuthClientController()
 
 	// Authentication routes
 	facades.Route().Group(func(router route.Router) {
@@ -62,7 +64,22 @@ func Web() {
 			router.Get("/permissions/{id}/edit", permissionController.Edit)
 			router.Put("/permissions/{id}", permissionController.Update)
 			router.Delete("/permissions/{id}", permissionController.Destroy)
+
+			// OAuth Client management (requires authentication)
+			router.Get("/oauth/clients", oauthClientController.Index)
+			router.Post("/oauth/clients", oauthClientController.Store)
+			router.Get("/oauth/clients/{id}", oauthClientController.Show)
+			router.Get("/oauth/clients/{id}/edit", oauthClientController.Edit)
+			router.Put("/oauth/clients/{id}", oauthClientController.Update)
+			router.Delete("/oauth/clients/{id}", oauthClientController.Delete)
 		})
+	})
+
+	// OAuth2 Authorization routes (separate from API)
+	facades.Route().Group(func(router route.Router) {
+		// OAuth authorization endpoint (requires authentication)
+		router.Get("/oauth/authorize", oauthController.ShowAuthorize)
+		router.Post("/oauth/authorize", oauthController.HandleAuthorize)
 	})
 
 	// Default route

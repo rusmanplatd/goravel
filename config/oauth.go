@@ -33,19 +33,47 @@ func init() {
 
 		// Default Scopes
 		"default_scopes": []string{
-			"read",
-			"write",
+			"profile",
+			"email",
 		},
 
-		// Allowed Scopes
+		// Allowed Scopes (Google-like scope structure)
 		"allowed_scopes": []string{
+			// Basic profile scopes
+			"profile",
+			"email",
+			"openid",
+
+			// User management scopes
+			"user:read",
+			"user:write",
+			"user:delete",
+
+			// Application scopes
 			"read",
 			"write",
 			"delete",
 			"admin",
-			"user:read",
-			"user:write",
-			"user:delete",
+
+			// Calendar scopes
+			"calendar:read",
+			"calendar:write",
+			"calendar:events",
+
+			// Chat scopes
+			"chat:read",
+			"chat:write",
+			"chat:rooms",
+
+			// Task management scopes
+			"tasks:read",
+			"tasks:write",
+			"tasks:manage",
+
+			// Organization scopes
+			"org:read",
+			"org:write",
+			"org:admin",
 		},
 
 		// Enable Password Grant (default: true)
