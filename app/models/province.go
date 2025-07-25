@@ -12,6 +12,10 @@ type Province struct {
 	// @example CA
 	Code string `gorm:"not null" json:"code" example:"CA"`
 
+	// Numeric province code
+	// @example 32
+	NumericCode int `gorm:"size:3" json:"numeric_code" example:"32"`
+
 	// Whether the province is active
 	// @example true
 	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`

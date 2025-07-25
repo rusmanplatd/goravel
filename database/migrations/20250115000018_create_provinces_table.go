@@ -19,6 +19,7 @@ func (r *M20250115000018CreateProvincesTable) Up() error {
 		table.Ulid("id").Comment("Unique province identifier")
 		table.String("name").Comment("Province name")
 		table.String("code").Comment("Province code")
+		table.String("numeric_code", 3).Nullable().Comment("numeric province code")
 		table.Boolean("is_active").Comment("Whether province is active")
 		table.Ulid("country_id").Comment("Country reference")
 		table.Ulid("created_by").Comment("User who created data")
@@ -32,20 +33,19 @@ func (r *M20250115000018CreateProvincesTable) Up() error {
 
 		// Foreign key
 		table.Foreign("country_id").References("id").On("countries")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 
 		// Add indexes
 		table.Index("name")
 		table.Index("code")
 		table.Index("is_active")
+		table.Index("numeric_code")
 		table.Index("country_id")
 		table.Index("created_by")
 		table.Index("updated_by")
 		table.Index("deleted_by")
-
-		// Add foreign key constraints
-		table.Foreign("created_by").References("id").On("users")
-		table.Foreign("updated_by").References("id").On("users")
-		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

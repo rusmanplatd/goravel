@@ -32,6 +32,9 @@ func (r *M20250115000019CreateCitiesTable) Up() error {
 
 		// Foreign key
 		table.Foreign("province_id").References("id").On("provinces")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 
 		// Add indexes
 		table.Index("name")
@@ -42,10 +45,6 @@ func (r *M20250115000019CreateCitiesTable) Up() error {
 		table.Index("updated_by")
 		table.Index("deleted_by")
 
-		// Add foreign key constraints
-		table.Foreign("created_by").References("id").On("users")
-		table.Foreign("updated_by").References("id").On("users")
-		table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 
