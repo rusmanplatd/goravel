@@ -1,0 +1,292 @@
+{{define "oauth/security/index.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Google-like Security Center CSS -->
+    <style>
+        .security-container {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        .security-header {
+            background: white;
+            border-bottom: 1px solid #dadce0;
+            padding: 24px 0;
+        }
+        
+        .security-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+        
+        .security-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .app-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .app-item:last-child {
+            border-bottom: none;
+        }
+        
+        .app-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+        }
+        
+        .app-info {
+            flex: 1;
+        }
+        
+        .app-name {
+            font-weight: 500;
+            color: #202124;
+            margin-bottom: 4px;
+        }
+        
+        .app-permissions {
+            color: #5f6368;
+            font-size: 14px;
+        }
+        
+        .app-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-revoke {
+            background: #ea4335;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .btn-revoke:hover {
+            background: #d33b2c;
+        }
+        
+        .btn-details {
+            background: transparent;
+            color: #1a73e8;
+            border: 1px solid #dadce0;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-details:hover {
+            background: #f8f9fa;
+            border-color: #1a73e8;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: 500;
+            color: #1a73e8;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #5f6368;
+            font-size: 14px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: #5f6368;
+        }
+        
+        .empty-icon {
+            font-size: 48px;
+            color: #dadce0;
+            margin-bottom: 16px;
+        }
+    </style>
+
+    <!-- Page Content -->
+    <main class="security-container">
+        <!-- Header -->
+        <div class="security-header">
+            <div class="container">
+                <div class="row">
+                    <div class="col-12">
+                        <h1 class="h3 fw-normal mb-2">Security Center</h1>
+                        <p class="text-muted mb-0">Manage your connected applications and security settings</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container py-4">
+            <!-- Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">{{.totalApps}}</div>
+                    <div class="stat-label">Connected Apps</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{.totalTokens}}</div>
+                    <div class="stat-label">Active Tokens</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{len .scopeDescriptions}}</div>
+                    <div class="stat-label">Available Permissions</div>
+                </div>
+            </div>
+
+            <!-- Connected Applications -->
+            <div class="security-card">
+                <div class="p-3 border-bottom">
+                    <h5 class="mb-0">Connected Applications</h5>
+                    <small class="text-muted">Applications that have access to your account</small>
+                </div>
+
+                {{if .consents}}
+                    {{range $clientID, $consent := .consents}}
+                    <div class="app-item">
+                        <div class="app-icon">
+                            {{if $consent.Client.Logo}}
+                                <img src="{{$consent.Client.Logo}}" alt="{{$consent.Client.Name}}" style="width: 32px; height: 32px; border-radius: 4px;">
+                            {{else}}
+                                <i class="fas fa-cube text-muted"></i>
+                            {{end}}
+                        </div>
+                        <div class="app-info">
+                            <div class="app-name">{{$consent.Client.Name}}</div>
+                            <div class="app-permissions">
+                                {{$scopes := $consent.GetScopes}}
+                                {{if $scopes}}
+                                    {{len $scopes}} permissions granted
+                                {{else}}
+                                    No specific permissions
+                                {{end}}
+                                • Connected {{$consent.CreatedAt.Format "Jan 2, 2006"}}
+                            </div>
+                        </div>
+                        <div class="app-actions">
+                            <a href="/oauth/security/apps/{{$clientID}}" class="btn-details">
+                                View Details
+                            </a>
+                            <button class="btn-revoke" onclick="revokeAccess('{{$clientID}}', '{{$consent.Client.Name}}')">
+                                Revoke Access
+                            </button>
+                        </div>
+                    </div>
+                    {{end}}
+                {{else}}
+                    <div class="empty-state">
+                        <div class="empty-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h6>No Connected Applications</h6>
+                        <p class="mb-0">You haven't authorized any applications to access your account yet.</p>
+                    </div>
+                {{end}}
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="security-card p-3">
+                        <h6 class="mb-2">
+                            <i class="fas fa-history text-primary me-2"></i>
+                            Authorization History
+                        </h6>
+                        <p class="text-muted small mb-3">View all past authorization activities</p>
+                        <a href="/oauth/security/history" class="btn btn-outline-primary btn-sm">
+                            View History
+                        </a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="security-card p-3">
+                        <h6 class="mb-2">
+                            <i class="fas fa-cog text-primary me-2"></i>
+                            OAuth Clients
+                        </h6>
+                        <p class="text-muted small mb-3">Manage your own OAuth applications</p>
+                        <a href="/oauth/clients" class="btn btn-outline-primary btn-sm">
+                            Manage Clients
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript -->
+    <script>
+        function revokeAccess(clientId, appName) {
+            if (confirm(`Are you sure you want to revoke access for "${appName}"?\n\nThis will immediately revoke all permissions and tokens for this application.`)) {
+                fetch(`/oauth/security/revoke-consent/${clientId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Reload the page to reflect changes
+                        window.location.reload();
+                    } else {
+                        alert('Failed to revoke access: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while revoking access');
+                });
+            }
+        }
+
+        // Add loading states to buttons
+        document.querySelectorAll('.btn-revoke').forEach(button => {
+            button.addEventListener('click', function() {
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Revoking...';
+                this.disabled = true;
+            });
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

@@ -86,6 +86,36 @@ func Web() {
 		router.Post("/oauth/authorize", oauthController.HandleAuthorize)
 	})
 
+	// OAuth Security Center routes (protected)
+	oauthSecurityController := web.NewOAuthSecurityController()
+	facades.Route().Group(func(router route.Router) {
+		router.Middleware(middleware.WebAuth())
+
+		// Security center main page
+		router.Get("/oauth/security", oauthSecurityController.Index)
+
+		// Consent and token management
+		router.Post("/oauth/security/revoke-consent/{client_id}", oauthSecurityController.RevokeConsent)
+		router.Post("/oauth/security/revoke-token/{token_id}", oauthSecurityController.RevokeToken)
+
+		// Detailed views
+		router.Get("/oauth/security/history", oauthSecurityController.ConsentHistory)
+		router.Get("/oauth/security/apps/{client_id}", oauthSecurityController.AppDetails)
+	})
+
+	// App Passwords routes (protected)
+	appPasswordController := web.NewAppPasswordController()
+	facades.Route().Group(func(router route.Router) {
+		router.Middleware(middleware.WebAuth())
+
+		// App passwords management
+		router.Get("/oauth/app-passwords", appPasswordController.Index)
+		router.Get("/oauth/app-passwords/create", appPasswordController.Create)
+		router.Post("/oauth/app-passwords", appPasswordController.Store)
+		router.Post("/oauth/app-passwords/{id}/revoke", appPasswordController.Revoke)
+		router.Delete("/oauth/app-passwords/{id}", appPasswordController.Delete)
+	})
+
 	// Google OAuth routes (public)
 	googleOAuthController := web.NewGoogleOAuthController()
 	facades.Route().Get("/auth/google", googleOAuthController.Redirect)

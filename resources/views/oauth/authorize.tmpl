@@ -1,60 +1,228 @@
 {{define "oauth/authorize.tmpl"}}
     {{template "layouts/header.tmpl" .}}
 
+    <!-- Enhanced Google-like CSS -->
+    <style>
+        .oauth-container {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .oauth-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+        
+        .oauth-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        .google-logo {
+            width: 48px;
+            height: 48px;
+            background: #4285f4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+        
+        .account-selector {
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 12px;
+        }
+        
+        .account-selector:hover {
+            background-color: #f8f9fa;
+            border-color: #4285f4;
+        }
+        
+        .account-selector.selected {
+            border-color: #4285f4;
+            background-color: #e8f0fe;
+        }
+        
+        .permission-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s ease;
+        }
+        
+        .permission-item:hover {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            margin: 0 -8px;
+            padding: 8px;
+        }
+        
+        .permission-item:last-child {
+            border-bottom: none;
+        }
+        
+        .sensitive-warning {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 16px 0;
+        }
+        
+        .btn-google {
+            background: #4285f4;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-google:hover {
+            background: #3367d6;
+            color: white;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+        }
+        
+        .btn-cancel {
+            background: transparent;
+            border: 1px solid #dadce0;
+            color: #3c4043;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-cancel:hover {
+            background: #f8f9fa;
+            border-color: #3c4043;
+        }
+        
+        .app-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        
+        .security-info {
+            font-size: 12px;
+            color: #5f6368;
+            text-align: center;
+            margin-top: 16px;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(66, 133, 244, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0); }
+        }
+    </style>
+
     <!-- Page Content -->
-    <main class="container-fluid">
-        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
-            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
-                <div class="card shadow border-0">
-                    <div class="card-body p-4 p-md-5">
-                        <!-- Header -->
+    <main class="oauth-container d-flex align-items-center justify-content-center py-5">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-12 col-sm-10 col-md-8 col-lg-6">
+                    <div class="oauth-card fade-in p-4">
+                        <!-- Google-like Header -->
                         <div class="text-center mb-4">
-                            <div class="mx-auto bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                                <i class="fas fa-shield-alt text-primary fs-4"></i>
+                            <div class="google-logo">
+                                <i class="fas fa-shield-alt text-white fs-5"></i>
                             </div>
-                            <h2 class="h4 fw-bold text-dark mb-2">
+                            <h1 class="h4 fw-normal text-dark mb-2">
                                 Choose an account
-                            </h2>
-                            <p class="text-muted small mb-0">
+                            </h1>
+                            <p class="text-muted mb-0" style="font-size: 14px;">
                                 to continue to <strong>{{.client.Name}}</strong>
                             </p>
                         </div>
 
                         <!-- User Account Selection -->
                         <div class="mb-4">
-                            <div class="border rounded p-3 mb-3" style="cursor: pointer;" onclick="selectAccount('{{.user.ID}}')">
+                            <div class="account-selector selected" onclick="selectAccount('{{.user.ID}}')" id="account-{{.user.ID}}">
                                 <div class="d-flex align-items-center">
-                                    <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
-                                        <i class="fas fa-user text-primary"></i>
+                                    <div class="me-3">
+                                        {{if .user.Avatar}}
+                                            <img src="{{.user.Avatar}}" alt="{{.user.Name}}" class="rounded-circle" style="width: 32px; height: 32px;">
+                                        {{else}}
+                                            <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                                                                                 <i class="fas fa-user text-white"></i>
+                                            </div>
+                                        {{end}}
                                     </div>
                                     <div class="flex-grow-1">
-                                        <div class="fw-medium">{{.user.Name}}</div>
-                                        <div class="text-muted small">{{.user.Email}}</div>
+                                        <div class="fw-medium" style="font-size: 14px;">{{.user.Name}}</div>
+                                        <div class="text-muted" style="font-size: 12px;">{{.user.Email}}</div>
                                     </div>
                                     <div class="text-primary">
-                                        <i class="fas fa-check-circle" id="selected-{{.user.ID}}" style="display: none;"></i>
+                                        <i class="fas fa-check-circle" id="selected-{{.user.ID}}"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Add account option -->
+                            <div class="account-selector" onclick="switchAccount()">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <div class="border rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                            <i class="fas fa-plus text-muted" style="font-size: 12px;"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="text-primary" style="font-size: 14px;">Use another account</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Client Information -->
-                        <div class="border rounded p-3 mb-4">
+                        <!-- Enhanced App Information -->
+                        <div class="app-info">
                             <div class="d-flex align-items-start">
-                                <div class="bg-secondary bg-opacity-10 rounded d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
-                                    <i class="fas fa-cube text-secondary"></i>
+                                <div class="me-3">
+                                    {{if .client.Logo}}
+                                        <img src="{{.client.Logo}}" alt="{{.client.Name}}" class="rounded" style="width: 32px; height: 32px;">
+                                    {{else}}
+                                        <div class="bg-secondary bg-opacity-10 rounded d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                            <i class="fas fa-cube text-secondary" style="font-size: 14px;"></i>
+                                        </div>
+                                    {{end}}
                                 </div>
                                 <div class="flex-grow-1">
-                                    <div class="fw-medium mb-1">{{.client.Name}}</div>
-                                    <div class="text-muted small">
+                                    <div class="fw-medium mb-1" style="font-size: 14px;">{{.client.Name}}</div>
+                                    <div class="text-muted" style="font-size: 12px;">
                                         {{if .client.UserID}}
-                                            Developed by {{.client.User.Name}}
+                                            Published by {{.client.User.Name}}
                                         {{else}}
                                             Third-party application
                                         {{end}}
                                     </div>
                                     {{if .client.GetRedirectURIs}}
-                                    <div class="text-muted small mt-1">
+                                    <div class="text-muted mt-1" style="font-size: 11px;">
                                         <i class="fas fa-external-link-alt me-1"></i>
                                         {{index .client.GetRedirectURIs 0}}
                                     </div>
@@ -63,20 +231,35 @@
                             </div>
                         </div>
 
-                        <!-- Permissions/Scopes -->
+                        <!-- Enhanced Permissions Display -->
                         <div class="mb-4">
-                            <h6 class="fw-bold mb-3">
-                                <i class="fas fa-key me-2"></i>
-                                This will allow {{.client.Name}} to:
-                            </h6>
-                            <div class="list-group list-group-flush">
+                            <div class="d-flex align-items-center mb-3">
+                                <i class="fas fa-key text-primary me-2"></i>
+                                <h6 class="mb-0 fw-medium" style="font-size: 14px;">
+                                    {{.client.Name}} wants to:
+                                </h6>
+                            </div>
+                            
+                            <div class="permissions-list">
                                 {{range .scopes}}
-                                <div class="list-group-item border-0 px-0 py-2">
+                                <div class="permission-item">
                                     <div class="d-flex align-items-start">
-                                        <i class="fas fa-check text-success me-3 mt-1"></i>
-                                        <div>
-                                            <div class="fw-medium">{{.Title}}</div>
-                                            <div class="text-muted small">{{.Description}}</div>
+                                        <div class="me-3 mt-1">
+                                            {{if .Sensitive}}
+                                                <i class="fas fa-exclamation-triangle text-warning" style="font-size: 12px;"></i>
+                                            {{else}}
+                                                <i class="fas fa-check text-success" style="font-size: 12px;"></i>
+                                            {{end}}
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="fw-medium" style="font-size: 13px;">{{.Title}}</div>
+                                            <div class="text-muted" style="font-size: 12px;">{{.Description}}</div>
+                                            {{if .Sensitive}}
+                                                <div class="text-warning mt-1" style="font-size: 11px;">
+                                                    <i class="fas fa-shield-alt me-1"></i>
+                                                    This is sensitive information
+                                                </div>
+                                            {{end}}
                                         </div>
                                     </div>
                                 </div>
@@ -84,26 +267,47 @@
                             </div>
                         </div>
 
-                        <!-- Warning for sensitive permissions -->
+                        <!-- Enhanced Warning for sensitive permissions -->
                         {{if .hasSensitiveScopes}}
-                        <div class="alert alert-warning d-flex align-items-start" role="alert">
-                            <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
-                            <div class="small">
-                                <strong>Make sure you trust {{.client.Name}}</strong><br>
-                                You may be sharing sensitive info with this site or app.
+                        <div class="sensitive-warning">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-shield-alt me-2 mt-1"></i>
+                                <div style="font-size: 13px;">
+                                    <div class="fw-bold mb-1">Make sure you trust {{.client.Name}}</div>
+                                    <div>You may be sharing sensitive information with this site or app. You can revoke access anytime in your security settings.</div>
+                                </div>
                             </div>
                         </div>
                         {{end}}
 
-                        <!-- Action Buttons -->
-                        <div class="d-flex justify-content-between">
-                            <button type="button" class="btn btn-outline-secondary" onclick="cancelAuthorization()">
+                        <!-- Enhanced Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center pt-3">
+                            <button type="button" class="btn btn-cancel" onclick="cancelAuthorization()">
                                 Cancel
                             </button>
-                            <button type="button" class="btn btn-primary" onclick="authorizeApplication()">
-                                <i class="fas fa-check me-2"></i>
-                                Allow
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-primary" onclick="showMoreInfo()" style="font-size: 13px;">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Learn more
+                                </button>
+                                <button type="button" class="btn btn-google pulse" onclick="authorizeApplication()">
+                                    <i class="fas fa-check me-2"></i>
+                                    Allow
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Security Information -->
+                        <div class="security-info">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <i class="fas fa-shield-alt me-1"></i>
+                                <span>Your privacy and security are protected</span>
+                            </div>
+                            <div>
+                                <a href="/privacy" class="text-decoration-none me-3" style="font-size: 11px;">Privacy Policy</a>
+                                <a href="/terms" class="text-decoration-none me-3" style="font-size: 11px;">Terms of Service</a>
+                                <a href="/security" class="text-decoration-none" style="font-size: 11px;">Security Center</a>
+                            </div>
                         </div>
 
                         <!-- Hidden form for submission -->
@@ -119,48 +323,85 @@
                         </form>
                     </div>
                 </div>
-
-                <!-- Footer -->
-                <div class="text-center mt-4">
-                    <div class="text-muted small">
-                        <i class="fas fa-shield-alt me-1"></i>
-                        Your data is protected by our security measures
-                    </div>
-                    <div class="mt-2">
-                        <a href="#" class="text-decoration-none text-muted small me-3">Privacy Policy</a>
-                        <a href="#" class="text-decoration-none text-muted small">Terms of Service</a>
-                    </div>
-                </div>
             </div>
         </div>
     </main>
 
+    <!-- Enhanced JavaScript -->
     <script>
         let selectedAccountId = '{{.user.ID}}';
 
         function selectAccount(accountId) {
+            // Remove selected class from all accounts
+            document.querySelectorAll('.account-selector').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
             // Hide all checkmarks
             document.querySelectorAll('[id^="selected-"]').forEach(el => {
                 el.style.display = 'none';
             });
             
-            // Show checkmark for selected account
+            // Add selected class and show checkmark
+            document.getElementById('account-' + accountId).classList.add('selected');
             document.getElementById('selected-' + accountId).style.display = 'inline';
             selectedAccountId = accountId;
         }
 
         function authorizeApplication() {
+            // Add loading state
+            const btn = document.querySelector('.btn-google');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Authorizing...';
+            btn.disabled = true;
+            
             document.getElementById('authorizedInput').value = 'true';
-            document.getElementById('authForm').submit();
+            
+            // Add slight delay for better UX
+            setTimeout(() => {
+                document.getElementById('authForm').submit();
+            }, 500);
         }
 
         function cancelAuthorization() {
             document.getElementById('authorizedInput').value = 'false';
             document.getElementById('authForm').submit();
         }
+        
+        function switchAccount() {
+            // Redirect to account switcher or login page
+            window.location.href = '/auth/login?continue=' + encodeURIComponent(window.location.href);
+        }
+        
+        function showMoreInfo() {
+            // Toggle detailed permission information
+            const details = document.createElement('div');
+            details.className = 'alert alert-info mt-3';
+            details.innerHTML = `
+                <h6><i class="fas fa-info-circle me-2"></i>About OAuth2 Authorization</h6>
+                <p class="small mb-2">This application is requesting access to your account using OAuth2, a secure authorization standard.</p>
+                <p class="small mb-0">You can revoke this access at any time from your <a href="/oauth/security">Security Center</a>.</p>
+            `;
+            
+            // Toggle display
+            const existing = document.querySelector('.alert-info');
+            if (existing) {
+                existing.remove();
+            } else {
+                document.querySelector('.oauth-card').appendChild(details);
+            }
+        }
 
         // Auto-select the current user account
         selectAccount('{{.user.ID}}');
+        
+        // Add keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                authorizeApplication();
+            } else if (e.key === 'Escape') {
+                cancelAuthorization();
+            }
+        });
     </script>
 
     {{template "layouts/footer.tmpl" .}}

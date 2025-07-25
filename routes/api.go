@@ -67,6 +67,11 @@ func Api() {
 	facades.Route().Post("/api/v1/oauth/device/complete", oauthController.CompleteDeviceAuthorization)
 	facades.Route().Post("/api/v1/oauth/token/exchange", oauthController.TokenExchange)
 
+	// OAuth2 Discovery and OpenID Connect endpoints
+	facades.Route().Get("/.well-known/oauth-authorization-server", oauthController.Discovery)
+	facades.Route().Get("/api/v1/oauth/userinfo", oauthController.UserInfo)
+	facades.Route().Get("/api/v1/oauth/jwks", oauthController.JWKS)
+
 	// Test OAuth endpoint
 	facades.Route().Get("/api/v1/oauth/test", func(ctx http.Context) http.Response {
 		return ctx.Response().Success().Json(http.Json{

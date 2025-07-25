@@ -2,6 +2,7 @@ package v1
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
@@ -919,4 +920,216 @@ func (c *OAuthController) TokenExchange(ctx http.Context) http.Response {
 	}
 
 	return responses.SuccessResponse(ctx, "Token exchanged successfully", response)
+}
+
+// Discovery provides OAuth2 server metadata according to RFC 8414
+// @Summary OAuth2 Authorization Server Metadata
+// @Description Provides OAuth2/OIDC discovery information
+// @Tags OAuth2
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /.well-known/oauth-authorization-server [get]
+func (c *OAuthController) Discovery(ctx http.Context) http.Response {
+	baseURL := facades.Config().GetString("app.url")
+
+	metadata := map[string]interface{}{
+		"issuer":                        baseURL,
+		"authorization_endpoint":        baseURL + "/oauth/authorize",
+		"token_endpoint":                baseURL + "/api/v1/oauth/token",
+		"userinfo_endpoint":             baseURL + "/api/v1/oauth/userinfo",
+		"jwks_uri":                      baseURL + "/api/v1/oauth/jwks",
+		"introspection_endpoint":        baseURL + "/api/v1/oauth/introspect",
+		"revocation_endpoint":           baseURL + "/api/v1/oauth/revoke",
+		"device_authorization_endpoint": baseURL + "/api/v1/oauth/device",
+		"registration_endpoint":         baseURL + "/api/v1/oauth/clients",
+
+		// Supported response types
+		"response_types_supported": []string{
+			"code",
+			"token",
+			"id_token",
+			"code token",
+			"code id_token",
+			"token id_token",
+			"code token id_token",
+		},
+
+		// Supported grant types
+		"grant_types_supported": []string{
+			"authorization_code",
+			"client_credentials",
+			"password",
+			"refresh_token",
+			"urn:ietf:params:oauth:grant-type:device_code",
+			"urn:ietf:params:oauth:grant-type:token-exchange",
+		},
+
+		// Supported scopes
+		"scopes_supported": facades.Config().Get("oauth.allowed_scopes"),
+
+		// Supported client authentication methods
+		"token_endpoint_auth_methods_supported": []string{
+			"client_secret_basic",
+			"client_secret_post",
+			"none",
+		},
+
+		// PKCE support
+		"code_challenge_methods_supported": []string{
+			"S256",
+			"plain",
+		},
+
+		// OpenID Connect specific
+		"subject_types_supported": []string{
+			"public",
+		},
+
+		"id_token_signing_alg_values_supported": []string{
+			"RS256",
+			"HS256",
+		},
+
+		"claims_supported": []string{
+			"sub",
+			"iss",
+			"aud",
+			"exp",
+			"iat",
+			"name",
+			"email",
+			"email_verified",
+			"picture",
+			"locale",
+		},
+
+		// Additional metadata
+		"service_documentation": baseURL + "/docs/oauth2",
+		"ui_locales_supported":  []string{"en"},
+		"op_policy_uri":         baseURL + "/privacy",
+		"op_tos_uri":            baseURL + "/terms",
+
+		// Security features
+		"require_request_uri_registration": false,
+		"request_parameter_supported":      true,
+		"request_uri_parameter_supported":  true,
+		"require_signed_request_object":    false,
+
+		// Token endpoint configuration
+		"token_endpoint_auth_signing_alg_values_supported": []string{
+			"RS256",
+			"HS256",
+		},
+
+		// Revocation endpoint configuration
+		"revocation_endpoint_auth_methods_supported": []string{
+			"client_secret_basic",
+			"client_secret_post",
+			"none",
+		},
+
+		// Introspection endpoint configuration
+		"introspection_endpoint_auth_methods_supported": []string{
+			"client_secret_basic",
+			"client_secret_post",
+		},
+	}
+
+	return ctx.Response().Json(200, metadata)
+}
+
+// UserInfo provides user information for OpenID Connect
+// @Summary OpenID Connect UserInfo endpoint
+// @Description Get user information using access token
+// @Tags OAuth2
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} responses.ApiResponse
+// @Router /oauth/userinfo [get]
+func (c *OAuthController) UserInfo(ctx http.Context) http.Response {
+	// Get the access token from Authorization header
+	authHeader := ctx.Request().Header("Authorization")
+	if authHeader == "" {
+		return responses.CreateErrorResponse(ctx, "Missing authorization header", "Bearer token required", 401)
+	}
+
+	// Extract token from "Bearer <token>"
+	tokenParts := strings.Fields(authHeader)
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		return responses.CreateErrorResponse(ctx, "Invalid authorization header", "Bearer token required", 401)
+	}
+
+	tokenID := tokenParts[1]
+
+	// Validate the access token
+	var accessToken models.OAuthAccessToken
+	err := facades.Orm().Query().Where("id", tokenID).Where("revoked", false).First(&accessToken)
+	if err != nil {
+		return responses.CreateErrorResponse(ctx, "Invalid access token", "Token not found or revoked", 401)
+	}
+
+	// Check if token is expired (tokens expire based on TTL configuration)
+	tokenTTL := time.Duration(facades.Config().GetInt("oauth.access_token_ttl", 60)) * time.Minute
+	if time.Since(accessToken.CreatedAt) > tokenTTL {
+		return responses.CreateErrorResponse(ctx, "Token expired", "Access token has expired", 401)
+	}
+
+	// Get the user associated with the token
+	if accessToken.UserID == nil {
+		return responses.CreateErrorResponse(ctx, "Invalid token", "Token not associated with a user", 401)
+	}
+
+	var user models.User
+	err = facades.Orm().Query().Where("id", *accessToken.UserID).First(&user)
+	if err != nil {
+		return responses.CreateErrorResponse(ctx, "User not found", "Associated user not found", 401)
+	}
+
+	// Get token scopes
+	scopes := accessToken.GetScopes()
+
+	// Build user info response based on granted scopes
+	userInfo := map[string]interface{}{
+		"sub": user.ID,
+	}
+
+	// Add claims based on scopes
+	for _, scope := range scopes {
+		switch scope {
+		case "profile", "openid":
+			userInfo["name"] = user.Name
+			if user.Avatar != "" {
+				userInfo["picture"] = user.Avatar
+			}
+			userInfo["locale"] = "en"
+		case "email":
+			userInfo["email"] = user.Email
+			userInfo["email_verified"] = true
+		}
+	}
+
+	return ctx.Response().Json(200, userInfo)
+}
+
+// JWKS provides JSON Web Key Set for token verification
+// @Summary JSON Web Key Set endpoint
+// @Description Get public keys for token verification
+// @Tags OAuth2
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /oauth/jwks [get]
+func (c *OAuthController) JWKS(ctx http.Context) http.Response {
+	// For now, return empty key set - implement when JWT signing is added
+	jwks := map[string]interface{}{
+		"keys": []map[string]interface{}{},
+	}
+
+	// TODO: Add actual public keys when JWT signing is implemented
+	// This would include RSA/ECDSA public keys used for signing tokens
+
+	return ctx.Response().Json(200, jwks)
 }
