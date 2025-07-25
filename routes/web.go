@@ -18,6 +18,9 @@ func Web() {
 	permissionController := web.NewPermissionController()
 	oauthController := web.NewOAuthController()
 	oauthClientController := web.NewOAuthClientController()
+	mfaController := web.NewMfaController()
+	webauthnController := web.NewWebAuthnController()
+	securityController := web.NewSecurityController()
 
 	// Authentication routes
 	facades.Route().Group(func(router route.Router) {
@@ -30,6 +33,14 @@ func Web() {
 		router.Post("/forgot-password", authController.ForgotPassword)
 		router.Get("/reset-password", authController.ShowResetPassword)
 		router.Post("/reset-password", authController.ResetPassword)
+
+		// MFA verification during login (guest route)
+		router.Get("/auth/mfa/verify", mfaController.ShowVerify)
+		router.Post("/auth/mfa/verify", mfaController.Verify)
+
+		// WebAuthn authentication for login (guest routes)
+		router.Post("/auth/webauthn/begin-authentication", webauthnController.BeginAuthentication)
+		router.Post("/auth/webauthn/finish-authentication", webauthnController.FinishAuthentication)
 
 		// Protected routes (authentication required)
 		router.Group(func(router route.Router) {
@@ -73,6 +84,29 @@ func Web() {
 			router.Get("/oauth/clients/{id}/edit", oauthClientController.Edit)
 			router.Put("/oauth/clients/{id}", oauthClientController.Update)
 			router.Delete("/oauth/clients/{id}", oauthClientController.Delete)
+
+			// Security Settings
+			router.Get("/security", securityController.Index)
+			router.Get("/security/change-password", securityController.ShowChangePassword)
+			router.Post("/security/change-password", securityController.ChangePassword)
+			router.Get("/security/sessions", securityController.ShowSessions)
+			router.Post("/security/sessions/{id}/revoke", securityController.RevokeSession)
+			router.Get("/security/audit-log", securityController.ShowAuditLog)
+
+			// MFA Management
+			router.Get("/security/mfa/setup", mfaController.ShowSetup)
+			router.Get("/security/mfa/manage", mfaController.ShowManage)
+			router.Post("/security/mfa/enable", mfaController.Enable)
+			router.Post("/security/mfa/disable", mfaController.Disable)
+
+			// WebAuthn Management
+			router.Get("/security/webauthn/setup", webauthnController.ShowSetup)
+			router.Get("/security/webauthn/manage", webauthnController.ShowManage)
+			router.Post("/security/webauthn/begin-registration", webauthnController.BeginRegistration)
+			router.Post("/security/webauthn/finish-registration", webauthnController.FinishRegistration)
+			router.Get("/security/webauthn/credentials", webauthnController.ShowCredentials)
+			router.Put("/security/webauthn/credentials/{id}/name", webauthnController.UpdateCredentialName)
+			router.Get("/security/webauthn/credentials/{id}/delete", webauthnController.DeleteCredential)
 		})
 	})
 

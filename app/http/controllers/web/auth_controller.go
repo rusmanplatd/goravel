@@ -96,8 +96,30 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		})
 	}
 
+	// First, try basic login without MFA/WebAuthn
 	user, _, err := c.authService.Login(ctx, &req)
 	if err != nil {
+		// Check if the error is specifically about MFA being required
+		if err.Error() == "MFA code required" {
+			// Store user ID in session for MFA verification
+			var tempUser models.User
+			userErr := facades.Orm().Query().Where("email", req.Email).First(&tempUser)
+			if userErr == nil {
+				ctx.Request().Session().Put("pending_mfa_user_id", tempUser.ID)
+				return ctx.Response().Redirect(302, "/auth/mfa/verify")
+			}
+		}
+
+		// Check if the error is about WebAuthn being required
+		if err.Error() == "WebAuthn authentication required" {
+			return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
+				"title":             "Login",
+				"email":             req.Email,
+				"webauthn_required": true,
+				"message":           "Please use your security key to complete login",
+			})
+		}
+
 		return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
 			"title": "Login",
 			"error": "Invalid credentials",

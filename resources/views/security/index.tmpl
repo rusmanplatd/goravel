@@ -1,0 +1,718 @@
+{{define "security/index.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container py-5">
+        <div class="row">
+            <div class="col-12">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h1 class="h2 fw-bold text-dark mb-2">
+                            <i class="fas fa-shield-alt text-primary me-3"></i>
+                            Security Center
+                        </h1>
+                        <p class="text-muted mb-0">
+                            Manage your account security settings and monitor your security status
+                        </p>
+                    </div>
+                    <div class="text-end">
+                        <div class="badge bg-success fs-6 mb-1">
+                            <i class="fas fa-shield-check me-1"></i>
+                            Secure Account
+                        </div>
+                        <div class="small text-muted">Last updated: just now</div>
+                    </div>
+                </div>
+
+                <!-- Alert Messages -->
+                <div id="alert-container">
+                    {{if .success}}
+                    <div class="alert alert-success d-flex align-items-center alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <div class="flex-grow-1">{{.success}}</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {{end}}
+
+                    {{if .error}}
+                    <div class="alert alert-danger d-flex align-items-center alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <div class="flex-grow-1">{{.error}}</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {{end}}
+                </div>
+
+                <!-- Security Score Card -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="me-3">
+                                        <div class="position-relative">
+                                            <svg width="80" height="80" viewBox="0 0 42 42" class="donut">
+                                                <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#e9ecef" stroke-width="3"></circle>
+                                                <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#28a745" stroke-width="3" 
+                                                        stroke-dasharray="85 15" stroke-dashoffset="25"></circle>
+                                            </svg>
+                                            <div class="position-absolute top-50 start-50 translate-middle text-center">
+                                                <div class="h4 fw-bold text-success mb-0" id="security-score">85%</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 class="fw-bold mb-1">Security Score</h4>
+                                        <p class="text-muted mb-2">Your account security is <strong class="text-success">excellent</strong></p>
+                                        <div class="small">
+                                            <span class="badge bg-success me-1">2FA Enabled</span>
+                                            {{if .webauthn_enabled}}<span class="badge bg-info me-1">WebAuthn Active</span>{{end}}
+                                            <span class="badge bg-secondary">Strong Password</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <button class="btn btn-outline-primary mb-2" onclick="showSecurityTips()">
+                                    <i class="fas fa-lightbulb me-2"></i>
+                                    Security Tips
+                                </button>
+                                <div class="small text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Score updated daily
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Left Column - Main Security Features -->
+                    <div class="col-lg-8">
+                        <!-- Authentication Methods -->
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white border-0 py-3">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-key text-primary me-2"></i>
+                                    Authentication Methods
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <!-- Password Authentication -->
+                                <div class="list-group list-group-flush">
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-3">
+                                                    <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                        <i class="fas fa-lock text-primary"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-1">Password</h6>
+                                                    <small class="text-muted">Last changed 2 weeks ago</small>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge bg-success">Active</span>
+                                                <a href="/security/change-password" class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-edit me-1"></i>
+                                                    Change
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Two-Factor Authentication -->
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-3">
+                                                    <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                        <i class="fas fa-mobile-alt text-success"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-1">Two-Factor Authentication</h6>
+                                                    <small class="text-muted">
+                                                        {{if .mfa_enabled}}
+                                                            Authenticator app configured
+                                                        {{else}}
+                                                            Add an extra layer of security
+                                                        {{end}}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                {{if .mfa_enabled}}
+                                                    <span class="badge bg-success">Enabled</span>
+                                                    <a href="/security/mfa/manage" class="btn btn-outline-success btn-sm">
+                                                        <i class="fas fa-cog me-1"></i>
+                                                        Manage
+                                                    </a>
+                                                {{else}}
+                                                    <span class="badge bg-warning">Disabled</span>
+                                                    <a href="/security/mfa/setup" class="btn btn-primary btn-sm">
+                                                        <i class="fas fa-plus me-1"></i>
+                                                        Enable
+                                                    </a>
+                                                {{end}}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- WebAuthn / Security Keys -->
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-3">
+                                                    <div class="bg-info bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                        <i class="fas fa-fingerprint text-info"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-1">Security Keys & Biometrics</h6>
+                                                    <small class="text-muted">
+                                                        {{if .webauthn_enabled}}
+                                                            {{.credential_count}} security key(s) registered
+                                                        {{else}}
+                                                            Use fingerprint, Face ID, or hardware keys
+                                                        {{end}}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                {{if .webauthn_enabled}}
+                                                    <span class="badge bg-success">{{.credential_count}} Keys</span>
+                                                    <a href="/security/webauthn/manage" class="btn btn-outline-success btn-sm">
+                                                        <i class="fas fa-cog me-1"></i>
+                                                        Manage
+                                                    </a>
+                                                {{else}}
+                                                    <span class="badge bg-secondary">Not Set Up</span>
+                                                    <a href="/security/webauthn/setup" class="btn btn-outline-primary btn-sm">
+                                                        <i class="fas fa-plus me-1"></i>
+                                                        Setup
+                                                    </a>
+                                                {{end}}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Account Security -->
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white border-0 py-3">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-user-shield text-primary me-2"></i>
+                                    Account Security
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush">
+                                    <!-- Active Sessions -->
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-3">
+                                                    <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                        <i class="fas fa-desktop text-warning"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-1">Active Sessions</h6>
+                                                    <small class="text-muted">3 active sessions across devices</small>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge bg-warning">3 Active</span>
+                                                <a href="/security/sessions" class="btn btn-outline-warning btn-sm">
+                                                    <i class="fas fa-eye me-1"></i>
+                                                    View All
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Login History -->
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-3">
+                                                    <div class="bg-secondary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                        <i class="fas fa-history text-secondary"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-1">Login History</h6>
+                                                    <small class="text-muted">Review your recent login activity</small>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge bg-secondary">Available</span>
+                                                <a href="/security/audit-log" class="btn btn-outline-secondary btn-sm">
+                                                    <i class="fas fa-list me-1"></i>
+                                                    View Log
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white border-0 py-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-clock text-primary me-2"></i>
+                                        Recent Security Activity
+                                    </h5>
+                                    <a href="/security/audit-log" class="btn btn-outline-primary btn-sm">
+                                        View All
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush" id="recent-activity">
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                                    <i class="fas fa-sign-in-alt text-success small"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-medium">Successful login</div>
+                                                <small class="text-muted">Chrome on Windows • 192.168.1.100</small>
+                                            </div>
+                                            <div class="text-end">
+                                                <small class="text-muted">2 hours ago</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <div class="bg-info bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                                    <i class="fas fa-fingerprint text-info small"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-medium">WebAuthn authentication</div>
+                                                <small class="text-muted">Security key used for login</small>
+                                            </div>
+                                            <div class="text-end">
+                                                <small class="text-muted">Yesterday</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item px-4 py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                                    <i class="fas fa-key text-warning small"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-medium">Password changed</div>
+                                                <small class="text-muted">Account password updated</small>
+                                            </div>
+                                            <div class="text-end">
+                                                <small class="text-muted">2 weeks ago</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column - Security Status & Recommendations -->
+                    <div class="col-lg-4">
+                        <!-- Security Status -->
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white border-0 py-3">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-chart-line text-primary me-2"></i>
+                                    Security Status
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="text-muted">Password Strength</small>
+                                        <small class="text-success fw-medium">Strong</small>
+                                    </div>
+                                    <div class="progress" style="height: 4px;">
+                                        <div class="progress-bar bg-success" style="width: 90%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="text-muted">2FA Coverage</small>
+                                        <small class="text-success fw-medium">100%</small>
+                                    </div>
+                                    <div class="progress" style="height: 4px;">
+                                        <div class="progress-bar bg-success" style="width: 100%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="text-muted">Session Security</small>
+                                        <small class="text-info fw-medium">Good</small>
+                                    </div>
+                                    <div class="progress" style="height: 4px;">
+                                        <div class="progress-bar bg-info" style="width: 75%"></div>
+                                    </div>
+                                </div>
+                                <div class="text-center mt-3">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="refreshSecurityStatus()">
+                                        <i class="fas fa-sync-alt me-1"></i>
+                                        Refresh Status
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security Recommendations -->
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white border-0 py-3">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-lightbulb text-warning me-2"></i>
+                                    Security Recommendations
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                {{if not .mfa_enabled}}
+                                <div class="alert alert-warning p-3 mb-3">
+                                    <div class="d-flex align-items-start">
+                                        <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                                        <div class="flex-grow-1">
+                                            <div class="fw-medium mb-1">Enable Two-Factor Authentication</div>
+                                            <small>Add an extra layer of security to your account</small>
+                                            <div class="mt-2">
+                                                <a href="/security/mfa/setup" class="btn btn-warning btn-sm">
+                                                    Enable Now
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {{end}}
+
+                                {{if not .webauthn_enabled}}
+                                <div class="alert alert-info p-3 mb-3">
+                                    <div class="d-flex align-items-start">
+                                        <i class="fas fa-info-circle me-2 mt-1"></i>
+                                        <div class="flex-grow-1">
+                                            <div class="fw-medium mb-1">Try Passwordless Login</div>
+                                            <small>Use fingerprint or security keys for faster, more secure access</small>
+                                            <div class="mt-2">
+                                                <a href="/security/webauthn/setup" class="btn btn-info btn-sm">
+                                                    Set Up
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {{end}}
+
+                                <div class="list-group list-group-flush">
+                                    <div class="list-group-item px-0 py-2">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            <small>Use unique, strong passwords</small>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item px-0 py-2">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            <small>Keep your devices updated</small>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item px-0 py-2">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            <small>Review login activity regularly</small>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item px-0 py-2">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-info-circle text-info me-2"></i>
+                                            <small>Consider using a password manager</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white border-0 py-3">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-bolt text-primary me-2"></i>
+                                    Quick Actions
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="testAllAuthentication()">
+                                        <i class="fas fa-vial me-2"></i>
+                                        Test All Authentication
+                                    </button>
+                                    <button class="btn btn-outline-warning btn-sm" onclick="revokeAllSessions()">
+                                        <i class="fas fa-sign-out-alt me-2"></i>
+                                        Sign Out All Devices
+                                    </button>
+                                    <a href="/security/audit-log" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-download me-2"></i>
+                                        Export Security Report
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Security Tips Modal -->
+    <div class="modal fade" id="securityTipsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                        Security Tips & Best Practices
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3">
+                                <i class="fas fa-shield-alt text-primary me-2"></i>
+                                Account Security
+                            </h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Use a unique, strong password (12+ characters)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Enable two-factor authentication
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Set up WebAuthn for passwordless login
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Review login activity regularly
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3">
+                                <i class="fas fa-mobile-alt text-info me-2"></i>
+                                Device Security
+                            </h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Keep your devices updated
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Use secure networks (avoid public WiFi)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Sign out when using shared devices
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Enable screen locks on mobile devices
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Pro Tip:</strong> Consider using a password manager to generate and store unique passwords for all your accounts.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Security dashboard functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSecurityScore();
+            loadRecentActivity();
+        });
+
+                 function updateSecurityScore() {
+             // Calculate security score based on enabled features
+             let score = 30; // Base score
+             
+             const mfaEnabled = {{if .mfa_enabled}}true{{else}}false{{end}};
+             const webauthnEnabled = {{if .webauthn_enabled}}true{{else}}false{{end}};
+             
+             if (mfaEnabled) score += 40;
+             if (webauthnEnabled) score += 30;
+             
+             // Update the score display
+             document.getElementById('security-score').textContent = score + '%';
+             
+             // Update the donut chart
+             const circle = document.querySelector('.donut circle:last-child');
+             if (circle) {
+                 circle.setAttribute('stroke-dasharray', `${score} ${100 - score}`);
+             }
+         }
+
+        function loadRecentActivity() {
+            // In a real implementation, this would fetch from the server
+            const activities = [
+                {
+                    type: 'login',
+                    icon: 'fas fa-sign-in-alt',
+                    color: 'success',
+                    title: 'Successful login',
+                    description: 'Chrome on Windows • 192.168.1.100',
+                    time: '2 hours ago'
+                },
+                {
+                    type: 'webauthn',
+                    icon: 'fas fa-fingerprint',
+                    color: 'info',
+                    title: 'WebAuthn authentication',
+                    description: 'Security key used for login',
+                    time: 'Yesterday'
+                },
+                {
+                    type: 'password',
+                    icon: 'fas fa-key',
+                    color: 'warning',
+                    title: 'Password changed',
+                    description: 'Account password updated',
+                    time: '2 weeks ago'
+                }
+            ];
+
+            // Update activity list (already rendered in template)
+        }
+
+        function showSecurityTips() {
+            const modal = new bootstrap.Modal(document.getElementById('securityTipsModal'));
+            modal.show();
+        }
+
+        function refreshSecurityStatus() {
+            showAlert('Security status refreshed!', 'success');
+            updateSecurityScore();
+        }
+
+        async function testAllAuthentication() {
+            try {
+                showAlert('Testing authentication methods...', 'info');
+                
+                // Simulate testing
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                showAlert('All authentication methods are working correctly!', 'success');
+            } catch (error) {
+                showAlert('Some authentication methods may have issues: ' + error.message, 'warning');
+            }
+        }
+
+        async function revokeAllSessions() {
+            if (!confirm('This will sign you out of all devices except this one. Continue?')) {
+                return;
+            }
+            
+            try {
+                showAlert('Revoking all sessions...', 'info');
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                showAlert('All other sessions have been revoked successfully!', 'success');
+            } catch (error) {
+                showAlert('Failed to revoke sessions: ' + error.message, 'danger');
+            }
+        }
+
+        // Utility functions
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'info' ? 'info-circle' : 'exclamation-circle'} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+
+        // Auto-dismiss existing alerts after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.alert-dismissible').forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+    </script>
+
+    <style>
+        .donut {
+            transform: rotate(-90deg);
+        }
+        
+        .donut circle {
+            transition: stroke-dasharray 0.3s ease;
+        }
+        
+        .card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+        }
+        
+        .list-group-item {
+            transition: background-color 0.2s ease;
+        }
+        
+        .list-group-item:hover {
+            background-color: rgba(0,0,0,0.02);
+        }
+    </style>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

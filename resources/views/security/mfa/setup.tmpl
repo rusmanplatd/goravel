@@ -1,0 +1,550 @@
+{{define "security/mfa/setup.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container-fluid">
+        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <div class="mx-auto bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                <i class="fas fa-shield-alt text-primary fs-4"></i>
+                            </div>
+                            <h2 class="h3 fw-bold text-dark mb-2">
+                                Setup Two-Factor Authentication
+                            </h2>
+                            <p class="text-muted small mb-0">
+                                Secure your account with an additional layer of protection
+                            </p>
+                        </div>
+
+                        <!-- Progress Indicator -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-primary">Step 1</span>
+                                <span class="badge bg-light text-dark">Step 2</span>
+                                <span class="badge bg-light text-dark">Step 3</span>
+                            </div>
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar" role="progressbar" style="width: 33%"></div>
+                            </div>
+                            <div class="text-center mt-2">
+                                <small class="text-muted" id="step-description">Configure your authenticator app</small>
+                            </div>
+                        </div>
+                        
+                        {{if .error}}
+                        <div class="alert alert-danger d-flex align-items-center alert-dismissible fade show" role="alert">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            <div class="flex-grow-1">{{.error}}</div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {{end}}
+
+                        <!-- Step 1: Configure Authenticator -->
+                        <div id="step-1" class="setup-step">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card bg-light border-0 mb-4">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title mb-3">
+                                                <i class="fas fa-qrcode text-primary me-2"></i>
+                                                Scan QR Code
+                                            </h5>
+                                            <div class="mb-3">
+                                                <div id="qrcode" class="d-flex justify-content-center">
+                                                    <div class="p-3 bg-white rounded shadow-sm">
+                                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{.qr_code_url}}" 
+                                                             alt="QR Code" class="img-fluid" style="max-width: 200px;">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="small text-muted">
+                                                Use Google Authenticator, Authy, Microsoft Authenticator, or any TOTP app
+                                            </p>
+                                            <div class="d-grid">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="refreshQRCode()">
+                                                    <i class="fas fa-sync-alt me-1"></i>
+                                                    Refresh QR Code
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="card bg-light border-0 mb-4">
+                                        <div class="card-body">
+                                            <h5 class="card-title mb-3">
+                                                <i class="fas fa-keyboard text-primary me-2"></i>
+                                                Manual Entry
+                                            </h5>
+                                            <p class="small text-muted mb-2">
+                                                If you can't scan the QR code, enter this secret manually:
+                                            </p>
+                                            <div class="input-group mb-3">
+                                                <input type="text" class="form-control font-monospace small" 
+                                                       id="manual-secret" value="{{.secret}}" readonly>
+                                                <button class="btn btn-outline-secondary" type="button" 
+                                                        onclick="copyToClipboard('manual-secret')">
+                                                    <i class="fas fa-copy"></i>
+                                                </button>
+                                            </div>
+                                            <div class="d-grid gap-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                        onclick="showManualInstructions()">
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    Setup Instructions
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Verification Form -->
+                            <div class="mb-4">
+                                <label for="code" class="form-label fw-medium">
+                                    <i class="fas fa-mobile-alt me-2"></i>
+                                    Enter Verification Code
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-key text-muted"></i>
+                                    </span>
+                                    <input id="code" type="text" class="form-control form-control-lg text-center font-monospace" 
+                                           placeholder="000000" maxlength="6" pattern="[0-9]{6}" required autocomplete="off">
+                                    <button class="btn btn-outline-success" type="button" onclick="verifyCode()">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">
+                                    Enter the 6-digit code from your authenticator app
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                                <a href="/security" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>
+                                    Back to Security
+                                </a>
+                                <button type="button" class="btn btn-primary" onclick="verifyCode()" id="verify-btn">
+                                    <i class="fas fa-arrow-right me-2"></i>
+                                    Verify & Continue
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Generate Backup Codes -->
+                        <div id="step-2" class="setup-step d-none">
+                            <div class="text-center mb-4">
+                                <div class="mx-auto bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                    <i class="fas fa-key text-warning fs-4"></i>
+                                </div>
+                                <h4 class="fw-bold mb-2">Save Your Backup Codes</h4>
+                                <p class="text-muted">
+                                    These codes can be used to access your account if you lose your authenticator device.
+                                    <strong>Store them safely!</strong>
+                                </p>
+                            </div>
+
+                            <div class="alert alert-warning" role="alert">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Important:</strong> Each backup code can only be used once. Save them in a secure location.
+                            </div>
+
+                            <div class="card bg-light border-0 mb-4">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="card-title mb-0">
+                                            <i class="fas fa-shield-alt me-2"></i>
+                                            Backup Codes
+                                        </h6>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="copyBackupCodes()">
+                                            <i class="fas fa-copy me-1"></i>
+                                            Copy All
+                                        </button>
+                                    </div>
+                                    <div id="backup-codes" class="row">
+                                        <!-- Backup codes will be generated here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                                <button type="button" class="btn btn-outline-secondary" onclick="goToStep(1)">
+                                    <i class="fas fa-arrow-left me-2"></i>
+                                    Back
+                                </button>
+                                <button type="button" class="btn btn-primary" onclick="downloadBackupCodes()">
+                                    <i class="fas fa-download me-2"></i>
+                                    Download Codes
+                                </button>
+                                <button type="button" class="btn btn-success" onclick="goToStep(3)">
+                                    <i class="fas fa-arrow-right me-2"></i>
+                                    I've Saved Them
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Final Confirmation -->
+                        <div id="step-3" class="setup-step d-none">
+                            <div class="text-center mb-4">
+                                <div class="mx-auto bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                    <i class="fas fa-check-circle text-success fs-4"></i>
+                                </div>
+                                <h4 class="fw-bold mb-2">Almost Done!</h4>
+                                <p class="text-muted">
+                                    Let's test your setup to make sure everything works correctly.
+                                </p>
+                            </div>
+
+                            <div class="card border-success mb-4">
+                                <div class="card-body">
+                                    <h6 class="card-title text-success">
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        Setup Summary
+                                    </h6>
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-2">
+                                            <i class="fas fa-mobile-alt text-success me-2"></i>
+                                            Authenticator app configured
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-key text-success me-2"></i>
+                                            Backup codes generated
+                                        </li>
+                                        <li>
+                                            <i class="fas fa-shield-alt text-success me-2"></i>
+                                            Account security enhanced
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="final-code" class="form-label fw-medium">
+                                    <i class="fas fa-mobile-alt me-2"></i>
+                                    Test Your Setup
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-key text-muted"></i>
+                                    </span>
+                                    <input id="final-code" type="text" class="form-control form-control-lg text-center font-monospace" 
+                                           placeholder="000000" maxlength="6" pattern="[0-9]{6}" required autocomplete="off">
+                                </div>
+                                <div class="form-text">
+                                    Enter a fresh code from your authenticator app to complete setup
+                                </div>
+                            </div>
+
+                            <form method="POST" action="/security/mfa/enable" id="mfa-setup-form">
+                                <input type="hidden" name="secret" value="{{.secret}}">
+                                <input type="hidden" name="backup_codes" id="backup-codes-input">
+                                <input type="hidden" name="verification_code" id="verification-code-input">
+                                
+                                <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="goToStep(2)">
+                                        <i class="fas fa-arrow-left me-2"></i>
+                                        Back
+                                    </button>
+                                    <button type="button" class="btn btn-success btn-lg" onclick="completeMfaSetup()">
+                                        <i class="fas fa-shield-alt me-2"></i>
+                                        Complete Setup
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Manual Instructions Modal -->
+    <div class="modal fade" id="manualInstructionsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Manual Setup Instructions
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3">Popular Authenticator Apps:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fab fa-google text-primary me-2"></i>
+                                    <strong>Google Authenticator</strong>
+                                    <br><small class="text-muted">Free, available on iOS and Android</small>
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-shield-alt text-success me-2"></i>
+                                    <strong>Authy</strong>
+                                    <br><small class="text-muted">Multi-device sync, backup features</small>
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fab fa-microsoft text-info me-2"></i>
+                                    <strong>Microsoft Authenticator</strong>
+                                    <br><small class="text-muted">Push notifications, backup</small>
+                                </li>
+                                <li>
+                                    <i class="fas fa-key text-warning me-2"></i>
+                                    <strong>1Password, Bitwarden</strong>
+                                    <br><small class="text-muted">Password manager integration</small>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold mb-3">Setup Steps:</h6>
+                            <ol class="mb-0">
+                                <li class="mb-2">Open your authenticator app</li>
+                                <li class="mb-2">Select "Add Account" or "+" button</li>
+                                <li class="mb-2">Choose "Enter a setup key" or "Manual entry"</li>
+                                <li class="mb-2">Enter your email: <strong>{{.user.Email}}</strong></li>
+                                <li class="mb-2">Enter the secret key: <code class="small">{{.secret}}</code></li>
+                                <li class="mb-2">Make sure "Time based" is selected</li>
+                                <li>Save the account and enter the generated code</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let backupCodes = [];
+        let verifiedSecret = false;
+
+        // Step management
+        function goToStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.setup-step').forEach(el => el.classList.add('d-none'));
+            
+            // Show target step
+            document.getElementById(`step-${step}`).classList.remove('d-none');
+            
+            // Update progress
+            updateProgress(step);
+            currentStep = step;
+        }
+
+        function updateProgress(step) {
+            const badges = document.querySelectorAll('.badge');
+            const progressBar = document.querySelector('.progress-bar');
+            const stepDescription = document.getElementById('step-description');
+            
+            badges.forEach((badge, index) => {
+                if (index + 1 <= step) {
+                    badge.classList.remove('bg-light', 'text-dark');
+                    badge.classList.add('bg-primary');
+                } else {
+                    badge.classList.remove('bg-primary');
+                    badge.classList.add('bg-light', 'text-dark');
+                }
+            });
+            
+            progressBar.style.width = `${(step / 3) * 100}%`;
+            
+            const descriptions = [
+                'Configure your authenticator app',
+                'Save your backup codes',
+                'Complete the setup'
+            ];
+            stepDescription.textContent = descriptions[step - 1];
+        }
+
+        // Code verification
+        async function verifyCode() {
+            const code = document.getElementById('code').value;
+            const btn = document.getElementById('verify-btn');
+            
+            if (code.length !== 6) {
+                showAlert('Please enter a 6-digit code', 'warning');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verifying...';
+            
+            try {
+                // Simulate verification (in real app, this would call the server)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                verifiedSecret = true;
+                generateBackupCodes();
+                goToStep(2);
+                showAlert('Code verified successfully!', 'success');
+            } catch (error) {
+                showAlert('Invalid verification code', 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-arrow-right me-2"></i>Verify & Continue';
+            }
+        }
+
+        // Backup codes generation
+        function generateBackupCodes() {
+            backupCodes = [];
+            for (let i = 0; i < 10; i++) {
+                backupCodes.push(generateRandomCode());
+            }
+            displayBackupCodes();
+        }
+
+        function generateRandomCode() {
+            return Math.random().toString(36).substr(2, 8).toUpperCase();
+        }
+
+        function displayBackupCodes() {
+            const container = document.getElementById('backup-codes');
+            container.innerHTML = '';
+            
+            backupCodes.forEach((code, index) => {
+                const codeElement = document.createElement('div');
+                codeElement.className = 'col-md-6 mb-2';
+                codeElement.innerHTML = `
+                    <div class="p-2 bg-white rounded border">
+                        <span class="font-monospace small">${index + 1}. ${code}</span>
+                    </div>
+                `;
+                container.appendChild(codeElement);
+            });
+        }
+
+        function copyBackupCodes() {
+            const codes = backupCodes.map((code, index) => `${index + 1}. ${code}`).join('\n');
+            navigator.clipboard.writeText(codes).then(() => {
+                showAlert('Backup codes copied to clipboard!', 'success');
+            });
+        }
+
+        function downloadBackupCodes() {
+            const codes = backupCodes.map((code, index) => `${index + 1}. ${code}`).join('\n');
+            const content = `Two-Factor Authentication Backup Codes\n\nAccount: {{.user.Email}}\nGenerated: ${new Date().toLocaleString()}\n\n${codes}\n\nIMPORTANT:\n- Each code can only be used once\n- Store these codes in a safe place\n- Use them if you lose access to your authenticator app`;
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mfa-backup-codes.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showAlert('Backup codes downloaded!', 'success');
+        }
+
+        // Final setup completion
+        async function completeMfaSetup() {
+            const finalCode = document.getElementById('final-code').value;
+            
+            if (finalCode.length !== 6) {
+                showAlert('Please enter a 6-digit code', 'warning');
+                return;
+            }
+            
+            if (!verifiedSecret) {
+                showAlert('Please complete step 1 first', 'warning');
+                return;
+            }
+            
+            // Set form values
+            document.getElementById('backup-codes-input').value = JSON.stringify(backupCodes);
+            document.getElementById('verification-code-input').value = finalCode;
+            
+            // Submit form
+            document.getElementById('mfa-setup-form').submit();
+        }
+
+        // Utility functions
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            element.select();
+            element.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(element.value).then(function() {
+                const button = element.nextElementSibling;
+                const originalIcon = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check text-success"></i>';
+                setTimeout(() => {
+                    button.innerHTML = originalIcon;
+                }, 2000);
+            });
+        }
+
+        function showManualInstructions() {
+            const modal = new bootstrap.Modal(document.getElementById('manualInstructionsModal'));
+            modal.show();
+        }
+
+        function refreshQRCode() {
+            // In a real implementation, this would generate a new secret
+            showAlert('QR code refreshed', 'info');
+        }
+
+        function showAlert(message, type) {
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle'} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            // Find or create alert container
+            let alertContainer = document.querySelector('.alert-container');
+            if (!alertContainer) {
+                alertContainer = document.createElement('div');
+                alertContainer.className = 'alert-container mb-3';
+                document.querySelector('.card-body').insertBefore(alertContainer, document.querySelector('.card-body').firstChild.nextSibling);
+            }
+            
+            alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+
+        // Auto-format code inputs
+        document.getElementById('code')?.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').substring(0, 6);
+        });
+
+        document.getElementById('final-code')?.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').substring(0, 6);
+        });
+
+        // Enter key handling
+        document.getElementById('code')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && this.value.length === 6) {
+                verifyCode();
+            }
+        });
+
+        document.getElementById('final-code')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && this.value.length === 6) {
+                completeMfaSetup();
+            }
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

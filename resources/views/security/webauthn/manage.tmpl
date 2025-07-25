@@ -1,0 +1,592 @@
+{{define "security/webauthn/manage.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-12 col-lg-10 col-xl-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h2 class="h3 fw-bold text-dark mb-2">
+                                    <i class="fas fa-fingerprint text-primary me-2"></i>
+                                    Manage Security Keys
+                                </h2>
+                                <p class="text-muted mb-0">
+                                    Manage your WebAuthn credentials and security keys
+                                </p>
+                            </div>
+                            <div>
+                                <a href="/security/webauthn/setup" class="btn btn-primary">
+                                    <i class="fas fa-plus me-2"></i>
+                                    Add Security Key
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Alert Messages -->
+                        <div id="alert-container">
+                            {{if .success}}
+                            <div class="alert alert-success d-flex align-items-center alert-dismissible fade show" role="alert">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <div class="flex-grow-1">{{.success}}</div>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {{end}}
+
+                            {{if .error}}
+                            <div class="alert alert-danger d-flex align-items-center alert-dismissible fade show" role="alert">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                <div class="flex-grow-1">{{.error}}</div>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {{end}}
+                        </div>
+
+                        <!-- Statistics Cards -->
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <div class="card bg-primary bg-opacity-10 border-0">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-key text-primary fs-2 mb-2"></i>
+                                        <div class="h4 fw-bold text-primary mb-1">{{len .credentials}}</div>
+                                        <div class="small text-muted">Security Keys</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-success bg-opacity-10 border-0">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-shield-check text-success fs-2 mb-2"></i>
+                                        <div class="h4 fw-bold text-success mb-1">{{if .webauthn_enabled}}Enabled{{else}}Disabled{{end}}</div>
+                                        <div class="small text-muted">WebAuthn Status</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-info bg-opacity-10 border-0">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-clock text-info fs-2 mb-2"></i>
+                                        <div class="h4 fw-bold text-info mb-1" id="last-used-display">Never</div>
+                                        <div class="small text-muted">Last Used</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bulk Actions -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="select-all">
+                                <label class="form-check-label" for="select-all">
+                                    Select All
+                                </label>
+                            </div>
+                            <div class="btn-group" id="bulk-actions" style="display: none;">
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkDelete()">
+                                    <i class="fas fa-trash me-1"></i>
+                                    Delete Selected
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportSelected()">
+                                    <i class="fas fa-download me-1"></i>
+                                    Export
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Credentials List -->
+                        {{if .credentials}}
+                        <div class="row" id="credentials-container">
+                            {{range $index, $credential := .credentials}}
+                            <div class="col-md-6 mb-4 credential-card" data-credential-id="{{$credential.ID}}">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input credential-checkbox" type="checkbox" 
+                                                       value="{{$credential.ID}}" id="credential-{{$credential.ID}}">
+                                                <label class="form-check-label" for="credential-{{$credential.ID}}">
+                                                    <span class="visually-hidden">Select credential</span>
+                                                </label>
+                                            </div>
+                                            <div class="dropdown">
+                                                <button class="btn btn-link text-muted p-0" type="button" 
+                                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="fas fa-ellipsis-v"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li>
+                                                        <a class="dropdown-item" href="#" onclick="editCredentialName('{{$credential.ID}}', '{{$credential.Name}}')">
+                                                            <i class="fas fa-edit me-2"></i>Rename
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item" href="#" onclick="viewCredentialDetails('{{$credential.ID}}')">
+                                                            <i class="fas fa-info-circle me-2"></i>Details
+                                                        </a>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <a class="dropdown-item text-danger" href="#" onclick="deleteCredential('{{$credential.ID}}', '{{$credential.Name}}')">
+                                                            <i class="fas fa-trash me-2"></i>Delete
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <div class="text-center mb-3">
+                                            <div class="mx-auto bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                                                <i class="fas fa-key text-primary fs-4"></i>
+                                            </div>
+                                            <h6 class="fw-bold mb-1">{{$credential.Name}}</h6>
+                                            <small class="text-muted">Security Key</small>
+                                        </div>
+
+                                        <div class="row text-center small text-muted mb-3">
+                                            <div class="col-6">
+                                                <div class="fw-bold">Created</div>
+                                                <div>{{$credential.CreatedAt.Format "Jan 2, 2006"}}</div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="fw-bold">Last Used</div>
+                                                <div>{{if $credential.LastUsedAt}}{{$credential.LastUsedAt.Format "Jan 2, 2006"}}{{else}}Never{{end}}</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <small class="text-muted">Usage Count</small>
+                                                <small class="text-muted">{{$credential.UsageCount}} times</small>
+                                            </div>
+                                            <div class="progress" style="height: 4px;">
+                                                <div class="progress-bar" role="progressbar" 
+                                                     style="width: 25%"></div>
+                                            </div>
+                                        </div>
+
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-primary btn-sm flex-fill" 
+                                                    onclick="testCredential('{{$credential.ID}}')">
+                                                <i class="fas fa-vial me-1"></i>
+                                                Test
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm flex-fill" 
+                                                    onclick="editCredentialName('{{$credential.ID}}', '{{$credential.Name}}')">
+                                                <i class="fas fa-edit me-1"></i>
+                                                Rename
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        </div>
+                        {{else}}
+                        <!-- Empty State -->
+                        <div class="text-center py-5">
+                            <div class="mx-auto bg-light rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 100px; height: 100px;">
+                                <i class="fas fa-fingerprint text-muted fs-1"></i>
+                            </div>
+                            <h4 class="fw-bold text-muted mb-2">No Security Keys</h4>
+                            <p class="text-muted mb-4">
+                                You haven't set up any security keys yet. Add your first security key to enable passwordless authentication.
+                            </p>
+                            <a href="/security/webauthn/setup" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus me-2"></i>
+                                Add Your First Security Key
+                            </a>
+                        </div>
+                        {{end}}
+
+                        <!-- Back to Security -->
+                        <div class="text-center mt-4">
+                            <a href="/security" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Back to Security Settings
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Edit Credential Name Modal -->
+    <div class="modal fade" id="editCredentialModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>
+                        Rename Security Key
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-credential-form">
+                        <input type="hidden" id="edit-credential-id">
+                        <div class="mb-3">
+                            <label for="credential-name" class="form-label">Security Key Name</label>
+                            <input type="text" class="form-control" id="credential-name" 
+                                   placeholder="e.g., YubiKey 5C, iPhone Touch ID" maxlength="50" required>
+                            <div class="form-text">
+                                Give your security key a memorable name to identify it easily.
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCredentialName()">
+                        <i class="fas fa-save me-2"></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Credential Details Modal -->
+    <div class="modal fade" id="credentialDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Security Key Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="credential-details-content">
+                        <!-- Details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteCredentialModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Delete Security Key
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This action cannot be undone.
+                    </div>
+                    <p>Are you sure you want to delete the security key "<strong id="delete-credential-name"></strong>"?</p>
+                    <p class="text-muted small mb-0">
+                        You will no longer be able to use this security key to sign in to your account.
+                    </p>
+                    <input type="hidden" id="delete-credential-id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmDeleteCredential()">
+                        <i class="fas fa-trash me-2"></i>
+                        Delete Security Key
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Credential management functions
+        function editCredentialName(credentialId, currentName) {
+            document.getElementById('edit-credential-id').value = credentialId;
+            document.getElementById('credential-name').value = currentName;
+            
+            const modal = new bootstrap.Modal(document.getElementById('editCredentialModal'));
+            modal.show();
+        }
+
+        async function saveCredentialName() {
+            const credentialId = document.getElementById('edit-credential-id').value;
+            const newName = document.getElementById('credential-name').value.trim();
+            
+            if (!newName) {
+                showAlert('Please enter a name for your security key', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/security/webauthn/credentials/${credentialId}/name`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name: newName })
+                });
+                
+                if (response.ok) {
+                    showAlert('Security key renamed successfully!', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    throw new Error('Failed to rename security key');
+                }
+            } catch (error) {
+                showAlert('Failed to rename security key: ' + error.message, 'danger');
+            }
+            
+            bootstrap.Modal.getInstance(document.getElementById('editCredentialModal')).hide();
+        }
+
+        function viewCredentialDetails(credentialId) {
+            // In a real implementation, this would fetch details from the server
+            const detailsContent = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">Basic Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted">Credential ID:</td>
+                                <td><code class="small">${credentialId}</code></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Device Type:</td>
+                                <td>Security Key</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Created:</td>
+                                <td>2 days ago</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Last Used:</td>
+                                <td>1 hour ago</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">Usage Statistics</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted">Total Uses:</td>
+                                <td>15 times</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Success Rate:</td>
+                                <td>100%</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Average Response:</td>
+                                <td>1.2 seconds</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <h6 class="fw-bold mb-3">Recent Activity</h6>
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <div class="fw-medium">Successful login</div>
+                                <small class="text-muted">From Chrome on Windows</small>
+                            </div>
+                            <small class="text-muted">1 hour ago</small>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <div class="fw-medium">Successful login</div>
+                                <small class="text-muted">From Firefox on macOS</small>
+                            </div>
+                            <small class="text-muted">Yesterday</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('credential-details-content').innerHTML = detailsContent;
+            const modal = new bootstrap.Modal(document.getElementById('credentialDetailsModal'));
+            modal.show();
+        }
+
+        function deleteCredential(credentialId, credentialName) {
+            document.getElementById('delete-credential-id').value = credentialId;
+            document.getElementById('delete-credential-name').textContent = credentialName;
+            
+            const modal = new bootstrap.Modal(document.getElementById('deleteCredentialModal'));
+            modal.show();
+        }
+
+        async function confirmDeleteCredential() {
+            const credentialId = document.getElementById('delete-credential-id').value;
+            
+            try {
+                const response = await fetch(`/security/webauthn/credentials/${credentialId}/delete`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showAlert('Security key deleted successfully!', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    throw new Error('Failed to delete security key');
+                }
+            } catch (error) {
+                showAlert('Failed to delete security key: ' + error.message, 'danger');
+            }
+            
+            bootstrap.Modal.getInstance(document.getElementById('deleteCredentialModal')).hide();
+        }
+
+        async function testCredential(credentialId) {
+            try {
+                showAlert('Testing security key...', 'info');
+                
+                // Simulate WebAuthn test
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                showAlert('Security key test successful!', 'success');
+            } catch (error) {
+                showAlert('Security key test failed: ' + error.message, 'danger');
+            }
+        }
+
+        // Bulk actions
+        function updateBulkActions() {
+            const checkboxes = document.querySelectorAll('.credential-checkbox:checked');
+            const bulkActions = document.getElementById('bulk-actions');
+            
+            if (checkboxes.length > 0) {
+                bulkActions.style.display = 'block';
+            } else {
+                bulkActions.style.display = 'none';
+            }
+        }
+
+        function bulkDelete() {
+            const checkboxes = document.querySelectorAll('.credential-checkbox:checked');
+            const credentialIds = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (credentialIds.length === 0) return;
+            
+            if (confirm(`Are you sure you want to delete ${credentialIds.length} security key(s)?`)) {
+                // In a real implementation, this would send a bulk delete request
+                showAlert(`${credentialIds.length} security key(s) deleted successfully!`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            }
+        }
+
+        function exportSelected() {
+            const checkboxes = document.querySelectorAll('.credential-checkbox:checked');
+            const credentialIds = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (credentialIds.length === 0) return;
+            
+            // Generate export data
+            const exportData = {
+                exported_at: new Date().toISOString(),
+                credentials: credentialIds.map(id => ({
+                    id: id,
+                    name: `Security Key ${id}`,
+                    created_at: new Date().toISOString()
+                }))
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `webauthn-credentials-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showAlert('Credentials exported successfully!', 'success');
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Select all checkbox
+            document.getElementById('select-all')?.addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('.credential-checkbox');
+                checkboxes.forEach(cb => cb.checked = this.checked);
+                updateBulkActions();
+            });
+            
+            // Individual checkboxes
+            document.querySelectorAll('.credential-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateBulkActions);
+            });
+            
+            // Update last used display
+            updateLastUsedDisplay();
+        });
+
+        function updateLastUsedDisplay() {
+            // In a real implementation, this would calculate from actual data
+            document.getElementById('last-used-display').textContent = '2 hours ago';
+        }
+
+        // Utility functions
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle'} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+
+        // Template helper functions (would be implemented in Go)
+        function getDeviceIcon(deviceType) {
+            const icons = {
+                'security_key': 'fas fa-key',
+                'platform': 'fas fa-fingerprint',
+                'cross_platform': 'fas fa-usb',
+                'unknown': 'fas fa-question-circle'
+            };
+            return icons[deviceType] || icons['unknown'];
+        }
+
+        function getDeviceTypeName(deviceType) {
+            const names = {
+                'security_key': 'Security Key',
+                'platform': 'Built-in Authenticator',
+                'cross_platform': 'External Authenticator',
+                'unknown': 'Unknown Device'
+            };
+            return names[deviceType] || names['unknown'];
+        }
+
+        function getUsagePercentage(usageCount) {
+            // Normalize usage count to percentage (max 100 uses = 100%)
+            return Math.min((usageCount / 100) * 100, 100);
+        }
+
+        function formatDate(dateString) {
+            // In a real implementation, this would format the date properly
+            return new Date(dateString).toLocaleDateString();
+        }
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

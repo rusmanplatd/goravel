@@ -1,0 +1,656 @@
+{{define "security/sessions.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-12 col-lg-10">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h2 class="h3 fw-bold text-dark mb-2">
+                                    <i class="fas fa-desktop text-primary me-2"></i>
+                                    Active Sessions
+                                </h2>
+                                <p class="text-muted mb-0">
+                                    Manage your active sessions across all devices
+                                </p>
+                            </div>
+                            <div>
+                                <button class="btn btn-outline-danger" onclick="revokeAllSessions()">
+                                    <i class="fas fa-sign-out-alt me-2"></i>
+                                    Sign Out All Devices
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Alert Messages -->
+                        <div id="alert-container">
+                            {{if .success}}
+                            <div class="alert alert-success d-flex align-items-center alert-dismissible fade show" role="alert">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <div class="flex-grow-1">{{.success}}</div>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {{end}}
+
+                            {{if .error}}
+                            <div class="alert alert-danger d-flex align-items-center alert-dismissible fade show" role="alert">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                <div class="flex-grow-1">{{.error}}</div>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {{end}}
+                        </div>
+
+                        <!-- Session Statistics -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card bg-primary bg-opacity-10 border-0">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-desktop text-primary fs-2 mb-2"></i>
+                                        <div class="h4 fw-bold text-primary mb-1">5</div>
+                                        <div class="small text-muted">Active Sessions</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-success bg-opacity-10 border-0">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-mobile-alt text-success fs-2 mb-2"></i>
+                                        <div class="h4 fw-bold text-success mb-1">2</div>
+                                        <div class="small text-muted">Mobile Devices</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-info bg-opacity-10 border-0">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-laptop text-info fs-2 mb-2"></i>
+                                        <div class="h4 fw-bold text-info mb-1">3</div>
+                                        <div class="small text-muted">Desktop/Laptop</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning bg-opacity-10 border-0">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-clock text-warning fs-2 mb-2"></i>
+                                        <div class="h4 fw-bold text-warning mb-1">2h</div>
+                                        <div class="small text-muted">Avg Session</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filter and Search -->
+                        <div class="card border-0 bg-light mb-4">
+                            <div class="card-body py-3">
+                                <div class="row align-items-center">
+                                    <div class="col-md-6">
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-white border-end-0">
+                                                <i class="fas fa-search text-muted"></i>
+                                            </span>
+                                            <input type="text" class="form-control border-start-0" 
+                                                   placeholder="Search sessions..." id="session-search">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-flex gap-2">
+                                            <select class="form-select" id="device-filter">
+                                                <option value="">All Devices</option>
+                                                <option value="desktop">Desktop</option>
+                                                <option value="mobile">Mobile</option>
+                                                <option value="tablet">Tablet</option>
+                                            </select>
+                                            <select class="form-select" id="status-filter">
+                                                <option value="">All Status</option>
+                                                <option value="active">Active</option>
+                                                <option value="idle">Idle</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sessions List -->
+                        <div class="row" id="sessions-container">
+                            <!-- Current Session -->
+                            <div class="col-lg-6 mb-4">
+                                <div class="card border-success shadow-sm">
+                                    <div class="card-header bg-success bg-opacity-10 border-success">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-shield-check text-success me-2"></i>
+                                                <span class="fw-medium text-success">Current Session</span>
+                                            </div>
+                                            <span class="badge bg-success">Active</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <div class="me-3">
+                                                <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                    <i class="fab fa-chrome text-primary fs-4"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">Chrome on Windows 11</h6>
+                                                <div class="small text-muted mb-2">
+                                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                                    New York, United States
+                                                </div>
+                                                <div class="small text-muted">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    Started 2 hours ago • Last activity: just now
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row small text-muted mb-3">
+                                            <div class="col-6">
+                                                <strong>IP Address:</strong><br>
+                                                192.168.1.100
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>User Agent:</strong><br>
+                                                Chrome 131.0.0.0
+                                            </div>
+                                        </div>
+                                        <div class="alert alert-info py-2 mb-0">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            <small>This is your current session</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Other Sessions -->
+                            <div class="col-lg-6 mb-4">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-0">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-mobile-alt text-primary me-2"></i>
+                                                <span class="fw-medium">Mobile Session</span>
+                                            </div>
+                                            <div class="dropdown">
+                                                <button class="btn btn-link text-muted p-0" type="button" 
+                                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="fas fa-ellipsis-v"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li>
+                                                        <a class="dropdown-item" href="#" onclick="viewSessionDetails('session_2')">
+                                                            <i class="fas fa-info-circle me-2"></i>Details
+                                                        </a>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <a class="dropdown-item text-danger" href="#" onclick="revokeSession('session_2')">
+                                                            <i class="fas fa-sign-out-alt me-2"></i>Sign Out
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <div class="me-3">
+                                                <div class="bg-info bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                    <i class="fab fa-safari text-info fs-4"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">Safari on iPhone 15</h6>
+                                                <div class="small text-muted mb-2">
+                                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                                    San Francisco, United States
+                                                </div>
+                                                <div class="small text-muted">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    Started yesterday • Last activity: 30 min ago
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row small text-muted mb-3">
+                                            <div class="col-6">
+                                                <strong>IP Address:</strong><br>
+                                                203.0.113.45
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>User Agent:</strong><br>
+                                                Safari 17.2
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-primary btn-sm flex-fill" 
+                                                    onclick="viewSessionDetails('session_2')">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                Details
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm flex-fill" 
+                                                    onclick="revokeSession('session_2')">
+                                                <i class="fas fa-sign-out-alt me-1"></i>
+                                                Sign Out
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-6 mb-4">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-0">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-laptop text-primary me-2"></i>
+                                                <span class="fw-medium">Desktop Session</span>
+                                            </div>
+                                            <span class="badge bg-warning">Idle</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <div class="me-3">
+                                                <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                    <i class="fab fa-firefox text-warning fs-4"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">Firefox on macOS Sonoma</h6>
+                                                <div class="small text-muted mb-2">
+                                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                                    London, United Kingdom
+                                                </div>
+                                                <div class="small text-muted">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    Started 3 days ago • Last activity: 2 hours ago
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row small text-muted mb-3">
+                                            <div class="col-6">
+                                                <strong>IP Address:</strong><br>
+                                                198.51.100.123
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>User Agent:</strong><br>
+                                                Firefox 122.0
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-primary btn-sm flex-fill" 
+                                                    onclick="viewSessionDetails('session_3')">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                Details
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm flex-fill" 
+                                                    onclick="revokeSession('session_3')">
+                                                <i class="fas fa-sign-out-alt me-1"></i>
+                                                Sign Out
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-6 mb-4">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-0">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-tablet-alt text-primary me-2"></i>
+                                                <span class="fw-medium">Tablet Session</span>
+                                            </div>
+                                            <span class="badge bg-success">Active</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <div class="me-3">
+                                                <div class="bg-secondary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                    <i class="fab fa-edge text-secondary fs-4"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">Edge on iPad Pro</h6>
+                                                <div class="small text-muted mb-2">
+                                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                                    Toronto, Canada
+                                                </div>
+                                                <div class="small text-muted">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    Started 1 day ago • Last activity: 15 min ago
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row small text-muted mb-3">
+                                            <div class="col-6">
+                                                <strong>IP Address:</strong><br>
+                                                192.0.2.67
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>User Agent:</strong><br>
+                                                Edge 131.0.0.0
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-primary btn-sm flex-fill" 
+                                                    onclick="viewSessionDetails('session_4')">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                Details
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm flex-fill" 
+                                                    onclick="revokeSession('session_4')">
+                                                <i class="fas fa-sign-out-alt me-1"></i>
+                                                Sign Out
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Back to Security -->
+                        <div class="text-center mt-4">
+                            <a href="/security" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Back to Security Settings
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Session Details Modal -->
+    <div class="modal fade" id="sessionDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Session Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="session-details-content">
+                        <!-- Details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-danger" onclick="revokeSessionFromModal()">
+                        <i class="fas fa-sign-out-alt me-2"></i>
+                        Sign Out This Session
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revoke All Sessions Confirmation Modal -->
+    <div class="modal fade" id="revokeAllModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Sign Out All Devices
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This will sign you out of all devices except this one.
+                    </div>
+                    <p>Are you sure you want to sign out of all other devices? This action will:</p>
+                    <ul class="mb-0">
+                        <li>End all active sessions on other devices</li>
+                        <li>Require you to sign in again on those devices</li>
+                        <li>Keep your current session active</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmRevokeAll()">
+                        <i class="fas fa-sign-out-alt me-2"></i>
+                        Sign Out All Other Devices
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSessionId = null;
+
+        // Session management functions
+        function viewSessionDetails(sessionId) {
+            currentSessionId = sessionId;
+            
+            // Mock session data - in real implementation, this would come from server
+            const sessionData = {
+                session_2: {
+                    device: 'Safari on iPhone 15',
+                    location: 'San Francisco, United States',
+                    ip: '203.0.113.45',
+                    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15',
+                    startTime: 'Yesterday at 2:30 PM',
+                    lastActivity: '30 minutes ago',
+                    activities: [
+                        { time: '30 min ago', action: 'Viewed security settings' },
+                        { time: '1 hour ago', action: 'Updated profile information' },
+                        { time: '2 hours ago', action: 'Logged in successfully' }
+                    ]
+                }
+            };
+            
+            const session = sessionData[sessionId] || sessionData.session_2;
+            
+            const detailsHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">Session Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted">Device:</td>
+                                <td>${session.device}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Location:</td>
+                                <td>${session.location}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">IP Address:</td>
+                                <td><code>${session.ip}</code></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Started:</td>
+                                <td>${session.startTime}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Last Activity:</td>
+                                <td>${session.lastActivity}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">User Agent</h6>
+                        <div class="bg-light p-3 rounded">
+                            <code class="small">${session.userAgent}</code>
+                        </div>
+                        
+                        <h6 class="fw-bold mb-3 mt-4">Security Status</h6>
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item px-0 py-2 d-flex justify-content-between">
+                                <span>Secure Connection</span>
+                                <span class="badge bg-success">HTTPS</span>
+                            </div>
+                            <div class="list-group-item px-0 py-2 d-flex justify-content-between">
+                                <span>Two-Factor Auth</span>
+                                <span class="badge bg-success">Verified</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <h6 class="fw-bold mb-3">Recent Activity</h6>
+                    <div class="list-group">
+                        ${session.activities.map(activity => `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-medium">${activity.action}</div>
+                                </div>
+                                <small class="text-muted">${activity.time}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('session-details-content').innerHTML = detailsHTML;
+            const modal = new bootstrap.Modal(document.getElementById('sessionDetailsModal'));
+            modal.show();
+        }
+
+        function revokeSession(sessionId) {
+            if (confirm('Are you sure you want to sign out of this session?')) {
+                showAlert('Signing out session...', 'info');
+                
+                // Simulate API call
+                setTimeout(() => {
+                    showAlert('Session signed out successfully!', 'success');
+                    // Remove the session card from UI
+                    const sessionCard = document.querySelector(`[onclick*="${sessionId}"]`).closest('.col-lg-6');
+                    if (sessionCard) {
+                        sessionCard.remove();
+                    }
+                }, 1000);
+            }
+        }
+
+        function revokeAllSessions() {
+            const modal = new bootstrap.Modal(document.getElementById('revokeAllModal'));
+            modal.show();
+        }
+
+        function confirmRevokeAll() {
+            showAlert('Signing out all other sessions...', 'info');
+            
+            // Simulate API call
+            setTimeout(() => {
+                showAlert('All other sessions have been signed out successfully!', 'success');
+                // Remove all non-current session cards
+                document.querySelectorAll('.col-lg-6:not(:first-child)').forEach(card => {
+                    card.remove();
+                });
+            }, 1500);
+            
+            bootstrap.Modal.getInstance(document.getElementById('revokeAllModal')).hide();
+        }
+
+        function revokeSessionFromModal() {
+            if (currentSessionId) {
+                revokeSession(currentSessionId);
+                bootstrap.Modal.getInstance(document.getElementById('sessionDetailsModal')).hide();
+            }
+        }
+
+        // Search and filter functionality
+        document.getElementById('session-search').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const sessionCards = document.querySelectorAll('#sessions-container .col-lg-6');
+            
+            sessionCards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+
+        document.getElementById('device-filter').addEventListener('change', function() {
+            const filterValue = this.value.toLowerCase();
+            const sessionCards = document.querySelectorAll('#sessions-container .col-lg-6');
+            
+            sessionCards.forEach(card => {
+                if (!filterValue) {
+                    card.style.display = 'block';
+                } else {
+                    const deviceText = card.textContent.toLowerCase();
+                    if (deviceText.includes(filterValue)) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                }
+            });
+        });
+
+        // Utility functions
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'info' ? 'info-circle' : 'exclamation-circle'} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+
+        // Auto-dismiss existing alerts after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.alert-dismissible').forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+    </script>
+
+    <style>
+        .card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+        }
+        
+        .badge {
+            font-size: 0.75em;
+        }
+        
+        .list-group-item {
+            transition: background-color 0.2s ease;
+        }
+        
+        .list-group-item:hover {
+            background-color: rgba(0,0,0,0.02);
+        }
+    </style>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

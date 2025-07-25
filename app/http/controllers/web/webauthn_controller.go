@@ -1,0 +1,281 @@
+package web
+
+import (
+	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
+
+	"goravel/app/models"
+	"goravel/app/services"
+)
+
+type WebAuthnController struct {
+	authService     *services.AuthService
+	webauthnService *services.WebAuthnService
+}
+
+func NewWebAuthnController() *WebAuthnController {
+	return &WebAuthnController{
+		authService:     services.NewAuthService(),
+		webauthnService: services.NewWebAuthnService(),
+	}
+}
+
+// getCurrentUser gets the current authenticated user from session
+func (c *WebAuthnController) getCurrentUser(ctx http.Context) *models.User {
+	userID := ctx.Request().Session().Get("user_id")
+	if userID == nil {
+		return nil
+	}
+
+	var user models.User
+	err := facades.Orm().Query().Where("id", userID).First(&user)
+	if err != nil {
+		return nil
+	}
+
+	return &user
+}
+
+// ShowSetup displays the WebAuthn setup page
+func (c *WebAuthnController) ShowSetup(ctx http.Context) http.Response {
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
+
+	// Get existing credentials
+	credentials, err := c.webauthnService.GetUserCredentials(user)
+	if err != nil {
+		credentials = []models.WebauthnCredential{}
+	}
+
+	return ctx.Response().View().Make("security/webauthn/setup.tmpl", map[string]interface{}{
+		"title":       "Setup Passwordless Authentication",
+		"user":        user,
+		"credentials": credentials,
+	})
+}
+
+// ShowManage displays the WebAuthn management page
+func (c *WebAuthnController) ShowManage(ctx http.Context) http.Response {
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
+
+	// Get existing credentials
+	credentials, err := c.webauthnService.GetUserCredentials(user)
+	if err != nil {
+		credentials = []models.WebauthnCredential{}
+	}
+
+	return ctx.Response().View().Make("security/webauthn/manage.tmpl", map[string]interface{}{
+		"title":       "Manage Security Keys",
+		"user":        user,
+		"credentials": credentials,
+	})
+}
+
+// BeginRegistration starts the WebAuthn registration process
+func (c *WebAuthnController) BeginRegistration(ctx http.Context) http.Response {
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Json(401, map[string]interface{}{
+			"error": "Unauthorized",
+		})
+	}
+
+	registrationData, err := c.webauthnService.BeginRegistration(user)
+	if err != nil {
+		return ctx.Response().Json(500, map[string]interface{}{
+			"error": "Failed to begin registration",
+		})
+	}
+
+	return ctx.Response().Json(200, registrationData)
+}
+
+// FinishRegistration completes the WebAuthn registration process
+func (c *WebAuthnController) FinishRegistration(ctx http.Context) http.Response {
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Json(401, map[string]interface{}{
+			"error": "Unauthorized",
+		})
+	}
+
+	var response map[string]interface{}
+	if err := ctx.Request().Bind(&response); err != nil {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": "Invalid request data",
+		})
+	}
+
+	credential, err := c.webauthnService.FinishRegistration(user, response)
+	if err != nil {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"success":    true,
+		"credential": credential,
+		"message":    "Security key registered successfully",
+	})
+}
+
+// BeginAuthentication starts the WebAuthn authentication process
+func (c *WebAuthnController) BeginAuthentication(ctx http.Context) http.Response {
+	// This can be called without authentication for login flow
+	email := ctx.Request().Input("email", "")
+	if email == "" {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": "Email is required",
+		})
+	}
+
+	var user models.User
+	err := facades.Orm().Query().Where("email", email).First(&user)
+	if err != nil {
+		return ctx.Response().Json(404, map[string]interface{}{
+			"error": "User not found",
+		})
+	}
+
+	authData, err := c.webauthnService.BeginLogin(&user)
+	if err != nil {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	return ctx.Response().Json(200, authData)
+}
+
+// FinishAuthentication completes the WebAuthn authentication process
+func (c *WebAuthnController) FinishAuthentication(ctx http.Context) http.Response {
+	var response map[string]interface{}
+	if err := ctx.Request().Bind(&response); err != nil {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": "Invalid request data",
+		})
+	}
+
+	// Get user from the response (should include user identifier)
+	email := response["email"].(string)
+	var user models.User
+	err := facades.Orm().Query().Where("email", email).First(&user)
+	if err != nil {
+		return ctx.Response().Json(404, map[string]interface{}{
+			"error": "User not found",
+		})
+	}
+
+	err = c.webauthnService.FinishLogin(&user, response)
+	if err != nil {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	// Set session for web authentication
+	ctx.Request().Session().Put("user_id", user.ID)
+	ctx.Request().Session().Put("user_email", user.Email)
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"success":  true,
+		"message":  "Authentication successful",
+		"redirect": "/dashboard",
+	})
+}
+
+// DeleteCredential deletes a WebAuthn credential
+func (c *WebAuthnController) DeleteCredential(ctx http.Context) http.Response {
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
+
+	credentialID := ctx.Request().Route("id")
+	if credentialID == "" {
+		return ctx.Response().Redirect(302, "/security/webauthn/manage?error=Invalid credential ID")
+	}
+
+	err := c.webauthnService.DeleteCredential(user, credentialID)
+	if err != nil {
+		return ctx.Response().Redirect(302, "/security/webauthn/manage?error=Failed to delete credential")
+	}
+
+	return ctx.Response().Redirect(302, "/security/webauthn/manage?success=Security key deleted successfully")
+}
+
+// ShowCredentials displays credentials as JSON (for AJAX requests)
+func (c *WebAuthnController) ShowCredentials(ctx http.Context) http.Response {
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Json(401, map[string]interface{}{
+			"error": "Unauthorized",
+		})
+	}
+
+	credentials, err := c.webauthnService.GetUserCredentials(user)
+	if err != nil {
+		return ctx.Response().Json(500, map[string]interface{}{
+			"error": "Failed to fetch credentials",
+		})
+	}
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"credentials": credentials,
+	})
+}
+
+// UpdateCredentialName updates the name of a WebAuthn credential
+func (c *WebAuthnController) UpdateCredentialName(ctx http.Context) http.Response {
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Json(401, map[string]interface{}{
+			"error": "Unauthorized",
+		})
+	}
+
+	credentialID := ctx.Request().Route("id")
+	if credentialID == "" {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": "Invalid credential ID",
+		})
+	}
+
+	var req struct {
+		Name string `form:"name" json:"name"`
+	}
+
+	if err := ctx.Request().Bind(&req); err != nil {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error": "Invalid request data",
+		})
+	}
+
+	// Find and update credential
+	var credential models.WebauthnCredential
+	err := facades.Orm().Query().Where("user_id", user.ID).Where("credential_id", credentialID).First(&credential)
+	if err != nil {
+		return ctx.Response().Json(404, map[string]interface{}{
+			"error": "Credential not found",
+		})
+	}
+
+	credential.Name = req.Name
+	err = facades.Orm().Query().Save(&credential)
+	if err != nil {
+		return ctx.Response().Json(500, map[string]interface{}{
+			"error": "Failed to update credential",
+		})
+	}
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"success": true,
+		"message": "Credential name updated successfully",
+	})
+}
