@@ -29,6 +29,14 @@ type User struct {
 	// @example abc123def456
 	RememberToken string `json:"remember_token,omitempty" example:"abc123def456"`
 
+	// User's profile picture/avatar URL
+	// @example https://example.com/avatar.jpg
+	Avatar string `json:"avatar,omitempty" example:"https://example.com/avatar.jpg"`
+
+	// Google OAuth ID for Google sign-in integration
+	// @example 123456789012345678901
+	GoogleID *string `gorm:"unique" json:"google_id,omitempty" example:"123456789012345678901"`
+
 	// Whether the user is active
 	// @example true
 	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`

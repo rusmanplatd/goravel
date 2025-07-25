@@ -86,6 +86,17 @@ func Web() {
 		router.Post("/oauth/authorize", oauthController.HandleAuthorize)
 	})
 
+	// Google OAuth routes (public)
+	googleOAuthController := web.NewGoogleOAuthController()
+	facades.Route().Get("/auth/google", googleOAuthController.Redirect)
+	facades.Route().Get("/auth/google/callback", googleOAuthController.Callback)
+
+	// Protected Google OAuth routes
+	facades.Route().Group(func(router route.Router) {
+		router.Middleware(middleware.WebAuth())
+		router.Post("/auth/google/unlink", googleOAuthController.Unlink)
+	})
+
 	// Default route
 	facades.Route().Get("/", func(ctx http.Context) http.Response {
 		return ctx.Response().Redirect(302, "/dashboard")

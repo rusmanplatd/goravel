@@ -72,6 +72,7 @@ func (kernel Kernel) Migrations() []schema.Migration {
 		&migrations.M20250115000055CreateTaskTimeEntriesTable{},
 		&migrations.M20250115000056CreateTaskBoardsTable{},
 		&migrations.M20250115000057CreateTaskBoardColumnsTable{},
+		&migrations.M20250115000060AddGoogleOauthFieldsToUsersTable{},
 	}
 }
 
