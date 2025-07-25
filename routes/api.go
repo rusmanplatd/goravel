@@ -5,6 +5,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	v1 "goravel/app/http/controllers/api/v1"
+	"goravel/app/http/middleware"
 )
 
 func Api() {
@@ -37,12 +38,11 @@ func Api() {
 	// WebAuthn public routes (for authentication)
 	facades.Route().Post("/api/v1/auth/webauthn/authenticate", authController.WebauthnAuthenticate)
 
-	// Protected routes (require authentication) - temporarily without middleware for testing
-	// Authentication management (requires auth)
-	facades.Route().Post("/api/v1/auth/refresh", authController.RefreshToken)
-	facades.Route().Post("/api/v1/auth/logout", authController.Logout)
-	facades.Route().Get("/api/v1/auth/profile", authController.GetProfile)
-	facades.Route().Post("/api/v1/auth/change-password", authController.ChangePassword)
+	// Protected routes (require authentication) - now using auth middleware
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/refresh", authController.RefreshToken)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/logout", authController.Logout)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/auth/profile", authController.GetProfile)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/change-password", authController.ChangePassword)
 
 	// MFA routes
 	facades.Route().Get("/api/v1/auth/mfa/setup", authController.GenerateMfaSetup)

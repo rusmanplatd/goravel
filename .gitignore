@@ -5,3 +5,4 @@
 !.env.example
 storage/framework
 goravel
+main

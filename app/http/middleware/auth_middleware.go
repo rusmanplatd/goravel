@@ -11,58 +11,57 @@ import (
 	"goravel/app/services"
 )
 
-type AuthMiddleware struct {
-	jwtService *services.JWTService
-}
+// Auth returns a middleware function for authentication
+func Auth() http.Middleware {
+	return func(ctx http.Context) {
+		// Get Authorization header
+		authHeader := ctx.Request().Header("Authorization", "")
+		if authHeader == "" {
+			ctx.Response().Status(401).Json(http.Json{
+				"status":  "error",
+				"message": "Authorization header required",
+			})
+			return
+		}
 
-func NewAuthMiddleware() *AuthMiddleware {
-	return &AuthMiddleware{
-		jwtService: services.NewJWTService(),
+		// Check if it's a Bearer token
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			ctx.Response().Status(401).Json(http.Json{
+				"status":  "error",
+				"message": "Invalid authorization format",
+			})
+			return
+		}
+
+		// Extract token
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+
+		// Validate token and get user
+		user, err := validateToken(token)
+		if err != nil {
+			ctx.Response().Status(401).Json(http.Json{
+				"status":  "error",
+				"message": "Invalid token",
+			})
+			return
+		}
+
+		// Add user to context
+		ctx.WithValue("user", user)
+		ctx.WithValue("user_id", user.ID)
+
+		// Continue to next middleware/handler
+		ctx.Request().Next()
 	}
-}
-
-func (m *AuthMiddleware) Handle(ctx http.Context) http.Response {
-	// Get Authorization header
-	authHeader := ctx.Request().Header("Authorization", "")
-	if authHeader == "" {
-		return ctx.Response().Status(401).Json(http.Json{
-			"status":  "error",
-			"message": "Authorization header required",
-		})
-	}
-
-	// Check if it's a Bearer token
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return ctx.Response().Status(401).Json(http.Json{
-			"status":  "error",
-			"message": "Invalid authorization format",
-		})
-	}
-
-	// Extract token
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// Validate token and get user
-	user, err := m.validateToken(token)
-	if err != nil {
-		return ctx.Response().Status(401).Json(http.Json{
-			"status":  "error",
-			"message": "Invalid token",
-		})
-	}
-
-	// Add user to context
-	ctx.WithValue("user", user)
-	ctx.WithValue("user_id", user.ID)
-
-	ctx.Request().Next()
-	return nil
 }
 
 // validateToken validates JWT token and returns user
-func (m *AuthMiddleware) validateToken(token string) (*models.User, error) {
+func validateToken(token string) (*models.User, error) {
+	// Create JWT service instance
+	jwtService := services.NewJWTService()
+
 	// Validate token using JWT service
-	claims, err := m.jwtService.ValidateToken(token)
+	claims, err := jwtService.ValidateToken(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %v", err)
 	}
@@ -85,10 +84,4 @@ func (m *AuthMiddleware) validateToken(token string) (*models.User, error) {
 	}
 
 	return &user, nil
-}
-
-// Auth helper function
-func Auth() func(ctx http.Context) http.Response {
-	middleware := NewAuthMiddleware()
-	return middleware.Handle
 }
