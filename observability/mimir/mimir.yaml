@@ -1,0 +1,44 @@
+multitenancy_enabled: false
+
+blocks_storage:
+  backend: filesystem
+  filesystem:
+    dir: /data/blocks
+
+compactor:
+  data_dir: /data/compactor
+
+distributor:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: memberlist
+
+ingester:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: memberlist
+    replication_factor: 1
+
+ruler_storage:
+  backend: filesystem
+  filesystem:
+    dir: /data/ruler
+
+server:
+  http_listen_port: 9009
+  grpc_listen_port: 9095
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - 127.0.0.1:7946
+
+limits:
+  compactor_blocks_retention_period: 24h 

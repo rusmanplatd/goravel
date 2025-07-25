@@ -16,6 +16,6 @@ COPY --from=builder /build/main /www/
 COPY --from=builder /build/public/ /www/public/
 COPY --from=builder /build/storage/ /www/storage/
 COPY --from=builder /build/resources/ /www/resources/
-COPY --from=builder /build/.env /www/.env
+# Note: .env is not copied - use environment variables in docker-compose.yml
 
 ENTRYPOINT ["/www/main"]

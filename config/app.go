@@ -123,6 +123,7 @@ func init() {
 			&providers.EventServiceProvider{},
 			&providers.ValidationServiceProvider{},
 			&providers.DatabaseServiceProvider{},
+			&providers.ObservabilityServiceProvider{},
 			&gin.ServiceProvider{},
 			&postgres.ServiceProvider{},
 			&minio.ServiceProvider{},
