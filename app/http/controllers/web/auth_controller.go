@@ -36,12 +36,13 @@ func (c *AuthController) ShowRegister(ctx http.Context) http.Response {
 
 // ShowDashboard displays the main dashboard
 func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
-	// For now, create a mock user and stats
-	// In a real implementation, you would get this from session/auth
-	user := map[string]interface{}{
-		"Name":  "Admin User",
-		"Email": "admin@example.com",
+	// Get user from context (set by middleware)
+	user := ctx.Value("user")
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
 	}
+
+	authenticatedUser := user.(*models.User)
 
 	// Get basic stats
 	tenantCount, _ := facades.Orm().Query().Model(&models.Tenant{}).Count()
@@ -58,7 +59,7 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 
 	return ctx.Response().View().Make("dashboard.tmpl", map[string]interface{}{
 		"title":   "Dashboard",
-		"user":    user,
+		"user":    authenticatedUser,
 		"stats":   stats,
 		"version": support.Version,
 	})
@@ -95,7 +96,7 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		})
 	}
 
-	user, token, err := c.authService.Login(ctx, &req)
+	user, _, err := c.authService.Login(ctx, &req)
 	if err != nil {
 		return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
 			"title": "Login",
@@ -104,15 +105,12 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		})
 	}
 
-	// For now, just redirect to dashboard with success message
-	// In a real implementation, you would set session data
-	return ctx.Response().View().Make("dashboard.tmpl", map[string]interface{}{
-		"title":   "Dashboard",
-		"user":    user,
-		"token":   token,
-		"version": support.Version,
-		"message": "Login successful",
-	})
+	// Set session data for web authentication
+	ctx.Request().Session().Put("user_id", user.ID)
+	ctx.Request().Session().Put("user_email", user.Email)
+
+	// Redirect to dashboard
+	return ctx.Response().Redirect(302, "/dashboard")
 }
 
 // Register handles web registration form submission
@@ -127,7 +125,7 @@ func (c *AuthController) Register(ctx http.Context) http.Response {
 		})
 	}
 
-	user, token, err := c.authService.Register(ctx, &req)
+	user, _, err := c.authService.Register(ctx, &req)
 	if err != nil {
 		errorMsg := "Registration failed"
 		if err.Error() == "user already exists" {
@@ -142,21 +140,22 @@ func (c *AuthController) Register(ctx http.Context) http.Response {
 		})
 	}
 
-	// For now, just redirect to dashboard with success message
-	// In a real implementation, you would set session data
-	return ctx.Response().View().Make("dashboard.tmpl", map[string]interface{}{
-		"title":   "Dashboard",
-		"user":    user,
-		"token":   token,
-		"version": support.Version,
-		"message": "Registration successful",
-	})
+	// Set session data for web authentication
+	ctx.Request().Session().Put("user_id", user.ID)
+	ctx.Request().Session().Put("user_email", user.Email)
+
+	// Redirect to dashboard
+	return ctx.Response().Redirect(302, "/dashboard")
 }
 
 // Logout handles user logout
 func (c *AuthController) Logout(ctx http.Context) http.Response {
-	// In a real implementation, you would clear session data
-	return ctx.Response().Redirect(302, "/login")
+	// Clear session data
+	ctx.Request().Session().Forget("user_id")
+	ctx.Request().Session().Forget("user_email")
+	ctx.Request().Session().Flush()
+
+	return ctx.Response().Redirect(302, "/login?message=Logged out successfully")
 }
 
 // ForgotPassword handles forgot password form submission

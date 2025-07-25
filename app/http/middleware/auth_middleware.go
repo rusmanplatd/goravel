@@ -11,7 +11,7 @@ import (
 	"goravel/app/services"
 )
 
-// Auth returns a middleware function for authentication
+// Auth returns a middleware function for API authentication using JWT tokens
 func Auth() http.Middleware {
 	return func(ctx http.Context) {
 		// Get Authorization header
@@ -20,7 +20,7 @@ func Auth() http.Middleware {
 			ctx.Response().Status(401).Json(http.Json{
 				"status":  "error",
 				"message": "Authorization header required",
-			})
+			}).Abort()
 			return
 		}
 
@@ -29,7 +29,7 @@ func Auth() http.Middleware {
 			ctx.Response().Status(401).Json(http.Json{
 				"status":  "error",
 				"message": "Invalid authorization format",
-			})
+			}).Abort()
 			return
 		}
 
@@ -42,7 +42,7 @@ func Auth() http.Middleware {
 			ctx.Response().Status(401).Json(http.Json{
 				"status":  "error",
 				"message": "Invalid token",
-			})
+			}).Abort()
 			return
 		}
 

@@ -6,6 +6,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/http/controllers/web"
+	"goravel/app/http/middleware"
 )
 
 // Web routes
@@ -32,8 +33,8 @@ func Web() {
 
 		// Protected routes (authentication required)
 		router.Group(func(router route.Router) {
-			// Apply auth middleware here if needed
-			// router.Middleware("auth")
+			// Apply web auth middleware
+			router.Middleware(middleware.WebAuth())
 
 			// Dashboard
 			router.Get("/dashboard", authController.ShowDashboard)
@@ -77,6 +78,9 @@ func Web() {
 
 	// OAuth2 Authorization routes (separate from API)
 	facades.Route().Group(func(router route.Router) {
+		// Apply web auth middleware for OAuth authorization
+		router.Middleware(middleware.WebAuth())
+
 		// OAuth authorization endpoint (requires authentication)
 		router.Get("/oauth/authorize", oauthController.ShowAuthorize)
 		router.Post("/oauth/authorize", oauthController.HandleAuthorize)
