@@ -3,7 +3,6 @@ package services
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -266,47 +265,22 @@ func (s *AuthService) GenerateMfaSetup(user *models.User) map[string]interface{}
 
 // WebauthnRegister registers a new WebAuthn credential
 func (s *AuthService) WebauthnRegister(ctx http.Context, user *models.User, req *requests.WebauthnRegisterRequest) (*models.WebauthnCredential, error) {
-	// This is a simplified implementation
-	// In a real implementation, you would use a WebAuthn library like github.com/go-webauthn/webauthn
-
-	credential := &models.WebauthnCredential{
-		UserID:          user.ID,
-		Name:            req.Name,
-		CredentialID:    s.generateCredentialID(),
-		PublicKey:       "simulated_public_key_data",
-		AttestationType: "direct",
-		Transports:      "[\"usb\",\"nfc\"]",
-		Flags:           "backup_eligible,backed_up",
-		BackupEligible:  true,
-		BackedUp:        false,
-		SignCount:       0,
-	}
-
-	credential.ID = helpers.GenerateULID()
-
-	err := facades.Orm().Query().Create(credential)
-	if err != nil {
-		return nil, err
-	}
-
-	// Enable WebAuthn for user if not already enabled
-	if !user.WebauthnEnabled {
-		now := time.Now()
-		user.WebauthnEnabled = true
-		user.WebauthnEnabledAt = &now
-		facades.Orm().Query().Save(user)
-	}
-
-	return credential, nil
+	// Use the improved WebAuthn service for credential registration
+	return s.webauthnService.FinishRegistration(user, req.Name, req.AttestationResponse)
 }
 
 // WebauthnAuthenticate authenticates using WebAuthn
 func (s *AuthService) WebauthnAuthenticate(ctx http.Context, user *models.User, req *requests.WebauthnAuthenticateRequest) bool {
-	// This is a simplified implementation
-	// In a real implementation, you would verify the assertion using a WebAuthn library
-
-	// For now, we'll just check if the user has WebAuthn enabled
-	return user.WebauthnEnabled
+	// Use the improved WebAuthn service for authentication
+	success, err := s.webauthnService.FinishAuthentication(user, req.AssertionResponse)
+	if err != nil {
+		facades.Log().Warning("WebAuthn authentication failed", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return false
+	}
+	return success
 }
 
 // ChangePassword changes user password
@@ -368,12 +342,6 @@ func (s *AuthService) generateMFASecret() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)
 	return base32.StdEncoding.EncodeToString(bytes)
-}
-
-func (s *AuthService) generateCredentialID() string {
-	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return base64.StdEncoding.EncodeToString(bytes)
 }
 
 func (s *AuthService) verifyMfaCode(secret, code string) bool {

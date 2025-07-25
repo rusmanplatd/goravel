@@ -106,14 +106,23 @@ func (c *WebAuthnController) FinishRegistration(ctx http.Context) http.Response 
 		})
 	}
 
-	var response map[string]interface{}
-	if err := ctx.Request().Bind(&response); err != nil {
+	var request struct {
+		Name     string                 `json:"name"`
+		Response map[string]interface{} `json:"response"`
+	}
+	if err := ctx.Request().Bind(&request); err != nil {
 		return ctx.Response().Json(400, map[string]interface{}{
 			"error": "Invalid request data",
 		})
 	}
 
-	credential, err := c.webauthnService.FinishRegistration(user, response)
+	// Use default name if not provided
+	credentialName := request.Name
+	if credentialName == "" {
+		credentialName = "Security Key"
+	}
+
+	credential, err := c.webauthnService.FinishRegistration(user, credentialName, request.Response)
 	if err != nil {
 		return ctx.Response().Json(400, map[string]interface{}{
 			"error": err.Error(),

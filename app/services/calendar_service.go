@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"goravel/app/models"
@@ -285,27 +287,231 @@ func (cs *CalendarService) GenerateRecurringEvents(event *models.CalendarEvent) 
 
 // parseRRULE parses RRULE and generates event instances
 func (cs *CalendarService) parseRRULE(event *models.CalendarEvent) []models.CalendarEvent {
-	// This is a simplified RRULE parser
-	// In production, you'd use a proper library like github.com/teambition/rrule-go
+	// Enhanced RRULE parser supporting common recurrence patterns
+	// For production use, consider github.com/teambition/rrule-go or similar
 
 	var instances []models.CalendarEvent
-	currentTime := event.StartTime
 
-	// Simple weekly recurrence for now
-	if event.RecurrenceUntil != nil {
-		for currentTime.Before(*event.RecurrenceUntil) {
-			instance := *event
-			instance.ID = "" // Clear ID for new instance
-			instance.StartTime = currentTime
-			instance.EndTime = currentTime.Add(event.EndTime.Sub(event.StartTime))
-			instance.ParentEventID = &event.ID
+	if event.RecurrenceRule == "" {
+		return instances
+	}
 
-			instances = append(instances, instance)
+	// Parse RRULE string
+	rrule, err := cs.parseRRULEString(event.RecurrenceRule)
+	if err != nil {
+		facades.Log().Error("Failed to parse RRULE", map[string]interface{}{
+			"event_id":        event.ID,
+			"recurrence_rule": event.RecurrenceRule,
+			"error":           err.Error(),
+		})
+		return instances
+	}
 
-			// Move to next week
-			currentTime = currentTime.AddDate(0, 0, 7)
+	// Generate instances based on the parsed rule
+	instances = cs.generateRecurrenceInstances(event, rrule)
+
+	facades.Log().Info("Generated recurring instances", map[string]interface{}{
+		"event_id":       event.ID,
+		"instance_count": len(instances),
+		"frequency":      rrule.Frequency,
+		"interval":       rrule.Interval,
+	})
+
+	return instances
+}
+
+// RRULERule represents a parsed RRULE
+type RRULERule struct {
+	Frequency  string     // DAILY, WEEKLY, MONTHLY, YEARLY
+	Interval   int        // Interval between occurrences
+	Count      int        // Number of occurrences (0 = unlimited)
+	Until      *time.Time // End date
+	ByDay      []string   // Days of week (MO, TU, WE, etc.)
+	ByMonth    []int      // Months (1-12)
+	ByMonthDay []int      // Days of month (1-31)
+}
+
+// parseRRULEString parses an RRULE string into a structured format
+func (cs *CalendarService) parseRRULEString(rruleStr string) (*RRULERule, error) {
+	rule := &RRULERule{
+		Interval: 1, // Default interval
+	}
+
+	// Remove RRULE: prefix if present
+	if strings.HasPrefix(rruleStr, "RRULE:") {
+		rruleStr = strings.TrimPrefix(rruleStr, "RRULE:")
+	}
+
+	// Split by semicolon
+	parts := strings.Split(rruleStr, ";")
+
+	for _, part := range parts {
+		keyValue := strings.Split(part, "=")
+		if len(keyValue) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(keyValue[0])
+		value := strings.TrimSpace(keyValue[1])
+
+		switch key {
+		case "FREQ":
+			rule.Frequency = value
+		case "INTERVAL":
+			if interval, err := strconv.Atoi(value); err == nil {
+				rule.Interval = interval
+			}
+		case "COUNT":
+			if count, err := strconv.Atoi(value); err == nil {
+				rule.Count = count
+			}
+		case "UNTIL":
+			if until, err := time.Parse("20060102T150405Z", value); err == nil {
+				rule.Until = &until
+			} else if until, err := time.Parse("20060102", value); err == nil {
+				rule.Until = &until
+			}
+		case "BYDAY":
+			rule.ByDay = strings.Split(value, ",")
+		case "BYMONTH":
+			for _, monthStr := range strings.Split(value, ",") {
+				if month, err := strconv.Atoi(monthStr); err == nil {
+					rule.ByMonth = append(rule.ByMonth, month)
+				}
+			}
+		case "BYMONTHDAY":
+			for _, dayStr := range strings.Split(value, ",") {
+				if day, err := strconv.Atoi(dayStr); err == nil {
+					rule.ByMonthDay = append(rule.ByMonthDay, day)
+				}
+			}
 		}
 	}
 
+	// Validate required fields
+	if rule.Frequency == "" {
+		return nil, fmt.Errorf("FREQ is required in RRULE")
+	}
+
+	return rule, nil
+}
+
+// generateRecurrenceInstances generates event instances based on the RRULE
+func (cs *CalendarService) generateRecurrenceInstances(event *models.CalendarEvent, rule *RRULERule) []models.CalendarEvent {
+	var instances []models.CalendarEvent
+
+	// Determine end condition
+	maxInstances := 100 // Safety limit
+	if rule.Count > 0 && rule.Count < maxInstances {
+		maxInstances = rule.Count
+	}
+
+	endTime := time.Now().AddDate(1, 0, 0) // Default: 1 year from now
+	if rule.Until != nil {
+		endTime = *rule.Until
+	}
+	if event.RecurrenceUntil != nil && event.RecurrenceUntil.Before(endTime) {
+		endTime = *event.RecurrenceUntil
+	}
+
+	currentTime := event.StartTime
+	duration := event.EndTime.Sub(event.StartTime)
+	instanceCount := 0
+
+	for instanceCount < maxInstances && currentTime.Before(endTime) {
+		// Check if this occurrence matches the rule criteria
+		if cs.matchesRRULECriteria(currentTime, rule) {
+			instance := *event
+			instance.ID = "" // Clear ID for new instance
+			instance.StartTime = currentTime
+			instance.EndTime = currentTime.Add(duration)
+			instance.ParentEventID = &event.ID
+
+			instances = append(instances, instance)
+			instanceCount++
+		}
+
+		// Move to next potential occurrence
+		currentTime = cs.getNextOccurrence(currentTime, rule)
+	}
+
 	return instances
+}
+
+// matchesRRULECriteria checks if a given time matches the RRULE criteria
+func (cs *CalendarService) matchesRRULECriteria(t time.Time, rule *RRULERule) bool {
+	// Check BYDAY constraint
+	if len(rule.ByDay) > 0 {
+		weekdayMap := map[string]time.Weekday{
+			"SU": time.Sunday, "MO": time.Monday, "TU": time.Tuesday,
+			"WE": time.Wednesday, "TH": time.Thursday, "FR": time.Friday, "SA": time.Saturday,
+		}
+
+		currentWeekday := t.Weekday()
+		matchesDay := false
+
+		for _, day := range rule.ByDay {
+			if weekdayMap[day] == currentWeekday {
+				matchesDay = true
+				break
+			}
+		}
+
+		if !matchesDay {
+			return false
+		}
+	}
+
+	// Check BYMONTH constraint
+	if len(rule.ByMonth) > 0 {
+		currentMonth := int(t.Month())
+		matchesMonth := false
+
+		for _, month := range rule.ByMonth {
+			if month == currentMonth {
+				matchesMonth = true
+				break
+			}
+		}
+
+		if !matchesMonth {
+			return false
+		}
+	}
+
+	// Check BYMONTHDAY constraint
+	if len(rule.ByMonthDay) > 0 {
+		currentDay := t.Day()
+		matchesDay := false
+
+		for _, day := range rule.ByMonthDay {
+			if day == currentDay {
+				matchesDay = true
+				break
+			}
+		}
+
+		if !matchesDay {
+			return false
+		}
+	}
+
+	return true
+}
+
+// getNextOccurrence calculates the next potential occurrence based on frequency and interval
+func (cs *CalendarService) getNextOccurrence(current time.Time, rule *RRULERule) time.Time {
+	switch rule.Frequency {
+	case "DAILY":
+		return current.AddDate(0, 0, rule.Interval)
+	case "WEEKLY":
+		return current.AddDate(0, 0, 7*rule.Interval)
+	case "MONTHLY":
+		return current.AddDate(0, rule.Interval, 0)
+	case "YEARLY":
+		return current.AddDate(rule.Interval, 0, 0)
+	default:
+		// Default to daily if frequency is unknown
+		return current.AddDate(0, 0, 1)
+	}
 }

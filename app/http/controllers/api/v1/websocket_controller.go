@@ -204,18 +204,57 @@ func (c *WebSocketController) handleMessage(wsConn *services.WebSocketConnection
 
 // handleSubscribe handles subscription to notification types
 func (c *WebSocketController) handleSubscribe(wsConn *services.WebSocketConnection, msg map[string]interface{}) {
-	// This is a simplified implementation
-	// In a real application, you'd store subscription preferences
+	// Extract subscription types from the message
+	subscriptionTypes, ok := msg["types"].([]interface{})
+	if !ok {
+		c.sendError(wsConn, "invalid_subscription", "Subscription types must be provided as an array")
+		return
+	}
+
+	// Validate and process subscription types
+	var validTypes []string
+	validSubscriptionTypes := map[string]bool{
+		"chat_message":   true,
+		"notification":   true,
+		"task_update":    true,
+		"calendar_event": true,
+		"system_alert":   true,
+		"user_status":    true,
+	}
+
+	for _, typeInterface := range subscriptionTypes {
+		if subscriptionType, ok := typeInterface.(string); ok {
+			if validSubscriptionTypes[subscriptionType] {
+				validTypes = append(validTypes, subscriptionType)
+			} else {
+				facades.Log().Warning("Invalid subscription type", map[string]interface{}{
+					"user_id": wsConn.UserID,
+					"type":    subscriptionType,
+				})
+			}
+		}
+	}
+
+	if len(validTypes) == 0 {
+		c.sendError(wsConn, "no_valid_subscriptions", "No valid subscription types provided")
+		return
+	}
+
+	// Store subscriptions in cache for persistence across connections
+	cacheKey := fmt.Sprintf("user_subscriptions:%s", wsConn.UserID)
+	facades.Cache().Put(cacheKey, validTypes, 24*time.Hour)
+
 	facades.Log().Info("User subscribed to notifications", map[string]interface{}{
-		"connection_id": wsConn.ID,
-		"user_id":       wsConn.UserID,
-		"message":       msg,
+		"connection_id":      wsConn.ID,
+		"user_id":            wsConn.UserID,
+		"subscription_types": validTypes,
 	})
 
-	// Send confirmation
+	// Send confirmation with subscribed types
 	response := map[string]interface{}{
-		"type":      "subscribed",
-		"timestamp": time.Now().Unix(),
+		"type":               "subscribed",
+		"subscription_types": validTypes,
+		"timestamp":          time.Now().Unix(),
 	}
 	responseBytes, _ := json.Marshal(response)
 	wsConn.Send <- responseBytes
@@ -223,18 +262,64 @@ func (c *WebSocketController) handleSubscribe(wsConn *services.WebSocketConnecti
 
 // handleUnsubscribe handles unsubscription from notification types
 func (c *WebSocketController) handleUnsubscribe(wsConn *services.WebSocketConnection, msg map[string]interface{}) {
-	// This is a simplified implementation
-	// In a real application, you'd store subscription preferences
+	// Extract unsubscription types from the message
+	unsubscriptionTypes, ok := msg["types"].([]interface{})
+	if !ok {
+		c.sendError(wsConn, "invalid_unsubscription", "Unsubscription types must be provided as an array")
+		return
+	}
+
+	// Get current subscriptions
+	cacheKey := fmt.Sprintf("user_subscriptions:%s", wsConn.UserID)
+	var currentSubscriptions []string
+	err := facades.Cache().Get(cacheKey, &currentSubscriptions)
+	if err != nil {
+		currentSubscriptions = []string{}
+	}
+
+	// Process unsubscription types
+	var typesToRemove []string
+	for _, typeInterface := range unsubscriptionTypes {
+		if unsubscriptionType, ok := typeInterface.(string); ok {
+			typesToRemove = append(typesToRemove, unsubscriptionType)
+		}
+	}
+
+	// Remove specified types from current subscriptions
+	var remainingSubscriptions []string
+	for _, currentType := range currentSubscriptions {
+		shouldRemove := false
+		for _, removeType := range typesToRemove {
+			if currentType == removeType {
+				shouldRemove = true
+				break
+			}
+		}
+		if !shouldRemove {
+			remainingSubscriptions = append(remainingSubscriptions, currentType)
+		}
+	}
+
+	// Update subscriptions in cache
+	if len(remainingSubscriptions) > 0 {
+		facades.Cache().Put(cacheKey, remainingSubscriptions, 24*time.Hour)
+	} else {
+		facades.Cache().Forget(cacheKey)
+	}
+
 	facades.Log().Info("User unsubscribed from notifications", map[string]interface{}{
-		"connection_id": wsConn.ID,
-		"user_id":       wsConn.UserID,
-		"message":       msg,
+		"connection_id":           wsConn.ID,
+		"user_id":                 wsConn.UserID,
+		"unsubscribed_types":      typesToRemove,
+		"remaining_subscriptions": remainingSubscriptions,
 	})
 
-	// Send confirmation
+	// Send confirmation with remaining subscriptions
 	response := map[string]interface{}{
-		"type":      "unsubscribed",
-		"timestamp": time.Now().Unix(),
+		"type":                    "unsubscribed",
+		"unsubscribed_types":      typesToRemove,
+		"remaining_subscriptions": remainingSubscriptions,
+		"timestamp":               time.Now().Unix(),
 	}
 	responseBytes, _ := json.Marshal(response)
 	wsConn.Send <- responseBytes
@@ -254,6 +339,25 @@ func (c *WebSocketController) getUserIDFromContext(ctx goravelhttp.Context) stri
 	}
 
 	return ""
+}
+
+// sendError sends an error message to the WebSocket connection
+func (c *WebSocketController) sendError(wsConn *services.WebSocketConnection, errorCode, errorMessage string) {
+	response := map[string]interface{}{
+		"type":      "error",
+		"code":      errorCode,
+		"message":   errorMessage,
+		"timestamp": time.Now().Unix(),
+	}
+	responseBytes, _ := json.Marshal(response)
+	wsConn.Send <- responseBytes
+
+	facades.Log().Warning("WebSocket error sent", map[string]interface{}{
+		"connection_id": wsConn.ID,
+		"user_id":       wsConn.UserID,
+		"error_code":    errorCode,
+		"error_message": errorMessage,
+	})
 }
 
 // GetConnectionStats returns statistics about WebSocket connections

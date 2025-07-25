@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -231,52 +232,138 @@ type SuspiciousActivityReport struct {
 // Helper methods for suspicious activity detection
 func (s *OAuthService) isUnusualIP(userID, ipAddress string) bool {
 	// Check if this IP is from a different country/region than usual
-	// This is a simplified implementation
 	ip := net.ParseIP(ipAddress)
 	if ip == nil {
 		return true
 	}
 
-	// Check if it's a private IP (less suspicious)
+	// Check if it's a private IP (less suspicious for development)
 	if ip.IsPrivate() {
 		return false
 	}
 
-	// In a real implementation, you would:
-	// 1. Use a GeoIP service to determine location
-	// 2. Compare with user's historical locations
-	// 3. Check against known VPN/proxy ranges
+	// Check against known suspicious IP ranges
+	if s.isKnownMaliciousIP(ipAddress) {
+		facades.Log().Warning("Access from known malicious IP", map[string]interface{}{
+			"user_id":    userID,
+			"ip_address": ipAddress,
+		})
+		return true
+	}
+
+	// Get user's historical IP addresses from recent activity logs
+	historicalIPs := s.getUserHistoricalIPs(userID)
+
+	// If this is a completely new IP and user has established history, flag as unusual
+	if len(historicalIPs) > 5 && !s.isIPInHistory(ipAddress, historicalIPs) {
+		// Check if IP is from same network class (less suspicious)
+		if !s.isFromSameNetworkClass(ipAddress, historicalIPs) {
+			facades.Log().Info("Unusual IP detected", map[string]interface{}{
+				"user_id":        userID,
+				"ip_address":     ipAddress,
+				"historical_ips": len(historicalIPs),
+			})
+			return true
+		}
+	}
+
+	// Store this IP for future reference
+	s.recordUserIP(userID, ipAddress)
 
 	return false
 }
 
 func (s *OAuthService) isUnusualUserAgent(userID, userAgent string) bool {
 	// Check if this user agent is significantly different from user's history
-	// This is a simplified implementation
+	userAgentLower := strings.ToLower(userAgent)
 
 	// Basic checks for suspicious patterns
 	suspiciousPatterns := []string{
-		"curl", "wget", "python", "bot", "crawler", "scanner",
+		"curl", "wget", "python", "bot", "crawler", "scanner", "scraper",
+		"headless", "phantom", "selenium", "automated", "script",
 	}
 
-	userAgentLower := strings.ToLower(userAgent)
 	for _, pattern := range suspiciousPatterns {
 		if strings.Contains(userAgentLower, pattern) {
+			facades.Log().Warning("Suspicious user agent detected", map[string]interface{}{
+				"user_id":    userID,
+				"user_agent": userAgent,
+				"pattern":    pattern,
+			})
 			return true
 		}
 	}
+
+	// Check for empty or very short user agents
+	if len(strings.TrimSpace(userAgent)) < 10 {
+		facades.Log().Warning("Suspicious short user agent", map[string]interface{}{
+			"user_id":    userID,
+			"user_agent": userAgent,
+		})
+		return true
+	}
+
+	// Get user's historical user agents
+	historicalUserAgents := s.getUserHistoricalUserAgents(userID)
+
+	// If user has established history and this is completely new, flag as unusual
+	if len(historicalUserAgents) > 3 {
+		// Check for similarity with historical user agents
+		if !s.isUserAgentSimilar(userAgent, historicalUserAgents) {
+			facades.Log().Info("Unusual user agent detected", map[string]interface{}{
+				"user_id":                userID,
+				"user_agent":             userAgent,
+				"historical_user_agents": len(historicalUserAgents),
+			})
+			return true
+		}
+	}
+
+	// Record this user agent for future reference
+	s.recordUserAgent(userID, userAgent)
 
 	return false
 }
 
 func (s *OAuthService) hasRapidRequests(userID, clientID string) bool {
 	// Check for rapid successive requests in the last minute
-	// This would typically use a cache or rate limiting service
+	cacheKey := fmt.Sprintf("oauth_requests_%s_%s", userID, clientID)
 
-	// In a real implementation, you would:
-	// 1. Use Redis to track request timestamps
-	// 2. Count requests in the last minute
-	// 3. Flag if more than a threshold (e.g., 10 requests/minute)
+	// Get current request timestamps from cache
+	var requestTimes []int64
+	err := facades.Cache().Get(cacheKey, &requestTimes)
+	if err != nil {
+		requestTimes = []int64{}
+	}
+
+	now := time.Now().Unix()
+	oneMinuteAgo := now - 60
+
+	// Filter out old requests (older than 1 minute)
+	var recentRequests []int64
+	for _, requestTime := range requestTimes {
+		if requestTime > oneMinuteAgo {
+			recentRequests = append(recentRequests, requestTime)
+		}
+	}
+
+	// Add current request
+	recentRequests = append(recentRequests, now)
+
+	// Store updated request times
+	facades.Cache().Put(cacheKey, recentRequests, 2*time.Minute)
+
+	// Check if we exceed the threshold
+	threshold := facades.Config().GetInt("oauth.rate_limit_per_minute", 10)
+	if len(recentRequests) > threshold {
+		facades.Log().Warning("Rapid OAuth requests detected", map[string]interface{}{
+			"user_id":       userID,
+			"client_id":     clientID,
+			"request_count": len(recentRequests),
+			"threshold":     threshold,
+		})
+		return true
+	}
 
 	return false
 }
@@ -285,18 +372,46 @@ func (s *OAuthService) isSuspiciousClient(clientID string) bool {
 	// Check if the client has been flagged as suspicious
 	client, err := s.GetClient(clientID)
 	if err != nil {
+		facades.Log().Warning("Client not found during suspicious check", map[string]interface{}{
+			"client_id": clientID,
+			"error":     err.Error(),
+		})
 		return true
 	}
 
 	// Check for suspicious client patterns
 	if client.IsRevoked() {
+		facades.Log().Warning("Revoked client attempted access", map[string]interface{}{
+			"client_id": clientID,
+		})
 		return true
 	}
 
-	// In a real implementation, you might check:
-	// 1. Client reputation score
-	// 2. Recent security incidents
-	// 3. Unusual permission requests
+	// Check client creation date - very new clients might be suspicious
+	if client.CreatedAt.After(time.Now().AddDate(0, 0, -1)) { // Created within last day
+		facades.Log().Info("Very new client detected", map[string]interface{}{
+			"client_id":  clientID,
+			"created_at": client.CreatedAt,
+		})
+		// Don't immediately flag as suspicious, but log for monitoring
+	}
+
+	// Check for suspicious redirect URIs
+	redirectURIs := client.GetRedirectURIs()
+	for _, uri := range redirectURIs {
+		if s.isSuspiciousRedirectURI(uri) {
+			facades.Log().Warning("Suspicious redirect URI detected", map[string]interface{}{
+				"client_id":    clientID,
+				"redirect_uri": uri,
+			})
+			return true
+		}
+	}
+
+	// Check client usage patterns
+	if s.hasUnusualClientActivity(clientID) {
+		return true
+	}
 
 	return false
 }
@@ -791,6 +906,42 @@ func (s *OAuthService) ValidateScopes(scopes []string) bool {
 		return true
 	}
 
+	// Input validation
+	if scopes == nil {
+		return false
+	}
+
+	// Check for empty or invalid scopes
+	for _, scope := range scopes {
+		scope = strings.TrimSpace(scope)
+		if scope == "" {
+			return false
+		}
+		// Check for suspicious characters
+		if strings.ContainsAny(scope, "<>\"'&;(){}[]") {
+			facades.Log().Warning("Suspicious characters in OAuth scope", map[string]interface{}{
+				"scope": scope,
+			})
+			return false
+		}
+		// Check scope length
+		if len(scope) > 100 {
+			facades.Log().Warning("OAuth scope too long", map[string]interface{}{
+				"scope":  scope,
+				"length": len(scope),
+			})
+			return false
+		}
+	}
+
+	// Check for too many scopes
+	if len(scopes) > 20 {
+		facades.Log().Warning("Too many OAuth scopes requested", map[string]interface{}{
+			"scope_count": len(scopes),
+		})
+		return false
+	}
+
 	allowedScopes := s.GetAllowedScopes()
 	allowedScopesMap := make(map[string]bool)
 	for _, scope := range allowedScopes {
@@ -798,7 +949,10 @@ func (s *OAuthService) ValidateScopes(scopes []string) bool {
 	}
 
 	for _, scope := range scopes {
-		if !allowedScopesMap[scope] {
+		if !allowedScopesMap[strings.TrimSpace(scope)] {
+			facades.Log().Warning("Invalid OAuth scope requested", map[string]interface{}{
+				"scope": scope,
+			})
 			return false
 		}
 	}
@@ -819,6 +973,295 @@ func (s *OAuthService) GetAllowedScopes() []string {
 	}
 
 	return scopesSlice
+}
+
+// Security helper methods for IP analysis
+
+func (s *OAuthService) isKnownMaliciousIP(ipAddress string) bool {
+	// List of known malicious IP ranges/addresses
+	// In production, this would be loaded from a database or external service
+	maliciousIPs := []string{
+		"0.0.0.0",
+		"127.0.0.1", // localhost attempts from external
+		"10.0.0.1",  // common internal gateway attempts
+	}
+
+	for _, maliciousIP := range maliciousIPs {
+		if ipAddress == maliciousIP {
+			return true
+		}
+	}
+
+	// Check against known malicious network ranges
+	maliciousRanges := []string{
+		"192.168.1.0/24", // Example suspicious range
+	}
+
+	ip := net.ParseIP(ipAddress)
+	if ip == nil {
+		return true
+	}
+
+	for _, rangeStr := range maliciousRanges {
+		_, network, err := net.ParseCIDR(rangeStr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *OAuthService) getUserHistoricalIPs(userID string) []string {
+	// Query activity logs for recent IP addresses used by this user
+	var activityLogs []models.ActivityLog
+	err := facades.Orm().Query().
+		Where("subject_id = ? AND subject_type = ?", userID, "User").
+		Where("created_at > ?", time.Now().AddDate(0, 0, -30)). // Last 30 days
+		Order("created_at DESC").
+		Limit(50).
+		Find(&activityLogs)
+
+	if err != nil {
+		facades.Log().Warning("Failed to get user historical IPs", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return []string{}
+	}
+
+	ipMap := make(map[string]bool)
+	var ips []string
+
+	for _, log := range activityLogs {
+		// Extract IP from properties if available
+		var properties map[string]interface{}
+		if err := json.Unmarshal([]byte(log.Properties), &properties); err == nil {
+			if ipAddr, ok := properties["ip_address"].(string); ok && ipAddr != "" {
+				if !ipMap[ipAddr] {
+					ipMap[ipAddr] = true
+					ips = append(ips, ipAddr)
+				}
+			}
+		}
+	}
+
+	return ips
+}
+
+func (s *OAuthService) isIPInHistory(ipAddress string, historicalIPs []string) bool {
+	for _, historicalIP := range historicalIPs {
+		if ipAddress == historicalIP {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *OAuthService) isFromSameNetworkClass(ipAddress string, historicalIPs []string) bool {
+	ip := net.ParseIP(ipAddress)
+	if ip == nil {
+		return false
+	}
+
+	// Get the /24 network (Class C) for the current IP
+	currentNetwork := ip.Mask(net.CIDRMask(24, 32))
+
+	for _, historicalIP := range historicalIPs {
+		historicalIPParsed := net.ParseIP(historicalIP)
+		if historicalIPParsed == nil {
+			continue
+		}
+
+		// Get the /24 network for the historical IP
+		historicalNetwork := historicalIPParsed.Mask(net.CIDRMask(24, 32))
+
+		// If they're in the same /24 network, consider it less suspicious
+		if currentNetwork.Equal(historicalNetwork) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *OAuthService) recordUserIP(userID, ipAddress string) {
+	// Store this IP address for future reference in activity logs
+	// This would typically be done as part of the OAuth flow logging
+	facades.Log().Info("Recording user IP for security analysis", map[string]interface{}{
+		"user_id":    userID,
+		"ip_address": ipAddress,
+		"timestamp":  time.Now().Unix(),
+	})
+
+	// In a production system, you might want to store this in a dedicated table
+	// or update the user's last_seen_ip field
+}
+
+func (s *OAuthService) getUserHistoricalUserAgents(userID string) []string {
+	// Query activity logs for recent user agents used by this user
+	var activityLogs []models.ActivityLog
+	err := facades.Orm().Query().
+		Where("subject_id = ? AND subject_type = ?", userID, "User").
+		Where("created_at > ?", time.Now().AddDate(0, 0, -30)). // Last 30 days
+		Order("created_at DESC").
+		Limit(50).
+		Find(&activityLogs)
+
+	if err != nil {
+		facades.Log().Warning("Failed to get user historical user agents", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return []string{}
+	}
+
+	userAgentMap := make(map[string]bool)
+	var userAgents []string
+
+	for _, log := range activityLogs {
+		// Extract user agent from properties if available
+		var properties map[string]interface{}
+		if err := json.Unmarshal([]byte(log.Properties), &properties); err == nil {
+			if userAgent, ok := properties["user_agent"].(string); ok && userAgent != "" {
+				if !userAgentMap[userAgent] {
+					userAgentMap[userAgent] = true
+					userAgents = append(userAgents, userAgent)
+				}
+			}
+		}
+	}
+
+	return userAgents
+}
+
+func (s *OAuthService) isUserAgentSimilar(userAgent string, historicalUserAgents []string) bool {
+	// Extract browser name and version from user agent
+	currentBrowser := s.extractBrowserInfo(userAgent)
+
+	for _, historicalUA := range historicalUserAgents {
+		historicalBrowser := s.extractBrowserInfo(historicalUA)
+
+		// If the browser type matches, consider it similar
+		if currentBrowser["name"] == historicalBrowser["name"] {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *OAuthService) extractBrowserInfo(userAgent string) map[string]string {
+	userAgentLower := strings.ToLower(userAgent)
+	browserInfo := map[string]string{
+		"name":    "unknown",
+		"version": "unknown",
+	}
+
+	// Simple browser detection
+	if strings.Contains(userAgentLower, "chrome") {
+		browserInfo["name"] = "chrome"
+	} else if strings.Contains(userAgentLower, "firefox") {
+		browserInfo["name"] = "firefox"
+	} else if strings.Contains(userAgentLower, "safari") && !strings.Contains(userAgentLower, "chrome") {
+		browserInfo["name"] = "safari"
+	} else if strings.Contains(userAgentLower, "edge") {
+		browserInfo["name"] = "edge"
+	} else if strings.Contains(userAgentLower, "opera") {
+		browserInfo["name"] = "opera"
+	}
+
+	return browserInfo
+}
+
+func (s *OAuthService) recordUserAgent(userID, userAgent string) {
+	// Store this user agent for future reference in activity logs
+	facades.Log().Info("Recording user agent for security analysis", map[string]interface{}{
+		"user_id":    userID,
+		"user_agent": userAgent,
+		"timestamp":  time.Now().Unix(),
+	})
+}
+
+func (s *OAuthService) isSuspiciousRedirectURI(uri string) bool {
+	// Check for suspicious redirect URI patterns
+	uriLower := strings.ToLower(uri)
+
+	// Check for suspicious domains
+	suspiciousDomains := []string{
+		"bit.ly", "tinyurl.com", "t.co", "goo.gl", // URL shorteners
+		"localhost", "127.0.0.1", "0.0.0.0", // Local addresses (might be suspicious in production)
+	}
+
+	for _, domain := range suspiciousDomains {
+		if strings.Contains(uriLower, domain) {
+			return true
+		}
+	}
+
+	// Check for non-HTTPS URIs (suspicious in production)
+	if !strings.HasPrefix(uriLower, "https://") && !strings.HasPrefix(uriLower, "http://localhost") {
+		return true
+	}
+
+	// Check for suspicious patterns
+	suspiciousPatterns := []string{
+		"admin", "api", "internal", "test", "dev", "debug",
+	}
+
+	for _, pattern := range suspiciousPatterns {
+		if strings.Contains(uriLower, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *OAuthService) hasUnusualClientActivity(clientID string) bool {
+	// Check for unusual activity patterns for this client
+
+	// Check for rapid token requests
+	cacheKey := fmt.Sprintf("client_activity_%s", clientID)
+	var activityCount int
+	err := facades.Cache().Get(cacheKey, &activityCount)
+	if err != nil {
+		activityCount = 0
+	}
+
+	activityCount++
+	facades.Cache().Put(cacheKey, activityCount, time.Hour)
+
+	// Flag if more than 100 requests per hour
+	if activityCount > 100 {
+		facades.Log().Warning("Unusual client activity detected", map[string]interface{}{
+			"client_id":      clientID,
+			"activity_count": activityCount,
+		})
+		return true
+	}
+
+	// Check for unusual scope requests
+	if s.hasUnusualScopePattern(clientID) {
+		return true
+	}
+
+	return false
+}
+
+func (s *OAuthService) hasUnusualScopePattern(clientID string) bool {
+	// Check if client is requesting unusual combinations of scopes
+	// This is a simplified check - in production you'd analyze historical patterns
+
+	// For now, just log that we're checking scope patterns
+	facades.Log().Debug("Checking scope patterns for client", map[string]interface{}{
+		"client_id": clientID,
+	})
+
+	return false
 }
 
 // LogOAuthEvent logs an OAuth event for audit purposes
