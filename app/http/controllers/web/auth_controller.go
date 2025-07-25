@@ -20,10 +20,18 @@ func NewAuthController() *AuthController {
 	}
 }
 
-// ShowLogin displays the login page
+// ShowLogin displays the login page with all available authentication methods
 func (c *AuthController) ShowLogin(ctx http.Context) http.Response {
+	// Initialize Google OAuth service to check if it's enabled
+	googleOAuthService := services.NewGoogleOAuthService()
+
+	// Check for any messages from query parameters
+	message := ctx.Request().Query("message", "")
+
 	return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
-		"title": "Login",
+		"title":                "Login",
+		"google_oauth_enabled": googleOAuthService.IsEnabled(),
+		"message":              message,
 	})
 }
 
@@ -89,16 +97,23 @@ func (c *AuthController) ShowResetPassword(ctx http.Context) http.Response {
 func (c *AuthController) Login(ctx http.Context) http.Response {
 	var req requests.LoginRequest
 	if err := ctx.Request().Bind(&req); err != nil {
+		// Initialize Google OAuth service for error page
+		googleOAuthService := services.NewGoogleOAuthService()
+
 		return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
-			"title": "Login",
-			"error": "Invalid request data",
-			"email": req.Email,
+			"title":                "Login",
+			"error":                "Invalid request data",
+			"email":                req.Email,
+			"google_oauth_enabled": googleOAuthService.IsEnabled(),
 		})
 	}
 
 	// First, try basic login without MFA/WebAuthn
 	user, _, err := c.authService.Login(ctx, &req)
 	if err != nil {
+		// Initialize Google OAuth service for error pages
+		googleOAuthService := services.NewGoogleOAuthService()
+
 		// Check if the error is specifically about MFA being required
 		if err.Error() == "MFA code required" {
 			// Store user ID in session for MFA verification
@@ -113,17 +128,19 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		// Check if the error is about WebAuthn being required
 		if err.Error() == "WebAuthn authentication required" {
 			return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
-				"title":             "Login",
-				"email":             req.Email,
-				"webauthn_required": true,
-				"message":           "Please use your security key to complete login",
+				"title":                "Login",
+				"email":                req.Email,
+				"webauthn_required":    true,
+				"message":              "Please use your security key to complete login",
+				"google_oauth_enabled": googleOAuthService.IsEnabled(),
 			})
 		}
 
 		return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
-			"title": "Login",
-			"error": "Invalid credentials",
-			"email": req.Email,
+			"title":                "Login",
+			"error":                "Invalid credentials",
+			"email":                req.Email,
+			"google_oauth_enabled": googleOAuthService.IsEnabled(),
 		})
 	}
 
@@ -131,8 +148,12 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 	ctx.Request().Session().Put("user_id", user.ID)
 	ctx.Request().Session().Put("user_email", user.Email)
 
-	// Redirect to dashboard
-	return ctx.Response().Redirect(302, "/dashboard")
+	// Check for intended URL and redirect appropriately
+	intendedURL := ctx.Request().Session().Get("intended_url", "/dashboard")
+	ctx.Request().Session().Remove("intended_url")
+
+	// Redirect to intended URL or dashboard
+	return ctx.Response().Redirect(302, intendedURL.(string))
 }
 
 // Register handles web registration form submission

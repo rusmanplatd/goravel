@@ -183,10 +183,14 @@ func (c *WebAuthnController) FinishAuthentication(ctx http.Context) http.Respons
 	ctx.Request().Session().Put("user_id", user.ID)
 	ctx.Request().Session().Put("user_email", user.Email)
 
+	// Check for intended URL and redirect appropriately
+	intendedURL := ctx.Request().Session().Get("intended_url", "/dashboard")
+	ctx.Request().Session().Remove("intended_url")
+
 	return ctx.Response().Json(200, map[string]interface{}{
 		"success":  true,
 		"message":  "Authentication successful",
-		"redirect": "/dashboard",
+		"redirect": intendedURL.(string),
 	})
 }
 

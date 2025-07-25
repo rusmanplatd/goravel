@@ -30,11 +30,13 @@ func NewGoogleOAuthController() *GoogleOAuthController {
 func (c *GoogleOAuthController) Redirect(ctx http.Context) http.Response {
 	// Check if Google OAuth is enabled
 	if !c.googleOAuthService.IsEnabled() {
-		return ctx.Response().View().Make("oauth/error.tmpl", map[string]interface{}{
-			"title":       "OAuth Error",
-			"error":       "service_disabled",
-			"description": "Google OAuth is not enabled",
-		})
+		return ctx.Response().Redirect(302, "/login?message=Google OAuth is not enabled")
+	}
+
+	// Store any intended URL for after authentication
+	intendedURL := ctx.Request().Query("redirect")
+	if intendedURL != "" && c.isValidRedirectURL(intendedURL) {
+		ctx.Request().Session().Put("intended_url", intendedURL)
 	}
 
 	// Generate and store state parameter in session for CSRF protection
@@ -52,11 +54,7 @@ func (c *GoogleOAuthController) Redirect(ctx http.Context) http.Response {
 func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 	// Check if Google OAuth is enabled
 	if !c.googleOAuthService.IsEnabled() {
-		return ctx.Response().View().Make("oauth/error.tmpl", map[string]interface{}{
-			"title":       "OAuth Error",
-			"error":       "service_disabled",
-			"description": "Google OAuth is not enabled",
-		})
+		return ctx.Response().Redirect(302, "/login?message=Google OAuth is not enabled")
 	}
 
 	// Get state and code from query parameters
@@ -67,21 +65,13 @@ func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 	// Check for OAuth errors
 	if errorParam != "" {
 		errorDescription := ctx.Request().Query("error_description", "OAuth authorization failed")
-		return ctx.Response().View().Make("oauth/error.tmpl", map[string]interface{}{
-			"title":       "OAuth Error",
-			"error":       errorParam,
-			"description": errorDescription,
-		})
+		return ctx.Response().Redirect(302, "/login?message=OAuth authorization failed: "+errorDescription)
 	}
 
 	// Validate state parameter to prevent CSRF attacks
 	sessionState := ctx.Request().Session().Get("google_oauth_state")
 	if sessionState == nil || !c.googleOAuthService.ValidateState(sessionState.(string), state) {
-		return ctx.Response().View().Make("oauth/error.tmpl", map[string]interface{}{
-			"title":       "OAuth Error",
-			"error":       "invalid_state",
-			"description": "Invalid state parameter. Please try again.",
-		})
+		return ctx.Response().Redirect(302, "/login?message=Invalid state parameter. Please try again.")
 	}
 
 	// Clear the state from session
@@ -89,11 +79,7 @@ func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 
 	// Check if authorization code is present
 	if code == "" {
-		return ctx.Response().View().Make("oauth/error.tmpl", map[string]interface{}{
-			"title":       "OAuth Error",
-			"error":       "missing_code",
-			"description": "Authorization code is missing",
-		})
+		return ctx.Response().Redirect(302, "/login?message=Authorization code is missing")
 	}
 
 	// Handle the OAuth callback
@@ -103,11 +89,7 @@ func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 			"error": err.Error(),
 			"code":  code,
 		})
-		return ctx.Response().View().Make("oauth/error.tmpl", map[string]interface{}{
-			"title":       "OAuth Error",
-			"error":       "authentication_failed",
-			"description": "Failed to authenticate with Google. Please try again.",
-		})
+		return ctx.Response().Redirect(302, "/login?message=Failed to authenticate with Google. Please try again.")
 	}
 
 	// Generate JWT token for the user
@@ -117,11 +99,7 @@ func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 			"error":   err.Error(),
 			"user_id": user.ID,
 		})
-		return ctx.Response().View().Make("oauth/error.tmpl", map[string]interface{}{
-			"title":       "OAuth Error",
-			"error":       "token_generation_failed",
-			"description": "Failed to generate authentication tokens",
-		})
+		return ctx.Response().Redirect(302, "/login?message=Failed to generate authentication tokens")
 	}
 
 	// Store tokens in session or cookies
@@ -130,8 +108,9 @@ func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 		ctx.Request().Session().Put("refresh_token", refreshToken)
 	}
 
-	// Store user in session
-	ctx.Request().Session().Put("user", user)
+	// Set session data for web authentication (consistent with other login methods)
+	ctx.Request().Session().Put("user_id", user.ID)
+	ctx.Request().Session().Put("user_email", user.Email)
 
 	// Log successful login
 	facades.Log().Info("Successful Google OAuth login", map[string]interface{}{
@@ -179,28 +158,6 @@ func (c *GoogleOAuthController) Unlink(ctx http.Context) http.Response {
 
 	return ctx.Response().Json(200, map[string]interface{}{
 		"message": "Google account unlinked successfully",
-	})
-}
-
-// LoginPage displays the login page with Google OAuth option
-func (c *GoogleOAuthController) LoginPage(ctx http.Context) http.Response {
-	// Check if user is already authenticated
-	if ctx.Value("user") != nil {
-		return ctx.Response().Redirect(302, "/dashboard")
-	}
-
-	// Check if there's an intended URL to redirect to after login
-	intendedURL := ctx.Request().Query("redirect")
-	if intendedURL != "" {
-		// Validate the redirect URL to prevent open redirect attacks
-		if c.isValidRedirectURL(intendedURL) {
-			ctx.Request().Session().Put("intended_url", intendedURL)
-		}
-	}
-
-	return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
-		"title":                "Sign In",
-		"google_oauth_enabled": c.googleOAuthService.IsEnabled(),
 	})
 }
 

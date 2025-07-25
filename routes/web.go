@@ -25,7 +25,17 @@ func Web() {
 	// Authentication routes
 	facades.Route().Group(func(router route.Router) {
 		// Guest routes (no authentication required)
-		router.Get("/login", authController.ShowLogin)
+		router.Get("/login", func(ctx http.Context) http.Response {
+			// Handle intended URL for all login methods
+			intendedURL := ctx.Request().Query("redirect")
+			if intendedURL != "" {
+				// Basic validation to prevent open redirect attacks
+				if intendedURL[0] == '/' {
+					ctx.Request().Session().Put("intended_url", intendedURL)
+				}
+			}
+			return authController.ShowLogin(ctx)
+		})
 		router.Post("/login", authController.Login)
 		router.Get("/register", authController.ShowRegister)
 		router.Post("/register", authController.Register)
