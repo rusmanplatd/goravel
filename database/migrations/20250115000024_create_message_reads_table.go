@@ -20,11 +20,11 @@ func (r *M20250115000024CreateMessageReadsTable) Up() error {
 		table.Ulid("message_id").Comment("Message reference")
 		table.Ulid("user_id").Comment("User reference")
 		table.Timestamp("read_at").Comment("When message was read")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

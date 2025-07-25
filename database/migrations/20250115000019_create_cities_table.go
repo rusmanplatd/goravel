@@ -19,13 +19,14 @@ func (r *M20250115000019CreateCitiesTable) Up() error {
 		table.Ulid("id").Comment("Unique city identifier")
 		table.String("name").Comment("City name")
 		table.String("code").Comment("City code")
+		table.Integer("numeric_code").Nullable().Comment("numeric city code")
 		table.Boolean("is_active").Comment("Whether city is active")
 		table.Ulid("province_id").Comment("Province reference")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")
@@ -39,6 +40,7 @@ func (r *M20250115000019CreateCitiesTable) Up() error {
 		// Add indexes
 		table.Index("name")
 		table.Index("code")
+		table.Index("numeric_code")
 		table.Index("is_active")
 		table.Index("province_id")
 		table.Index("created_by")

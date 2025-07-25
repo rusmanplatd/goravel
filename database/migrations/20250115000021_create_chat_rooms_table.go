@@ -23,12 +23,12 @@ func (r *M20250115000021CreateChatRoomsTable) Up() error {
 		table.Boolean("is_active").Comment("Whether chat room is active")
 		table.String("avatar").Comment("Chat room avatar URL")
 		table.Ulid("tenant_id").Comment("Tenant reference")
-		table.Ulid("created_by").Comment("User who created data")
-		table.Ulid("updated_by").Comment("User who updated data")
-		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 		table.Timestamp("last_activity_at").Comment("Last activity timestamp")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 
 		// Primary key
 		table.Primary("id")

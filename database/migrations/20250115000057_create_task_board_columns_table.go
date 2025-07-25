@@ -25,11 +25,11 @@ func (r *M20250115000057CreateTaskBoardColumnsTable) Up() error {
 		table.Integer("task_limit").Default(0).Comment("Maximum number of tasks in column (0 = unlimited)")
 		table.Boolean("is_active").Default(true).Comment("Whether column is active")
 		table.Ulid("board_id").Comment("Board reference")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

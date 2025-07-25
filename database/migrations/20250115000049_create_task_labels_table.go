@@ -23,11 +23,11 @@ func (r *M20250115000049CreateTaskLabelsTable) Up() error {
 		table.String("icon").Nullable().Comment("Label icon for UI display")
 		table.Boolean("is_active").Default(true).Comment("Whether label is active")
 		table.Ulid("project_id").Comment("Project reference")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("Label creator reference")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

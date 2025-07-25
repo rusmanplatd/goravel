@@ -22,7 +22,6 @@ func (kernel Kernel) Migrations() []schema.Migration {
 		&migrations.M20250115000005CreateUserRolesTable{},
 		&migrations.M20250115000006CreateRolePermissionsTable{},
 		&migrations.M20250115000007CreateActivityLogsTable{},
-		&migrations.M20250115000008AddAuthFieldsToUsersTable{},
 		&migrations.M20250115000009CreateWebauthnCredentialsTable{},
 		&migrations.M20250115000010CreatePasswordResetTokensTable{},
 		&migrations.M20250115000011CreateOauthClientsTable{},
@@ -45,8 +44,6 @@ func (kernel Kernel) Migrations() []schema.Migration {
 		&migrations.M20250115000028CreateMessageReactionsTable{},
 		&migrations.M20250115000029CreateChatNotificationSettingsTable{},
 		&migrations.M20250115000030CreateMessageThreadsTable{},
-		&migrations.M20250115000031AddThreadIdToChatMessagesTable{},
-		&migrations.M20250115000032AddEditedAtToChatMessagesTable{},
 		&migrations.M20250115000033CreateCalendarEventsTable{},
 		&migrations.M20250115000034CreateEventParticipantsTable{},
 		&migrations.M20250115000035CreateMeetingsTable{},
@@ -72,7 +69,6 @@ func (kernel Kernel) Migrations() []schema.Migration {
 		&migrations.M20250115000055CreateTaskTimeEntriesTable{},
 		&migrations.M20250115000056CreateTaskBoardsTable{},
 		&migrations.M20250115000057CreateTaskBoardColumnsTable{},
-		&migrations.M20250115000060AddGoogleOauthFieldsToUsersTable{},
 	}
 }
 

@@ -35,11 +35,11 @@ func (r *M20250115000033CreateCalendarEventsTable) Up() error {
 		table.TimestampTz("reminders_sent_at").Nullable().Comment("When reminders were sent")
 		table.Ulid("tenant_id").Comment("Tenant reference")
 		table.Ulid("parent_event_id").Nullable().Comment("Parent recurring event reference")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("Event creator reference")
 		table.Ulid("updated_by").Comment("Event updater reference")
 		table.Ulid("deleted_by").Nullable().Comment("Event deleter reference")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

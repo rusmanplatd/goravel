@@ -23,11 +23,11 @@ func (r *M20250115000052CreateTaskCommentsTable) Up() error {
 		table.Ulid("parent_comment_id").Nullable().Comment("Parent comment reference for replies")
 		table.Boolean("is_internal").Default(false).Comment("Whether comment is internal (not visible to external users)")
 		table.String("type").Default("comment").Comment("Comment type (comment, review, system)")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

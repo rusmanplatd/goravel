@@ -28,11 +28,11 @@ func (r *M20250115000040CreateDepartmentsTable) Up() error {
 		table.Integer("level").Default(0).Comment("Hierarchy level in department tree")
 		table.String("path").Comment("Hierarchical path in department tree")
 		table.Ulid("manager_id").Nullable().Comment("Department manager reference")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

@@ -26,11 +26,11 @@ func (r *M20250115000034CreateEventParticipantsTable) Up() error {
 		table.Boolean("is_required").Comment("Whether participant is required")
 		table.Boolean("send_reminder").Comment("Whether to send reminders to this participant")
 		table.TimestampTz("reminder_sent_at").Nullable().Comment("When reminder was last sent")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("Participant creator reference")
 		table.Ulid("updated_by").Comment("Participant updater reference")
 		table.Ulid("deleted_by").Nullable().Comment("Participant deleter reference")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

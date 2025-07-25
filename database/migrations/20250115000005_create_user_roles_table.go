@@ -20,10 +20,11 @@ func (r *M20250115000005CreateUserRolesTable) Up() error {
 		table.Ulid("user_id").Comment("User reference")
 		table.Ulid("role_id").Comment("Role reference")
 		table.Ulid("tenant_id").Nullable().Comment("Tenant reference for tenant-specific roles")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
 
 		// Primary key
 		table.Primary("id")

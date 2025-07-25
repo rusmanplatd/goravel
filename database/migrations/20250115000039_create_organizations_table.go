@@ -46,6 +46,9 @@ func (r *M20250115000039CreateOrganizationsTable) Up() error {
 		table.String("path").Comment("Hierarchical path in organization tree")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 
 		// Primary key
 		table.Primary("id")

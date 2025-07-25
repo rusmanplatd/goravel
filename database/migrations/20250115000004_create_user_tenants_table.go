@@ -21,10 +21,11 @@ func (r *M20250115000004CreateUserTenantsTable) Up() error {
 		table.Ulid("tenant_id").Comment("Tenant reference")
 		table.Boolean("is_active").Comment("Whether user is active in this tenant")
 		table.TimestampTz("joined_at").Comment("When user joined the tenant")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
 
 		// Primary key
 		table.Primary("id")

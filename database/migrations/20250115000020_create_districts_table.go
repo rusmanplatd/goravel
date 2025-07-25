@@ -19,13 +19,14 @@ func (r *M20250115000020CreateDistrictsTable) Up() error {
 		table.Ulid("id").Comment("Unique district identifier")
 		table.String("name").Comment("District name")
 		table.String("code").Comment("District code")
+		table.Integer("numeric_code").Nullable().Comment("numeric district code")
 		table.Boolean("is_active").Comment("Whether district is active")
 		table.Ulid("city_id").Comment("City reference")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")
@@ -36,6 +37,7 @@ func (r *M20250115000020CreateDistrictsTable) Up() error {
 		// Add indexes
 		table.Index("name")
 		table.Index("code")
+		table.Index("numeric_code")
 		table.Index("is_active")
 		table.Index("city_id")
 		table.Index("created_by")

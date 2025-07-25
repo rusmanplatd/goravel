@@ -22,11 +22,11 @@ func (r *M20250115000053CreateTaskActivitiesTable) Up() error {
 		table.Ulid("task_id").Comment("Task reference")
 		table.Ulid("user_id").Comment("User who performed the activity")
 		table.Json("data").Comment("Additional activity data")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

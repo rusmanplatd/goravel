@@ -19,14 +19,14 @@ func (r *M20250115000018CreateProvincesTable) Up() error {
 		table.Ulid("id").Comment("Unique province identifier")
 		table.String("name").Comment("Province name")
 		table.String("code").Comment("Province code")
-		table.String("numeric_code", 3).Nullable().Comment("numeric province code")
+		table.Integer("numeric_code").Nullable().Comment("numeric province code")
 		table.Boolean("is_active").Comment("Whether province is active")
 		table.Ulid("country_id").Comment("Country reference")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

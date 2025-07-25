@@ -21,11 +21,11 @@ func (r *M20250115000054CreateTaskDependenciesTable) Up() error {
 		table.Ulid("dependent_task_id").Comment("Dependent task reference")
 		table.String("type").Default("blocks").Comment("Dependency type (blocks, requires, relates_to)")
 		table.Boolean("is_active").Default(true).Comment("Whether dependency is active")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

@@ -28,6 +28,9 @@ func (r *M20250115000036CreateEventRemindersTable) Up() error {
 		table.String("error_message").Comment("Error message if reminder failed")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
+		table.Ulid("created_by").Comment("User who created data")
+		table.Ulid("updated_by").Comment("User who updated data")
+		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
 
 		// Primary key
 		table.Primary("id")
@@ -35,6 +38,9 @@ func (r *M20250115000036CreateEventRemindersTable) Up() error {
 		// Foreign keys
 		table.Foreign("event_id").References("id").On("calendar_events")
 		table.Foreign("user_id").References("id").On("users")
+		table.Foreign("created_by").References("id").On("users")
+		table.Foreign("updated_by").References("id").On("users")
+		table.Foreign("deleted_by").References("id").On("users")
 
 		// Add indexes
 		table.Index("event_id")
@@ -45,6 +51,9 @@ func (r *M20250115000036CreateEventRemindersTable) Up() error {
 		table.Index("sent")
 		table.Index("event_id", "user_id")
 		table.Index("scheduled_at", "sent")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_by")
 	})
 }
 

@@ -132,7 +132,7 @@ PUT /api/v1/chat/rooms/{id}/messages/{message_id}
     "id": "01HXYZ123456789ABCDEFGHIJK",
     "content": "Updated message content",
     "is_edited": true,
-    "edited_at": "2024-01-15T10:30:00Z"
+    "updated_at": "2024-01-15T10:30:00Z"
   }
 }
 ```
@@ -292,7 +292,7 @@ CREATE TABLE chat_notification_settings (
 #### chat_messages
 Added fields:
 - `thread_id VARCHAR(26)` - Reference to thread
-- `edited_at TIMESTAMP` - When message was last edited
+- `updated_at TIMESTAMP` - When message was last edited
 
 ## Usage Examples
 

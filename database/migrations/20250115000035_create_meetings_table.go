@@ -36,11 +36,11 @@ func (r *M20250115000035CreateMeetingsTable) Up() error {
 		table.String("conflict_details").Comment("Conflict details")
 		table.Integer("attendance_count").Comment("Number of attendees")
 		table.Text("meeting_minutes").Comment("Meeting minutes/notes")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("Meeting creator reference")
 		table.Ulid("updated_by").Comment("Meeting updater reference")
 		table.Ulid("deleted_by").Nullable().Comment("Meeting deleter reference")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

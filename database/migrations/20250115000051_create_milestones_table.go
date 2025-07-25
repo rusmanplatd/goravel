@@ -26,11 +26,11 @@ func (r *M20250115000051CreateMilestonesTable) Up() error {
 		table.TimestampTz("due_date").Nullable().Comment("Milestone due date")
 		table.TimestampTz("completed_at").Nullable().Comment("When milestone was completed")
 		table.Float("progress").Default(0).Comment("Milestone completion percentage (0-100)")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

@@ -24,11 +24,11 @@ func (r *M20250115000026CreateUserKeysTable) Up() error {
 		table.Integer("version").Comment("Key version number")
 		table.Boolean("is_active").Comment("Whether key is currently active")
 		table.Timestamp("expires_at").Comment("Key expiration timestamp")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

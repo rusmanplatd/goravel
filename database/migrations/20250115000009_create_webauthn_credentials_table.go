@@ -28,11 +28,11 @@ func (r *M20250115000009CreateWebauthnCredentialsTable) Up() error {
 		table.Boolean("backed_up").Default(false).Comment("Whether credential is backed up")
 		table.Integer("sign_count").Default(0).Comment("Signature counter")
 		table.TimestampTz("last_used_at").Nullable().Comment("When credential was last used")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

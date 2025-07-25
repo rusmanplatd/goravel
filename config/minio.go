@@ -20,18 +20,18 @@ func init() {
 		"region":     config.Env("MINIO_REGION", "ap-southeast-1"),
 
 		// Default Bucket Configuration
-		"bucket":   config.Env("MINIO_BUCKET", "laravelstorage"),
+		"bucket":   config.Env("MINIO_BUCKET", "goravelstorage"),
 		"location": config.Env("MINIO_LOCATION", "ap-southeast-1"),
 
 		// Application Buckets
 		"buckets": map[string]any{
-			"default":   config.Env("MINIO_BUCKET", "laravelstorage"),
+			"default":   config.Env("MINIO_BUCKET", "goravelstorage"),
 			"logs":      config.Env("MINIO_LOGS_BUCKET", "goravel-logs"),
 			"traces":    config.Env("MINIO_TRACES_BUCKET", "goravel-traces"),
 			"metrics":   config.Env("MINIO_METRICS_BUCKET", "goravel-metrics"),
-			"uploads":   config.Env("MINIO_UPLOADS_BUCKET", "laravelstorage"),
-			"avatars":   config.Env("MINIO_AVATARS_BUCKET", "laravelstorage"),
-			"documents": config.Env("MINIO_DOCUMENTS_BUCKET", "laravelstorage"),
+			"uploads":   config.Env("MINIO_UPLOADS_BUCKET", "goravelstorage"),
+			"avatars":   config.Env("MINIO_AVATARS_BUCKET", "goravelstorage"),
+			"documents": config.Env("MINIO_DOCUMENTS_BUCKET", "goravelstorage"),
 		},
 
 		// Path Configuration
@@ -46,7 +46,7 @@ func init() {
 
 		// Security Settings
 		"public_read_buckets": []string{
-			config.Env("MINIO_BUCKET", "laravelstorage").(string),
+			config.Env("MINIO_BUCKET", "goravelstorage").(string),
 		},
 
 		// Advanced Settings

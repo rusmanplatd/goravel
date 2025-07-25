@@ -24,11 +24,11 @@ func (r *M20250115000022CreateChatRoomMembersTable) Up() error {
 		table.Timestamp("joined_at").Comment("When user joined the room")
 		table.Timestamp("last_read_at").Comment("Last message read timestamp")
 		table.Text("public_key").Comment("User's public key for encryption")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

@@ -19,6 +19,7 @@ func (r *M20250115000023CreateChatMessagesTable) Up() error {
 		table.Ulid("id").Comment("Unique message identifier")
 		table.Ulid("chat_room_id").Comment("Chat room reference")
 		table.Ulid("sender_id").Comment("Message sender reference")
+		table.Ulid("thread_id").Nullable().Comment("Message thread reference")
 		table.String("type").Comment("Message type (text, image, file, system, etc.)")
 		table.Text("encrypted_content").Comment("Encrypted message content")
 		table.Json("metadata").Comment("Message metadata (file info, reactions, etc.)")
@@ -27,11 +28,11 @@ func (r *M20250115000023CreateChatMessagesTable) Up() error {
 		table.Text("original_content").Comment("Original message content before edit")
 		table.String("status").Comment("Message status (sent, delivered, read, failed)")
 		table.Integer("encryption_version").Comment("Encryption algorithm version")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")
@@ -39,6 +40,7 @@ func (r *M20250115000023CreateChatMessagesTable) Up() error {
 		// Add indexes
 		table.Index("chat_room_id")
 		table.Index("sender_id")
+		table.Index("thread_id")
 		table.Index("type")
 		table.Index("status")
 		table.Index("reply_to_id")

@@ -122,7 +122,7 @@ type ChatMessage struct {
 
 	// Edit timestamp
 	// @example 2024-01-15T10:30:00Z
-	EditedAt *time.Time `json:"edited_at,omitempty" example:"2024-01-15T10:30:00Z"`
+	EditedAt *time.Time `json:"updated_at,omitempty" example:"2024-01-15T10:30:00Z"`
 
 	// Message status (sent, delivered, read)
 	// @example sent

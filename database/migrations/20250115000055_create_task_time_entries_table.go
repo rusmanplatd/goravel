@@ -25,11 +25,11 @@ func (r *M20250115000055CreateTaskTimeEntriesTable) Up() error {
 		table.Float("duration").Default(0).Comment("Duration in hours")
 		table.Boolean("is_billable").Default(true).Comment("Whether time entry is billable")
 		table.Float("rate").Default(0).Comment("Hourly rate for this time entry")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")

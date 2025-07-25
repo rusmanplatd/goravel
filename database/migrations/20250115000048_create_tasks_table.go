@@ -39,11 +39,11 @@ func (r *M20250115000048CreateTasksTable) Up() error {
 		table.Float("progress").Default(0).Comment("Task completion percentage (0-100)")
 		table.Integer("position").Default(0).Comment("Task position in list/board")
 		table.Json("settings").Comment("Task-specific settings")
+		table.TimestampsTz()
+		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
 		table.Ulid("updated_by").Comment("User who updated data")
 		table.Ulid("deleted_by").Nullable().Comment("User who deleted data")
-		table.TimestampsTz()
-		table.SoftDeletesTz()
 
 		// Primary key
 		table.Primary("id")
