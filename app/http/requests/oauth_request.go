@@ -86,6 +86,14 @@ type OAuthTokenRequest struct {
 	// Requested token type (for token exchange grant)
 	// @example access_token
 	RequestedTokenType string `json:"requested_token_type,omitempty" example:"access_token"`
+
+	// Client assertion (for client attestation)
+	// @example eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+	ClientAssertion string `json:"client_assertion,omitempty" example:"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."`
+
+	// Client assertion type (for client attestation)
+	// @example urn:ietf:params:oauth:client-assertion-type:jwt-bearer
+	ClientAssertionType string `json:"client_assertion_type,omitempty" example:"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"`
 }
 
 // OAuthAuthorizationRequest represents the request for OAuth2 authorization endpoint
@@ -274,4 +282,20 @@ type OAuthTokenExchangeRequest struct {
 	// Scopes (space-separated)
 	// @example read write
 	Scope string `json:"scope,omitempty" example:"read write"`
+}
+
+// OAuthConsentRequest represents the request for OAuth2 consent processing
+// @Description Request model for OAuth2 consent processing
+type OAuthConsentRequest struct {
+	// Consent ID from the consent preparation
+	// @example consent_1234567890_abcdefgh
+	ConsentID string `json:"consent_id" binding:"required" example:"consent_1234567890_abcdefgh" validate:"required"`
+
+	// Whether the user granted consent
+	// @example true
+	Granted bool `json:"granted" example:"true"`
+
+	// Scopes that the user granted (subset of requested scopes)
+	// @example ["profile", "email"]
+	GrantedScopes []string `json:"granted_scopes" example:"[\"profile\", \"email\"]"`
 }

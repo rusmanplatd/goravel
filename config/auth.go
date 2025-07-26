@@ -109,12 +109,49 @@ func init() {
 				"enabled":       config.Env("GOOGLE_OAUTH_ENABLED", false),
 				"client_id":     config.Env("GOOGLE_CLIENT_ID", ""),
 				"client_secret": config.Env("GOOGLE_CLIENT_SECRET", ""),
-				"redirect_url":  config.Env("GOOGLE_REDIRECT_URL", "http://localhost:3000/auth/google/callback"),
+				"redirect_url":  config.Env("GOOGLE_REDIRECT_URL", "http://localhost:3000/auth/oauth/google/callback"),
 				"scopes": []string{
 					"https://www.googleapis.com/auth/userinfo.email",
 					"https://www.googleapis.com/auth/userinfo.profile",
 				},
 			},
+			"github": map[string]interface{}{
+				"enabled":       config.Env("GITHUB_OAUTH_ENABLED", false),
+				"client_id":     config.Env("GITHUB_CLIENT_ID", ""),
+				"client_secret": config.Env("GITHUB_CLIENT_SECRET", ""),
+				"redirect_url":  config.Env("GITHUB_REDIRECT_URL", "http://localhost:3000/auth/oauth/github/callback"),
+				"scopes": []string{
+					"user:email",
+					"read:user",
+				},
+			},
+			"microsoft": map[string]interface{}{
+				"enabled":       config.Env("MICROSOFT_OAUTH_ENABLED", false),
+				"client_id":     config.Env("MICROSOFT_CLIENT_ID", ""),
+				"client_secret": config.Env("MICROSOFT_CLIENT_SECRET", ""),
+				"redirect_url":  config.Env("MICROSOFT_REDIRECT_URL", "http://localhost:3000/auth/oauth/microsoft/callback"),
+				"scopes": []string{
+					"openid",
+					"profile",
+					"email",
+				},
+			},
+			"discord": map[string]interface{}{
+				"enabled":       config.Env("DISCORD_OAUTH_ENABLED", false),
+				"client_id":     config.Env("DISCORD_CLIENT_ID", ""),
+				"client_secret": config.Env("DISCORD_CLIENT_SECRET", ""),
+				"redirect_url":  config.Env("DISCORD_REDIRECT_URL", "http://localhost:3000/auth/oauth/discord/callback"),
+				"scopes": []string{
+					"identify",
+					"email",
+				},
+			},
+		},
+
+		// Allowed redirect hosts for OAuth callbacks
+		"allowed_redirect_hosts": []string{
+			"localhost:3000",
+			"127.0.0.1:3000",
 		},
 
 		// Multi-Factor Authentication

@@ -1,0 +1,580 @@
+{{define "oauth/security/dashboard.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Google-like OAuth Security Dashboard Styles -->
+    <style>
+        .security-dashboard {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        .security-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            border: 1px solid #dadce0;
+            margin-bottom: 24px;
+        }
+        
+        .security-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #dadce0;
+            transition: all 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: #1a73e8;
+            margin-bottom: 8px;
+        }
+        
+        .metric-label {
+            color: #5f6368;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .provider-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.2s ease;
+        }
+        
+        .provider-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .provider-item:last-child {
+            border-bottom: none;
+        }
+        
+        .provider-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 16px;
+            color: white;
+        }
+        
+        .provider-google { background: #4285f4; }
+        .provider-github { background: #333333; }
+        .provider-microsoft { background: #00a1f1; }
+        .provider-default { background: #5f6368; }
+        
+        .device-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.2s ease;
+        }
+        
+        .device-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .device-item:last-child {
+            border-bottom: none;
+        }
+        
+        .device-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 16px;
+            color: white;
+        }
+        
+        .device-desktop { background: #34a853; }
+        .device-mobile { background: #ea4335; }
+        .device-tablet { background: #fbbc04; }
+        
+        .trust-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .trust-trusted {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        
+        .trust-untrusted {
+            background: #fef7e0;
+            color: #f57c00;
+        }
+        
+        .risk-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .risk-low {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        
+        .risk-medium {
+            background: #fef7e0;
+            color: #f57c00;
+        }
+        
+        .risk-high {
+            background: #fce8e6;
+            color: #d93025;
+        }
+        
+        .risk-critical {
+            background: #d93025;
+            color: white;
+        }
+        
+        .event-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        
+        .event-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 12px;
+            color: white;
+            flex-shrink: 0;
+        }
+        
+        .event-oauth { background: #1a73e8; }
+        .event-device { background: #34a853; }
+        .event-risk { background: #ea4335; }
+        
+        .btn-google {
+            background: #1a73e8;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        
+        .btn-google:hover {
+            background: #1557b0;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .btn-outline-google {
+            background: transparent;
+            border: 1px solid #1a73e8;
+            color: #1a73e8;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        
+        .btn-outline-google:hover {
+            background: #1a73e8;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .page-header {
+            background: white;
+            border-bottom: 1px solid #dadce0;
+            padding: 24px 0;
+            margin-bottom: 32px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: #202124;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-title i {
+            margin-right: 8px;
+            color: #1a73e8;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+
+    <div class="security-dashboard">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="h3 fw-normal mb-2" style="color: #202124;">OAuth Security Dashboard</h1>
+                        <p class="text-muted mb-0">Monitor and manage your OAuth provider security, devices, and access</p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <a href="/oauth/security/analytics" class="btn btn-outline-google me-2">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            Analytics
+                        </a>
+                        <a href="/oauth/security/events" class="btn btn-google">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Security Events
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="container">
+            <!-- Security Metrics -->
+            <div class="row mb-4">
+                <div class="col-md-2">
+                    <div class="metric-card fade-in">
+                        <div class="metric-value">{{.metrics.TotalIdentities}}</div>
+                        <div class="metric-label">Connected Providers</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="metric-card fade-in">
+                        <div class="metric-value">{{.metrics.TrustedDevices}}</div>
+                        <div class="metric-label">Trusted Devices</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="metric-card fade-in">
+                        <div class="metric-value">{{.metrics.RecentLogins}}</div>
+                        <div class="metric-label">Recent Logins</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="metric-card fade-in">
+                        <div class="metric-value">{{.metrics.SecurityEvents}}</div>
+                        <div class="metric-label">Security Events</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="metric-card fade-in">
+                        <div class="metric-value">{{printf "%.1f" .metrics.AverageRiskScore}}</div>
+                        <div class="metric-label">Avg Risk Score</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="metric-card fade-in">
+                        <div class="metric-value" style="color: #ea4335;">{{.metrics.HighRiskEvents}}</div>
+                        <div class="metric-label">High Risk Events</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Connected OAuth Providers -->
+                <div class="col-md-6">
+                    <div class="security-card">
+                        <div class="p-3">
+                            <div class="section-title">
+                                <i class="fas fa-link"></i>
+                                Connected OAuth Providers
+                            </div>
+                        </div>
+                        <div>
+                            {{if .identities}}
+                                {{range .identities}}
+                                <div class="provider-item">
+                                    <div class="provider-icon provider-{{.Provider.Name}}">
+                                        {{if eq .Provider.Name "google"}}
+                                            <i class="fab fa-google"></i>
+                                        {{else if eq .Provider.Name "github"}}
+                                            <i class="fab fa-github"></i>
+                                        {{else if eq .Provider.Name "microsoft"}}
+                                            <i class="fab fa-microsoft"></i>
+                                        {{else}}
+                                            <i class="fas fa-cube"></i>
+                                        {{end}}
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-medium" style="color: #202124; font-size: 14px;">
+                                            {{.Provider.DisplayName}}
+                                        </div>
+                                        <div class="text-muted" style="font-size: 12px;">
+                                            Connected as {{.ProviderEmail}}
+                                        </div>
+                                        <div class="text-muted" style="font-size: 11px;">
+                                            Last used: {{.LastLoginAt.Format "Jan 2, 2006 15:04"}}
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="unlinkProvider('{{.Provider.Name}}')">
+                                            <i class="fas fa-unlink"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {{end}}
+                            {{else}}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-link text-muted" style="font-size: 48px; opacity: 0.3;"></i>
+                                    <p class="text-muted mt-3">No OAuth providers connected</p>
+                                    <a href="/oauth/providers" class="btn btn-outline-google">
+                                        <i class="fas fa-plus me-2"></i>
+                                        Connect Provider
+                                    </a>
+                                </div>
+                            {{end}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trusted Devices -->
+                <div class="col-md-6">
+                    <div class="security-card">
+                        <div class="p-3">
+                            <div class="section-title">
+                                <i class="fas fa-devices"></i>
+                                Trusted Devices
+                            </div>
+                        </div>
+                        <div>
+                            {{if .trusted_devices}}
+                                {{range .trusted_devices}}
+                                <div class="device-item">
+                                    <div class="device-icon device-{{.DeviceType}}">
+                                        {{if eq .DeviceType "desktop"}}
+                                            <i class="fas fa-desktop"></i>
+                                        {{else if eq .DeviceType "mobile"}}
+                                            <i class="fas fa-mobile-alt"></i>
+                                        {{else if eq .DeviceType "tablet"}}
+                                            <i class="fas fa-tablet-alt"></i>
+                                        {{else}}
+                                            <i class="fas fa-question"></i>
+                                        {{end}}
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-medium" style="color: #202124; font-size: 14px;">
+                                            {{.Browser}} on {{.Platform}}
+                                        </div>
+                                        <div class="text-muted" style="font-size: 12px;">
+                                            {{.DeviceType}} • Trust Score: {{.TrustScore}}
+                                        </div>
+                                        <div class="text-muted" style="font-size: 11px;">
+                                            Last used: {{.LastUsed.Format "Jan 2, 2006 15:04"}}
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="trust-badge {{if .IsTrusted}}trust-trusted{{else}}trust-untrusted{{end}} mb-2">
+                                            {{if .IsTrusted}}Trusted{{else}}Untrusted{{end}}
+                                        </div>
+                                        <br>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="revokeDevice('{{.Fingerprint}}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {{end}}
+                            {{else}}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-devices text-muted" style="font-size: 48px; opacity: 0.3;"></i>
+                                    <p class="text-muted mt-3">No trusted devices found</p>
+                                </div>
+                            {{end}}
+                        </div>
+                        <div class="p-3 border-top">
+                            <a href="/oauth/security/devices" class="btn btn-outline-google">
+                                <i class="fas fa-cog me-2"></i>
+                                Manage Devices
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Security Events -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="security-card">
+                        <div class="p-3">
+                            <div class="section-title">
+                                <i class="fas fa-history"></i>
+                                Recent Security Events
+                            </div>
+                        </div>
+                        <div>
+                            {{if .recent_events}}
+                                {{range .recent_events}}
+                                <div class="event-item">
+                                    <div class="event-icon event-{{.Type}}">
+                                        {{if eq .Type "oauth_login"}}
+                                            <i class="fas fa-sign-in-alt"></i>
+                                        {{else if eq .Type "device_trust"}}
+                                            <i class="fas fa-shield-alt"></i>
+                                        {{else if eq .Type "risk_assessment"}}
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                        {{else}}
+                                            <i class="fas fa-info"></i>
+                                        {{end}}
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-medium" style="color: #202124; font-size: 14px;">
+                                            {{.Description}}
+                                        </div>
+                                        <div class="text-muted" style="font-size: 12px;">
+                                            {{if .Provider}}Provider: {{.Provider}} • {{end}}
+                                            {{if .DeviceInfo}}{{.DeviceInfo}} • {{end}}
+                                            {{if .IPAddress}}IP: {{.IPAddress}} • {{end}}
+                                            {{if .Location}}{{.Location}} • {{end}}
+                                            {{.Timestamp.Format "Jan 2, 2006 15:04"}}
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="risk-badge risk-{{.Severity}} mb-1">
+                                            {{.Severity}}
+                                        </div>
+                                        <div class="text-muted" style="font-size: 11px;">
+                                            Risk: {{.RiskScore}}
+                                        </div>
+                                    </div>
+                                </div>
+                                {{end}}
+                            {{else}}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-history text-muted" style="font-size: 48px; opacity: 0.3;"></i>
+                                    <p class="text-muted mt-3">No recent security events</p>
+                                </div>
+                            {{end}}
+                        </div>
+                        <div class="p-3 border-top">
+                            <a href="/oauth/security/events" class="btn btn-outline-google">
+                                <i class="fas fa-list me-2"></i>
+                                View All Events
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Unlink OAuth provider
+        function unlinkProvider(providerName) {
+            if (!confirm(`Are you sure you want to disconnect ${providerName}? You'll need to reconnect to use this provider again.`)) {
+                return;
+            }
+
+            fetch(`/auth/oauth/${providerName}/unlink`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Failed to unlink provider');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while unlinking the provider');
+            });
+        }
+
+        // Revoke device trust
+        function revokeDevice(fingerprint) {
+            if (!confirm('Are you sure you want to revoke trust for this device? You may need to re-authenticate on this device.')) {
+                return;
+            }
+
+            fetch(`/oauth/security/devices/${fingerprint}/revoke`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({
+                    user_id: '{{.user_id}}'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Failed to revoke device trust');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while revoking device trust');
+            });
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add fade-in animation to cards
+            document.querySelectorAll('.security-card, .metric-card').forEach(card => {
+                card.classList.add('fade-in');
+            });
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

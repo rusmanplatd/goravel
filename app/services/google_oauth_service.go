@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,7 +20,6 @@ import (
 type GoogleOAuthService struct {
 	config      *oauth2.Config
 	authService *AuthService
-	userService *UserService
 }
 
 type GoogleUserInfo struct {
@@ -31,6 +31,7 @@ type GoogleUserInfo struct {
 	FamilyName    string `json:"family_name"`
 	Picture       string `json:"picture"`
 	Locale        string `json:"locale"`
+	HD            string `json:"hd,omitempty"` // Hosted domain for G Suite accounts
 }
 
 func NewGoogleOAuthService() *GoogleOAuthService {
@@ -51,15 +52,8 @@ func NewGoogleOAuthService() *GoogleOAuthService {
 	return &GoogleOAuthService{
 		config:      config,
 		authService: NewAuthService(),
-		userService: NewUserService(),
 	}
 }
-
-func NewUserService() *UserService {
-	return &UserService{}
-}
-
-type UserService struct{}
 
 // IsEnabled checks if Google OAuth is enabled
 func (s *GoogleOAuthService) IsEnabled() bool {
@@ -71,7 +65,13 @@ func (s *GoogleOAuthService) GetAuthURL(state string) string {
 	if state == "" {
 		state = s.GenerateState()
 	}
-	return s.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+
+	// Add additional security parameters
+	return s.config.AuthCodeURL(state,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("prompt", "consent"), // Force consent screen
+		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
+	)
 }
 
 // HandleCallback processes the OAuth callback and returns user information
@@ -79,12 +79,18 @@ func (s *GoogleOAuthService) HandleCallback(ctx context.Context, code string) (*
 	// Exchange authorization code for token
 	token, err := s.config.Exchange(ctx, code)
 	if err != nil {
+		facades.Log().Error("Google OAuth token exchange failed", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return nil, fmt.Errorf("failed to exchange code for token: %w", err)
 	}
 
 	// Get user info from Google
 	userInfo, err := s.getUserInfo(ctx, token)
 	if err != nil {
+		facades.Log().Error("Google OAuth user info retrieval failed", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
 
@@ -93,6 +99,11 @@ func (s *GoogleOAuthService) HandleCallback(ctx context.Context, code string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to find or create user: %w", err)
 	}
+
+	facades.Log().Info("Google OAuth authentication successful", map[string]interface{}{
+		"user_id": user.ID,
+		"email":   user.Email,
+	})
 
 	return user, nil
 }
@@ -108,7 +119,8 @@ func (s *GoogleOAuthService) getUserInfo(ctx context.Context, token *oauth2.Toke
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get user info, status: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to get user info, status: %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -182,16 +194,37 @@ func (s *GoogleOAuthService) findOrCreateUser(userInfo *GoogleUserInfo) (*models
 	return &newUser, nil
 }
 
-// GenerateState generates a random state parameter for OAuth
+// GenerateState generates a cryptographically secure random state parameter
 func (s *GoogleOAuthService) GenerateState() string {
 	bytes := make([]byte, 32)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to time-based state if crypto/rand fails
+		hash := sha256.Sum256([]byte(fmt.Sprintf("%d_%d", time.Now().UnixNano(), time.Now().Unix())))
+		return fmt.Sprintf("%x", hash[:16])
+	}
 	return fmt.Sprintf("%x", bytes)
 }
 
-// ValidateState validates the OAuth state parameter
+// ValidateState validates the OAuth state parameter with timing attack protection
 func (s *GoogleOAuthService) ValidateState(expected, actual string) bool {
-	return expected == actual && expected != ""
+	if expected == "" || actual == "" {
+		return false
+	}
+
+	// Use constant-time comparison to prevent timing attacks
+	expectedBytes := []byte(expected)
+	actualBytes := []byte(actual)
+
+	if len(expectedBytes) != len(actualBytes) {
+		return false
+	}
+
+	result := byte(0)
+	for i := 0; i < len(expectedBytes); i++ {
+		result |= expectedBytes[i] ^ actualBytes[i]
+	}
+
+	return result == 0
 }
 
 // GetUserByGoogleID finds a user by their Google ID
@@ -217,6 +250,11 @@ func (s *GoogleOAuthService) UnlinkGoogleAccount(userID string) error {
 		return fmt.Errorf("failed to unlink Google account: %w", err)
 	}
 
+	facades.Log().Info("Google account unlinked", map[string]interface{}{
+		"user_id": userID,
+		"email":   user.Email,
+	})
+
 	return nil
 }
 
@@ -231,6 +269,16 @@ func (s *GoogleOAuthService) RefreshUserInfo(ctx context.Context, user *models.U
 		return fmt.Errorf("failed to get updated user info: %w", err)
 	}
 
+	// Verify that the Google ID matches
+	if userInfo.ID != *user.GoogleID {
+		facades.Log().Warning("Google ID mismatch detected", map[string]interface{}{
+			"user_id":            user.ID,
+			"expected_google_id": *user.GoogleID,
+			"actual_google_id":   userInfo.ID,
+		})
+		return fmt.Errorf("Google ID mismatch: security violation detected")
+	}
+
 	// Update user information
 	user.Name = userInfo.Name
 	user.Email = userInfo.Email
@@ -240,5 +288,94 @@ func (s *GoogleOAuthService) RefreshUserInfo(ctx context.Context, user *models.U
 		return fmt.Errorf("failed to update user info: %w", err)
 	}
 
+	facades.Log().Info("Google user info refreshed", map[string]interface{}{
+		"user_id": user.ID,
+		"email":   user.Email,
+	})
+
 	return nil
+}
+
+// ValidateTokenWithGoogle validates a token directly with Google's tokeninfo endpoint
+func (s *GoogleOAuthService) ValidateTokenWithGoogle(ctx context.Context, accessToken string) (*GoogleTokenInfo, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	resp, err := client.Get(fmt.Sprintf("https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=%s", accessToken))
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token validation failed with status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read validation response: %w", err)
+	}
+
+	var tokenInfo GoogleTokenInfo
+	if err := json.Unmarshal(body, &tokenInfo); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal token info: %w", err)
+	}
+
+	// Validate that the token is for our application
+	if tokenInfo.Audience != s.config.ClientID {
+		return nil, fmt.Errorf("token audience mismatch")
+	}
+
+	return &tokenInfo, nil
+}
+
+// GoogleTokenInfo represents Google's token validation response
+type GoogleTokenInfo struct {
+	Audience      string `json:"aud"`
+	UserID        string `json:"user_id"`
+	Scope         string `json:"scope"`
+	ExpiresIn     int    `json:"expires_in"`
+	Email         string `json:"email,omitempty"`
+	VerifiedEmail bool   `json:"verified_email,omitempty"`
+}
+
+// RevokeToken revokes a Google OAuth token
+func (s *GoogleOAuthService) RevokeToken(ctx context.Context, token string, userID string) error {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	resp, err := client.Post(
+		fmt.Sprintf("https://oauth2.googleapis.com/revoke?token=%s", token),
+		"application/x-www-form-urlencoded",
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to revoke token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("token revocation failed with status: %d", resp.StatusCode)
+	}
+
+	facades.Log().Info("Google OAuth token revoked", map[string]interface{}{
+		"user_id": userID,
+	})
+
+	return nil
+}
+
+// IsGSuiteAccount checks if the user is from a G Suite domain
+func (s *GoogleOAuthService) IsGSuiteAccount(userInfo *GoogleUserInfo) bool {
+	return userInfo.HD != ""
+}
+
+// GetGSuiteDomain returns the G Suite domain if applicable
+func (s *GoogleOAuthService) GetGSuiteDomain(userInfo *GoogleUserInfo) string {
+	return userInfo.HD
+}
+
+// GenerateDeviceFingerprint generates a device fingerprint from request information
+func (s *GoogleOAuthService) GenerateDeviceFingerprint(userAgent, acceptLanguage, acceptEncoding string, screenResolution string) string {
+	data := fmt.Sprintf("%s|%s|%s|%s", userAgent, acceptLanguage, acceptEncoding, screenResolution)
+	hash := sha256.Sum256([]byte(data))
+	return fmt.Sprintf("%x", hash)
 }

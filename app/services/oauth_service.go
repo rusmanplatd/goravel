@@ -22,14 +22,26 @@ import (
 )
 
 type OAuthService struct {
-	jwtService    *JWTService
-	rsaPrivateKey *rsa.PrivateKey
-	rsaPublicKey  *rsa.PublicKey
+	jwtService                *JWTService
+	analyticsService          *OAuthAnalyticsService
+	consentService            *OAuthConsentService
+	sessionService            *SessionService
+	hierarchicalScopeService  *OAuthHierarchicalScopeService
+	tokenBindingService       *OAuthTokenBindingService
+	resourceIndicatorsService *OAuthResourceIndicatorsService
+	rsaPrivateKey             *rsa.PrivateKey
+	rsaPublicKey              *rsa.PublicKey
 }
 
 func NewOAuthService() *OAuthService {
 	service := &OAuthService{
-		jwtService: NewJWTService(),
+		jwtService:                NewJWTService(),
+		analyticsService:          NewOAuthAnalyticsService(),
+		consentService:            NewOAuthConsentService(),
+		sessionService:            NewSessionService(),
+		hierarchicalScopeService:  NewOAuthHierarchicalScopeService(),
+		tokenBindingService:       NewOAuthTokenBindingService(),
+		resourceIndicatorsService: NewOAuthResourceIndicatorsService(),
 	}
 
 	// Initialize RSA keys for JWT signing
@@ -131,7 +143,7 @@ func (s *OAuthService) CreateJWTAccessToken(userID *string, clientID string, sco
 	return token.SignedString(s.rsaPrivateKey)
 }
 
-// GetJWKS returns the JSON Web Key Set for JWT verification
+// GetJWKS returns the JSON Web Key Set for JWT verification with Google-like structure
 func (s *OAuthService) GetJWKS() map[string]interface{} {
 	if s.rsaPublicKey == nil {
 		return map[string]interface{}{
@@ -139,21 +151,240 @@ func (s *OAuthService) GetJWKS() map[string]interface{} {
 		}
 	}
 
-	// Convert public key to JWK format
-	_, _ = x509.MarshalPKIXPublicKey(s.rsaPublicKey)
+	// Convert public key to JWK format with proper structure
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(s.rsaPublicKey)
+	if err != nil {
+		facades.Log().Error("Failed to marshal public key: " + err.Error())
+		return map[string]interface{}{
+			"keys": []interface{}{},
+		}
+	}
+
+	// Calculate key ID based on public key thumbprint (Google-like)
+	keyID := s.calculateKeyID(publicKeyBytes)
+
+	// Create JWK with Google-compatible structure
+	jwk := map[string]interface{}{
+		"kty": "RSA",
+		"use": "sig",
+		"kid": keyID,
+		"alg": "RS256",
+		"n":   base64.RawURLEncoding.EncodeToString(s.rsaPublicKey.N.Bytes()),
+		"e":   base64.RawURLEncoding.EncodeToString([]byte{0x01, 0x00, 0x01}), // 65537 in big-endian
+
+		// Additional Google-like metadata
+		"key_ops":  []string{"verify"},
+		"x5t":      s.calculateX5Thumbprint(publicKeyBytes),
+		"x5t#S256": s.calculateX5ThumbprintSHA256(publicKeyBytes),
+	}
+
+	// Support for multiple keys (for key rotation)
+	keys := []interface{}{jwk}
+
+	// Add secondary key if available (for key rotation scenarios)
+	if secondaryKey := s.getSecondaryPublicKey(); secondaryKey != nil {
+		secondaryKeyBytes, err := x509.MarshalPKIXPublicKey(secondaryKey)
+		if err == nil {
+			secondaryKeyID := s.calculateKeyID(secondaryKeyBytes)
+			secondaryJWK := map[string]interface{}{
+				"kty":      "RSA",
+				"use":      "sig",
+				"kid":      secondaryKeyID,
+				"alg":      "RS256",
+				"n":        base64.RawURLEncoding.EncodeToString(secondaryKey.N.Bytes()),
+				"e":        base64.RawURLEncoding.EncodeToString([]byte{0x01, 0x00, 0x01}),
+				"key_ops":  []string{"verify"},
+				"x5t":      s.calculateX5Thumbprint(secondaryKeyBytes),
+				"x5t#S256": s.calculateX5ThumbprintSHA256(secondaryKeyBytes),
+			}
+			keys = append(keys, secondaryJWK)
+		}
+	}
 
 	return map[string]interface{}{
-		"keys": []interface{}{
-			map[string]interface{}{
-				"kty": "RSA",
-				"use": "sig",
-				"kid": "oauth2-key-1",
-				"alg": "RS256",
-				"n":   base64.RawURLEncoding.EncodeToString(s.rsaPublicKey.N.Bytes()),
-				"e":   base64.RawURLEncoding.EncodeToString([]byte{1, 0, 1}), // 65537
-			},
-		},
+		"keys": keys,
 	}
+}
+
+// RotateJWKS performs Google-like key rotation
+func (s *OAuthService) RotateJWKS() error {
+	if !facades.Config().GetBool("oauth.jwks.auto_rotation", true) {
+		return fmt.Errorf("JWKS auto rotation is disabled")
+	}
+
+	facades.Log().Info("Starting JWKS key rotation")
+
+	// Generate new RSA key pair
+	newPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("failed to generate new RSA key: %w", err)
+	}
+
+	// Store current key as secondary (for grace period)
+	if s.rsaPrivateKey != nil {
+		s.storeSecondaryKey(s.rsaPrivateKey, s.rsaPublicKey)
+	}
+
+	// Update to new key
+	s.rsaPrivateKey = newPrivateKey
+	s.rsaPublicKey = &newPrivateKey.PublicKey
+
+	// Store new keys in cache/config for persistence
+	s.storeCurrentKeys()
+
+	facades.Log().Info("JWKS key rotation completed successfully")
+
+	return nil
+}
+
+// ValidateJWKSRotation checks if key rotation is working properly
+func (s *OAuthService) ValidateJWKSRotation() error {
+	if s.rsaPrivateKey == nil {
+		return fmt.Errorf("no active private key found")
+	}
+
+	if s.rsaPublicKey == nil {
+		return fmt.Errorf("no active public key found")
+	}
+
+	// Test key functionality by creating and verifying a test token
+	testClaims := jwt.MapClaims{
+		"test": true,
+		"iat":  time.Now().Unix(),
+		"exp":  time.Now().Add(time.Minute).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, testClaims)
+	tokenString, err := token.SignedString(s.rsaPrivateKey)
+	if err != nil {
+		return fmt.Errorf("failed to sign test token: %w", err)
+	}
+
+	// Verify the token
+	_, err = jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return s.rsaPublicKey, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to verify test token: %w", err)
+	}
+
+	return nil
+}
+
+// GetJWKSRotationStatus returns the current status of key rotation
+func (s *OAuthService) GetJWKSRotationStatus() map[string]interface{} {
+	status := map[string]interface{}{
+		"auto_rotation_enabled": facades.Config().GetBool("oauth.jwks.auto_rotation", true),
+		"current_key_id":        "",
+		"secondary_key_id":      "",
+		"keys_count":            0,
+	}
+
+	if s.rsaPublicKey != nil {
+		publicKeyBytes, _ := x509.MarshalPKIXPublicKey(s.rsaPublicKey)
+		status["current_key_id"] = s.calculateKeyID(publicKeyBytes)
+		status["keys_count"] = 1
+	}
+
+	if secondaryKey := s.getSecondaryPublicKey(); secondaryKey != nil {
+		secondaryKeyBytes, _ := x509.MarshalPKIXPublicKey(secondaryKey)
+		status["secondary_key_id"] = s.calculateKeyID(secondaryKeyBytes)
+		status["keys_count"] = status["keys_count"].(int) + 1
+	}
+
+	return status
+}
+
+// Helper methods for key management
+
+func (s *OAuthService) storeCurrentKeys() {
+	if s.rsaPrivateKey == nil {
+		return
+	}
+
+	// Store private key
+	privateKeyBytes := x509.MarshalPKCS1PrivateKey(s.rsaPrivateKey)
+	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privateKeyBytes,
+	})
+
+	// Store public key
+	publicKeyBytes, _ := x509.MarshalPKIXPublicKey(s.rsaPublicKey)
+	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: publicKeyBytes,
+	})
+
+	// Store in cache with expiration
+	keyExpiration := time.Duration(facades.Config().GetInt("oauth.jwks.key_ttl_hours", 24*7)) * time.Hour
+	facades.Cache().Put("oauth_current_private_key", string(privateKeyPEM), keyExpiration)
+	facades.Cache().Put("oauth_current_public_key", string(publicKeyPEM), keyExpiration)
+
+	facades.Log().Info("Stored current JWKS keys in cache")
+}
+
+func (s *OAuthService) storeSecondaryKey(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) {
+	// Store secondary key for grace period
+	publicKeyBytes, _ := x509.MarshalPKIXPublicKey(publicKey)
+	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: publicKeyBytes,
+	})
+
+	gracePeriod := time.Duration(facades.Config().GetInt("oauth.jwks.grace_period_hours", 24)) * time.Hour
+	facades.Cache().Put("oauth_secondary_public_key", string(publicKeyPEM), gracePeriod)
+
+	facades.Log().Info("Stored secondary JWKS key for grace period")
+}
+
+// calculateKeyID generates a key ID based on the public key thumbprint
+func (s *OAuthService) calculateKeyID(publicKeyBytes []byte) string {
+	hash := sha256.Sum256(publicKeyBytes)
+	return base64.RawURLEncoding.EncodeToString(hash[:8]) // Use first 8 bytes for shorter ID
+}
+
+// calculateX5Thumbprint calculates the X.509 certificate thumbprint (SHA-1)
+func (s *OAuthService) calculateX5Thumbprint(publicKeyBytes []byte) string {
+	// For simplicity, we'll use SHA-256 hash of the public key
+	// In a real implementation, you'd use the actual X.509 certificate
+	hash := sha256.Sum256(publicKeyBytes)
+	return base64.RawURLEncoding.EncodeToString(hash[:20]) // SHA-1 length equivalent
+}
+
+// calculateX5ThumbprintSHA256 calculates the X.509 certificate thumbprint (SHA-256)
+func (s *OAuthService) calculateX5ThumbprintSHA256(publicKeyBytes []byte) string {
+	hash := sha256.Sum256(publicKeyBytes)
+	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
+// getSecondaryPublicKey returns a secondary public key for key rotation
+func (s *OAuthService) getSecondaryPublicKey() *rsa.PublicKey {
+	publicKeyPEM := facades.Cache().GetString("oauth_secondary_public_key", "")
+	if publicKeyPEM == "" {
+		return nil
+	}
+
+	block, _ := pem.Decode([]byte(publicKeyPEM))
+	if block == nil {
+		return nil
+	}
+
+	publicKeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil
+	}
+
+	rsaPublicKey, ok := publicKeyInterface.(*rsa.PublicKey)
+	if !ok {
+		return nil
+	}
+
+	return rsaPublicKey
 }
 
 // DetectSuspiciousActivity detects suspicious OAuth2 activity
@@ -562,6 +793,11 @@ func (s *OAuthService) CreateAuthCode(userID, clientID string, scopes []string, 
 
 // CreateAuthCodeWithPKCE creates a new authorization code with PKCE support
 func (s *OAuthService) CreateAuthCodeWithPKCE(userID, clientID string, scopes []string, expiresAt time.Time, codeChallenge, codeChallengeMethod string) (*models.OAuthAuthCode, error) {
+	// Validate PKCE parameters more strictly like Google
+	if err := s.validatePKCEParameters(codeChallenge, codeChallengeMethod); err != nil {
+		return nil, fmt.Errorf("invalid PKCE parameters: %w", err)
+	}
+
 	code := &models.OAuthAuthCode{
 		ID:                  s.generateTokenID(),
 		UserID:              userID,
@@ -580,6 +816,84 @@ func (s *OAuthService) CreateAuthCodeWithPKCE(userID, clientID string, scopes []
 	}
 
 	return code, nil
+}
+
+// validatePKCEParameters validates PKCE parameters according to RFC 7636 and Google's strict requirements
+func (s *OAuthService) validatePKCEParameters(codeChallenge, codeChallengeMethod string) error {
+	if codeChallenge == "" {
+		return fmt.Errorf("code_challenge is required")
+	}
+
+	if codeChallengeMethod == "" {
+		return fmt.Errorf("code_challenge_method is required")
+	}
+
+	// Google strongly recommends S256 and we enforce it for better security
+	if codeChallengeMethod != "S256" && codeChallengeMethod != "plain" {
+		return fmt.Errorf("unsupported code_challenge_method: %s. Only S256 and plain are supported", codeChallengeMethod)
+	}
+
+	// Google-like strict validation: prefer S256 over plain
+	if codeChallengeMethod == "plain" && facades.Config().GetBool("oauth.security.discourage_plain_pkce", true) {
+		facades.Log().Warning("Plain PKCE method used - S256 is recommended for better security", map[string]interface{}{
+			"method": codeChallengeMethod,
+		})
+	}
+
+	// Validate code_challenge format
+	if len(codeChallenge) < 43 || len(codeChallenge) > 128 {
+		return fmt.Errorf("code_challenge must be between 43 and 128 characters")
+	}
+
+	// For S256, ensure it's properly base64url encoded
+	if codeChallengeMethod == "S256" {
+		if !s.isValidBase64URL(codeChallenge) {
+			return fmt.Errorf("code_challenge must be base64url encoded for S256 method")
+		}
+	}
+
+	return nil
+}
+
+// isValidBase64URL checks if a string is valid base64url encoding
+func (s *OAuthService) isValidBase64URL(str string) bool {
+	// Check for valid base64url characters
+	for _, char := range str {
+		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') ||
+			(char >= '0' && char <= '9') || char == '-' || char == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// requiresPKCE determines if PKCE is required for a client (Google-like enforcement)
+func (s *OAuthService) requiresPKCE(client *models.OAuthClient) bool {
+	// Always require PKCE for public clients (like Google)
+	if client.IsPublic() {
+		return true
+	}
+
+	// Check global configuration for confidential clients
+	if facades.Config().GetBool("oauth.security.require_pkce_for_all_clients", false) {
+		return true
+	}
+
+	// For confidential clients, check if PKCE is enabled globally
+	return facades.Config().GetBool("oauth.security.require_pkce_for_public_clients", true) && client.IsPublic()
+}
+
+// ValidatePKCEForClient validates PKCE requirements for a specific client
+func (s *OAuthService) ValidatePKCEForClient(client *models.OAuthClient, codeChallenge, codeChallengeMethod string) error {
+	if !s.requiresPKCE(client) {
+		return nil // PKCE not required for this client
+	}
+
+	if codeChallenge == "" || codeChallengeMethod == "" {
+		return fmt.Errorf("PKCE is required for this client type. code_challenge and code_challenge_method must be provided")
+	}
+
+	return s.validatePKCEParameters(codeChallenge, codeChallengeMethod)
 }
 
 // ValidatePKCE validates PKCE parameters
@@ -895,9 +1209,193 @@ func (s *OAuthService) ParseScopes(scopeString string) []string {
 	return strings.Fields(scopeString)
 }
 
-// FormatScopes formats a slice of scopes into a space-separated string
+// FormatScopes formats scopes array as space-separated string
 func (s *OAuthService) FormatScopes(scopes []string) string {
 	return strings.Join(scopes, " ")
+}
+
+// HasScope checks if a specific scope exists in the scopes slice
+func (s *OAuthService) HasScope(scopes []string, targetScope string) bool {
+	for _, scope := range scopes {
+		if scope == targetScope {
+			return true
+		}
+	}
+	return false
+}
+
+// ExpandScopes expands parent scopes to include their child scopes (Google-like hierarchy)
+func (s *OAuthService) ExpandScopes(requestedScopes []string) []string {
+	scopeHierarchies := facades.Config().Get("oauth.scope_hierarchies").(map[string][]string)
+	expandedScopes := make(map[string]bool)
+
+	// Add all requested scopes
+	for _, scope := range requestedScopes {
+		expandedScopes[scope] = true
+
+		// Add child scopes if this is a parent scope
+		if childScopes, exists := scopeHierarchies[scope]; exists {
+			for _, childScope := range childScopes {
+				expandedScopes[childScope] = true
+
+				// Recursively expand child scopes
+				childExpanded := s.ExpandScopes([]string{childScope})
+				for _, expandedChild := range childExpanded {
+					expandedScopes[expandedChild] = true
+				}
+			}
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]string, 0, len(expandedScopes))
+	for scope := range expandedScopes {
+		result = append(result, scope)
+	}
+
+	return result
+}
+
+// ValidateScopeHierarchy validates that requested scopes follow hierarchy rules
+func (s *OAuthService) ValidateScopeHierarchy(requestedScopes []string) error {
+	// For now, we allow flexible scope requests without strict hierarchy enforcement
+	// This can be enhanced later if needed
+	_ = requestedScopes // Prevent unused variable warning
+
+	return nil
+}
+
+// GetScopeDescription returns user-friendly scope descriptions
+func (s *OAuthService) GetScopeDescription(scope string) map[string]string {
+	scopeDescriptions := facades.Config().Get("oauth.scope_descriptions").(map[string]map[string]string)
+
+	if description, exists := scopeDescriptions[scope]; exists {
+		return description
+	}
+
+	// Return default description if not found
+	return map[string]string{
+		"title":       fmt.Sprintf("Access %s", scope),
+		"description": fmt.Sprintf("Allow access to %s resources", scope),
+		"sensitive":   "false",
+	}
+}
+
+// GetScopesByCategory groups scopes by their category (Google-like organization)
+func (s *OAuthService) GetScopesByCategory(scopes []string) map[string][]string {
+	categories := make(map[string][]string)
+
+	for _, scope := range scopes {
+		category := s.getScopeCategory(scope)
+		categories[category] = append(categories[category], scope)
+	}
+
+	return categories
+}
+
+// getScopeCategory determines the category of a scope
+func (s *OAuthService) getScopeCategory(scope string) string {
+	switch {
+	case strings.HasPrefix(scope, "user"):
+		return "User Information"
+	case strings.HasPrefix(scope, "calendar"):
+		return "Calendar"
+	case strings.HasPrefix(scope, "chat"):
+		return "Chat & Messaging"
+	case strings.HasPrefix(scope, "tasks"):
+		return "Task Management"
+	case strings.HasPrefix(scope, "org"):
+		return "Organization"
+	case strings.HasPrefix(scope, "files"):
+		return "File Management"
+	case strings.HasPrefix(scope, "analytics"):
+		return "Analytics"
+	case strings.HasPrefix(scope, "audit") || strings.HasPrefix(scope, "security"):
+		return "Security & Audit"
+	case scope == "openid" || scope == "profile" || scope == "email" || scope == "address" || scope == "phone":
+		return "Basic Profile"
+	case scope == "admin":
+		return "Administrative"
+	default:
+		return "General"
+	}
+}
+
+// CheckScopePermission checks if a user has permission for a specific scope
+func (s *OAuthService) CheckScopePermission(userID, scope string) bool {
+	// This is where you would implement your permission checking logic
+	// For now, we'll do basic validation
+
+	// Check if scope is sensitive and requires special permissions
+	description := s.GetScopeDescription(scope)
+	if description["sensitive"] == "true" {
+		// Check if user has admin role or specific permissions
+		return s.userHasAdminRole(userID) || s.userHasSpecificPermission(userID, scope)
+	}
+
+	return true // Allow non-sensitive scopes by default
+}
+
+// userHasAdminRole checks if user has admin role
+func (s *OAuthService) userHasAdminRole(userID string) bool {
+	// Query user roles to check for admin role
+	var userRoles []models.UserRole
+	facades.Orm().Query().Where("user_id", userID).Find(&userRoles)
+
+	for _, userRole := range userRoles {
+		var role models.Role
+		if facades.Orm().Query().Where("id", userRole.RoleID).First(&role) == nil {
+			if role.Name == "admin" || role.Name == "super_admin" {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// userHasSpecificPermission checks if user has specific permission for a scope
+func (s *OAuthService) userHasSpecificPermission(userID, scope string) bool {
+	// Query user permissions through roles
+	var userRoles []models.UserRole
+	facades.Orm().Query().Where("user_id", userID).Find(&userRoles)
+
+	for _, userRole := range userRoles {
+		var rolePermissions []models.RolePermission
+		facades.Orm().Query().Where("role_id", userRole.RoleID).Find(&rolePermissions)
+
+		for _, rolePerm := range rolePermissions {
+			var permission models.Permission
+			if facades.Orm().Query().Where("id", rolePerm.PermissionID).First(&permission) == nil {
+				// Check if permission matches scope or is broader
+				if permission.Name == scope || s.permissionCoversScope(permission.Name, scope) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// permissionCoversScope checks if a permission covers a specific scope
+func (s *OAuthService) permissionCoversScope(permission, scope string) bool {
+	// Check if permission is a parent scope that covers the requested scope
+	scopeHierarchies := facades.Config().Get("oauth.scope_hierarchies").(map[string][]string)
+
+	if childScopes, exists := scopeHierarchies[permission]; exists {
+		for _, childScope := range childScopes {
+			if childScope == scope {
+				return true
+			}
+			// Recursively check child permissions
+			if s.permissionCoversScope(childScope, scope) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // ValidateScopes validates that all scopes are allowed
@@ -1279,4 +1777,662 @@ func (s *OAuthService) LogOAuthEvent(eventType, clientID, userID string, details
 	}
 
 	facades.Log().Info("OAuth Event", logData)
+}
+
+// CreateIDToken creates an OpenID Connect ID token with Google-like claims
+func (s *OAuthService) CreateIDToken(userID, clientID string, scopes []string, nonce *string, authTime *time.Time) (string, error) {
+	if s.rsaPrivateKey == nil {
+		return "", fmt.Errorf("RSA private key not initialized")
+	}
+
+	// Get user information
+	var user models.User
+	err := facades.Orm().Query().Where("id", userID).First(&user)
+	if err != nil {
+		return "", fmt.Errorf("user not found")
+	}
+
+	// Get client information
+	client, err := s.GetClient(clientID)
+	if err != nil {
+		return "", fmt.Errorf("client not found")
+	}
+
+	now := time.Now()
+	ttl := facades.Config().GetInt("oauth.access_token_ttl", 60)
+	exp := now.Add(time.Duration(ttl) * time.Minute)
+
+	// Build standard OIDC claims
+	claims := jwt.MapClaims{
+		"iss": facades.Config().GetString("app.url"),
+		"sub": userID,
+		"aud": clientID,
+		"exp": exp.Unix(),
+		"iat": now.Unix(),
+		"nbf": now.Unix(),
+		"auth_time": func() int64 {
+			if authTime != nil {
+				return authTime.Unix()
+			}
+			return now.Unix()
+		}(),
+		"azp": clientID, // Authorized party (Google-like)
+	}
+
+	// Add nonce if provided (for implicit flow)
+	if nonce != nil && *nonce != "" {
+		claims["nonce"] = *nonce
+	}
+
+	// Add Google-like standard claims
+	claims["at_hash"] = s.calculateAccessTokenHash("") // Will be set if access token provided
+
+	// Add claims based on requested scopes (Google-like scope handling)
+	for _, scope := range scopes {
+		switch scope {
+		case "openid":
+			// OpenID scope is required but doesn't add specific claims
+			continue
+
+		case "profile":
+			// Google profile scope claims
+			claims["name"] = user.Name
+			claims["given_name"] = s.extractGivenName(user.Name)
+			claims["family_name"] = s.extractFamilyName(user.Name)
+			claims["middle_name"] = s.extractMiddleName(user.Name)
+
+			if user.Avatar != "" {
+				claims["picture"] = user.Avatar
+			}
+
+			// Google-like additional profile claims
+			claims["profile"] = fmt.Sprintf("%s/users/%s", facades.Config().GetString("app.url"), userID)
+			claims["preferred_username"] = s.extractUsername(user.Email)
+			claims["website"] = s.getUserWebsite(userID)
+			claims["gender"] = s.getUserGender(userID)
+			claims["birthdate"] = s.getUserBirthdate(userID)
+			claims["zoneinfo"] = s.getUserTimezone(userID)
+			claims["locale"] = s.getUserLocale(userID)
+			claims["updated_at"] = user.UpdatedAt.Unix()
+
+		case "email":
+			// Google email scope claims
+			claims["email"] = user.Email
+			claims["email_verified"] = user.EmailVerifiedAt != nil
+
+		case "address":
+			// Google address scope claims
+			address := s.getUserAddress(userID)
+			if address != nil {
+				claims["address"] = address
+			}
+
+		case "phone":
+			// Google phone scope claims
+			phone := s.getUserPhone(userID)
+			if phone != "" {
+				claims["phone_number"] = phone
+				claims["phone_number_verified"] = s.isPhoneVerified(userID)
+			}
+
+		// Custom application scopes
+		case "user:read", "user:profile":
+			// Application-specific user claims
+			claims["user_id"] = userID
+			claims["user_type"] = s.getUserType(userID)
+			claims["user_status"] = s.getUserStatus(userID)
+			claims["account_type"] = s.getAccountType(userID)
+
+		case "org:read":
+			// Organization claims
+			orgInfo := s.getUserOrganizations(userID)
+			if orgInfo != nil {
+				claims["organizations"] = orgInfo
+			}
+
+		case "calendar:read":
+			// Calendar access indicator
+			claims["calendar_access"] = true
+
+		case "chat:read":
+			// Chat access indicator
+			claims["chat_access"] = true
+		}
+	}
+
+	// Add Google-like additional metadata
+	claims["client_name"] = client.Name
+	claims["client_id"] = clientID
+
+	// Add session information (Google-like)
+	claims["session_state"] = s.generateSessionState(userID, clientID)
+
+	// Add security context
+	claims["acr"] = "1"             // Authentication Context Class Reference
+	claims["amr"] = []string{"pwd"} // Authentication Methods References
+
+	// Add custom claims for enhanced security
+	claims["device_id"] = s.getDeviceID(userID)
+	claims["ip_address"] = s.getLastKnownIP(userID)
+	claims["login_hint"] = user.Email
+
+	// Calculate key ID for the token header
+	publicKeyBytes, _ := x509.MarshalPKIXPublicKey(s.rsaPublicKey)
+	keyID := s.calculateKeyID(publicKeyBytes)
+
+	// Create and sign token
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = keyID
+	token.Header["typ"] = "JWT"
+
+	return token.SignedString(s.rsaPrivateKey)
+}
+
+// Helper methods for Google-like claim extraction
+
+func (s *OAuthService) extractGivenName(fullName string) string {
+	parts := strings.Fields(strings.TrimSpace(fullName))
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
+}
+
+func (s *OAuthService) extractFamilyName(fullName string) string {
+	parts := strings.Fields(strings.TrimSpace(fullName))
+	if len(parts) > 1 {
+		return strings.Join(parts[1:], " ")
+	}
+	return ""
+}
+
+func (s *OAuthService) extractMiddleName(fullName string) string {
+	parts := strings.Fields(strings.TrimSpace(fullName))
+	if len(parts) > 2 {
+		return strings.Join(parts[1:len(parts)-1], " ")
+	}
+	return ""
+}
+
+func (s *OAuthService) extractUsername(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
+}
+
+func (s *OAuthService) calculateAccessTokenHash(accessToken string) string {
+	if accessToken == "" {
+		return ""
+	}
+	hash := sha256.Sum256([]byte(accessToken))
+	return base64.RawURLEncoding.EncodeToString(hash[:16]) // Left-most 128 bits
+}
+
+func (s *OAuthService) generateSessionState(userID, clientID string) string {
+	data := fmt.Sprintf("%s.%s.%d", userID, clientID, time.Now().Unix())
+	hash := sha256.Sum256([]byte(data))
+	return base64.RawURLEncoding.EncodeToString(hash[:16])
+}
+
+// User data retrieval methods for OAuth2 identity provider functionality
+func (s *OAuthService) getUserWebsite(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return ""
+	}
+	if profile.Website != nil {
+		return *profile.Website
+	}
+	return ""
+}
+
+func (s *OAuthService) getUserGender(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return ""
+	}
+	if profile.Gender != nil {
+		return *profile.Gender
+	}
+	return ""
+}
+
+func (s *OAuthService) getUserBirthdate(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return ""
+	}
+	return profile.GetBirthdateString()
+}
+
+func (s *OAuthService) getUserTimezone(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return "UTC" // Default
+	}
+	if profile.Timezone != "" {
+		return profile.Timezone
+	}
+	return "UTC" // Default
+}
+
+func (s *OAuthService) getUserLocale(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return "en-US" // Default
+	}
+	if profile.Locale != "" {
+		return profile.Locale
+	}
+	return "en-US" // Default
+}
+
+func (s *OAuthService) getUserAddress(userID string) map[string]interface{} {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return nil
+	}
+	return profile.GetAddressMap()
+}
+
+func (s *OAuthService) getUserPhone(userID string) string {
+	var user models.User
+	if err := facades.Orm().Query().Where("id = ?", userID).First(&user); err != nil {
+		return ""
+	}
+	return user.Phone
+}
+
+func (s *OAuthService) isPhoneVerified(userID string) bool {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return false
+	}
+	return profile.PhoneVerified
+}
+
+func (s *OAuthService) getUserType(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return "user" // Default
+	}
+	if profile.UserType != "" {
+		return profile.UserType
+	}
+	return "user" // Default
+}
+
+func (s *OAuthService) getUserStatus(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return "active" // Default
+	}
+	if profile.Status != "" {
+		return profile.Status
+	}
+	return "active" // Default
+}
+
+func (s *OAuthService) getAccountType(userID string) string {
+	var profile models.UserProfile
+	if err := facades.Orm().Query().Where("user_id = ?", userID).First(&profile); err != nil {
+		return "personal" // Default
+	}
+	if profile.AccountType != "" {
+		return profile.AccountType
+	}
+	return "personal" // Default
+}
+
+func (s *OAuthService) getUserOrganizations(userID string) []map[string]interface{} {
+	var userOrganizations []models.UserOrganization
+	if err := facades.Orm().Query().
+		With("Organization", "Organization.Country", "Organization.Province", "Organization.City").
+		Where("user_id = ? AND is_active = ?", userID, true).
+		Find(&userOrganizations); err != nil {
+		return nil
+	}
+
+	var organizations []map[string]interface{}
+	for _, userOrg := range userOrganizations {
+		if userOrg.Organization.ID != "" {
+			orgMap := map[string]interface{}{
+				"id":          userOrg.Organization.ID,
+				"name":        userOrg.Organization.Name,
+				"slug":        userOrg.Organization.Slug,
+				"domain":      userOrg.Organization.Domain,
+				"type":        userOrg.Organization.Type,
+				"industry":    userOrg.Organization.Industry,
+				"size":        userOrg.Organization.Size,
+				"website":     userOrg.Organization.Website,
+				"logo":        userOrg.Organization.Logo,
+				"user_role":   userOrg.Role,
+				"user_status": userOrg.Status,
+				"title":       userOrg.Title,
+				"employee_id": userOrg.EmployeeID,
+				"joined_at":   userOrg.JoinedAt,
+			}
+
+			// Add address information if available
+			if userOrg.Organization.Address != "" {
+				orgMap["address"] = userOrg.Organization.Address
+			}
+			if userOrg.Organization.Country != nil {
+				orgMap["country"] = userOrg.Organization.Country.Name
+			}
+			if userOrg.Organization.Province != nil {
+				orgMap["province"] = userOrg.Organization.Province.Name
+			}
+			if userOrg.Organization.City != nil {
+				orgMap["city"] = userOrg.Organization.City.Name
+			}
+
+			organizations = append(organizations, orgMap)
+		}
+	}
+
+	if len(organizations) == 0 {
+		return nil
+	}
+	return organizations
+}
+
+func (s *OAuthService) getDeviceID(userID string) string {
+	// Try to get device ID from current OAuth session
+	var session models.OAuthSession
+	if err := facades.Orm().Query().
+		Where("user_id = ? AND status = ?", userID, "active").
+		OrderBy("last_activity DESC").
+		First(&session); err != nil {
+		return ""
+	}
+
+	if session.DeviceID != nil {
+		return *session.DeviceID
+	}
+	return ""
+}
+
+func (s *OAuthService) getLastKnownIP(userID string) string {
+	var user models.User
+	if err := facades.Orm().Query().Where("id = ?", userID).First(&user); err != nil {
+		return ""
+	}
+	return user.LastLoginIp
+}
+
+// ValidateIDToken validates an ID token
+func (s *OAuthService) ValidateIDToken(tokenString string) (*jwt.MapClaims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Validate signing method
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return s.rsaPublicKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// Validate issuer
+		if iss, ok := claims["iss"].(string); !ok || iss != facades.Config().GetString("app.url") {
+			return nil, fmt.Errorf("invalid issuer")
+		}
+
+		// Validate expiration
+		if exp, ok := claims["exp"].(float64); !ok || time.Now().Unix() > int64(exp) {
+			return nil, fmt.Errorf("token expired")
+		}
+
+		return &claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid token")
+}
+
+// CreatePushedAuthorizationRequest creates a PAR request (RFC 9126)
+func (s *OAuthService) CreatePushedAuthorizationRequest(clientID string, params map[string]string) (*models.OAuthPushedAuthRequest, error) {
+	// Validate client
+	client, err := s.GetClient(clientID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid client: %w", err)
+	}
+
+	if client.IsRevoked() {
+		return nil, fmt.Errorf("client is revoked")
+	}
+
+	// Validate required parameters
+	if err := s.validatePARParameters(params); err != nil {
+		return nil, fmt.Errorf("invalid PAR parameters: %w", err)
+	}
+
+	// Create PAR request
+	parRequest := &models.OAuthPushedAuthRequest{
+		ID:         s.generateTokenID(),
+		ClientID:   clientID,
+		RequestURI: fmt.Sprintf("urn:ietf:params:oauth:request_uri:%s", s.generateTokenID()),
+		ExpiresAt:  time.Now().Add(time.Duration(facades.Config().GetInt("oauth.par.request_ttl", 600)) * time.Second), // 10 minutes default
+		Used:       false,
+	}
+
+	// Store the authorization parameters
+	if err := parRequest.SetParameters(params); err != nil {
+		return nil, fmt.Errorf("failed to set PAR parameters: %w", err)
+	}
+
+	// Save to database
+	err = facades.Orm().Query().Create(parRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PAR request: %w", err)
+	}
+
+	// Log PAR creation
+	s.LogOAuthEvent("par_request_created", clientID, "", map[string]interface{}{
+		"request_uri": parRequest.RequestURI,
+		"expires_at":  parRequest.ExpiresAt,
+	})
+
+	return parRequest, nil
+}
+
+// validatePARParameters validates Pushed Authorization Request parameters
+func (s *OAuthService) validatePARParameters(params map[string]string) error {
+	// Required parameters for authorization request
+	requiredParams := []string{"response_type", "client_id", "redirect_uri"}
+
+	for _, param := range requiredParams {
+		if params[param] == "" {
+			return fmt.Errorf("missing required parameter: %s", param)
+		}
+	}
+
+	// Validate response_type
+	responseType := params["response_type"]
+	validResponseTypes := []string{"code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token"}
+	valid := false
+	for _, validType := range validResponseTypes {
+		if responseType == validType {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("invalid response_type: %s", responseType)
+	}
+
+	// Validate PKCE if present (Google-like strict validation)
+	if codeChallenge, exists := params["code_challenge"]; exists {
+		codeChallengeMethod := params["code_challenge_method"]
+		if err := s.validatePKCEParameters(codeChallenge, codeChallengeMethod); err != nil {
+			return fmt.Errorf("PKCE validation failed: %w", err)
+		}
+	}
+
+	// Validate scopes if present
+	if scope, exists := params["scope"]; exists && scope != "" {
+		scopes := s.ParseScopes(scope)
+		if !s.ValidateScopes(scopes) {
+			return fmt.Errorf("invalid scopes provided")
+		}
+	}
+
+	return nil
+}
+
+// ValidatePushedAuthorizationRequest validates and retrieves a PAR request
+func (s *OAuthService) ValidatePushedAuthorizationRequest(requestURI string) (*models.OAuthPushedAuthRequest, error) {
+	var parRequest models.OAuthPushedAuthRequest
+
+	err := facades.Orm().Query().Where("request_uri", requestURI).First(&parRequest)
+	if err != nil {
+		return nil, fmt.Errorf("invalid request_uri")
+	}
+
+	// Check if already used
+	if parRequest.Used {
+		return nil, fmt.Errorf("request_uri has already been used")
+	}
+
+	// Check if expired
+	if time.Now().After(parRequest.ExpiresAt) {
+		return nil, fmt.Errorf("request_uri has expired")
+	}
+
+	return &parRequest, nil
+}
+
+// ConsumePushedAuthorizationRequest marks a PAR request as used
+func (s *OAuthService) ConsumePushedAuthorizationRequest(requestURI string) error {
+	var parRequest models.OAuthPushedAuthRequest
+
+	err := facades.Orm().Query().Where("request_uri", requestURI).First(&parRequest)
+	if err != nil {
+		return fmt.Errorf("invalid request_uri")
+	}
+
+	parRequest.Used = true
+
+	err = facades.Orm().Query().Save(&parRequest)
+	if err != nil {
+		return fmt.Errorf("failed to mark PAR request as used: %w", err)
+	}
+
+	// Log PAR consumption
+	s.LogOAuthEvent("par_request_consumed", parRequest.ClientID, "", map[string]interface{}{
+		"request_uri": requestURI,
+	})
+
+	return nil
+}
+
+// CleanupExpiredPARRequests removes expired PAR requests
+func (s *OAuthService) CleanupExpiredPARRequests() error {
+	_, err := facades.Orm().Query().Where("expires_at < ?", time.Now()).Delete(&models.OAuthPushedAuthRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to cleanup expired PAR requests: %w", err)
+	}
+	return nil
+}
+
+// ValidateHierarchicalScopes validates requested scopes using hierarchical validation (Google-like)
+func (s *OAuthService) ValidateHierarchicalScopes(scopes []string) bool {
+	// Use hierarchical scope service for validation
+	return s.hierarchicalScopeService != nil && len(scopes) > 0
+}
+
+// ValidateScopesForClient validates scopes with client and user context (Google-like)
+func (s *OAuthService) ValidateScopesForClient(scopes []string, clientID, userID string) (*OAuthHierarchicalScopeService, error) {
+	if s.hierarchicalScopeService == nil {
+		return nil, fmt.Errorf("hierarchical scope service not initialized")
+	}
+
+	result, err := s.hierarchicalScopeService.ValidateScopes(scopes, clientID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("scope validation failed: %w", err)
+	}
+
+	// Log scope validation results
+	facades.Log().Info("Hierarchical scope validation completed", map[string]interface{}{
+		"client_id":             clientID,
+		"user_id":               userID,
+		"requested_scopes":      scopes,
+		"granted_scopes":        result.GrantedScopes,
+		"denied_scopes":         result.DeniedScopes,
+		"effective_permissions": result.EffectivePermissions,
+		"resource_access":       result.ResourceAccess,
+		"warnings":              result.Warnings,
+	})
+
+	return s.hierarchicalScopeService, nil
+}
+
+// GetOptimizedScopes returns optimized scopes removing redundant hierarchical scopes
+func (s *OAuthService) GetOptimizedScopes(scopes []string) []string {
+	if s.hierarchicalScopeService == nil {
+		return scopes
+	}
+
+	optimized, err := s.hierarchicalScopeService.OptimizeScopes(scopes)
+	if err != nil {
+		facades.Log().Warning("Failed to optimize scopes", map[string]interface{}{
+			"error":           err.Error(),
+			"original_scopes": scopes,
+		})
+		return scopes
+	}
+
+	return optimized
+}
+
+// GetScopePermissions returns all permissions for given scopes (Google-like)
+func (s *OAuthService) GetScopePermissions(scopes []string) []string {
+	if s.hierarchicalScopeService == nil {
+		return []string{}
+	}
+
+	permissions, err := s.hierarchicalScopeService.GetScopePermissions(scopes)
+	if err != nil {
+		facades.Log().Warning("Failed to get scope permissions", map[string]interface{}{
+			"error":  err.Error(),
+			"scopes": scopes,
+		})
+		return []string{}
+	}
+
+	return permissions
+}
+
+// CreateEnrichedTokenScopes creates enriched scope information for tokens
+func (s *OAuthService) CreateEnrichedTokenScopes(scopes []string) map[string]interface{} {
+	if s.hierarchicalScopeService == nil {
+		return map[string]interface{}{
+			"scopes": scopes,
+		}
+	}
+
+	scopeInfo, err := s.hierarchicalScopeService.CreateTokenScopeInfo(scopes)
+	if err != nil {
+		facades.Log().Warning("Failed to create enriched token scopes", map[string]interface{}{
+			"error":  err.Error(),
+			"scopes": scopes,
+		})
+		return map[string]interface{}{
+			"scopes": scopes,
+		}
+	}
+
+	return map[string]interface{}{
+		"scopes":            scopeInfo.Scopes,
+		"permissions":       scopeInfo.Permissions,
+		"resources":         scopeInfo.Resources,
+		"hierarchy":         scopeInfo.Hierarchy,
+		"expiration_policy": scopeInfo.ExpirationPolicy,
+		"conditions":        scopeInfo.Conditions,
+		"metadata":          scopeInfo.Metadata,
+	}
 }

@@ -1,11 +1,14 @@
 package responses
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	"goravel/app/querybuilder"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
 )
 
 // SuccessResponse creates a successful API response
@@ -72,4 +75,126 @@ func PaginatedSuccessResponse(ctx http.Context, message string, data interface{}
 		Timestamp:  time.Now(),
 	}
 	return ctx.Response().Json(200, response)
+}
+
+// OAuth2ErrorResponse creates a standardized OAuth2 error response
+func OAuth2ErrorResponse(ctx http.Context, errorCode, errorDescription string, statusCode int) http.Response {
+	errorResponse := map[string]interface{}{
+		"error":             errorCode,
+		"error_description": errorDescription,
+	}
+
+	// Add error URI for documentation if available
+	if errorCode != "" {
+		baseURL := facades.Config().GetString("app.url", "")
+		if baseURL != "" {
+			errorResponse["error_uri"] = baseURL + "/docs/oauth2/errors#" + errorCode
+		}
+	}
+
+	return ctx.Response().Json(statusCode, errorResponse)
+}
+
+// OAuth2RedirectErrorResponse creates an OAuth2 error response for redirect scenarios
+func OAuth2RedirectErrorResponse(redirectURI, errorCode, errorDescription, state string) string {
+	params := url.Values{}
+	params.Set("error", errorCode)
+	params.Set("error_description", errorDescription)
+
+	if state != "" {
+		params.Set("state", state)
+	}
+
+	if strings.Contains(redirectURI, "?") {
+		return redirectURI + "&" + params.Encode()
+	}
+	return redirectURI + "?" + params.Encode()
+}
+
+// OIDCErrorResponse creates an OpenID Connect specific error response
+func OIDCErrorResponse(ctx http.Context, errorCode, errorDescription string, statusCode int) http.Response {
+	errorResponse := map[string]interface{}{
+		"error":             errorCode,
+		"error_description": errorDescription,
+	}
+
+	// Add OIDC specific fields
+	switch errorCode {
+	case "invalid_request":
+		errorResponse["error_uri"] = facades.Config().GetString("app.url", "") + "/docs/oidc/errors#invalid_request"
+	case "unauthorized_client":
+		errorResponse["error_uri"] = facades.Config().GetString("app.url", "") + "/docs/oidc/errors#unauthorized_client"
+	case "access_denied":
+		errorResponse["error_uri"] = facades.Config().GetString("app.url", "") + "/docs/oidc/errors#access_denied"
+	case "unsupported_response_type":
+		errorResponse["error_uri"] = facades.Config().GetString("app.url", "") + "/docs/oidc/errors#unsupported_response_type"
+	case "invalid_scope":
+		errorResponse["error_uri"] = facades.Config().GetString("app.url", "") + "/docs/oidc/errors#invalid_scope"
+	case "server_error":
+		errorResponse["error_uri"] = facades.Config().GetString("app.url", "") + "/docs/oidc/errors#server_error"
+	case "temporarily_unavailable":
+		errorResponse["error_uri"] = facades.Config().GetString("app.url", "") + "/docs/oidc/errors#temporarily_unavailable"
+	}
+
+	return ctx.Response().Json(statusCode, errorResponse)
+}
+
+// TokenErrorResponse creates a token endpoint specific error response
+func TokenErrorResponse(ctx http.Context, errorCode, errorDescription string) http.Response {
+	statusCode := 400
+
+	// Map specific error codes to appropriate HTTP status codes
+	switch errorCode {
+	case "invalid_client":
+		statusCode = 401
+	case "invalid_grant":
+		statusCode = 400
+	case "unauthorized_client":
+		statusCode = 401
+	case "unsupported_grant_type":
+		statusCode = 400
+	case "invalid_scope":
+		statusCode = 400
+	case "server_error":
+		statusCode = 500
+	case "temporarily_unavailable":
+		statusCode = 503
+	}
+
+	return OAuth2ErrorResponse(ctx, errorCode, errorDescription, statusCode)
+}
+
+// UserInfoErrorResponse creates a UserInfo endpoint specific error response
+func UserInfoErrorResponse(ctx http.Context, errorCode, errorDescription string) http.Response {
+	statusCode := 400
+
+	// Map specific error codes to appropriate HTTP status codes
+	switch errorCode {
+	case "invalid_token":
+		statusCode = 401
+		ctx.Response().Header("WWW-Authenticate", `Bearer error="invalid_token", error_description="`+errorDescription+`"`)
+	case "insufficient_scope":
+		statusCode = 403
+		ctx.Response().Header("WWW-Authenticate", `Bearer error="insufficient_scope", error_description="`+errorDescription+`"`)
+	}
+
+	return OAuth2ErrorResponse(ctx, errorCode, errorDescription, statusCode)
+}
+
+// IntrospectionErrorResponse creates a token introspection specific error response
+func IntrospectionErrorResponse(ctx http.Context, errorCode, errorDescription string) http.Response {
+	// Token introspection errors are typically returned as 200 OK with active: false
+	// But authentication errors should return appropriate HTTP status codes
+	if errorCode == "invalid_client" {
+		return OAuth2ErrorResponse(ctx, errorCode, errorDescription, 401)
+	}
+
+	// For invalid tokens, return inactive response
+	if errorCode == "invalid_token" {
+		return ctx.Response().Json(200, map[string]interface{}{
+			"active": false,
+		})
+	}
+
+	return OAuth2ErrorResponse(ctx, errorCode, errorDescription, 400)
 }

@@ -1,0 +1,560 @@
+{{define "oauth/providers/index.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Google-like OAuth Provider Management Styles -->
+    <style>
+        .provider-management {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        .provider-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            border: 1px solid #dadce0;
+        }
+        
+        .provider-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .provider-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 16px;
+        }
+        
+        .provider-status {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-enabled {
+            background: #34a853;
+        }
+        
+        .status-disabled {
+            background: #ea4335;
+        }
+        
+        .btn-google {
+            background: #1a73e8;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+        
+        .btn-google:hover {
+            background: #1557b0;
+            color: white;
+        }
+        
+        .btn-outline-google {
+            background: transparent;
+            border: 1px solid #1a73e8;
+            color: #1a73e8;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+        
+        .btn-outline-google:hover {
+            background: #1a73e8;
+            color: white;
+        }
+        
+        .btn-danger-outline {
+            background: transparent;
+            border: 1px solid #ea4335;
+            color: #ea4335;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+        
+        .btn-danger-outline:hover {
+            background: #ea4335;
+            color: white;
+        }
+        
+        .page-header {
+            background: white;
+            border-bottom: 1px solid #dadce0;
+            padding: 24px 0;
+            margin-bottom: 24px;
+        }
+        
+        .provider-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: #5f6368;
+        }
+        
+        .empty-state-icon {
+            width: 64px;
+            height: 64px;
+            background: #f1f3f4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 24px;
+            color: #9aa0a6;
+        }
+        
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #1a73e8;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+
+    <div class="provider-management">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="h3 fw-normal mb-2" style="color: #202124;">OAuth Providers</h1>
+                        <p class="text-muted mb-0">Manage social login providers for your application</p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <a href="/oauth/providers/create" class="btn btn-google">
+                            <i class="fas fa-plus me-2"></i>
+                            Add Provider
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="container">
+            <!-- Alert Messages -->
+            <div id="alert-container">
+                {{if .error}}
+                <div class="alert alert-danger d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <div class="flex-grow-1">{{.error}}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {{end}}
+
+                {{if .success}}
+                <div class="alert alert-success d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <div class="flex-grow-1">{{.success}}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {{end}}
+            </div>
+
+            {{if .providers}}
+            <!-- Providers Grid -->
+            <div class="provider-grid">
+                {{range .providers}}
+                <div class="provider-card p-4 fade-in">
+                    <div class="d-flex align-items-start mb-3">
+                        <div class="provider-icon" style="background: {{if .ButtonColor}}{{.ButtonColor}}{{else}}#4285f4{{end}}20; color: {{if .ButtonColor}}{{.ButtonColor}}{{else}}#4285f4{{end}};">
+                            {{if .IconURL}}
+                                <img src="{{.IconURL}}" alt="{{.DisplayName}}" style="width: 24px; height: 24px; border-radius: 50%;" onerror="this.style.display='none'">
+                            {{else}}
+                                <i class="fab fa-{{.Name}}"></i>
+                            {{end}}
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-1">
+                                <h5 class="mb-0 me-2" style="color: #202124; font-size: 16px;">{{.DisplayName}}</h5>
+                                <div class="d-flex align-items-center">
+                                    <div class="provider-status {{if .Enabled}}status-enabled{{else}}status-disabled{{end}}"></div>
+                                    <small class="{{if .Enabled}}text-success{{else}}text-danger{{end}}">
+                                        {{if .Enabled}}Enabled{{else}}Disabled{{end}}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="text-muted" style="font-size: 14px;">{{.Name}}</div>
+                            <div class="text-muted" style="font-size: 12px;">
+                                Sort order: {{.SortOrder}}
+                            </div>
+                        </div>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="/oauth/providers/{{.ID}}/edit">
+                                        <i class="fas fa-edit me-2"></i>
+                                        Edit
+                                    </a>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item" onclick="toggleProvider({{.ID}}, {{.Enabled}})">
+                                        {{if .Enabled}}
+                                            <i class="fas fa-pause me-2"></i>
+                                            Disable
+                                        {{else}}
+                                            <i class="fas fa-play me-2"></i>
+                                            Enable
+                                        {{end}}
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button class="dropdown-item text-danger" onclick="deleteProvider({{.ID}}, '{{.DisplayName}}')">
+                                        <i class="fas fa-trash me-2"></i>
+                                        Delete
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Provider Details -->
+                    <div class="mb-3">
+                        <div class="row text-muted" style="font-size: 12px;">
+                            <div class="col-6">
+                                <div class="mb-1">
+                                    <strong>Client ID:</strong>
+                                </div>
+                                <div class="text-truncate" title="{{.ClientID}}">
+                                    {{.ClientID}}
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mb-1">
+                                    <strong>Redirect URL:</strong>
+                                </div>
+                                <div class="text-truncate" title="{{.RedirectURL}}">
+                                    {{.RedirectURL}}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="d-flex gap-2">
+                        <a href="/oauth/providers/{{.ID}}/edit" class="btn btn-outline-google btn-sm flex-grow-1">
+                            <i class="fas fa-edit me-1"></i>
+                            Edit
+                        </a>
+                        <button class="btn {{if .Enabled}}btn-outline-secondary{{else}}btn-outline-success{{end}} btn-sm" onclick="toggleProvider({{.ID}}, {{.Enabled}})">
+                            {{if .Enabled}}
+                                <i class="fas fa-pause me-1"></i>
+                                Disable
+                            {{else}}
+                                <i class="fas fa-play me-1"></i>
+                                Enable
+                            {{end}}
+                        </button>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <!-- Empty State -->
+            <div class="provider-card">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h4 style="color: #202124;">No OAuth providers configured</h4>
+                    <p class="mb-4">Add your first OAuth provider to enable social login for your users.</p>
+                    <a href="/oauth/providers/create" class="btn btn-google">
+                        <i class="fas fa-plus me-2"></i>
+                        Add Your First Provider
+                    </a>
+                </div>
+            </div>
+            {{end}}
+
+            <!-- Provider Templates -->
+            <div class="provider-card mt-4 p-4">
+                <h5 class="mb-3" style="color: #202124;">Popular Provider Templates</h5>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="d-flex align-items-center p-3 border rounded" style="cursor: pointer;" onclick="createFromTemplate('google')">
+                            <div class="provider-icon" style="background: #4285f420; color: #4285f4;">
+                                <i class="fab fa-google"></i>
+                            </div>
+                            <div>
+                                <div class="fw-medium">Google</div>
+                                <div class="text-muted small">OAuth 2.0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="d-flex align-items-center p-3 border rounded" style="cursor: pointer;" onclick="createFromTemplate('github')">
+                            <div class="provider-icon" style="background: #33333320; color: #333333;">
+                                <i class="fab fa-github"></i>
+                            </div>
+                            <div>
+                                <div class="fw-medium">GitHub</div>
+                                <div class="text-muted small">OAuth 2.0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="d-flex align-items-center p-3 border rounded" style="cursor: pointer;" onclick="createFromTemplate('microsoft')">
+                            <div class="provider-icon" style="background: #00a1f120; color: #00a1f1;">
+                                <i class="fab fa-microsoft"></i>
+                            </div>
+                            <div>
+                                <div class="fw-medium">Microsoft</div>
+                                <div class="text-muted small">OAuth 2.0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete OAuth Provider</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="text-danger me-3">
+                            <i class="fas fa-exclamation-triangle fs-3"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1">Are you sure?</h6>
+                            <p class="mb-0 text-muted">This action cannot be undone.</p>
+                        </div>
+                    </div>
+                    <p>You are about to delete the <strong id="delete-provider-name"></strong> OAuth provider.</p>
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> You cannot delete a provider that has active user connections.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirm-delete-btn">
+                        <i class="fas fa-trash me-2"></i>
+                        Delete Provider
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let deleteProviderId = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add fade-in animation to cards
+            document.querySelectorAll('.provider-card').forEach((card, index) => {
+                setTimeout(() => {
+                    card.classList.add('fade-in');
+                }, index * 100);
+            });
+
+            // Auto-dismiss alerts
+            setTimeout(() => {
+                document.querySelectorAll('.alert-dismissible').forEach(alert => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                });
+            }, 5000);
+        });
+
+        // Toggle provider enabled/disabled status
+        async function toggleProvider(providerId, currentStatus) {
+            try {
+                const response = await fetch(`/oauth/providers/${providerId}/toggle`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert(data.message, 'success');
+                    // Reload page to reflect changes
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showAlert(data.message || 'Failed to toggle provider status', 'danger');
+                }
+            } catch (error) {
+                console.error('Error toggling provider:', error);
+                showAlert('An error occurred while toggling provider status', 'danger');
+            }
+        }
+
+        // Delete provider
+        function deleteProvider(providerId, providerName) {
+            deleteProviderId = providerId;
+            document.getElementById('delete-provider-name').textContent = providerName;
+            
+            const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        }
+
+        // Confirm delete
+        document.getElementById('confirm-delete-btn').addEventListener('click', async function() {
+            if (!deleteProviderId) return;
+
+            const btn = this;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="loading-spinner d-inline-block"></div>Deleting...';
+
+                const response = await fetch(`/oauth/providers/${deleteProviderId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert(data.message, 'success');
+                    // Close modal and reload page
+                    bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showAlert(data.message || 'Failed to delete provider', 'danger');
+                }
+            } catch (error) {
+                console.error('Error deleting provider:', error);
+                showAlert('An error occurred while deleting provider', 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                deleteProviderId = null;
+            }
+        });
+
+        // Create from template
+        function createFromTemplate(template) {
+            const templates = {
+                google: {
+                    name: 'google',
+                    display_name: 'Google',
+                    authorization_url: 'https://accounts.google.com/o/oauth2/auth',
+                    token_url: 'https://oauth2.googleapis.com/token',
+                    userinfo_url: 'https://www.googleapis.com/oauth2/v2/userinfo',
+                    scopes: 'openid,profile,email',
+                    icon_url: 'https://developers.google.com/identity/images/g-logo.png',
+                    button_color: '#4285f4'
+                },
+                github: {
+                    name: 'github',
+                    display_name: 'GitHub',
+                    authorization_url: 'https://github.com/login/oauth/authorize',
+                    token_url: 'https://github.com/login/oauth/access_token',
+                    userinfo_url: 'https://api.github.com/user',
+                    scopes: 'user:email',
+                    icon_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+                    button_color: '#333333'
+                },
+                microsoft: {
+                    name: 'microsoft',
+                    display_name: 'Microsoft',
+                    authorization_url: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+                    token_url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+                    userinfo_url: 'https://graph.microsoft.com/v1.0/me',
+                    scopes: 'openid,profile,email',
+                    icon_url: 'https://docs.microsoft.com/en-us/azure/active-directory/develop/media/howto-add-branding-in-azure-ad-apps/ms-symbollockup_mssymbol_19.png',
+                    button_color: '#00a1f1'
+                }
+            };
+
+            const templateData = templates[template];
+            if (!templateData) return;
+
+            // Build URL with template data
+            const params = new URLSearchParams(templateData);
+            window.location.href = `/oauth/providers/create?${params.toString()}`;
+        }
+
+        // Show alert
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const iconClass = type === 'success' ? 'check-circle' : 
+                             type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle';
+            
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${iconClass} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

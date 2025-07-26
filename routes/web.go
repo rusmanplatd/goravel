@@ -24,11 +24,6 @@ func Web() {
 	webauthnController := web.NewWebAuthnController()
 	securityController := web.NewSecurityController()
 	accountSwitcherController := web.NewAccountSwitcherController()
-	chatController := web.NewChatController()
-	calendarController := web.NewCalendarController()
-	taskController := web.NewTaskController()
-	projectController := web.NewProjectController()
-	fileManagerController := web.NewFileManagerController()
 	profileController := web.NewProfileController()
 
 	// Authentication routes
@@ -78,6 +73,11 @@ func Web() {
 		facades.Route().Middleware(middleware.WebAuth()).Put("/tenants/{id}", tenantController.Update)
 		facades.Route().Middleware(middleware.WebAuth()).Delete("/tenants/{id}", tenantController.Delete)
 
+		// Tenant switching
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/user/list", tenantController.GetUserTenants)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/tenants/switch", tenantController.SwitchTenant)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/current", tenantController.GetCurrentTenant)
+
 		// Role management (within tenant context)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/roles", roleController.Index)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/roles/create", roleController.Create)
@@ -100,37 +100,6 @@ func Web() {
 
 		// Notification management
 		facades.Route().Middleware(middleware.WebAuth()).Get("/notifications", notificationController.Index)
-
-		// Chat management
-		facades.Route().Middleware(middleware.WebAuth()).Get("/chat", chatController.Index)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/chat/create", chatController.Create)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/chat", chatController.Store)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/chat/{id}", chatController.Show)
-
-		// Calendar management
-		facades.Route().Middleware(middleware.WebAuth()).Get("/calendar", calendarController.Index)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/calendar/create", calendarController.Create)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/calendar", calendarController.Store)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/calendar/{id}", calendarController.Show)
-
-		// Task management
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tasks", taskController.Index)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tasks/create", taskController.Create)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/tasks", taskController.Store)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tasks/{id}", taskController.Show)
-
-		// Project management
-		facades.Route().Middleware(middleware.WebAuth()).Get("/projects", projectController.Index)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/projects/create", projectController.Create)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/projects", projectController.Store)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/projects/{id}", projectController.Show)
-
-		// File management
-		facades.Route().Middleware(middleware.WebAuth()).Get("/files", fileManagerController.Index)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/files/browse", fileManagerController.Browse)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/files/upload", fileManagerController.Upload)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/files/create-folder", fileManagerController.CreateFolder)
-		facades.Route().Middleware(middleware.WebAuth()).Delete("/files/{path}", fileManagerController.Delete)
 
 		// Profile management
 		facades.Route().Middleware(middleware.WebAuth()).Get("/profile", profileController.Index)
@@ -253,12 +222,51 @@ func Web() {
 		router.Get("/oauth/playground/callback", oauthPlaygroundController.Callback)
 	})
 
-	// Google OAuth routes (public)
+	// Generic OAuth IdP routes (public)
+	oauthIdpController := web.NewOAuthIdpController()
+	facades.Route().Get("/auth/oauth/{provider}", oauthIdpController.Redirect)
+	facades.Route().Get("/auth/oauth/{provider}/callback", oauthIdpController.Callback)
+	facades.Route().Get("/api/oauth/providers", oauthIdpController.GetProviders)
+
+	// Protected OAuth IdP routes
+	facades.Route().Middleware(middleware.WebAuth()).Group(func(router route.Router) {
+		router.Post("/auth/oauth/{provider}/unlink", oauthIdpController.Unlink)
+		router.Get("/api/oauth/identities", oauthIdpController.GetUserIdentities)
+	})
+
+	// OAuth Provider Management routes (protected - admin only)
+	oauthProviderController := web.NewOAuthProviderController()
+	facades.Route().Middleware(middleware.WebAuth()).Group(func(router route.Router) {
+		router.Get("/oauth/providers", oauthProviderController.Index)
+		router.Get("/oauth/providers/create", oauthProviderController.Create)
+		router.Post("/oauth/providers", oauthProviderController.Store)
+		router.Get("/oauth/providers/{id}/edit", oauthProviderController.Edit)
+		router.Put("/oauth/providers/{id}", oauthProviderController.Update)
+		router.Delete("/oauth/providers/{id}", oauthProviderController.Delete)
+		router.Post("/oauth/providers/{id}/toggle", oauthProviderController.Toggle)
+
+		// Template routes
+		router.Get("/oauth/providers/templates", oauthProviderController.Templates)
+		router.Get("/oauth/providers/templates/{template}", oauthProviderController.GetTemplate)
+		router.Post("/oauth/providers/from-template", oauthProviderController.CreateFromTemplate)
+	})
+
+	// OAuth Security Dashboard routes (protected) - TODO: Implement dashboard controller
+	// oauthSecurityDashboardController := web.NewOAuthSecurityDashboardController()
+	// facades.Route().Middleware(middleware.WebAuth()).Group(func(router route.Router) {
+	//	router.Get("/oauth/security/dashboard", oauthSecurityDashboardController.Dashboard)
+	//	router.Get("/oauth/security/devices", oauthSecurityDashboardController.DeviceManagement)
+	//	router.Post("/oauth/security/devices/{fingerprint}/revoke", oauthSecurityDashboardController.RevokeDevice)
+	//	router.Get("/oauth/security/events", oauthSecurityDashboardController.SecurityEvents)
+	//	router.Get("/oauth/security/analytics", oauthSecurityDashboardController.Analytics)
+	// })
+
+	// Legacy Google OAuth routes (public) - for backward compatibility
 	googleOAuthController := web.NewGoogleOAuthController()
 	facades.Route().Get("/auth/google", googleOAuthController.Redirect)
 	facades.Route().Get("/auth/google/callback", googleOAuthController.Callback)
 
-	// Protected Google OAuth routes
+	// Protected Google OAuth routes - for backward compatibility
 	facades.Route().Middleware(middleware.WebAuth()).Post("/auth/google/unlink", googleOAuthController.Unlink)
 
 	// Default route

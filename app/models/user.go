@@ -92,6 +92,9 @@ type User struct {
 	// @Description User's push subscriptions
 	PushSubscriptions []PushSubscription `gorm:"foreignKey:UserID" json:"push_subscriptions,omitempty"`
 
+	// @Description User's profile information
+	Profile *UserProfile `gorm:"foreignKey:UserID" json:"profile,omitempty"`
+
 	// Notification fields
 	// @example +1234567890
 	Phone string `json:"phone,omitempty" example:"+1234567890"`

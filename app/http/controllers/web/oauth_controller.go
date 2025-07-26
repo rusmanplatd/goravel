@@ -194,6 +194,40 @@ func (c *OAuthController) ShowAuthorize(ctx http.Context) http.Response {
 	state := ctx.Request().Query("state")
 	codeChallenge := ctx.Request().Query("code_challenge")
 	codeChallengeMethod := ctx.Request().Query("code_challenge_method")
+	requestURI := ctx.Request().Query("request_uri") // PAR support
+
+	// Handle Pushed Authorization Request (PAR) if request_uri is provided
+	var parParams map[string]string
+	if requestURI != "" {
+		// Validate and retrieve PAR request
+		parRequest, err := c.oauthService.ValidatePushedAuthorizationRequest(requestURI)
+		if err != nil {
+			return c.redirectWithError(ctx, redirectURI, "invalid_request_uri", err.Error(), state)
+		}
+
+		// Get parameters from PAR request
+		parParams, err = parRequest.GetParameters()
+		if err != nil {
+			return c.redirectWithError(ctx, redirectURI, "server_error", "Failed to parse PAR parameters", state)
+		}
+
+		// Override query parameters with PAR parameters
+		clientID = parParams["client_id"]
+		redirectURI = parParams["redirect_uri"]
+		responseType = parParams["response_type"]
+		scope = parParams["scope"]
+		state = parParams["state"]
+		codeChallenge = parParams["code_challenge"]
+		codeChallengeMethod = parParams["code_challenge_method"]
+
+		// Consume the PAR request (one-time use)
+		if err := c.oauthService.ConsumePushedAuthorizationRequest(requestURI); err != nil {
+			facades.Log().Warning("Failed to consume PAR request", map[string]interface{}{
+				"request_uri": requestURI,
+				"error":       err.Error(),
+			})
+		}
+	}
 
 	// Validate required parameters
 	if clientID == "" {
@@ -353,16 +387,16 @@ func (c *OAuthController) HandleAuthorize(ctx http.Context) http.Response {
 		return c.redirectWithError(ctx, redirectURI, "invalid_scope", "One or more requested scopes are not allowed", state)
 	}
 
+	// Google-like PKCE enforcement for public clients
+	if err := c.oauthService.ValidatePKCEForClient(client, codeChallenge, codeChallengeMethod); err != nil {
+		return c.redirectWithError(ctx, redirectURI, "invalid_request", err.Error(), state)
+	}
+
 	// Create authorization code
 	var authCode *models.OAuthAuthCode
 	expiresAt := time.Now().Add(time.Duration(facades.Config().GetInt("oauth.auth_code_ttl", 10)) * time.Minute)
 
 	if codeChallenge != "" && codeChallengeMethod != "" {
-		// Validate PKCE parameters
-		if codeChallengeMethod != "S256" && codeChallengeMethod != "plain" {
-			return c.redirectWithError(ctx, redirectURI, "invalid_request", "Invalid code_challenge_method", state)
-		}
-
 		authCode, err = c.oauthService.CreateAuthCodeWithPKCE(
 			authenticatedUser.ID,
 			client.ID,
@@ -372,6 +406,7 @@ func (c *OAuthController) HandleAuthorize(ctx http.Context) http.Response {
 			codeChallengeMethod,
 		)
 	} else {
+		// For backward compatibility, but this should be rare now with PKCE enforcement
 		authCode, err = c.oauthService.CreateAuthCode(
 			authenticatedUser.ID,
 			client.ID,

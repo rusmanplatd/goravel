@@ -1,27 +1,193 @@
 {{define "auth/login.tmpl"}}
     {{template "layouts/header.tmpl" .}}
 
+    <!-- Google-like OAuth Login Styles -->
+    <style>
+        .oauth-login-container {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        
+        .oauth-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            max-width: 400px;
+            margin: 0 auto;
+            border: 1px solid #dadce0;
+        }
+        
+        .oauth-card:hover {
+            box-shadow: 0 4px 25px rgba(0,0,0,0.15);
+        }
+        
+        .google-logo {
+            width: 48px;
+            height: 48px;
+            background: #4285f4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+        
+        .provider-button {
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 8px;
+            background: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        
+        .provider-button:hover {
+            background-color: #f8f9fa;
+            border-color: #4285f4;
+            box-shadow: 0 1px 6px rgba(32,33,36,.28);
+            text-decoration: none;
+        }
+        
+        .provider-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            border-radius: 50%;
+        }
+        
+        .auth-method-tabs {
+            border-bottom: 1px solid #dadce0;
+            margin-bottom: 24px;
+        }
+        
+        .auth-method-tab {
+            border: none;
+            background: none;
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #5f6368;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .auth-method-tab.active {
+            color: #1a73e8;
+            border-bottom-color: #1a73e8;
+        }
+        
+        .auth-method-tab:hover {
+            background-color: #f8f9fa;
+            border-radius: 4px 4px 0 0;
+        }
+        
+        .form-control-google {
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            padding: 12px 16px;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+        
+        .form-control-google:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+            outline: none;
+        }
+        
+        .btn-google-primary {
+            background: #1a73e8;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-google-primary:hover {
+            background: #1557b0;
+            box-shadow: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 24px 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #dadce0;
+        }
+        
+        .divider span {
+            background: white;
+            padding: 0 16px;
+            color: #5f6368;
+            font-size: 14px;
+        }
+        
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #1a73e8;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+
     <!-- Page Content -->
-    <main class="container-fluid">
-        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
-            <div class="col-12 col-sm-8 col-md-6 col-lg-4 col-xl-3">
-                <div class="card shadow-sm border-0">
-                    <div class="card-body p-4 p-md-5">
+    <main class="oauth-login-container d-flex align-items-center justify-content-center py-5">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-4">
+                    <div class="oauth-card fade-in p-4">
+                        <!-- Header -->
                         <div class="text-center mb-4">
-                            <div class="mx-auto bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                                <i class="fas fa-cube text-primary fs-4"></i>
+                            <div class="google-logo">
+                                <i class="fas fa-cube text-white fs-5"></i>
                             </div>
-                            <h2 class="h3 fw-bold text-dark mb-2">
-                                Welcome back
-                            </h2>
-                            <p class="text-muted small mb-0">
+                            <h1 class="h4 fw-normal text-dark mb-2">
                                 {{if .add_account_mode}}
-                                    Sign in to add another account to your session
+                                    Add account
                                 {{else}}
-                                    Sign in to your account or
-                                    <a href="/register" class="text-decoration-none fw-medium">
-                                        create a new account
-                                    </a>
+                                    Sign in
+                                {{end}}
+                            </h1>
+                            <p class="text-muted mb-0" style="font-size: 14px;">
+                                {{if .add_account_mode}}
+                                    Add another account to your session
+                                {{else}}
+                                                                         to continue to <strong>{{if .app_name}}{{.app_name}}{{else}}Goravel{{end}}</strong>
                                 {{end}}
                             </p>
                         </div>
@@ -53,56 +219,57 @@
                             {{end}}
                         </div>
 
-                        <!-- Authentication Method Selection -->
-                        <div class="mb-3">
-                            <div class="btn-group w-100" role="group" aria-label="Authentication methods">
-                                <input type="radio" class="btn-check" name="auth_method" id="password_auth" value="password" checked>
-                                <label class="btn btn-outline-primary" for="password_auth">
+                        <!-- Authentication Method Tabs -->
+                        <div class="auth-method-tabs">
+                            <div class="d-flex">
+                                <button class="auth-method-tab active" data-method="oauth" id="oauth-tab">
+                                    <i class="fas fa-users me-1"></i>
+                                    Social Login
+                                </button>
+                                <button class="auth-method-tab" data-method="password" id="password-tab">
                                     <i class="fas fa-key me-1"></i>
-                                    <span class="d-none d-sm-inline">Password</span>
-                                </label>
-                                
-                                <input type="radio" class="btn-check" name="auth_method" id="webauthn_auth" value="webauthn">
-                                <label class="btn btn-outline-primary" for="webauthn_auth">
+                                    Password
+                                </button>
+                                <button class="auth-method-tab" data-method="webauthn" id="webauthn-tab">
                                     <i class="fas fa-fingerprint me-1"></i>
-                                    <span class="d-none d-sm-inline">Security Key</span>
-                                </label>
-                                
-                                {{if .google_oauth_enabled}}
-                                <input type="radio" class="btn-check" name="auth_method" id="google_auth" value="google">
-                                <label class="btn btn-outline-primary" for="google_auth">
-                                    <i class="fab fa-google me-1"></i>
-                                    <span class="d-none d-sm-inline">Google</span>
-                                </label>
-                                {{end}}
+                                    Security Key
+                                </button>
                             </div>
-                            <div class="text-center mt-2">
-                                <small class="text-muted">Choose your preferred sign-in method</small>
+                        </div>
+
+                        <!-- OAuth Providers Section -->
+                        <div id="oauth-auth-form" class="auth-method-form">
+                            <div id="oauth-providers-loading" class="text-center py-3">
+                                <div class="loading-spinner d-inline-block"></div>
+                                <span class="text-muted">Loading sign-in options...</span>
+                            </div>
+                            
+                            <div id="oauth-providers-container" class="d-none">
+                                <!-- Providers will be dynamically loaded here -->
+                            </div>
+                            
+                            <div id="oauth-providers-error" class="d-none">
+                                <div class="alert alert-warning" role="alert">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    Unable to load social login options. Please try password login.
+                                </div>
                             </div>
                         </div>
 
                         <!-- Password Authentication Form -->
-                        <div id="password-auth-form" class="auth-method-form">
+                        <div id="password-auth-form" class="auth-method-form d-none">
                             <form method="POST" action="/login" id="login-form">
                                 <div class="mb-3">
-                                    <label for="email" class="form-label visually-hidden">Email address</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text bg-light border-end-0">
-                                            <i class="fas fa-envelope text-muted"></i>
-                                        </span>
-                                        <input id="email" name="email" type="email" class="form-control form-control-lg border-start-0 bg-light" 
-                                            placeholder="Email address" value="{{.email}}" required autocomplete="email">
-                                    </div>
+                                    <label for="email" class="form-label" style="font-size: 14px; color: #5f6368;">Email</label>
+                                    <input id="email" name="email" type="email" class="form-control form-control-google" 
+                                        placeholder="Enter your email" value="{{.email}}" required autocomplete="email">
                                 </div>
                                 <div class="mb-3">
-                                    <label for="password" class="form-label visually-hidden">Password</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text bg-light border-end-0">
-                                            <i class="fas fa-lock text-muted"></i>
-                                        </span>
-                                        <input id="password" name="password" type="password" class="form-control form-control-lg border-start-0 bg-light" 
-                                            placeholder="Password" required autocomplete="current-password">
-                                        <button class="btn btn-outline-secondary border-start-0" type="button" id="toggle-password">
+                                    <label for="password" class="form-label" style="font-size: 14px; color: #5f6368;">Password</label>
+                                    <div class="position-relative">
+                                        <input id="password" name="password" type="password" class="form-control form-control-google" 
+                                            placeholder="Enter your password" required autocomplete="current-password">
+                                        <button class="btn position-absolute end-0 top-50 translate-middle-y me-2" type="button" id="toggle-password" style="border: none; background: none; color: #5f6368;">
                                             <i class="fas fa-eye"></i>
                                         </button>
                                     </div>
@@ -111,19 +278,18 @@
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <div class="form-check">
                                         <input id="remember_me" name="remember_me" type="checkbox" class="form-check-input">
-                                        <label for="remember_me" class="form-check-label small">
-                                            Remember me
+                                        <label for="remember_me" class="form-check-label" style="font-size: 14px; color: #5f6368;">
+                                            Stay signed in
                                         </label>
                                     </div>
                                     <div>
-                                        <a href="/forgot-password" class="text-decoration-none small">
+                                        <a href="/forgot-password" class="text-decoration-none" style="font-size: 14px; color: #1a73e8;">
                                             Forgot password?
                                         </a>
                                     </div>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary btn-lg w-100" id="login-btn">
-                                    <i class="fas fa-sign-in-alt me-2"></i>
+                                <button type="submit" class="btn btn-google-primary w-100" id="login-btn">
                                     Sign in
                                 </button>
                             </form>
@@ -132,12 +298,12 @@
                         <!-- WebAuthn Authentication Form -->
                         <div id="webauthn-auth-form" class="auth-method-form d-none">
                             <div class="text-center mb-4">
-                                <div class="mx-auto bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                                    <i class="fas fa-fingerprint text-success fs-2"></i>
+                                <div class="mx-auto bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                    <i class="fas fa-fingerprint text-success fs-4"></i>
                                 </div>
-                                <h5 class="fw-bold mb-2">Passwordless Sign In</h5>
-                                <p class="text-muted small mb-0">
-                                    Use your security key, fingerprint, or face recognition
+                                <h5 class="fw-normal mb-2" style="color: #202124;">Use your security key</h5>
+                                <p class="text-muted mb-0" style="font-size: 14px;">
+                                    Touch your security key, use your fingerprint, or authenticate with Face ID
                                 </p>
                             </div>
 
@@ -148,50 +314,31 @@
                             </div>
 
                             <div class="mb-3">
-                                <label for="webauthn_email" class="form-label visually-hidden">Email address</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0">
-                                        <i class="fas fa-envelope text-muted"></i>
-                                    </span>
-                                    <input id="webauthn_email" type="email" class="form-control form-control-lg border-start-0 bg-light" 
-                                        placeholder="Email address" value="{{.email}}" required autocomplete="email">
-                                </div>
+                                <label for="webauthn_email" class="form-label" style="font-size: 14px; color: #5f6368;">Email</label>
+                                <input id="webauthn_email" type="email" class="form-control form-control-google" 
+                                    placeholder="Enter your email" value="{{.email}}" required autocomplete="email">
                             </div>
 
-                            <button type="button" class="btn btn-success btn-lg w-100 mb-3" id="webauthn-login-btn">
+                            <button type="button" class="btn btn-outline-primary w-100 mb-3" id="webauthn-login-btn" style="border-color: #1a73e8; color: #1a73e8;">
                                 <i class="fas fa-fingerprint me-2"></i>
-                                <span id="webauthn-btn-text">Sign in with Security Key</span>
+                                <span id="webauthn-btn-text">Use security key</span>
                             </button>
-
-                            <div class="text-center">
-                                <small class="text-muted">
-                                    Touch your security key, use your fingerprint, or authenticate with Face ID
-                                </small>
-                            </div>
                         </div>
 
-                        <!-- Google OAuth Authentication -->
-                        {{if .google_oauth_enabled}}
-                        <div id="google-auth-form" class="auth-method-form d-none">
-                            <div class="text-center mb-4">
-                                <div class="mx-auto bg-danger bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                                    <i class="fab fa-google text-danger fs-2"></i>
-                                </div>
-                                <h5 class="fw-bold mb-2">Sign in with Google</h5>
-                                <p class="text-muted small mb-0">
-                                    Use your Google account to sign in quickly and securely
-                                </p>
-                            </div>
+                        <!-- Divider for traditional login -->
+                        <div class="divider d-none" id="login-divider">
+                            <span>or</span>
+                        </div>
 
-                            <a href="/auth/google" class="btn btn-outline-dark btn-lg w-100 d-flex align-items-center justify-content-center">
-                                <svg class="me-2" width="18" height="18" viewBox="0 0 18 18">
-                                    <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18Z"/>
-                                    <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 0 1-2.7.75c-2.09 0-3.86-1.4-4.49-3.29H1.83v2.07A8 8 0 0 0 8.98 17Z"/>
-                                    <path fill="#FBBC05" d="M4.49 10.48A4.77 4.77 0 0 1 4.25 9a4.9 4.9 0 0 1 .24-1.48V5.45H1.83A8 8 0 0 0 .98 9c0 1.3.31 2.52.85 3.61l2.66-2.13Z"/>
-                                    <path fill="#EA4335" d="M8.98 3.77c1.18 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1 8 8 0 0 0 1.83 5.45L4.5 7.52C5.12 5.19 6.9 3.77 8.98 3.77Z"/>
-                                </svg>
-                                Continue with Google
-                            </a>
+                        <!-- Create Account Link -->
+                        {{if not .add_account_mode}}
+                        <div class="text-center mt-4">
+                            <p class="mb-0" style="font-size: 14px; color: #5f6368;">
+                                Don't have an account?
+                                <a href="/register" class="text-decoration-none" style="color: #1a73e8; font-weight: 500;">
+                                    Create account
+                                </a>
+                            </p>
                         </div>
                         {{end}}
 
@@ -200,17 +347,15 @@
                         <div class="text-center mt-4">
                             <a href="/auth/accounts" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left me-2"></i>
-                                Back to Account Switcher
+                                Back to accounts
                             </a>
                         </div>
                         {{end}}
 
                         <!-- Loading Overlay -->
-                        <div id="loading-overlay" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75 rounded">
+                        <div id="loading-overlay" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-90 rounded">
                             <div class="text-center">
-                                <div class="spinner-border text-primary mb-2" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
+                                <div class="loading-spinner d-inline-block mb-2"></div>
                                 <div class="small text-muted">Authenticating...</div>
                             </div>
                         </div>
@@ -221,85 +366,195 @@
     </main>
 
     <script>
-        // Authentication method switching
-        document.querySelectorAll('input[name="auth_method"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                // Hide all auth forms
-                document.querySelectorAll('.auth-method-form').forEach(form => {
-                    form.classList.add('d-none');
+        // Global variables
+        let oauthProviders = [];
+        
+        // Load OAuth providers on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadOAuthProviders();
+            initializeAuthMethodTabs();
+            initializePasswordToggle();
+            initializeWebAuthn();
+            initializeFormSubmission();
+        });
+
+        // Load OAuth providers from API
+        async function loadOAuthProviders() {
+            try {
+                const response = await fetch('/api/oauth/providers');
+                if (!response.ok) {
+                    throw new Error('Failed to load providers');
+                }
+                
+                const data = await response.json();
+                oauthProviders = data.providers || [];
+                
+                renderOAuthProviders();
+            } catch (error) {
+                console.error('Error loading OAuth providers:', error);
+                showOAuthProvidersError();
+            }
+        }
+
+        // Render OAuth providers
+        function renderOAuthProviders() {
+            const container = document.getElementById('oauth-providers-container');
+            const loading = document.getElementById('oauth-providers-loading');
+            
+            loading.classList.add('d-none');
+            
+            if (oauthProviders.length === 0) {
+                showOAuthProvidersError();
+                return;
+            }
+            
+            // Sort providers by sort_order
+            oauthProviders.sort((a, b) => (a.sort_order || 999) - (b.sort_order || 999));
+            
+            const providersHTML = oauthProviders.map(provider => {
+                const iconHTML = provider.icon_url 
+                    ? `<img src="${provider.icon_url}" alt="${provider.display_name}" class="provider-icon" onerror="this.style.display='none'">`
+                    : `<i class="fab fa-${provider.name} provider-icon" style="font-size: 20px; margin-right: 12px;"></i>`;
+                
+                const buttonStyle = provider.button_color 
+                    ? `style="border-color: ${provider.button_color}20; color: ${provider.button_color};"` 
+                    : '';
+                
+                return `
+                    <a href="/auth/oauth/${provider.name}" class="provider-button" ${buttonStyle}>
+                        ${iconHTML}
+                        <span class="flex-grow-1">Continue with ${provider.display_name}</span>
+                        <i class="fas fa-arrow-right" style="color: #5f6368; font-size: 12px;"></i>
+                    </a>
+                `;
+            }).join('');
+            
+            container.innerHTML = providersHTML;
+            container.classList.remove('d-none');
+        }
+
+        // Show OAuth providers error
+        function showOAuthProvidersError() {
+            document.getElementById('oauth-providers-loading').classList.add('d-none');
+            document.getElementById('oauth-providers-error').classList.remove('d-none');
+            
+            // Switch to password tab as fallback
+            setTimeout(() => {
+                switchAuthMethod('password');
+            }, 2000);
+        }
+
+        // Initialize authentication method tabs
+        function initializeAuthMethodTabs() {
+            document.querySelectorAll('.auth-method-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const method = this.dataset.method;
+                    switchAuthMethod(method);
+                });
+            });
+        }
+
+        // Switch authentication method
+        function switchAuthMethod(method) {
+            // Update tab states
+            document.querySelectorAll('.auth-method-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(method + '-tab').classList.add('active');
+            
+            // Hide all auth forms
+            document.querySelectorAll('.auth-method-form').forEach(form => {
+                form.classList.add('d-none');
+            });
+            
+            // Show selected auth form
+            const selectedForm = document.getElementById(method + '-auth-form');
+            if (selectedForm) {
+                selectedForm.classList.remove('d-none');
+            }
+            
+            // Show/hide divider based on method
+            const divider = document.getElementById('login-divider');
+            if (method === 'oauth' && oauthProviders.length > 0) {
+                divider.classList.add('d-none');
+            } else {
+                divider.classList.remove('d-none');
+            }
+            
+            // Sync email fields
+            syncEmailFields();
+        }
+
+        // Sync email fields between forms
+        function syncEmailFields() {
+            const emailField = document.getElementById('email');
+            const webauthnEmailField = document.getElementById('webauthn_email');
+            
+            if (emailField && webauthnEmailField) {
+                emailField.addEventListener('input', function() {
+                    webauthnEmailField.value = this.value;
                 });
                 
-                // Show selected auth form
-                const selectedForm = document.getElementById(this.value + '-auth-form');
-                if (selectedForm) {
-                    selectedForm.classList.remove('d-none');
-                }
-                
-                // Update email field sync
-                if (this.value === 'webauthn') {
-                    const emailField = document.getElementById('email');
-                    const webauthnEmailField = document.getElementById('webauthn_email');
-                    if (emailField && webauthnEmailField) {
-                        webauthnEmailField.value = emailField.value;
+                webauthnEmailField.addEventListener('input', function() {
+                    emailField.value = this.value;
+                });
+            }
+        }
+
+        // Initialize password visibility toggle
+        function initializePasswordToggle() {
+            const toggleBtn = document.getElementById('toggle-password');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    const passwordField = document.getElementById('password');
+                    const icon = this.querySelector('i');
+                    
+                    if (passwordField.type === 'password') {
+                        passwordField.type = 'text';
+                        icon.classList.replace('fa-eye', 'fa-eye-slash');
+                    } else {
+                        passwordField.type = 'password';
+                        icon.classList.replace('fa-eye-slash', 'fa-eye');
                     }
-                }
-            });
-        });
-
-        // Email field synchronization
-        document.getElementById('email')?.addEventListener('input', function() {
-            const webauthnEmailField = document.getElementById('webauthn_email');
-            if (webauthnEmailField) {
-                webauthnEmailField.value = this.value;
+                });
             }
-        });
+        }
 
-        document.getElementById('webauthn_email')?.addEventListener('input', function() {
-            const emailField = document.getElementById('email');
-            if (emailField) {
-                emailField.value = this.value;
+        // Initialize form submission
+        function initializeFormSubmission() {
+            const form = document.getElementById('login-form');
+            if (form) {
+                form.addEventListener('submit', function() {
+                    const btn = document.getElementById('login-btn');
+                    const overlay = document.getElementById('loading-overlay');
+                    
+                    btn.disabled = true;
+                    btn.innerHTML = '<div class="loading-spinner d-inline-block"></div>Signing in...';
+                    overlay.classList.remove('d-none');
+                });
             }
-        });
+        }
 
-        // Password visibility toggle
-        document.getElementById('toggle-password')?.addEventListener('click', function() {
-            const passwordField = document.getElementById('password');
-            const icon = this.querySelector('i');
-            
-            if (passwordField.type === 'password') {
-                passwordField.type = 'text';
-                icon.classList.replace('fa-eye', 'fa-eye-slash');
-            } else {
-                passwordField.type = 'password';
-                icon.classList.replace('fa-eye-slash', 'fa-eye');
-            }
-        });
-
-        // Form submission with loading state
-        document.getElementById('login-form')?.addEventListener('submit', function() {
-            const btn = document.getElementById('login-btn');
-            const overlay = document.getElementById('loading-overlay');
-            
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Signing in...';
-            overlay.classList.remove('d-none');
-        });
-
-        // WebAuthn functionality
-        document.addEventListener('DOMContentLoaded', function() {
+        // Initialize WebAuthn functionality
+        function initializeWebAuthn() {
             if (window.PublicKeyCredential) {
-                // WebAuthn is supported
                 document.getElementById('webauthn-not-supported')?.classList.add('d-none');
             } else {
-                // WebAuthn not supported
                 document.getElementById('webauthn-not-supported')?.classList.remove('d-none');
-                document.getElementById('webauthn-login-btn').disabled = true;
+                const btn = document.getElementById('webauthn-login-btn');
+                if (btn) btn.disabled = true;
             }
-        });
 
-        // WebAuthn login functionality
-        document.getElementById('webauthn-login-btn')?.addEventListener('click', async function() {
-            const btn = this;
+            // WebAuthn login functionality
+            const webauthnBtn = document.getElementById('webauthn-login-btn');
+            if (webauthnBtn) {
+                webauthnBtn.addEventListener('click', handleWebAuthnLogin);
+            }
+        }
+
+        // Handle WebAuthn login
+        async function handleWebAuthnLogin() {
+            const btn = document.getElementById('webauthn-login-btn');
             const btnText = document.getElementById('webauthn-btn-text');
             const originalText = btnText.textContent;
             const email = document.getElementById('webauthn_email').value;
@@ -316,9 +571,7 @@
                 // Begin WebAuthn authentication
                 const response = await fetch('/auth/webauthn/begin-authentication', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
                 });
 
@@ -328,7 +581,6 @@
                 }
 
                 const options = await response.json();
-                
                 btnText.textContent = 'Touch your security key...';
 
                 // Get credential
@@ -350,9 +602,7 @@
                 // Finish authentication
                 const finishResponse = await fetch('/auth/webauthn/finish-authentication', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         credential_id: btoa(String.fromCharCode.apply(null, new Uint8Array(credential.rawId))),
                         email: email,
@@ -367,9 +617,8 @@
                 }
 
                 const result = await finishResponse.json();
-                
-                // Show success and redirect
                 showAlert('Authentication successful! Redirecting...', 'success');
+                
                 setTimeout(() => {
                     window.location.href = result.redirect || '/dashboard';
                 }, 1000);
@@ -381,28 +630,32 @@
                 btn.disabled = false;
                 btnText.textContent = originalText;
             }
-        });
+        }
 
         // Utility function to show alerts
         function showAlert(message, type) {
             const alertContainer = document.getElementById('alert-container');
+            const iconClass = type === 'success' ? 'check-circle' : 
+                             type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle';
+            
             const alertHTML = `
                 <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
-                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle'} me-2"></i>
+                    <i class="fas fa-${iconClass} me-2"></i>
                     <div class="flex-grow-1">${message}</div>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             `;
             alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
         }
-
-        // Auto-dismiss alerts after 5 seconds
-        setTimeout(() => {
-            document.querySelectorAll('.alert-dismissible').forEach(alert => {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            });
-        }, 5000);
     </script>
 
     {{template "layouts/footer.tmpl" .}}

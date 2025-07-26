@@ -37,43 +37,174 @@ func init() {
 			"email",
 		},
 
-		// Allowed Scopes (Google-like scope structure)
+		// Allowed Scopes (Google-like scope structure with hierarchical support)
 		"allowed_scopes": []string{
-			// Basic profile scopes
+			// OpenID Connect scopes
+			"openid",
 			"profile",
 			"email",
-			"openid",
+			"address",
+			"phone",
 
-			// User management scopes
+			// Google-like hierarchical user scopes
 			"user:read",
 			"user:write",
 			"user:delete",
+			"user:profile",
+			"user:email",
+			"user:phone",
+			"user:address",
 
-			// Application scopes
+			// Application-level scopes
 			"read",
 			"write",
 			"delete",
 			"admin",
 
-			// Calendar scopes
+			// Calendar scopes (Google Calendar-like)
+			"calendar",
 			"calendar:read",
 			"calendar:write",
 			"calendar:events",
+			"calendar:events:read",
+			"calendar:events:write",
+			"calendar:events:delete",
 
-			// Chat scopes
+			// Chat scopes (Google Chat-like)
+			"chat",
 			"chat:read",
 			"chat:write",
 			"chat:rooms",
+			"chat:rooms:read",
+			"chat:rooms:write",
+			"chat:messages",
+			"chat:messages:read",
+			"chat:messages:write",
 
-			// Task management scopes
+			// Task management scopes (Google Tasks-like)
+			"tasks",
 			"tasks:read",
 			"tasks:write",
 			"tasks:manage",
+			"tasks:delete",
 
-			// Organization scopes
+			// Organization scopes (Google Workspace-like)
+			"org",
 			"org:read",
 			"org:write",
 			"org:admin",
+			"org:members",
+			"org:members:read",
+			"org:members:write",
+
+			// Drive-like file scopes
+			"files",
+			"files:read",
+			"files:write",
+			"files:delete",
+			"files:share",
+
+			// Analytics scopes
+			"analytics",
+			"analytics:read",
+			"analytics:reports",
+
+			// Audit and security scopes
+			"audit",
+			"audit:read",
+			"security",
+			"security:read",
+			"security:write",
+		},
+
+		// Scope hierarchies (parent scopes automatically include child scopes)
+		"scope_hierarchies": map[string][]string{
+			"user":                  {"user:read", "user:write", "user:profile", "user:email", "user:phone", "user:address"},
+			"user:write":            {"user:read"},
+			"calendar":              {"calendar:read", "calendar:write", "calendar:events"},
+			"calendar:write":        {"calendar:read"},
+			"calendar:events":       {"calendar:events:read", "calendar:events:write", "calendar:events:delete"},
+			"calendar:events:write": {"calendar:events:read"},
+			"chat":                  {"chat:read", "chat:write", "chat:rooms", "chat:messages"},
+			"chat:write":            {"chat:read"},
+			"chat:rooms":            {"chat:rooms:read", "chat:rooms:write"},
+			"chat:rooms:write":      {"chat:rooms:read"},
+			"chat:messages":         {"chat:messages:read", "chat:messages:write"},
+			"chat:messages:write":   {"chat:messages:read"},
+			"tasks":                 {"tasks:read", "tasks:write", "tasks:manage", "tasks:delete"},
+			"tasks:write":           {"tasks:read"},
+			"tasks:manage":          {"tasks:read", "tasks:write"},
+			"org":                   {"org:read", "org:write", "org:members"},
+			"org:write":             {"org:read"},
+			"org:admin":             {"org:read", "org:write", "org:members"},
+			"org:members":           {"org:members:read", "org:members:write"},
+			"org:members:write":     {"org:members:read"},
+			"files":                 {"files:read", "files:write", "files:delete", "files:share"},
+			"files:write":           {"files:read"},
+			"analytics":             {"analytics:read", "analytics:reports"},
+			"audit":                 {"audit:read"},
+			"security":              {"security:read", "security:write"},
+			"security:write":        {"security:read"},
+			"admin":                 {"user", "calendar", "chat", "tasks", "org", "files", "analytics", "audit", "security"},
+		},
+
+		// Scope descriptions for consent screens
+		"scope_descriptions": map[string]map[string]string{
+			"openid": {
+				"title":       "Sign you in",
+				"description": "Allow this app to sign you in and access your basic profile information",
+				"sensitive":   "false",
+			},
+			"profile": {
+				"title":       "View your profile",
+				"description": "View your name, profile picture, and other basic profile information",
+				"sensitive":   "false",
+			},
+			"email": {
+				"title":       "View your email address",
+				"description": "View your email address",
+				"sensitive":   "false",
+			},
+			"user:read": {
+				"title":       "View your user information",
+				"description": "View your user profile, settings, and preferences",
+				"sensitive":   "false",
+			},
+			"user:write": {
+				"title":       "Modify your user information",
+				"description": "Update your user profile, settings, and preferences",
+				"sensitive":   "true",
+			},
+			"calendar:read": {
+				"title":       "View your calendar",
+				"description": "View your calendar events and availability",
+				"sensitive":   "false",
+			},
+			"calendar:write": {
+				"title":       "Manage your calendar",
+				"description": "Create, update, and delete calendar events",
+				"sensitive":   "true",
+			},
+			"chat:read": {
+				"title":       "View your messages",
+				"description": "View your chat messages and conversation history",
+				"sensitive":   "true",
+			},
+			"chat:write": {
+				"title":       "Send messages",
+				"description": "Send messages and participate in conversations",
+				"sensitive":   "true",
+			},
+			"org:admin": {
+				"title":       "Administer organization",
+				"description": "Full administrative access to organization settings and members",
+				"sensitive":   "true",
+			},
+			"admin": {
+				"title":       "Full administrative access",
+				"description": "Complete access to all features and data",
+				"sensitive":   "true",
+			},
 		},
 
 		// Enable Password Grant (default: true)
@@ -121,6 +252,12 @@ func init() {
 
 		// Enable Token Exchange (default: true)
 		"enable_token_exchange": config.Env("OAUTH_ENABLE_TOKEN_EXCHANGE", true),
+
+		// Enable Pushed Authorization Requests (PAR) RFC 9126 (default: true)
+		"enable_pushed_authorization_requests": config.Env("OAUTH_ENABLE_PAR", true),
+
+		// JWT Bearer Grant (default: true)
+		"enable_jwt_bearer_grant": config.Env("OAUTH_ENABLE_JWT_BEARER_GRANT", true),
 
 		// Device Authorization Settings
 		"device_code_ttl":         config.Env("OAUTH_DEVICE_CODE_TTL", 600),       // 10 minutes in seconds
@@ -171,8 +308,21 @@ func init() {
 			// Require HTTPS for all OAuth endpoints (default: true in production)
 			"require_https": config.Env("OAUTH_REQUIRE_HTTPS", true),
 
-			// Require PKCE for public clients (default: true)
+			// Require PKCE for public clients (default: true) - Google-like enforcement
 			"require_pkce_for_public_clients": config.Env("OAUTH_REQUIRE_PKCE_FOR_PUBLIC_CLIENTS", true),
+
+			// Require PKCE for all clients (default: false) - Ultra-strict mode
+			"require_pkce_for_all_clients": config.Env("OAUTH_REQUIRE_PKCE_FOR_ALL_CLIENTS", false),
+
+			// Discourage plain PKCE method in favor of S256 (default: true) - Google-like preference
+			"discourage_plain_pkce": config.Env("OAUTH_DISCOURAGE_PLAIN_PKCE", true),
+
+			// Risk Assessment Settings (Google-like)
+			"enable_risk_assessment": config.Env("OAUTH_ENABLE_RISK_ASSESSMENT", true),
+			"risk_threshold_mfa":     config.Env("OAUTH_RISK_THRESHOLD_MFA", 30),   // Require MFA above this score
+			"risk_threshold_block":   config.Env("OAUTH_RISK_THRESHOLD_BLOCK", 80), // Block access above this score
+			"bad_ips":                []string{},                                   // List of known bad IPs
+			"high_risk_countries":    []string{"CN", "RU", "KP", "IR"},             // High-risk country codes
 
 			// Require state parameter for authorization code grant (default: true)
 			"require_state_parameter": config.Env("OAUTH_REQUIRE_STATE_PARAMETER", true),
@@ -238,6 +388,83 @@ func init() {
 			"lockout_duration_minutes": config.Env("OAUTH_LOCKOUT_DURATION", 30),
 		},
 
+		// Device Authorization Enhanced Settings
+		"device_authorization": map[string]interface{}{
+			"verification_uri":          config.Env("OAUTH_DEVICE_VERIFICATION_URI", "http://localhost:3000/device"),
+			"verification_uri_complete": config.Env("OAUTH_DEVICE_VERIFICATION_URI_COMPLETE", ""),
+			"user_code_charset":         config.Env("OAUTH_DEVICE_USER_CODE_CHARSET", "BCDFGHJKLMNPQRSTVWXZ"),
+			"user_code_length":          config.Env("OAUTH_DEVICE_USER_CODE_LENGTH", 8),
+			"polling_interval":          config.Env("OAUTH_DEVICE_POLLING_INTERVAL", 5),
+		},
+
+		// Pushed Authorization Requests (PAR) Settings
+		"par": map[string]interface{}{
+			"request_ttl":      config.Env("OAUTH_PAR_REQUEST_TTL", 600),       // 10 minutes default
+			"require_par":      config.Env("OAUTH_REQUIRE_PAR", false),         // Require PAR for all authorization requests
+			"cleanup_interval": config.Env("OAUTH_PAR_CLEANUP_INTERVAL", 3600), // 1 hour cleanup interval
+		},
+
+		// Client Attestation Settings (Google-like mobile app security)
+		"client_attestation": map[string]interface{}{
+			"enabled":                    config.Env("OAUTH_CLIENT_ATTESTATION_ENABLED", false),
+			"require_for_public_clients": config.Env("OAUTH_CLIENT_ATTESTATION_REQUIRE_PUBLIC", true),
+			"require_for_all_clients":    config.Env("OAUTH_CLIENT_ATTESTATION_REQUIRE_ALL", false),
+			"max_age_seconds":            config.Env("OAUTH_CLIENT_ATTESTATION_MAX_AGE", 300),       // 5 minutes
+			"challenge_ttl_seconds":      config.Env("OAUTH_CLIENT_ATTESTATION_CHALLENGE_TTL", 600), // 10 minutes
+			"trusted_issuers":            []string{},                                                // Add trusted attestation service issuers
+			"custom_required_claims":     []string{},                                                // Required claims for custom attestation
+			"android_package_names":      []string{},                                                // Allowed Android package names
+			"ios_bundle_ids":             []string{},                                                // Allowed iOS bundle IDs
+		},
+
+		// Hierarchical Scopes Settings (Google-like fine-grained permissions)
+		"hierarchical_scopes": map[string]interface{}{
+			"enabled":                      config.Env("OAUTH_HIERARCHICAL_SCOPES_ENABLED", true),
+			"auto_optimize":                config.Env("OAUTH_HIERARCHICAL_SCOPES_AUTO_OPTIMIZE", true),
+			"strict_validation":            config.Env("OAUTH_HIERARCHICAL_SCOPES_STRICT_VALIDATION", true),
+			"include_permissions_in_token": config.Env("OAUTH_HIERARCHICAL_SCOPES_INCLUDE_PERMISSIONS", true),
+			"include_resources_in_token":   config.Env("OAUTH_HIERARCHICAL_SCOPES_INCLUDE_RESOURCES", true),
+			"log_scope_validation":         config.Env("OAUTH_HIERARCHICAL_SCOPES_LOG_VALIDATION", true),
+			"cache_hierarchy":              config.Env("OAUTH_HIERARCHICAL_SCOPES_CACHE", true),
+			"hierarchy_version":            config.Env("OAUTH_HIERARCHICAL_SCOPES_VERSION", "1.0"),
+		},
+
+		// Token Binding Settings (RFC 8473)
+		"token_binding": map[string]interface{}{
+			"enabled":                      config.Env("OAUTH_TOKEN_BINDING_ENABLED", false),
+			"require_for_sensitive_scopes": config.Env("OAUTH_TOKEN_BINDING_REQUIRE_SENSITIVE", false),
+			"support_mtls":                 config.Env("OAUTH_TOKEN_BINDING_SUPPORT_MTLS", true),
+			"support_dpop":                 config.Env("OAUTH_TOKEN_BINDING_SUPPORT_DPOP", true),
+			"support_token_binding":        config.Env("OAUTH_TOKEN_BINDING_SUPPORT_TB", false),
+			"default_binding_method":       config.Env("OAUTH_TOKEN_BINDING_DEFAULT_METHOD", "dpop"),
+			"binding_ttl":                  config.Env("OAUTH_TOKEN_BINDING_TTL", 3600), // 1 hour
+			"cleanup_interval":             config.Env("OAUTH_TOKEN_BINDING_CLEANUP_INTERVAL", 3600),
+			"log_validation":               config.Env("OAUTH_TOKEN_BINDING_LOG_VALIDATION", true),
+			"supported_key_parameters": []string{
+				"rsa2048", "ecdsap256", "ecdsap384",
+			},
+		},
+
+		// Resource Indicators Settings (RFC 8707)
+		"resource_indicators": map[string]interface{}{
+			"enabled":                      config.Env("OAUTH_RESOURCE_INDICATORS_ENABLED", true),
+			"multiple_resources_supported": config.Env("OAUTH_RESOURCE_INDICATORS_MULTIPLE", true),
+			"resource_scoping_supported":   config.Env("OAUTH_RESOURCE_INDICATORS_SCOPING", true),
+			"resource_specific_tokens":     config.Env("OAUTH_RESOURCE_INDICATORS_SPECIFIC_TOKENS", true),
+			"default_token_format":         config.Env("OAUTH_RESOURCE_INDICATORS_TOKEN_FORMAT", "jwt"),
+			"max_resources_per_request":    config.Env("OAUTH_RESOURCE_INDICATORS_MAX_RESOURCES", 10),
+			"resource_discovery_enabled":   config.Env("OAUTH_RESOURCE_INDICATORS_DISCOVERY", true),
+			"auto_register_resources":      config.Env("OAUTH_RESOURCE_INDICATORS_AUTO_REGISTER", false),
+			"require_explicit_consent":     config.Env("OAUTH_RESOURCE_INDICATORS_REQUIRE_CONSENT", false),
+			"log_authorization":            config.Env("OAUTH_RESOURCE_INDICATORS_LOG_AUTH", true),
+			"supported_token_formats": []string{
+				"jwt", "opaque",
+			},
+			"supported_binding_methods": []string{
+				"mtls", "dpop", "token_binding",
+			},
+		},
+
 		// OAuth2 Playground Settings
 		"playground": map[string]interface{}{
 			// Enable OAuth2 playground (default: true in development)
@@ -248,21 +475,6 @@ func init() {
 
 			// Auto-create playground client (default: true)
 			"auto_create_client": config.Env("OAUTH_PLAYGROUND_AUTO_CREATE_CLIENT", true),
-		},
-
-		// Device Authorization Enhanced Settings
-		"device_authorization": map[string]interface{}{
-			// Enable QR code generation for device flow
-			"enable_qr_codes": config.Env("OAUTH_DEVICE_ENABLE_QR_CODES", true),
-
-			// QR code service URL template
-			"qr_code_service": config.Env("OAUTH_DEVICE_QR_CODE_SERVICE", "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=%s"),
-
-			// Custom verification URI
-			"verification_uri": config.Env("OAUTH_DEVICE_VERIFICATION_URI", config.Env("APP_URL", "http://localhost").(string)+"/device"),
-
-			// Device code format (default: 8 characters, uppercase)
-			"user_code_format": config.Env("OAUTH_DEVICE_USER_CODE_FORMAT", "XXXXXXXX"),
 		},
 
 		// Analytics and Monitoring
@@ -328,6 +540,22 @@ func init() {
 
 			// Enable debug logging (default: false)
 			"enable_debug_logging": config.Env("OAUTH_ENABLE_DEBUG_LOGGING", false),
+		},
+
+		// DPoP (Demonstrating Proof-of-Possession) Configuration
+		"dpop": map[string]interface{}{
+			"enabled":              config.Env("OAUTH_DPOP_ENABLED", false),    // Enable DPoP support
+			"max_age":              config.Env("OAUTH_DPOP_MAX_AGE", 60),       // Maximum age of DPoP proof in seconds
+			"supported_algorithms": []string{"ES256", "RS256", "PS256"},        // Supported signing algorithms
+			"require_ath":          config.Env("OAUTH_DPOP_REQUIRE_ATH", true), // Require access token hash in DPoP proof for resource servers
+		},
+
+		// JARM (JWT Secured Authorization Response Mode) Configuration
+		"jarm": map[string]interface{}{
+			"enabled":              config.Env("OAUTH_JARM_ENABLED", false),       // Enable JARM support
+			"default_signing_alg":  config.Env("OAUTH_JARM_DEFAULT_ALG", "RS256"), // Default signing algorithm for JARM responses
+			"supported_algorithms": []string{"RS256", "ES256", "PS256"},           // Supported signing algorithms
+			"response_lifetime":    config.Env("OAUTH_JARM_LIFETIME", 600),        // JARM response lifetime in seconds
 		},
 	})
 }

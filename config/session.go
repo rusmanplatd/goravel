@@ -1,6 +1,8 @@
 package config
 
 import (
+	"goravel/app/services"
+
 	"github.com/goravel/framework/contracts/session"
 	"github.com/goravel/framework/facades"
 	"github.com/goravel/framework/support/path"
@@ -16,13 +18,23 @@ func init() {
 		// This option controls the default session "driver" that will be used on
 		// requests. By default, we will use the lightweight file session driver, but you
 		// may specify any of the other wonderful drivers provided here.
-		"default": config.Env("SESSION_DRIVER", "file"),
+		"default": config.Env("SESSION_DRIVER", "database"),
 
 		// Session drivers
-		// Available Drivers: "file", "custom"
+		// Available Drivers: "file", "database", "custom"
 		"drivers": map[string]any{
 			"file": map[string]any{
 				"driver": "file",
+			},
+			"database": map[string]any{
+				"driver":     "custom",
+				"connection": config.Env("SESSION_CONNECTION", "default"),
+				"table":      config.Env("SESSION_TABLE", "sessions"),
+				"via": func() (session.Driver, error) {
+					table := config.Env("SESSION_TABLE", "sessions").(string)
+					connection := config.Env("SESSION_CONNECTION", "default").(string)
+					return services.NewDatabaseSessionDriver(table, connection), nil
+				},
 			},
 			"redis": map[string]any{
 				"driver":     "custom",

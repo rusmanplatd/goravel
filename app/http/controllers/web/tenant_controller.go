@@ -287,3 +287,124 @@ func (c *TenantController) Users(ctx http.Context) http.Response {
 		"users":  users,
 	})
 }
+
+// GetUserTenants returns all tenants for the current user
+func (c *TenantController) GetUserTenants(ctx http.Context) http.Response {
+	// Get user from context
+	user, ok := ctx.Value("user").(*models.User)
+	if !ok {
+		return ctx.Response().Json(500, map[string]interface{}{
+			"error":   "user_not_found",
+			"message": "User not found in context",
+		})
+	}
+
+	// Get user's tenants
+	var userTenants []models.UserTenant
+	err := facades.Orm().Query().
+		Where("user_id = ? AND is_active = ?", user.ID, true).
+		With("Tenant").
+		Find(&userTenants)
+
+	if err != nil {
+		facades.Log().Error("Failed to get user tenants", map[string]interface{}{
+			"error":   err.Error(),
+			"user_id": user.ID,
+		})
+		return ctx.Response().Json(500, map[string]interface{}{
+			"error":   "failed_to_get_tenants",
+			"message": "Failed to retrieve user tenants",
+		})
+	}
+
+	// Extract tenants from user-tenant relationships
+	tenants := make([]models.Tenant, len(userTenants))
+	for i, ut := range userTenants {
+		tenants[i] = ut.Tenant
+	}
+
+	// Get current tenant from session or context
+	currentTenantID := ctx.Request().Session().Get("current_tenant_id", "")
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"tenants":           tenants,
+		"current_tenant_id": currentTenantID,
+		"count":             len(tenants),
+	})
+}
+
+// SwitchTenant switches to a different tenant
+func (c *TenantController) SwitchTenant(ctx http.Context) http.Response {
+	tenantID := ctx.Request().Input("tenant_id", "")
+	if tenantID == "" {
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error":   "missing_tenant_id",
+			"message": "Tenant ID is required",
+		})
+	}
+
+	// Get user from context
+	user, ok := ctx.Value("user").(*models.User)
+	if !ok {
+		return ctx.Response().Json(500, map[string]interface{}{
+			"error":   "user_not_found",
+			"message": "User not found in context",
+		})
+	}
+
+	// Verify user has access to this tenant
+	var userTenant models.UserTenant
+	err := facades.Orm().Query().
+		Where("user_id = ? AND tenant_id = ? AND is_active = ?", user.ID, tenantID, true).
+		First(&userTenant)
+
+	if err != nil {
+		facades.Log().Warning("Tenant switch validation failed", map[string]interface{}{
+			"user_id":   user.ID,
+			"tenant_id": tenantID,
+			"error":     err.Error(),
+		})
+		return ctx.Response().Json(400, map[string]interface{}{
+			"error":   "access_denied",
+			"message": "You don't have access to this tenant",
+		})
+	}
+
+	// Set current tenant in session
+	ctx.Request().Session().Put("current_tenant_id", tenantID)
+
+	// Log the tenant switch
+	facades.Log().Info("User switched tenant", map[string]interface{}{
+		"user_id":   user.ID,
+		"tenant_id": tenantID,
+	})
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"success": true,
+		"message": "Tenant switched successfully",
+	})
+}
+
+// GetCurrentTenant returns the current tenant information
+func (c *TenantController) GetCurrentTenant(ctx http.Context) http.Response {
+	currentTenantID := ctx.Request().Session().Get("current_tenant_id", "")
+	if currentTenantID == "" {
+		return ctx.Response().Json(200, map[string]interface{}{
+			"current_tenant": nil,
+		})
+	}
+
+	var tenant models.Tenant
+	err := facades.Orm().Query().Where("id = ?", currentTenantID).First(&tenant)
+	if err != nil {
+		// Clear invalid tenant from session
+		ctx.Request().Session().Remove("current_tenant_id")
+		return ctx.Response().Json(200, map[string]interface{}{
+			"current_tenant": nil,
+		})
+	}
+
+	return ctx.Response().Json(200, map[string]interface{}{
+		"current_tenant": tenant,
+	})
+}

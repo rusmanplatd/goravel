@@ -1,0 +1,443 @@
+{{define "oauth/providers/create.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+
+    <!-- Google-like OAuth Provider Form Styles -->
+    <style>
+        .provider-form {
+            font-family: 'Google Sans', 'Roboto', sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        .form-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #dadce0;
+        }
+        
+        .form-control-google {
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            padding: 12px 16px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        
+        .form-control-google:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+            outline: none;
+        }
+        
+        .btn-google {
+            background: #1a73e8;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+        
+        .btn-google:hover {
+            background: #1557b0;
+            color: white;
+        }
+        
+        .btn-outline-google {
+            background: transparent;
+            border: 1px solid #dadce0;
+            color: #5f6368;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+        
+        .btn-outline-google:hover {
+            background: #f8f9fa;
+            border-color: #1a73e8;
+            color: #1a73e8;
+        }
+        
+        .form-label-google {
+            color: #202124;
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .form-text-google {
+            color: #5f6368;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        
+        .page-header {
+            background: white;
+            border-bottom: 1px solid #dadce0;
+            padding: 24px 0;
+            margin-bottom: 24px;
+        }
+        
+        .provider-preview {
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 16px;
+            background: #f8f9fa;
+            margin-bottom: 24px;
+        }
+        
+        .preview-button {
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            background: white;
+            display: flex;
+            align-items: center;
+            width: 100%;
+            text-decoration: none;
+            color: #202124;
+            transition: all 0.2s ease;
+        }
+        
+        .preview-button:hover {
+            background-color: #f8f9fa;
+            border-color: #4285f4;
+            text-decoration: none;
+            color: #202124;
+        }
+        
+        .preview-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+    </style>
+
+    <div class="provider-form">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="h3 fw-normal mb-2" style="color: #202124;">Add OAuth Provider</h1>
+                        <p class="text-muted mb-0">Configure a new social login provider</p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <a href="/oauth/providers" class="btn btn-outline-google">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Back to Providers
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Alert Messages -->
+                    <div id="alert-container">
+                        {{if .error}}
+                        <div class="alert alert-danger d-flex align-items-center alert-dismissible fade show" role="alert">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            <div class="flex-grow-1">{{.error}}</div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {{end}}
+                    </div>
+
+                    <!-- Main Form -->
+                    <div class="form-card p-4">
+                        <form method="POST" action="/oauth/providers" id="provider-form">
+                            <!-- Basic Information -->
+                            <div class="mb-4">
+                                <h5 class="mb-3" style="color: #202124;">Basic Information</h5>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="name" class="form-label form-label-google">Provider Name*</label>
+                                        <input type="text" class="form-control form-control-google" id="name" name="name" 
+                                            placeholder="e.g., google" value="{{.name}}" required>
+                                        <div class="form-text-google">Lowercase, no spaces (used in URLs)</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="display_name" class="form-label form-label-google">Display Name*</label>
+                                        <input type="text" class="form-control form-control-google" id="display_name" name="display_name" 
+                                            placeholder="e.g., Google" value="{{.display_name}}" required>
+                                        <div class="form-text-google">Human-readable name shown to users</div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="icon_url" class="form-label form-label-google">Icon URL</label>
+                                        <input type="url" class="form-control form-control-google" id="icon_url" name="icon_url" 
+                                            placeholder="https://example.com/icon.png" value="{{.icon_url}}">
+                                        <div class="form-text-google">URL to provider icon (optional)</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="button_color" class="form-label form-label-google">Button Color</label>
+                                        <input type="color" class="form-control form-control-google" id="button_color" name="button_color" 
+                                            value="{{if .button_color}}{{.button_color}}{{else}}#4285f4{{end}}">
+                                        <div class="form-text-google">Color for the login button</div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="sort_order" class="form-label form-label-google">Sort Order</label>
+                                        <input type="number" class="form-control form-control-google" id="sort_order" name="sort_order" 
+                                            placeholder="1" value="{{if .sort_order}}{{.sort_order}}{{else}}999{{end}}" min="1">
+                                        <div class="form-text-google">Display order (lower numbers first)</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3 d-flex align-items-end">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="enabled" name="enabled" {{if .enabled}}checked{{end}}>
+                                            <label class="form-check-label form-label-google" for="enabled">
+                                                Enable this provider
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- OAuth Configuration -->
+                            <div class="mb-4">
+                                <h5 class="mb-3" style="color: #202124;">OAuth Configuration</h5>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="client_id" class="form-label form-label-google">Client ID*</label>
+                                        <input type="text" class="form-control form-control-google" id="client_id" name="client_id" 
+                                            placeholder="Your OAuth client ID" value="{{.client_id}}" required>
+                                        <div class="form-text-google">OAuth application client ID</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="client_secret" class="form-label form-label-google">Client Secret*</label>
+                                        <input type="password" class="form-control form-control-google" id="client_secret" name="client_secret" 
+                                            placeholder="Your OAuth client secret" value="{{.client_secret}}" required>
+                                        <div class="form-text-google">OAuth application client secret</div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="redirect_url" class="form-label form-label-google">Redirect URL*</label>
+                                    <input type="url" class="form-control form-control-google" id="redirect_url" name="redirect_url" 
+                                        placeholder="https://yourapp.com/auth/oauth/provider/callback" value="{{.redirect_url}}" required>
+                                    <div class="form-text-google">OAuth callback URL (must match provider configuration)</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="scopes" class="form-label form-label-google">Scopes</label>
+                                    <input type="text" class="form-control form-control-google" id="scopes" name="scopes" 
+                                        placeholder="openid,profile,email" value="{{.scopes}}">
+                                    <div class="form-text-google">Comma-separated list of OAuth scopes</div>
+                                </div>
+                            </div>
+
+                            <!-- Endpoints -->
+                            <div class="mb-4">
+                                <h5 class="mb-3" style="color: #202124;">OAuth Endpoints</h5>
+                                
+                                <div class="mb-3">
+                                    <label for="authorization_url" class="form-label form-label-google">Authorization URL*</label>
+                                    <input type="url" class="form-control form-control-google" id="authorization_url" name="authorization_url" 
+                                        placeholder="https://provider.com/oauth/authorize" value="{{.authorization_url}}" required>
+                                    <div class="form-text-google">OAuth authorization endpoint</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="token_url" class="form-label form-label-google">Token URL*</label>
+                                    <input type="url" class="form-control form-control-google" id="token_url" name="token_url" 
+                                        placeholder="https://provider.com/oauth/token" value="{{.token_url}}" required>
+                                    <div class="form-text-google">OAuth token exchange endpoint</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="userinfo_url" class="form-label form-label-google">User Info URL*</label>
+                                    <input type="url" class="form-control form-control-google" id="userinfo_url" name="userinfo_url" 
+                                        placeholder="https://provider.com/api/user" value="{{.userinfo_url}}" required>
+                                    <div class="form-text-google">API endpoint to fetch user information</div>
+                                </div>
+                            </div>
+
+                            <!-- User Info Mapping -->
+                            <div class="mb-4">
+                                <h5 class="mb-3" style="color: #202124;">User Info Mapping</h5>
+                                
+                                <div class="mb-3">
+                                    <label for="userinfo_mapping" class="form-label form-label-google">Field Mapping</label>
+                                    <textarea class="form-control form-control-google" id="userinfo_mapping" name="userinfo_mapping" 
+                                        rows="4" placeholder='{"id": "id", "email": "email", "name": "name", "avatar": "picture"}'>{{if .userinfo_mapping}}{{.userinfo_mapping}}{{else}}{"id": "id", "email": "email", "name": "name", "avatar": "picture"}{{end}}</textarea>
+                                    <div class="form-text-google">JSON mapping of provider fields to our user fields</div>
+                                </div>
+                            </div>
+
+                            <!-- Form Actions -->
+                            <div class="d-flex gap-3">
+                                <button type="submit" class="btn btn-google">
+                                    <i class="fas fa-save me-2"></i>
+                                    Create Provider
+                                </button>
+                                <a href="/oauth/providers" class="btn btn-outline-google">
+                                    Cancel
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <!-- Live Preview -->
+                    <div class="form-card p-4 mb-4">
+                        <h5 class="mb-3" style="color: #202124;">Live Preview</h5>
+                        <div class="provider-preview">
+                            <div class="preview-button" id="preview-button">
+                                <div class="preview-icon" id="preview-icon" style="background: #4285f420; color: #4285f4;">
+                                    <i class="fas fa-cube"></i>
+                                </div>
+                                <span id="preview-text">Continue with Provider</span>
+                                <div class="ms-auto">
+                                    <i class="fas fa-arrow-right" style="color: #5f6368; font-size: 12px;"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Help -->
+                    <div class="form-card p-4">
+                        <h5 class="mb-3" style="color: #202124;">Need Help?</h5>
+                        <div class="mb-3">
+                            <h6 style="font-size: 14px;">Popular Providers</h6>
+                            <ul class="list-unstyled small text-muted">
+                                <li class="mb-1">• Google: OAuth 2.0</li>
+                                <li class="mb-1">• GitHub: OAuth 2.0</li>
+                                <li class="mb-1">• Microsoft: OAuth 2.0</li>
+                                <li class="mb-1">• Facebook: OAuth 2.0</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h6 style="font-size: 14px;">Documentation</h6>
+                            <a href="/docs/oauth" class="text-decoration-none small" style="color: #1a73e8;">
+                                <i class="fas fa-external-link-alt me-1"></i>
+                                OAuth Setup Guide
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Live preview updates
+        document.addEventListener('DOMContentLoaded', function() {
+            const displayNameInput = document.getElementById('display_name');
+            const buttonColorInput = document.getElementById('button_color');
+            const iconUrlInput = document.getElementById('icon_url');
+            
+            const previewButton = document.getElementById('preview-button');
+            const previewIcon = document.getElementById('preview-icon');
+            const previewText = document.getElementById('preview-text');
+
+            function updatePreview() {
+                const displayName = displayNameInput.value || 'Provider';
+                const buttonColor = buttonColorInput.value || '#4285f4';
+                const iconUrl = iconUrlInput.value;
+
+                previewText.textContent = `Continue with ${displayName}`;
+                previewIcon.style.background = buttonColor + '20';
+                previewIcon.style.color = buttonColor;
+
+                if (iconUrl) {
+                    previewIcon.innerHTML = `<img src="${iconUrl}" alt="${displayName}" style="width: 16px; height: 16px; border-radius: 50%;" onerror="this.style.display='none'">`;
+                } else {
+                    previewIcon.innerHTML = '<i class="fas fa-cube"></i>';
+                }
+            }
+
+            displayNameInput.addEventListener('input', updatePreview);
+            buttonColorInput.addEventListener('input', updatePreview);
+            iconUrlInput.addEventListener('input', updatePreview);
+
+            // Initial preview update
+            updatePreview();
+
+            // Auto-fill from URL parameters (for templates)
+            const urlParams = new URLSearchParams(window.location.search);
+            const formFields = ['name', 'display_name', 'authorization_url', 'token_url', 'userinfo_url', 'scopes', 'icon_url', 'button_color'];
+            
+            formFields.forEach(field => {
+                const value = urlParams.get(field);
+                if (value) {
+                    const input = document.getElementById(field);
+                    if (input) {
+                        input.value = value;
+                    }
+                }
+            });
+
+            // Update preview after auto-fill
+            setTimeout(updatePreview, 100);
+
+            // Form validation
+            const form = document.getElementById('provider-form');
+            form.addEventListener('submit', function(e) {
+                const requiredFields = ['name', 'display_name', 'client_id', 'client_secret', 'redirect_url', 'authorization_url', 'token_url', 'userinfo_url'];
+                let isValid = true;
+
+                requiredFields.forEach(field => {
+                    const input = document.getElementById(field);
+                    if (!input.value.trim()) {
+                        input.classList.add('is-invalid');
+                        isValid = false;
+                    } else {
+                        input.classList.remove('is-invalid');
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                    showAlert('Please fill in all required fields', 'danger');
+                }
+            });
+
+            // Auto-dismiss alerts
+            setTimeout(() => {
+                document.querySelectorAll('.alert-dismissible').forEach(alert => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                });
+            }, 5000);
+        });
+
+        // Show alert
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const iconClass = type === 'success' ? 'check-circle' : 
+                             type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle';
+            
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${iconClass} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+        }
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

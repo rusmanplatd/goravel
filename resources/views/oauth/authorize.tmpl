@@ -1,25 +1,26 @@
 {{define "oauth/authorize.tmpl"}}
     {{template "layouts/header.tmpl" .}}
 
-    <!-- Enhanced Google-like CSS -->
+    <!-- Google-like OAuth Authorization Styles -->
     <style>
         .oauth-container {
             font-family: 'Google Sans', 'Roboto', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             min-height: 100vh;
         }
         
         .oauth-card {
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
             transition: all 0.3s ease;
             max-width: 450px;
             margin: 0 auto;
+            border: 1px solid #dadce0;
         }
         
         .oauth-card:hover {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.15);
         }
         
         .google-logo {
@@ -36,15 +37,17 @@
         .account-selector {
             border: 1px solid #dadce0;
             border-radius: 8px;
-            padding: 12px;
+            padding: 16px;
             cursor: pointer;
             transition: all 0.2s ease;
             margin-bottom: 12px;
+            background: white;
         }
         
         .account-selector:hover {
             background-color: #f8f9fa;
             border-color: #4285f4;
+            box-shadow: 0 1px 6px rgba(32,33,36,.28);
         }
         
         .account-selector.selected {
@@ -52,83 +55,115 @@
             background-color: #e8f0fe;
         }
         
+        .account-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 12px;
+            background: #4285f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+        }
+        
         .permission-item {
-            padding: 8px 0;
+            padding: 12px 0;
             border-bottom: 1px solid #f0f0f0;
-            transition: background-color 0.2s ease;
+            transition: all 0.2s ease;
         }
         
         .permission-item:hover {
             background-color: #f8f9fa;
             border-radius: 4px;
             margin: 0 -8px;
-            padding: 8px;
+            padding: 12px 8px;
         }
         
         .permission-item:last-child {
             border-bottom: none;
         }
         
-        .sensitive-warning {
-            background: linear-gradient(135deg, #ff9800, #f57c00);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 12px;
-            margin: 16px 0;
+        .permission-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 10px;
+        }
+        
+        .permission-sensitive {
+            background: #fef7e0;
+            color: #f57c00;
+        }
+        
+        .permission-normal {
+            background: #e8f5e8;
+            color: #2e7d32;
         }
         
         .btn-google {
-            background: #4285f4;
+            background: #1a73e8;
             border: none;
             color: white;
             padding: 12px 24px;
             border-radius: 4px;
             font-weight: 500;
             transition: all 0.2s ease;
+            font-size: 14px;
         }
         
         .btn-google:hover {
-            background: #3367d6;
+            background: #1557b0;
+            box-shadow: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
             color: white;
-            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
         }
         
         .btn-cancel {
             background: transparent;
             border: 1px solid #dadce0;
-            color: #3c4043;
+            color: #5f6368;
             padding: 12px 24px;
             border-radius: 4px;
             font-weight: 500;
             transition: all 0.2s ease;
+            font-size: 14px;
         }
         
         .btn-cancel:hover {
-            background: #f8f9fa;
-            border-color: #3c4043;
-        }
-        
-        .app-info {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 16px 0;
+            background-color: #f8f9fa;
+            border-color: #4285f4;
+            color: #1a73e8;
         }
         
         .security-info {
-            font-size: 12px;
-            color: #5f6368;
             text-align: center;
-            margin-top: 16px;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #f0f0f0;
+            color: #5f6368;
+            font-size: 12px;
+        }
+        
+        .security-info a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        
+        .security-info a:hover {
+            text-decoration: underline;
         }
         
         .fade-in {
-            animation: fadeIn 0.5s ease-in;
+            animation: fadeIn 0.3s ease-in;
         }
         
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
         
@@ -137,19 +172,67 @@
         }
         
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(66, 133, 244, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0); }
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        .client-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            border: 1px solid #e8eaed;
+        }
+        
+        .client-icon {
+            width: 32px;
+            height: 32px;
+            background: #4285f4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .scope-category {
+            margin-bottom: 16px;
+        }
+        
+        .scope-category-title {
+            font-weight: 500;
+            color: #202124;
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #1a73e8;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 
-    <!-- Page Content -->
     <main class="oauth-container d-flex align-items-center justify-content-center py-5">
         <div class="container">
             <div class="row justify-content-center">
                 <div class="col-12 col-sm-10 col-md-8 col-lg-6">
                     <div class="oauth-card fade-in p-4">
-                        <!-- Google-like Header -->
+                        <!-- Header -->
                         <div class="text-center mb-4">
                             <div class="google-logo">
                                 <i class="fas fa-shield-alt text-white fs-5"></i>
@@ -162,135 +245,123 @@
                             </p>
                         </div>
 
-                        <!-- User Account Selection -->
-                        <div class="mb-4">
-                            <div class="account-selector selected" onclick="selectAccount('{{.user.ID}}')" id="account-{{.user.ID}}">
-                                <div class="d-flex align-items-center">
-                                    <div class="me-3">
-                                        {{if .user.Avatar}}
-                                            <img src="{{.user.Avatar}}" alt="{{.user.Name}}" class="rounded-circle" style="width: 32px; height: 32px;">
+                        <!-- Client Information -->
+                        <div class="client-info">
+                            <div class="d-flex align-items-center">
+                                <div class="client-icon">
+                                    {{if .client.User}}
+                                        {{if .client.User.Avatar}}
+                                            <img src="{{.client.User.Avatar}}" alt="{{.client.Name}}" style="width: 32px; height: 32px; border-radius: 50%;">
                                         {{else}}
-                                            <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                                                                                                 <i class="fas fa-user text-white"></i>
-                                            </div>
+                                            <i class="fas fa-cube"></i>
                                         {{end}}
-                                    </div>
-                                    <div class="flex-grow-1">
-                                        <div class="fw-medium" style="font-size: 14px;">{{.user.Name}}</div>
-                                        <div class="text-muted" style="font-size: 12px;">{{.user.Email}}</div>
-                                    </div>
-                                    <div class="text-primary">
-                                        <i class="fas fa-check-circle" id="selected-{{.user.ID}}"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Add account option -->
-                            <div class="account-selector" onclick="switchAccount()">
-                                <div class="d-flex align-items-center">
-                                    <div class="me-3">
-                                        <div class="border rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                                            <i class="fas fa-plus text-muted" style="font-size: 12px;"></i>
-                                        </div>
-                                    </div>
-                                    <div class="flex-grow-1">
-                                        <div class="text-primary" style="font-size: 14px;">Use another account</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Enhanced App Information -->
-                        <div class="app-info">
-                            <div class="d-flex align-items-start">
-                                <div class="me-3">
-                                    {{if .client.Logo}}
-                                        <img src="{{.client.Logo}}" alt="{{.client.Name}}" class="rounded" style="width: 32px; height: 32px;">
                                     {{else}}
-                                        <div class="bg-secondary bg-opacity-10 rounded d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                                            <i class="fas fa-cube text-secondary" style="font-size: 14px;"></i>
-                                        </div>
+                                        <i class="fas fa-cube"></i>
                                     {{end}}
                                 </div>
                                 <div class="flex-grow-1">
-                                    <div class="fw-medium mb-1" style="font-size: 14px;">{{.client.Name}}</div>
+                                    <div class="fw-medium" style="color: #202124; font-size: 14px;">{{.client.Name}}</div>
                                     <div class="text-muted" style="font-size: 12px;">
-                                        {{if .client.UserID}}
-                                            Published by {{.client.User.Name}}
+                                        {{if .client.User}}
+                                            by {{.client.User.Name}}
                                         {{else}}
                                             Third-party application
                                         {{end}}
                                     </div>
-                                    {{if .client.GetRedirectURIs}}
-                                    <div class="text-muted mt-1" style="font-size: 11px;">
-                                        <i class="fas fa-external-link-alt me-1"></i>
-                                        {{index .client.GetRedirectURIs 0}}
-                                    </div>
-                                    {{end}}
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Enhanced Permissions Display -->
-                        <div class="mb-4">
-                            <div class="d-flex align-items-center mb-3">
-                                <i class="fas fa-key text-primary me-2"></i>
-                                <h6 class="mb-0 fw-medium" style="font-size: 14px;">
-                                    {{.client.Name}} wants to:
-                                </h6>
-                            </div>
-                            
-                            <div class="permissions-list">
-                                {{range .scopes}}
-                                <div class="permission-item">
-                                    <div class="d-flex align-items-start">
-                                        <div class="me-3 mt-1">
-                                            {{if .Sensitive}}
-                                                <i class="fas fa-exclamation-triangle text-warning" style="font-size: 12px;"></i>
-                                            {{else}}
-                                                <i class="fas fa-check text-success" style="font-size: 12px;"></i>
-                                            {{end}}
-                                        </div>
-                                        <div class="flex-grow-1">
-                                            <div class="fw-medium" style="font-size: 13px;">{{.Title}}</div>
-                                            <div class="text-muted" style="font-size: 12px;">{{.Description}}</div>
-                                            {{if .Sensitive}}
-                                                <div class="text-warning mt-1" style="font-size: 11px;">
-                                                    <i class="fas fa-shield-alt me-1"></i>
-                                                    This is sensitive information
-                                                </div>
-                                            {{end}}
-                                        </div>
-                                    </div>
+                                {{if .client.IsFirstParty}}
+                                <div class="badge bg-success" style="font-size: 10px;">
+                                    <i class="fas fa-check me-1"></i>
+                                    Verified
                                 </div>
                                 {{end}}
                             </div>
                         </div>
 
-                        <!-- Enhanced Warning for sensitive permissions -->
-                        {{if .hasSensitiveScopes}}
-                        <div class="sensitive-warning">
-                            <div class="d-flex align-items-start">
-                                <i class="fas fa-shield-alt me-2 mt-1"></i>
-                                <div style="font-size: 13px;">
-                                    <div class="fw-bold mb-1">Make sure you trust {{.client.Name}}</div>
-                                    <div>You may be sharing sensitive information with this site or app. You can revoke access anytime in your security settings.</div>
+                        <!-- User Account Selection -->
+                        <div class="mb-4">
+                            <div class="account-selector selected" onclick="selectAccount(this)">
+                                <div class="d-flex align-items-center">
+                                    <div class="account-avatar">
+                                        {{if .user.Avatar}}
+                                            <img src="{{.user.Avatar}}" alt="{{.user.Name}}" style="width: 40px; height: 40px; border-radius: 50%;">
+                                        {{else}}
+                                            <i class="fas fa-user"></i>
+                                        {{end}}
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-medium" style="color: #202124; font-size: 14px;">{{.user.Name}}</div>
+                                        <div class="text-muted" style="font-size: 12px;">{{.user.Email}}</div>
+                                    </div>
+                                    <div class="text-success">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Add account option -->
+                            <div class="account-selector" onclick="addAccount()">
+                                <div class="d-flex align-items-center">
+                                    <div class="account-avatar" style="background: #5f6368;">
+                                        <i class="fas fa-plus"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-medium" style="color: #202124; font-size: 14px;">Use another account</div>
+                                        <div class="text-muted" style="font-size: 12px;">Sign in with a different account</div>
+                                    </div>
+                                    <div class="text-muted">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        {{end}}
 
-                        <!-- Enhanced Action Buttons -->
+                        <!-- Permissions Display -->
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center mb-3">
+                                <i class="fas fa-key text-primary me-2"></i>
+                                <h6 class="mb-0 fw-medium" style="font-size: 14px; color: #202124;">
+                                    {{.client.Name}} wants to:
+                                </h6>
+                            </div>
+                            
+                            <!-- Display all scopes -->
+                            {{range .scopes}}
+                            <div class="permission-item">
+                                <div class="d-flex align-items-start">
+                                    <div class="permission-icon {{if .Sensitive}}permission-sensitive{{else}}permission-normal{{end}}">
+                                        {{if .Sensitive}}
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                        {{else}}
+                                            <i class="fas fa-check"></i>
+                                        {{end}}
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-medium" style="font-size: 13px; color: #202124;">{{.Title}}</div>
+                                        <div class="text-muted" style="font-size: 12px;">{{.Description}}</div>
+                                        {{if .Sensitive}}
+                                            <div class="text-warning" style="font-size: 11px;">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                This permission allows access to sensitive data
+                                            </div>
+                                        {{end}}
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        </div>
+
+                        <!-- Action Buttons -->
                         <div class="d-flex justify-content-between align-items-center pt-3">
                             <button type="button" class="btn btn-cancel" onclick="cancelAuthorization()">
                                 Cancel
                             </button>
                             <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-primary" onclick="showMoreInfo()" style="font-size: 13px;">
+                                <button type="button" class="btn btn-outline-secondary" onclick="showMoreInfo()" style="font-size: 13px; border-color: #dadce0; color: #5f6368;">
                                     <i class="fas fa-info-circle me-1"></i>
                                     Learn more
                                 </button>
-                                <button type="button" class="btn btn-google pulse" onclick="authorizeApplication()">
+                                <button type="button" class="btn btn-google pulse" onclick="authorizeApplication()" id="authorize-btn">
                                     <i class="fas fa-check me-2"></i>
                                     Allow
                                 </button>
@@ -304,14 +375,14 @@
                                 <span>Your privacy and security are protected</span>
                             </div>
                             <div>
-                                <a href="/privacy" class="text-decoration-none me-3" style="font-size: 11px;">Privacy Policy</a>
-                                <a href="/terms" class="text-decoration-none me-3" style="font-size: 11px;">Terms of Service</a>
-                                <a href="/security" class="text-decoration-none" style="font-size: 11px;">Security Center</a>
+                                <a href="/privacy" class="me-3">Privacy Policy</a>
+                                <a href="/terms" class="me-3">Terms of Service</a>
+                                <a href="/security">Security Center</a>
                             </div>
                         </div>
 
                         <!-- Hidden form for submission -->
-                        <form id="authForm" method="POST" style="display: none;">
+                        <form id="authorize-form" method="POST" action="/oauth/authorize" style="display: none;">
                             <input type="hidden" name="client_id" value="{{.client_id}}">
                             <input type="hidden" name="redirect_uri" value="{{.redirect_uri}}">
                             <input type="hidden" name="response_type" value="{{.response_type}}">
@@ -319,7 +390,7 @@
                             <input type="hidden" name="state" value="{{.state}}">
                             <input type="hidden" name="code_challenge" value="{{.code_challenge}}">
                             <input type="hidden" name="code_challenge_method" value="{{.code_challenge_method}}">
-                            <input type="hidden" name="authorized" value="false" id="authorizedInput">
+                            <input type="hidden" name="authorized" value="true" id="authorized-input">
                         </form>
                     </div>
                 </div>
@@ -327,78 +398,156 @@
         </div>
     </main>
 
-    <!-- Enhanced JavaScript -->
     <script>
-        let selectedAccountId = '{{.user.ID}}';
+        // Global variables
+        let selectedAccount = 'current';
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add smooth animations
+            document.querySelector('.oauth-card').classList.add('fade-in');
+            
+            // Auto-focus on allow button after a short delay
+            setTimeout(() => {
+                document.getElementById('authorize-btn').focus();
+            }, 500);
+        });
 
-        function selectAccount(accountId) {
-            // Remove selected class from all accounts
-            document.querySelectorAll('.account-selector').forEach(el => {
-                el.classList.remove('selected');
+        // Select account function
+        function selectAccount(element) {
+            // Remove selected class from all account selectors
+            document.querySelectorAll('.account-selector').forEach(selector => {
+                selector.classList.remove('selected');
             });
             
-            // Hide all checkmarks
-            document.querySelectorAll('[id^="selected-"]').forEach(el => {
-                el.style.display = 'none';
-            });
-            
-            // Add selected class and show checkmark
-            document.getElementById('account-' + accountId).classList.add('selected');
-            document.getElementById('selected-' + accountId).style.display = 'inline';
-            selectedAccountId = accountId;
+            // Add selected class to clicked element
+            element.classList.add('selected');
+            selectedAccount = 'current';
         }
 
+        // Add account function
+        function addAccount() {
+            const currentUrl = new URL(window.location.href);
+            const loginUrl = new URL('/login', window.location.origin);
+            
+            // Preserve OAuth parameters for after login
+            loginUrl.searchParams.set('add_account', 'true');
+            loginUrl.searchParams.set('redirect', currentUrl.pathname + currentUrl.search);
+            
+            window.location.href = loginUrl.toString();
+        }
+
+        // Authorize application
         function authorizeApplication() {
-            // Add loading state
-            const btn = document.querySelector('.btn-google');
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Authorizing...';
+            const btn = document.getElementById('authorize-btn');
+            const form = document.getElementById('authorize-form');
+            
+            // Show loading state
             btn.disabled = true;
+            btn.innerHTML = '<div class="loading-spinner d-inline-block"></div>Authorizing...';
             
-            document.getElementById('authorizedInput').value = 'true';
-            
-            // Add slight delay for better UX
+            // Add a small delay for better UX
             setTimeout(() => {
-                document.getElementById('authForm').submit();
+                form.submit();
             }, 500);
         }
 
+        // Cancel authorization
         function cancelAuthorization() {
-            document.getElementById('authorizedInput').value = 'false';
-            document.getElementById('authForm').submit();
-        }
-        
-        function switchAccount() {
-            // Redirect to account switcher or login page
-            window.location.href = '/auth/login?continue=' + encodeURIComponent(window.location.href);
-        }
-        
-        function showMoreInfo() {
-            // Toggle detailed permission information
-            const details = document.createElement('div');
-            details.className = 'alert alert-info mt-3';
-            details.innerHTML = `
-                <h6><i class="fas fa-info-circle me-2"></i>About OAuth2 Authorization</h6>
-                <p class="small mb-2">This application is requesting access to your account using OAuth2, a secure authorization standard.</p>
-                <p class="small mb-0">You can revoke this access at any time from your <a href="/oauth/security">Security Center</a>.</p>
-            `;
+            const form = document.getElementById('authorize-form');
+            const authorizedInput = document.getElementById('authorized-input');
             
-            // Toggle display
-            const existing = document.querySelector('.alert-info');
-            if (existing) {
-                existing.remove();
-            } else {
-                document.querySelector('.oauth-card').appendChild(details);
-            }
+            // Set authorized to false
+            authorizedInput.value = 'false';
+            
+            // Submit form
+            form.submit();
         }
 
-        // Auto-select the current user account
-        selectAccount('{{.user.ID}}');
-        
-        // Add keyboard navigation
+        // Show more info modal/popup
+        function showMoreInfo() {
+            const clientName = '{{.client.Name}}';
+            const scopes = [
+                {{range .scopes}}
+                {
+                    name: '{{.Name}}',
+                    title: '{{.Title}}',
+                    description: '{{.Description}}',
+                    sensitive: {{.Sensitive}}
+                },
+                {{end}}
+            ];
+            
+            let infoHTML = `
+                <div class="modal fade" id="infoModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">About ${clientName}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-3">This application is requesting the following permissions:</p>
+                                <div class="list-group">
+            `;
+            
+            scopes.forEach(scope => {
+                const badgeClass = scope.sensitive ? 'bg-warning' : 'bg-success';
+                const iconClass = scope.sensitive ? 'fa-exclamation-triangle' : 'fa-check';
+                
+                infoHTML += `
+                    <div class="list-group-item">
+                        <div class="d-flex align-items-start">
+                            <span class="badge ${badgeClass} me-2 mt-1">
+                                <i class="fas ${iconClass}"></i>
+                            </span>
+                            <div>
+                                <h6 class="mb-1">${scope.title}</h6>
+                                <p class="mb-0 text-muted small">${scope.description}</p>
+                                ${scope.sensitive ? '<small class="text-warning">⚠️ Sensitive permission</small>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            infoHTML += `
+                                </div>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        You can revoke these permissions at any time from your account settings.
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('infoModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', infoHTML);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('infoModal'));
+            modal.show();
+        }
+
+        // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
+                e.preventDefault();
                 authorizeApplication();
             } else if (e.key === 'Escape') {
+                e.preventDefault();
                 cancelAuthorization();
             }
         });

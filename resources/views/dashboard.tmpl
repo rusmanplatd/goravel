@@ -2,417 +2,888 @@
     {{template "layouts/header.tmpl" .}}
     {{template "layouts/nav.tmpl" .}}
 
+    <!-- Enhanced Dashboard Styles -->
+    <style>
+        .dashboard-container {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px 0;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            margin-bottom: 12px;
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin: 0;
+            line-height: 1;
+        }
+        
+        .stat-label {
+            color: #718096;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .stat-change {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+        
+        .stat-change.positive {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .stat-change.negative {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .activity-item {
+            padding: 16px;
+            border-radius: 12px;
+            background: #f8f9fa;
+            margin-bottom: 12px;
+            border-left: 4px solid #007bff;
+            transition: all 0.2s ease;
+        }
+        
+        .activity-item:hover {
+            background: #e9ecef;
+            transform: translateX(4px);
+        }
+        
+        .quick-action-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            padding: 16px 24px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .quick-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+        
+        .metric-trend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .trend-arrow {
+            font-size: 12px;
+        }
+        
+        .real-time-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: #22c55e;
+            font-weight: 500;
+        }
+        
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin: 0;
+        }
+    </style>
+
     <!-- Page Content -->
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-<div class="container py-4">
-    <div class="mb-4">
-        <h1 class="h3 fw-semibold text-dark">Dashboard</h1>
-    </div>
-    
-    <!-- Welcome Section -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body d-flex align-items-center">
-            <div class="me-3">
-                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
-                    <i class="fas fa-user text-white fs-4"></i>
+    <main class="dashboard-container">
+        <div class="container py-4">
+            <!-- Header Section -->
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title">Dashboard</h1>
+                    <div class="real-time-indicator">
+                        <div class="pulse-dot"></div>
+                        Real-time updates
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="refreshDashboard()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="toggleAutoRefresh()">
+                        <i class="fas fa-clock"></i> Auto-refresh: <span id="auto-refresh-status">ON</span>
+                    </button>
                 </div>
             </div>
-            <div>
-                <h3 class="h5 fw-medium mb-1">Welcome back, {{.user.Name}}!</h3>
-                <p class="mb-0 text-muted small">Here's your comprehensive system overview.</p>
+            
+            <!-- Welcome Section -->
+            <div class="stat-card mb-4">
+                <div class="card-body d-flex align-items-center p-4">
+                    <div class="me-3">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h3 class="h4 fw-bold mb-1 text-dark">Welcome back, {{.user.Name}}!</h3>
+                        <p class="mb-0 text-muted">Here's your comprehensive system overview with real-time metrics.</p>
+                    </div>
+                    <div class="text-end">
+                        <div class="text-muted small">Last login</div>
+                        <div class="fw-semibold">{{if .user.LastLoginAt}}{{.user.LastLoginAt.Format "Jan 2, 15:04"}}{{else}}First time{{end}}</div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Core System Stats -->
-    <div class="row g-4 mb-4">
-        <div class="col-12">
-            <h4 class="h6 fw-semibold text-dark mb-3">System Overview</h4>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-info d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                            <i class="fas fa-building text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Total Tenants</div>
-                        <div class="h5 mb-0">{{.stats.tenants}}</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/tenants" class="text-info text-decoration-none small">View all tenants</a>
+            <!-- Core System Stats -->
+            <div class="section-header">
+                <h2 class="section-title">System Overview</h2>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" id="timeRange" onchange="updateCharts()">
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
                 </div>
             </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-success d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                            <i class="fas fa-user-tag text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Total Roles</div>
-                        <div class="h5 mb-0">{{.stats.roles}}</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/roles" class="text-success text-decoration-none small">View all roles</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-purple d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: #6f42c1;">
-                            <i class="fas fa-key text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Total Permissions</div>
-                        <div class="h5 mb-0">{{.stats.permissions}}</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/permissions" class="text-decoration-none small" style="color: #6f42c1;">View all permissions</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                            <i class="fas fa-users text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Total Users</div>
-                        <div class="h5 mb-0">{{.stats.users}}</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/users" class="text-warning text-decoration-none small">View all users</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Feature Stats -->
-    <div class="row g-4 mb-4">
-        <div class="col-12">
-            <h4 class="h6 fw-semibold text-dark mb-3">Feature Statistics</h4>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                            <i class="fas fa-comments text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Chat Rooms</div>
-                        <div class="h5 mb-0">{{.stats.chat_rooms}}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">{{.stats.chat_messages}} messages</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/chat" class="text-primary text-decoration-none small">View chat rooms</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-danger d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                            <i class="fas fa-calendar text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Calendar Events</div>
-                        <div class="h5 mb-0">{{.stats.calendar_events}}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">{{.stats.upcoming_events}} upcoming</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/calendar" class="text-danger text-decoration-none small">View calendar</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                            <i class="fas fa-tasks text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Tasks</div>
-                        <div class="h5 mb-0">{{.stats.tasks}}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">{{.stats.active_tasks}} active, {{.stats.completed_tasks}} done</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/tasks" class="text-secondary text-decoration-none small">View tasks</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle bg-dark d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                            <i class="fas fa-bell text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Notifications</div>
-                        <div class="h5 mb-0">{{.stats.notifications}}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">{{.stats.unread_notifications}} unread</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/notifications" class="text-dark text-decoration-none small">View notifications</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Organization & OAuth Stats -->
-    <div class="row g-4 mb-4">
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: #17a2b8;">
-                            <i class="fas fa-sitemap text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Organizations</div>
-                        <div class="h5 mb-0">{{.stats.organizations}}</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/api/v1/organizations" class="text-decoration-none small" style="color: #17a2b8;">View organizations</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: #fd7e14;">
-                            <i class="fas fa-shield-alt text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">OAuth Clients</div>
-                        <div class="h5 mb-0">{{.stats.oauth_clients}}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">{{.stats.active_tokens}} active tokens</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/oauth/clients" class="text-decoration-none small" style="color: #fd7e14;">View OAuth clients</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="me-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: #20c997;">
-                            <i class="fas fa-chart-line text-white"></i>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-muted small">Recent Activity</div>
-                        <div class="h5 mb-0">{{.stats.recent_activity}}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">Last 24 hours</div>
-                    </div>
-                </div>
-                <div class="card-footer bg-light p-2">
-                    <a href="/api/v1/activity-logs" class="text-decoration-none small" style="color: #20c997;">View activity</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <h3 class="h5 fw-medium mb-3">Quick Actions</h3>
-            <div class="row g-3">
+            
+            <div class="row g-4 mb-4">
                 <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/tenants/create" class="btn btn-outline-info w-100 d-flex align-items-center justify-content-center">
-                        <i class="fas fa-plus me-2"></i> Create Tenant
-                    </a>
-                </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/roles/create" class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center">
-                        <i class="fas fa-user-tag me-2"></i> Create Role
-                    </a>
-                </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/permissions/create" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center" style="border-color: #6f42c1; color: #6f42c1;">
-                        <i class="fas fa-key me-2"></i> Create Permission
-                    </a>
-                </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/users/create" class="btn btn-outline-warning w-100 d-flex align-items-center justify-content-center">
-                        <i class="fas fa-user-plus me-2"></i> Add User
-                    </a>
-                </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/security" class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center">
-                        <i class="fas fa-shield-alt me-2"></i> Security Settings
-                    </a>
-                </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/api/v1/chat/rooms" class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center">
-                        <i class="fas fa-comments me-2"></i> Start Chat
-                    </a>
-                </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/api/v1/calendar/events" class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center">
-                        <i class="fas fa-calendar-plus me-2"></i> Create Event
-                    </a>
-                </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <a href="/oauth/clients" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center" style="border-color: #fd7e14; color: #fd7e14;">
-                        <i class="fas fa-shield-alt me-2"></i> OAuth Clients
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Recent Activity & Information Panels -->
-    <div class="row g-4">
-        <!-- Recent Activity -->
-        <div class="col-12 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-clock me-2"></i>Recent Activity
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    {{if .recent_activities}}
-                        <div class="list-group list-group-flush">
-                            {{range .recent_activities}}
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between">
-                                    <div>
-                                        <h6 class="mb-1">{{.Event}}</h6>
-                                        <p class="mb-1 text-muted small">{{.Description}}</p>
-                                        {{if .User}}<small class="text-muted">by {{.User.Name}}</small>{{end}}
-                                    </div>
-                                    <small class="text-muted">{{.CreatedAt.Format "Jan 2, 15:04"}}</small>
-                                </div>
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                                <i class="fas fa-building"></i>
                             </div>
+                            <div class="stat-label">Total Tenants</div>
+                            <div class="stat-number" id="tenants-count">{{.stats.tenants}}</div>
+                            <div class="metric-trend">
+                                <span class="stat-change positive">
+                                    <i class="fas fa-arrow-up trend-arrow"></i> +12%
+                                </span>
+                                <span class="text-muted small">vs last month</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/tenants" class="text-info text-decoration-none small fw-semibold">
+                                <i class="fas fa-arrow-right me-1"></i> Manage tenants
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                                <i class="fas fa-user-tag"></i>
+                            </div>
+                            <div class="stat-label">Active Users</div>
+                            <div class="stat-number" id="users-count">{{.stats.users}}</div>
+                            <div class="metric-trend">
+                                <span class="stat-change positive">
+                                    <i class="fas fa-arrow-up trend-arrow"></i> +8%
+                                </span>
+                                <span class="text-muted small">vs last month</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/users" class="text-success text-decoration-none small fw-semibold">
+                                <i class="fas fa-arrow-right me-1"></i> User management
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%);">
+                                <i class="fas fa-key"></i>
+                            </div>
+                            <div class="stat-label">Permissions</div>
+                            <div class="stat-number" id="permissions-count">{{.stats.permissions}}</div>
+                            <div class="metric-trend">
+                                <span class="stat-change positive">
+                                    <i class="fas fa-arrow-up trend-arrow"></i> +3%
+                                </span>
+                                <span class="text-muted small">vs last month</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/permissions" class="text-decoration-none small fw-semibold" style="color: #6f42c1;">
+                                <i class="fas fa-arrow-right me-1"></i> Manage permissions
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #fd7e14 0%, #dc3545 100%);">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="stat-label">OAuth Clients</div>
+                            <div class="stat-number" id="oauth-clients-count">{{.stats.oauth_clients}}</div>
+                            <div class="metric-trend">
+                                <span class="stat-change positive">
+                                    <i class="fas fa-arrow-up trend-arrow"></i> +15%
+                                </span>
+                                <span class="text-muted small">{{.stats.active_tokens}} active tokens</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/oauth/clients" class="text-decoration-none small fw-semibold" style="color: #fd7e14;">
+                                <i class="fas fa-arrow-right me-1"></i> OAuth management
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="row g-4 mb-4">
+                <div class="col-lg-8">
+                    <div class="chart-container">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3 class="h5 fw-semibold mb-0">System Activity</h3>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="changeChartType('line')">Line</button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="changeChartType('bar')">Bar</button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="changeChartType('area')">Area</button>
+                            </div>
+                        </div>
+                        <canvas id="activityChart" height="300"></canvas>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="chart-container">
+                        <h3 class="h5 fw-semibold mb-3">User Distribution</h3>
+                        <canvas id="userDistributionChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature Stats -->
+            <div class="section-header">
+                <h2 class="section-title">Feature Statistics</h2>
+            </div>
+            
+            <div class="row g-4 mb-4">
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #343a40 0%, #495057 100%);">
+                                <i class="fas fa-bell"></i>
+                            </div>
+                            <div class="stat-label">Notifications</div>
+                            <div class="stat-number" id="notifications-count">{{.stats.notifications}}</div>
+                            <div class="metric-trend">
+                                <span class="text-muted small">{{.stats.unread_notifications}} unread</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/notifications" class="text-dark text-decoration-none small fw-semibold">
+                                <i class="fas fa-arrow-right me-1"></i> View notifications
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);">
+                                <i class="fas fa-calendar"></i>
+                            </div>
+                            <div class="stat-label">Calendar Events</div>
+                            <div class="stat-number" id="calendar-events-count">{{.stats.calendar_events}}</div>
+                            <div class="metric-trend">
+                                <span class="text-muted small">{{.stats.upcoming_events}} upcoming</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/calendar" class="text-decoration-none small fw-semibold" style="color: #20c997;">
+                                <i class="fas fa-arrow-right me-1"></i> View calendar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);">
+                                <i class="fas fa-comments"></i>
+                            </div>
+                            <div class="stat-label">Chat Messages</div>
+                            <div class="stat-number" id="chat-messages-count">{{.stats.chat_messages}}</div>
+                            <div class="metric-trend">
+                                <span class="text-muted small">{{.stats.chat_rooms}} rooms</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/chat" class="text-primary text-decoration-none small fw-semibold">
+                                <i class="fas fa-arrow-right me-1"></i> Open chat
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <div class="stat-card h-100">
+                        <div class="card-body p-4">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);">
+                                <i class="fas fa-tasks"></i>
+                            </div>
+                            <div class="stat-label">Active Tasks</div>
+                            <div class="stat-number" id="active-tasks-count">{{.stats.active_tasks}}</div>
+                            <div class="metric-trend">
+                                <span class="text-muted small">{{.stats.completed_tasks}} completed</span>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light p-3">
+                            <a href="/tasks" class="text-decoration-none small fw-semibold" style="color: #ffc107;">
+                                <i class="fas fa-arrow-right me-1"></i> Task management
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h3 class="h5 fw-medium mb-3">Quick Actions</h3>
+                    <div class="row g-3">
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <a href="/tenants/create" class="btn btn-outline-info w-100 d-flex align-items-center justify-content-center">
+                                <i class="fas fa-plus me-2"></i> Create Tenant
+                            </a>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <a href="/roles/create" class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center">
+                                <i class="fas fa-user-tag me-2"></i> Create Role
+                            </a>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <a href="/permissions/create" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center" style="border-color: #6f42c1; color: #6f42c1;">
+                                <i class="fas fa-key me-2"></i> Create Permission
+                            </a>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <a href="/users/create" class="btn btn-outline-warning w-100 d-flex align-items-center justify-content-center">
+                                <i class="fas fa-user-plus me-2"></i> Add User
+                            </a>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <a href="/security" class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center">
+                                <i class="fas fa-shield-alt me-2"></i> Security Settings
+                            </a>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <a href="/oauth/clients" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center" style="border-color: #fd7e14; color: #fd7e14;">
+                                <i class="fas fa-shield-alt me-2"></i> OAuth Clients
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity & Information Panels -->
+            <div class="row g-4">
+                <!-- Recent Activity -->
+                <div class="col-12 col-lg-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-light">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-clock me-2"></i>Recent Activity
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            {{if .recent_activities}}
+                                <div class="list-group list-group-flush">
+                                    {{range .recent_activities}}
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h6 class="mb-1">{{.Event}}</h6>
+                                                <p class="mb-1 text-muted small">{{.Description}}</p>
+                                                {{if .User}}<small class="text-muted">by {{.User.Name}}</small>{{end}}
+                                            </div>
+                                            <small class="text-muted">{{.CreatedAt.Format "Jan 2, 15:04"}}</small>
+                                        </div>
+                                    </div>
+                                    {{end}}
+                                </div>
+                            {{else}}
+                                <div class="p-3 text-center text-muted">
+                                    <i class="fas fa-clock fa-2x mb-2"></i>
+                                    <p class="mb-0">No recent activity</p>
+                                </div>
                             {{end}}
                         </div>
-                    {{else}}
-                        <div class="p-3 text-center text-muted">
-                            <i class="fas fa-clock fa-2x mb-2"></i>
-                            <p class="mb-0">No recent activity</p>
+                        <div class="card-footer bg-light">
+                            <a href="/api/v1/activity-logs" class="text-decoration-none small">View all activity →</a>
                         </div>
-                    {{end}}
+                    </div>
                 </div>
-                <div class="card-footer bg-light">
-                    <a href="/api/v1/activity-logs" class="text-decoration-none small">View all activity →</a>
-                </div>
-            </div>
-        </div>
 
-        <!-- Upcoming Events -->
-        <div class="col-12 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-calendar me-2"></i>Upcoming Events
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    {{if .upcoming_events}}
-                        <div class="list-group list-group-flush">
-                            {{range .upcoming_events}}
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between">
-                                    <div>
-                                        <h6 class="mb-1">{{.Title}}</h6>
-                                        {{if .Location}}<p class="mb-1 text-muted small"><i class="fas fa-map-marker-alt me-1"></i>{{.Location}}</p>{{end}}
-                                        <small class="text-muted">{{.StartTime.Format "Jan 2, 15:04"}}</small>
+                <!-- Upcoming Events -->
+                <div class="col-12 col-lg-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-light">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-calendar me-2"></i>Upcoming Events
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            {{if .upcoming_events}}
+                                <div class="list-group list-group-flush">
+                                    {{range .upcoming_events}}
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h6 class="mb-1">{{.Title}}</h6>
+                                                {{if .Location}}<p class="mb-1 text-muted small"><i class="fas fa-map-marker-alt me-1"></i>{{.Location}}</p>{{end}}
+                                                <small class="text-muted">{{.StartTime.Format "Jan 2, 15:04"}}</small>
+                                            </div>
+                                            <span class="badge bg-primary">{{.Type}}</span>
+                                        </div>
                                     </div>
-                                    <span class="badge bg-primary">{{.Type}}</span>
+                                    {{end}}
                                 </div>
-                            </div>
+                            {{else}}
+                                <div class="p-3 text-center text-muted">
+                                    <i class="fas fa-calendar fa-2x mb-2"></i>
+                                    <p class="mb-0">No upcoming events</p>
+                                </div>
                             {{end}}
                         </div>
-                    {{else}}
-                        <div class="p-3 text-center text-muted">
-                            <i class="fas fa-calendar fa-2x mb-2"></i>
-                            <p class="mb-0">No upcoming events</p>
+                        <div class="card-footer bg-light">
+                            <a href="/api/v1/calendar/events" class="text-decoration-none small">View calendar →</a>
                         </div>
-                    {{end}}
+                    </div>
                 </div>
-                <div class="card-footer bg-light">
-                    <a href="/api/v1/calendar/events" class="text-decoration-none small">View calendar →</a>
-                </div>
-            </div>
-        </div>
 
-        <!-- Recent Notifications -->
-        <div class="col-12 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-bell me-2"></i>Recent Notifications
-                        {{if gt .stats.unread_notifications 0}}
-                            <span class="badge bg-danger ms-2">{{.stats.unread_notifications}}</span>
-                        {{end}}
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    {{if .recent_notifications}}
-                        <div class="list-group list-group-flush">
-                            {{range .recent_notifications}}
-                            <div class="list-group-item {{if not .ReadAt}}bg-light{{end}}">
-                                <div class="d-flex justify-content-between">
-                                    <div>
-                                        <h6 class="mb-1">{{.Type}}</h6>
-                                        {{if .Data.title}}<p class="mb-1 text-muted small">{{.Data.title}}</p>{{end}}
-                                        <small class="text-muted">{{.CreatedAt.Format "Jan 2, 15:04"}}</small>
+                <!-- Recent Notifications -->
+                <div class="col-12 col-lg-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-light">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-bell me-2"></i>Recent Notifications
+                                {{if gt .stats.unread_notifications 0}}
+                                    <span class="badge bg-danger ms-2">{{.stats.unread_notifications}}</span>
+                                {{end}}
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            {{if .recent_notifications}}
+                                <div class="list-group list-group-flush">
+                                    {{range .recent_notifications}}
+                                    <div class="list-group-item {{if not .ReadAt}}bg-light{{end}}">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h6 class="mb-1">{{.Type}}</h6>
+                                                {{if .Data.title}}<p class="mb-1 text-muted small">{{.Data.title}}</p>{{end}}
+                                                <small class="text-muted">{{.CreatedAt.Format "Jan 2, 15:04"}}</small>
+                                            </div>
+                                            {{if not .ReadAt}}<span class="badge bg-primary">New</span>{{end}}
+                                        </div>
                                     </div>
-                                    {{if not .ReadAt}}<span class="badge bg-primary">New</span>{{end}}
+                                    {{end}}
                                 </div>
-                            </div>
+                            {{else}}
+                                <div class="p-3 text-center text-muted">
+                                    <i class="fas fa-bell fa-2x mb-2"></i>
+                                    <p class="mb-0">No notifications</p>
+                                </div>
                             {{end}}
                         </div>
-                    {{else}}
-                        <div class="p-3 text-center text-muted">
-                            <i class="fas fa-bell fa-2x mb-2"></i>
-                            <p class="mb-0">No notifications</p>
+                        <div class="card-footer bg-light">
+                            <a href="/notifications" class="text-decoration-none small">View all notifications →</a>
                         </div>
-                    {{end}}
-                </div>
-                <div class="card-footer bg-light">
-                    <a href="/notifications" class="text-decoration-none small">View all notifications →</a>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
-</main>
+    </main>
 
-{{template "layouts/footer.tmpl" .}}
+         <!-- Chart.js Library -->
+     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+     
+     <!-- Dashboard JavaScript -->
+     <script>
+         let activityChart, userDistributionChart;
+         let autoRefreshInterval;
+         let isAutoRefreshEnabled = true;
+         
+         // Initialize charts when page loads
+         document.addEventListener('DOMContentLoaded', function() {
+             initializeCharts();
+             if (isAutoRefreshEnabled) {
+                 startAutoRefresh();
+             }
+         });
+         
+         // Initialize all charts
+         function initializeCharts() {
+             initializeActivityChart();
+             initializeUserDistributionChart();
+         }
+         
+         // Initialize activity chart
+         function initializeActivityChart() {
+             const ctx = document.getElementById('activityChart').getContext('2d');
+             
+             activityChart = new Chart(ctx, {
+                 type: 'line',
+                 data: {
+                     labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                     datasets: [{
+                         label: 'User Activity',
+                         data: [12, 19, 8, 25, 22, 15],
+                         borderColor: 'rgb(102, 126, 234)',
+                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                         tension: 0.4,
+                         fill: true
+                     }, {
+                         label: 'System Load',
+                         data: [8, 15, 12, 18, 20, 10],
+                         borderColor: 'rgb(32, 201, 151)',
+                         backgroundColor: 'rgba(32, 201, 151, 0.1)',
+                         tension: 0.4,
+                         fill: true
+                     }]
+                 },
+                 options: {
+                     responsive: true,
+                     maintainAspectRatio: false,
+                     plugins: {
+                         legend: {
+                             position: 'top',
+                         },
+                         title: {
+                             display: false
+                         }
+                     },
+                     scales: {
+                         y: {
+                             beginAtZero: true,
+                             grid: {
+                                 color: 'rgba(0,0,0,0.1)'
+                             }
+                         },
+                         x: {
+                             grid: {
+                                 color: 'rgba(0,0,0,0.1)'
+                             }
+                         }
+                     }
+                 }
+             });
+         }
+         
+         // Initialize user distribution chart
+         function initializeUserDistributionChart() {
+             const ctx = document.getElementById('userDistributionChart').getContext('2d');
+             
+             userDistributionChart = new Chart(ctx, {
+                 type: 'doughnut',
+                 data: {
+                     labels: ['Active Users', 'Inactive Users', 'Pending Users'],
+                     datasets: [{
+                         data: [{{.stats.users}}, 15, 8],
+                         backgroundColor: [
+                             'rgb(40, 167, 69)',
+                             'rgb(108, 117, 125)',
+                             'rgb(255, 193, 7)'
+                         ],
+                         borderWidth: 2,
+                         borderColor: '#fff'
+                     }]
+                 },
+                 options: {
+                     responsive: true,
+                     maintainAspectRatio: false,
+                     plugins: {
+                         legend: {
+                             position: 'bottom',
+                         }
+                     }
+                 }
+             });
+         }
+         
+         // Update charts based on time range
+         function updateCharts() {
+             const timeRange = document.getElementById('timeRange').value;
+             console.log("Updating charts for time range:", timeRange);
+             
+             // Simulate different data based on time range
+             let newData, newLabels;
+             
+             switch(timeRange) {
+                 case '24h':
+                     newLabels = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
+                     newData = [12, 19, 8, 25, 22, 15];
+                     break;
+                 case '7d':
+                     newLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                     newData = [65, 78, 52, 89, 95, 45, 32];
+                     break;
+                 case '30d':
+                     newLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                     newData = [245, 289, 198, 356];
+                     break;
+             }
+             
+             // Update activity chart
+             activityChart.data.labels = newLabels;
+             activityChart.data.datasets[0].data = newData;
+             activityChart.data.datasets[1].data = newData.map(val => val * 0.7); // Simulate system load
+             activityChart.update();
+         }
+         
+         // Change chart type
+         function changeChartType(type) {
+             console.log("Changing chart type to:", type);
+             
+             // Destroy existing chart and create new one with different type
+             activityChart.destroy();
+             
+             const ctx = document.getElementById('activityChart').getContext('2d');
+             activityChart = new Chart(ctx, {
+                 type: type,
+                 data: activityChart.data,
+                 options: {
+                     responsive: true,
+                     maintainAspectRatio: false,
+                     plugins: {
+                         legend: {
+                             position: 'top',
+                         }
+                     },
+                     scales: {
+                         y: {
+                             beginAtZero: true,
+                             grid: {
+                                 color: 'rgba(0,0,0,0.1)'
+                             }
+                         },
+                         x: {
+                             grid: {
+                                 color: 'rgba(0,0,0,0.1)'
+                             }
+                         }
+                     }
+                 }
+             });
+         }
+         
+         // Refresh dashboard data
+         function refreshDashboard() {
+             console.log("Refreshing dashboard data...");
+             
+             // Show loading indicator
+             const refreshBtn = document.querySelector('button[onclick="refreshDashboard()"]');
+             const originalText = refreshBtn.innerHTML;
+             refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+             refreshBtn.disabled = true;
+             
+             // Simulate API call to refresh data
+             setTimeout(() => {
+                 // Update statistics with simulated new data
+                 updateStatistics();
+                 
+                 // Update charts
+                 updateCharts();
+                 
+                 // Reset button
+                 refreshBtn.innerHTML = originalText;
+                 refreshBtn.disabled = false;
+                 
+                 // Show success message
+                 showNotification('Dashboard refreshed successfully!', 'success');
+             }, 1500);
+         }
+         
+         // Update statistics with simulated data
+         function updateStatistics() {
+             const stats = {
+                 'tenants-count': Math.floor(Math.random() * 50) + 20,
+                 'users-count': Math.floor(Math.random() * 200) + 100,
+                 'permissions-count': Math.floor(Math.random() * 30) + 15,
+                 'oauth-clients-count': Math.floor(Math.random() * 20) + 5,
+                 'notifications-count': Math.floor(Math.random() * 100) + 20,
+                 'calendar-events-count': Math.floor(Math.random() * 50) + 10,
+                 'chat-messages-count': Math.floor(Math.random() * 1000) + 500,
+                 'active-tasks-count': Math.floor(Math.random() * 25) + 5
+             };
+             
+             // Animate number changes
+             Object.entries(stats).forEach(([id, newValue]) => {
+                 const element = document.getElementById(id);
+                 if (element) {
+                     animateNumber(element, parseInt(element.textContent), newValue);
+                 }
+             });
+         }
+         
+         // Animate number changes
+         function animateNumber(element, start, end) {
+             const duration = 1000;
+             const startTime = performance.now();
+             
+             function updateNumber(currentTime) {
+                 const elapsed = currentTime - startTime;
+                 const progress = Math.min(elapsed / duration, 1);
+                 
+                 const current = Math.floor(start + (end - start) * progress);
+                 element.textContent = current;
+                 
+                 if (progress < 1) {
+                     requestAnimationFrame(updateNumber);
+                 }
+             }
+             
+             requestAnimationFrame(updateNumber);
+         }
+         
+         // Toggle auto-refresh
+         function toggleAutoRefresh() {
+             const statusElement = document.getElementById('auto-refresh-status');
+             isAutoRefreshEnabled = !isAutoRefreshEnabled;
+             
+             if (isAutoRefreshEnabled) {
+                 statusElement.textContent = 'ON';
+                 startAutoRefresh();
+                 showNotification('Auto-refresh enabled', 'info');
+             } else {
+                 statusElement.textContent = 'OFF';
+                 stopAutoRefresh();
+                 showNotification('Auto-refresh disabled', 'info');
+             }
+         }
+         
+         // Start auto-refresh
+         function startAutoRefresh() {
+             if (autoRefreshInterval) {
+                 clearInterval(autoRefreshInterval);
+             }
+             
+             autoRefreshInterval = setInterval(() => {
+                 updateStatistics();
+                 updateCharts();
+             }, 30000); // Refresh every 30 seconds
+         }
+         
+         // Stop auto-refresh
+         function stopAutoRefresh() {
+             if (autoRefreshInterval) {
+                 clearInterval(autoRefreshInterval);
+                 autoRefreshInterval = null;
+             }
+         }
+         
+         // Show notification
+         function showNotification(message, type = 'info') {
+             const notification = document.createElement('div');
+             notification.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} alert-dismissible fade show position-fixed`;
+             notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+             notification.innerHTML = `
+                 ${message}
+                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+             `;
+             
+             document.body.appendChild(notification);
+             
+             // Auto-remove after 3 seconds
+             setTimeout(() => {
+                 if (notification.parentNode) {
+                     notification.remove();
+                 }
+             }, 3000);
+         }
+         
+         // Real-time WebSocket connection (placeholder)
+         function initializeWebSocket() {
+             // Placeholder for WebSocket connection to receive real-time updates
+             console.log('WebSocket connection initialized (placeholder)');
+         }
+         
+         // Cleanup on page unload
+         window.addEventListener('beforeunload', function() {
+             stopAutoRefresh();
+         });
+     </script>
+     
+     {{template "layouts/footer.tmpl" .}}
 {{end}}

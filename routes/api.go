@@ -63,6 +63,7 @@ func Api() {
 	facades.Route().Post("/api/v1/oauth/authorize", oauthController.Authorize)
 	facades.Route().Post("/api/v1/oauth/introspect", oauthController.IntrospectToken)
 	facades.Route().Post("/api/v1/oauth/revoke", oauthController.RevokeToken)
+	facades.Route().Post("/api/v1/oauth/par", oauthController.PushedAuthorizationRequest) // PAR endpoint
 	facades.Route().Post("/api/v1/oauth/device", oauthController.DeviceAuthorization)
 	facades.Route().Post("/api/v1/oauth/device/token", oauthController.DeviceToken)
 	facades.Route().Post("/api/v1/oauth/device/complete", oauthController.CompleteDeviceAuthorization)
@@ -70,8 +71,14 @@ func Api() {
 
 	// OAuth2 Discovery and OpenID Connect endpoints
 	facades.Route().Get("/.well-known/oauth-authorization-server", oauthController.Discovery)
+	facades.Route().Get("/.well-known/openid_configuration", oauthController.Discovery) // OIDC discovery alias
 	facades.Route().Get("/api/v1/oauth/userinfo", oauthController.UserInfo)
 	facades.Route().Get("/api/v1/oauth/jwks", oauthController.JWKS)
+
+	// Google-like additional endpoints
+	facades.Route().Get("/api/v1/oauth/tokeninfo", oauthController.TokenInfo)
+	facades.Route().Post("/api/v1/oauth/logout", oauthController.Logout)
+	facades.Route().Get("/oauth/check_session", oauthController.CheckSession)
 
 	// Enhanced OAuth2 endpoints
 	facades.Route().Post("/api/v1/oauth/jwt-token", oauthController.CreateJWTToken)
@@ -94,6 +101,15 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/oauth/personal-access-tokens", oauthController.CreatePersonalAccessToken)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/oauth/personal-access-tokens", oauthController.GetPersonalAccessTokens)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/oauth/personal-access-tokens/{id}", oauthController.RevokePersonalAccessToken)
+
+	// OAuth2 Consent Management routes (protected)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/oauth/consent/prepare", oauthController.PrepareConsent)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/oauth/consent/process", oauthController.ProcessConsent)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/oauth/consents", oauthController.GetUserConsents)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/oauth/consents/{client_id}", oauthController.RevokeConsent)
+
+	// OAuth2 Analytics routes (protected)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/oauth/analytics", oauthController.GetAnalytics)
 
 	// User management routes (protected)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users", userController.Index)
@@ -378,4 +394,13 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/websocket/chat/rooms/{room_id}/connections", websocketController.GetChatRoomConnections)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/websocket/chat/rooms/{room_id}/broadcast", websocketController.BroadcastToChatRoom)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/websocket/chat/rooms/{room_id}/connections", websocketController.CloseChatRoomConnections)
+
+	// Resource Indicators endpoints (RFC 8707)
+	facades.Route().Get("/api/v1/oauth/resources", oauthController.GetResourceServers)
+	facades.Route().Post("/api/v1/oauth/resources", oauthController.RegisterResourceServer)
+	facades.Route().Post("/api/v1/oauth/authorize/resources", oauthController.ProcessResourceAuthorization)
+
+	// Token Binding endpoints (RFC 8473)
+	facades.Route().Post("/api/v1/oauth/token-binding/validate", oauthController.ValidateTokenBinding)
+	facades.Route().Get("/api/v1/oauth/token-binding/info", oauthController.GetTokenBindingInfo)
 }

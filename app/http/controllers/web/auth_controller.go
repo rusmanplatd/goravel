@@ -25,16 +25,26 @@ func NewAuthController() *AuthController {
 
 // ShowLogin displays the login page with all available authentication methods
 func (c *AuthController) ShowLogin(ctx http.Context) http.Response {
-	// Initialize Google OAuth service to check if it's enabled
-	googleOAuthService := services.NewGoogleOAuthService()
-
 	// Check for any messages from query parameters
 	message := ctx.Request().Query("message", "")
+	error := ctx.Request().Query("error", "")
+	success := ctx.Request().Query("success", "")
+	email := ctx.Request().Query("email", "")
+
+	// Check if this is add account mode
+	addAccountMode := ctx.Request().Query("add_account", "") == "true"
+
+	// Get app name from config
+	appName := facades.Config().GetString("app.name", "Goravel")
 
 	return ctx.Response().View().Make("auth/login.tmpl", map[string]interface{}{
-		"title":                "Login",
-		"google_oauth_enabled": googleOAuthService.IsEnabled(),
-		"message":              message,
+		"title":            "Login",
+		"message":          message,
+		"error":            error,
+		"success":          success,
+		"email":            email,
+		"add_account_mode": addAccountMode,
+		"app_name":         appName,
 	})
 }
 
@@ -146,28 +156,35 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 		Limit(5).
 		Find(&recentNotifications)
 
-	// Get multi-account session info
-	accounts, _ := c.multiAccountService.GetAllAccounts(ctx)
-	activeAccount, _ := c.multiAccountService.GetActiveAccount(ctx)
-	hasMultipleAccounts := len(accounts) > 1
+	// Get navbar data from middleware
+	navbarData := ctx.Value("navbar_data")
+	if navbarData == nil {
+		navbarData = map[string]interface{}{}
+	}
 
 	// Check for messages
 	message := ctx.Request().Query("message", "")
 
-	return ctx.Response().View().Make("dashboard.tmpl", map[string]interface{}{
-		"title":                 "Dashboard",
-		"user":                  user,
-		"stats":                 stats,
-		"recent_activities":     recentActivities,
-		"upcoming_events":       upcomingEvents,
-		"recent_notifications":  recentNotifications,
-		"version":               support.Version,
-		"accounts":              accounts,
-		"active_account":        activeAccount,
-		"has_multiple_accounts": hasMultipleAccounts,
-		"account_count":         len(accounts),
-		"message":               message,
-	})
+	// Merge navbar data with dashboard data
+	templateData := map[string]interface{}{
+		"title":                "Dashboard",
+		"user":                 user,
+		"stats":                stats,
+		"recent_activities":    recentActivities,
+		"upcoming_events":      upcomingEvents,
+		"recent_notifications": recentNotifications,
+		"version":              support.Version,
+		"message":              message,
+	}
+
+	// Add navbar data to template data
+	if navbarDataMap, ok := navbarData.(map[string]interface{}); ok {
+		for key, value := range navbarDataMap {
+			templateData[key] = value
+		}
+	}
+
+	return ctx.Response().View().Make("dashboard.tmpl", templateData)
 }
 
 // ShowForgotPassword displays the forgot password page
