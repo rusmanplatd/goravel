@@ -1,0 +1,1926 @@
+package querybuilder
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/goravel/framework/contracts/database/orm"
+	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
+)
+
+// QueryBuilder provides a fluent interface for building database queries from HTTP requests
+type QueryBuilder struct {
+	query            orm.Query
+	request          http.Context
+	allowedFilters   []AllowedFilter
+	allowedSorts     []AllowedSort
+	allowedIncludes  []AllowedInclude
+	allowedFields    []AllowedField
+	defaultSorts     []DefaultSort
+	config           *Config
+	paginationConfig *PaginationConfig
+	cache            *Cache
+
+	// Advanced features
+	options          *QueryOptions
+	aggregates       []AggregateField
+	groupBy          *GroupByClause
+	windowFunctions  []WindowFunction
+	joins            []JoinClause
+	subQueries       []SubQuery
+	complexFilters   []ComplexFilter
+	rawSelects       []string
+	havingConditions []FilterCondition
+}
+
+// Config holds configuration options for the query builder
+type Config struct {
+	FilterParameter  string
+	SortParameter    string
+	IncludeParameter string
+	FieldsParameter  string
+	CountSuffix      string
+	ExistsSuffix     string
+
+	// Security options
+	DisableInvalidFilterException  bool
+	DisableInvalidSortException    bool
+	DisableInvalidIncludeException bool
+}
+
+// DefaultConfig returns the default configuration
+func DefaultConfig() *Config {
+	return &Config{
+		FilterParameter:  "filter",
+		SortParameter:    "sort",
+		IncludeParameter: "include",
+		FieldsParameter:  "fields",
+		CountSuffix:      "Count",
+		ExistsSuffix:     "Exists",
+
+		DisableInvalidFilterException:  false,
+		DisableInvalidSortException:    false,
+		DisableInvalidIncludeException: false,
+	}
+}
+
+// For creates a new QueryBuilder instance for the given model or query
+func For(subject interface{}) *QueryBuilder {
+	var query orm.Query
+
+	switch v := subject.(type) {
+	case orm.Query:
+		query = v
+	case string:
+		// Model class name
+		query = facades.Orm().Query().Model(subject)
+	default:
+		// Assume it's a model instance
+		query = facades.Orm().Query().Model(subject)
+	}
+
+	return &QueryBuilder{
+		query:           query,
+		allowedFilters:  make([]AllowedFilter, 0),
+		allowedSorts:    make([]AllowedSort, 0),
+		allowedIncludes: make([]AllowedInclude, 0),
+		allowedFields:   make([]AllowedField, 0),
+		defaultSorts:    make([]DefaultSort, 0),
+		config:          DefaultConfig(),
+
+		// Initialize advanced features
+		options:          DefaultQueryOptions(),
+		aggregates:       make([]AggregateField, 0),
+		windowFunctions:  make([]WindowFunction, 0),
+		joins:            make([]JoinClause, 0),
+		subQueries:       make([]SubQuery, 0),
+		complexFilters:   make([]ComplexFilter, 0),
+		rawSelects:       make([]string, 0),
+		havingConditions: make([]FilterCondition, 0),
+	}
+}
+
+// WithRequest sets the HTTP request context for parsing query parameters
+func (qb *QueryBuilder) WithRequest(ctx http.Context) *QueryBuilder {
+	qb.request = ctx
+	return qb
+}
+
+// WithConfig sets a custom configuration
+func (qb *QueryBuilder) WithConfig(config *Config) *QueryBuilder {
+	qb.config = config
+	return qb
+}
+
+// WithPaginationConfig sets a custom pagination configuration
+func (qb *QueryBuilder) WithPaginationConfig(config *PaginationConfig) *QueryBuilder {
+	qb.paginationConfig = config
+	return qb
+}
+
+// AllowedFilters specifies which filters are allowed
+func (qb *QueryBuilder) AllowedFilters(filters ...interface{}) *QueryBuilder {
+	for _, filter := range filters {
+		switch f := filter.(type) {
+		case string:
+			// Convert string to partial filter by default
+			qb.allowedFilters = append(qb.allowedFilters, AllowedFilter{
+				Name:     f,
+				Property: f,
+				Type:     FilterTypePartial,
+			})
+		case AllowedFilter:
+			qb.allowedFilters = append(qb.allowedFilters, f)
+		}
+	}
+	return qb
+}
+
+// AllowedSorts specifies which sorts are allowed
+func (qb *QueryBuilder) AllowedSorts(sorts ...interface{}) *QueryBuilder {
+	for _, sort := range sorts {
+		switch s := sort.(type) {
+		case string:
+			qb.allowedSorts = append(qb.allowedSorts, AllowedSort{
+				Name:     s,
+				Property: s,
+			})
+		case AllowedSort:
+			qb.allowedSorts = append(qb.allowedSorts, s)
+		}
+	}
+	return qb
+}
+
+// AllowedIncludes specifies which relationships can be included
+func (qb *QueryBuilder) AllowedIncludes(includes ...interface{}) *QueryBuilder {
+	for _, include := range includes {
+		switch i := include.(type) {
+		case string:
+			qb.allowedIncludes = append(qb.allowedIncludes, AllowedInclude{
+				Name:         i,
+				Relationship: i,
+			})
+		case AllowedInclude:
+			qb.allowedIncludes = append(qb.allowedIncludes, i)
+		}
+	}
+	return qb
+}
+
+// AllowedFields specifies which fields can be selected
+func (qb *QueryBuilder) AllowedFields(fields ...interface{}) *QueryBuilder {
+	for _, field := range fields {
+		switch f := field.(type) {
+		case string:
+			qb.allowedFields = append(qb.allowedFields, AllowedField{
+				Name: f,
+			})
+		case AllowedField:
+			qb.allowedFields = append(qb.allowedFields, f)
+		case []string:
+			for _, fieldName := range f {
+				qb.allowedFields = append(qb.allowedFields, AllowedField{
+					Name: fieldName,
+				})
+			}
+		}
+	}
+	return qb
+}
+
+// DefaultSort sets default sorting when no sort is specified
+func (qb *QueryBuilder) DefaultSort(sorts ...interface{}) *QueryBuilder {
+	for _, sort := range sorts {
+		switch s := sort.(type) {
+		case string:
+			direction := "asc"
+			field := s
+			if strings.HasPrefix(s, "-") {
+				direction = "desc"
+				field = s[1:]
+			}
+			qb.defaultSorts = append(qb.defaultSorts, DefaultSort{
+				Field:     field,
+				Direction: direction,
+			})
+		case DefaultSort:
+			qb.defaultSorts = append(qb.defaultSorts, s)
+		}
+	}
+	return qb
+}
+
+// Build applies all query parameters and returns the final query
+func (qb *QueryBuilder) Build() orm.Query {
+	if qb.request == nil {
+		return qb.query
+	}
+
+	// Apply filters
+	qb.applyFilters()
+
+	// Apply sorts
+	qb.applySorts()
+
+	// Apply includes
+	qb.applyIncludes()
+
+	// Apply field selection
+	qb.applyFields()
+
+	return qb.query
+}
+
+// Get executes the query and returns results
+func (qb *QueryBuilder) Get(dest interface{}) error {
+	return qb.Build().Find(dest)
+}
+
+// First executes the query and returns the first result
+func (qb *QueryBuilder) First(dest interface{}) error {
+	return qb.Build().First(dest)
+}
+
+// Paginate applies pagination and returns paginated results (legacy method - use OffsetPaginate instead)
+func (qb *QueryBuilder) Paginate(page, limit int, dest interface{}) error {
+	offset := (page - 1) * limit
+	return qb.Build().Offset(offset).Limit(limit).Find(dest)
+}
+
+// PaginateWithResult applies pagination and returns both results and pagination info
+func (qb *QueryBuilder) PaginateWithResult(page, limit int, dest interface{}) (*OffsetPaginationResult, error) {
+	config := qb.getPaginationConfig()
+
+	// Apply constraints
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = config.DefaultLimit
+	}
+	if limit > config.MaxLimit {
+		limit = config.MaxLimit
+	}
+
+	// Get total count first
+	countQuery := qb.Build()
+	total, err := countQuery.Count()
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate pagination values
+	offset := (page - 1) * limit
+	lastPage := int((total + int64(limit) - 1) / int64(limit)) // Ceiling division
+	if lastPage < 1 {
+		lastPage = 1
+	}
+
+	// Build and execute paginated query
+	query := qb.Build()
+	query = query.Offset(offset).Limit(limit)
+	err = query.Find(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate result metrics
+	resultCount := qb.getResultCount(dest)
+	from := 0
+	to := 0
+	if resultCount > 0 {
+		from = offset + 1
+		to = offset + resultCount
+	}
+
+	return &OffsetPaginationResult{
+		Data: dest,
+		Pagination: &PaginationInfo{
+			Type:        "offset",
+			Count:       resultCount,
+			Limit:       limit,
+			HasNext:     page < lastPage,
+			HasPrev:     page > 1,
+			CurrentPage: &page,
+			LastPage:    &lastPage,
+			PerPage:     &limit,
+			Total:       &total,
+			From:        &from,
+			To:          &to,
+		},
+	}, nil
+}
+
+// Count returns the count of matching records
+func (qb *QueryBuilder) Count() (int64, error) {
+	return qb.Build().Count()
+}
+
+// applyFilters processes filter query parameters
+func (qb *QueryBuilder) applyFilters() {
+	if qb.request == nil {
+		return
+	}
+
+	// Parse filter parameters
+	filters := qb.parseFilters()
+
+	for filterName, filterValue := range filters {
+		allowedFilter := qb.findAllowedFilter(filterName)
+		if allowedFilter == nil {
+			if !qb.config.DisableInvalidFilterException {
+				facades.Log().Warning(fmt.Sprintf("Filter '%s' is not allowed", filterName))
+			}
+			continue
+		}
+
+		qb.applyFilter(*allowedFilter, filterValue)
+	}
+}
+
+// applySorts processes sort query parameters
+func (qb *QueryBuilder) applySorts() {
+	if qb.request == nil {
+		// Apply default sorts if no request context
+		qb.applyDefaultSorts()
+		return
+	}
+
+	sortParam := qb.request.Request().Input(qb.config.SortParameter, "")
+	if sortParam == "" {
+		qb.applyDefaultSorts()
+		return
+	}
+
+	sorts := strings.Split(sortParam, ",")
+	appliedAnySort := false
+
+	for _, sort := range sorts {
+		sort = strings.TrimSpace(sort)
+		if sort == "" {
+			continue
+		}
+
+		direction := "asc"
+		field := sort
+		if strings.HasPrefix(sort, "-") {
+			direction = "desc"
+			field = sort[1:]
+		}
+
+		allowedSort := qb.findAllowedSort(field)
+		if allowedSort == nil {
+			if !qb.config.DisableInvalidSortException {
+				facades.Log().Warning(fmt.Sprintf("Sort '%s' is not allowed", field))
+			}
+			continue
+		}
+
+		qb.query = qb.query.Order(fmt.Sprintf("%s %s", allowedSort.Property, direction))
+		appliedAnySort = true
+	}
+
+	// Apply default sorts if no valid sorts were applied
+	if !appliedAnySort {
+		qb.applyDefaultSorts()
+	}
+}
+
+// applyIncludes processes include query parameters
+func (qb *QueryBuilder) applyIncludes() {
+	if qb.request == nil {
+		return
+	}
+
+	includeParam := qb.request.Request().Input(qb.config.IncludeParameter, "")
+	if includeParam == "" {
+		return
+	}
+
+	includes := strings.Split(includeParam, ",")
+
+	for _, include := range includes {
+		include = strings.TrimSpace(include)
+		if include == "" {
+			continue
+		}
+
+		// Handle count and exists suffixes - Note: WithCount not available in Goravel ORM
+		if strings.HasSuffix(include, qb.config.CountSuffix) {
+			relationName := strings.TrimSuffix(include, qb.config.CountSuffix)
+			allowedInclude := qb.findAllowedInclude(relationName)
+			if allowedInclude != nil {
+				facades.Log().Warning(fmt.Sprintf("WithCount for '%s' not supported in current ORM version", relationName))
+			}
+			continue
+		}
+
+		if strings.HasSuffix(include, qb.config.ExistsSuffix) {
+			relationName := strings.TrimSuffix(include, qb.config.ExistsSuffix)
+			allowedInclude := qb.findAllowedInclude(relationName)
+			if allowedInclude != nil {
+				facades.Log().Warning(fmt.Sprintf("WithExists for '%s' not supported in current ORM version", relationName))
+			}
+			continue
+		}
+
+		allowedInclude := qb.findAllowedInclude(include)
+		if allowedInclude == nil {
+			if !qb.config.DisableInvalidIncludeException {
+				facades.Log().Warning(fmt.Sprintf("Include '%s' is not allowed", include))
+			}
+			continue
+		}
+
+		if allowedInclude.Callback != nil {
+			qb.query = allowedInclude.Callback(qb.query, include)
+		} else {
+			qb.query = qb.query.With(allowedInclude.Relationship)
+		}
+	}
+}
+
+// applyFields processes field selection query parameters
+func (qb *QueryBuilder) applyFields() {
+	if qb.request == nil {
+		return
+	}
+
+	// Parse fields parameter - can be fields=field1,field2 or fields[table]=field1,field2
+	fieldsParam := qb.request.Request().Input(qb.config.FieldsParameter, "")
+	if fieldsParam == "" {
+		return
+	}
+
+	// Simple field selection (not table-specific)
+	if fieldsParam != "" {
+		fields := strings.Split(fieldsParam, ",")
+		allowedFieldNames := make([]string, 0)
+
+		for _, field := range fields {
+			field = strings.TrimSpace(field)
+			if field == "" {
+				continue
+			}
+
+			if qb.isFieldAllowed(field) {
+				allowedFieldNames = append(allowedFieldNames, field)
+			}
+		}
+
+		if len(allowedFieldNames) > 0 {
+			qb.query = qb.query.Select(allowedFieldNames[0]) // ORM Select takes string, not slice
+			for _, field := range allowedFieldNames[1:] {
+				qb.query = qb.query.Select(field)
+			}
+		}
+	}
+}
+
+// Helper methods
+
+// parseFilters parses filter parameters from the request
+func (qb *QueryBuilder) parseFilters() map[string]interface{} {
+	filters := make(map[string]interface{})
+
+	// Get all query parameters
+	values := qb.request.Request().All()
+
+	// Look for filter parameters
+	for key, value := range values {
+		if strings.HasPrefix(key, qb.config.FilterParameter+"[") && strings.HasSuffix(key, "]") {
+			// Extract filter name from filter[name] format
+			filterName := key[len(qb.config.FilterParameter)+1 : len(key)-1]
+			filters[filterName] = value
+		}
+	}
+
+	return filters
+}
+
+// applyFilter applies a specific filter to the query
+func (qb *QueryBuilder) applyFilter(filter AllowedFilter, value interface{}) {
+	if filter.Callback != nil {
+		qb.query = filter.Callback(qb.query, value, filter.Name)
+		return
+	}
+
+	// Handle ignored values
+	if filter.IgnoredValues != nil {
+		for _, ignored := range filter.IgnoredValues {
+			if value == ignored {
+				return
+			}
+		}
+	}
+
+	// Apply default value if value is nil/empty
+	if (value == nil || value == "") && filter.DefaultValue != nil {
+		value = filter.DefaultValue
+	}
+
+	// Handle nullable filters
+	if filter.Nullable && (value == nil || value == "") {
+		qb.query = qb.query.Where(fmt.Sprintf("%s IS NULL", filter.Property))
+		return
+	}
+
+	valueStr := fmt.Sprintf("%v", value)
+	if valueStr == "" {
+		return
+	}
+
+	switch filter.Type {
+	case FilterTypeExact:
+		// Handle comma-separated values for IN clause
+		if strings.Contains(valueStr, ",") {
+			values := strings.Split(valueStr, ",")
+			qb.query = qb.query.Where(fmt.Sprintf("%s IN ?", filter.Property), values)
+		} else {
+			qb.query = qb.query.Where(fmt.Sprintf("%s = ?", filter.Property), value)
+		}
+	case FilterTypePartial:
+		qb.query = qb.query.Where(fmt.Sprintf("%s LIKE ?", filter.Property), "%"+valueStr+"%")
+	case FilterTypeBeginsWith:
+		qb.query = qb.query.Where(fmt.Sprintf("%s LIKE ?", filter.Property), valueStr+"%")
+	case FilterTypeEndsWith:
+		qb.query = qb.query.Where(fmt.Sprintf("%s LIKE ?", filter.Property), "%"+valueStr)
+	case FilterTypeGreaterThan:
+		qb.query = qb.query.Where(fmt.Sprintf("%s > ?", filter.Property), value)
+	case FilterTypeLessThan:
+		qb.query = qb.query.Where(fmt.Sprintf("%s < ?", filter.Property), value)
+	case FilterTypeGreaterEqual:
+		qb.query = qb.query.Where(fmt.Sprintf("%s >= ?", filter.Property), value)
+	case FilterTypeLessEqual:
+		qb.query = qb.query.Where(fmt.Sprintf("%s <= ?", filter.Property), value)
+	case FilterTypeBetween:
+		// Handle comma-separated values for BETWEEN clause
+		if strings.Contains(valueStr, ",") {
+			values := strings.Split(valueStr, ",")
+			if len(values) == 2 {
+				qb.query = qb.query.Where(fmt.Sprintf("%s BETWEEN ? AND ?", filter.Property), strings.TrimSpace(values[0]), strings.TrimSpace(values[1]))
+			}
+		}
+	case FilterTypeIn:
+		// Handle comma-separated values for IN clause
+		if strings.Contains(valueStr, ",") {
+			values := strings.Split(valueStr, ",")
+			// Trim whitespace from values
+			for i, v := range values {
+				values[i] = strings.TrimSpace(v)
+			}
+			qb.query = qb.query.Where(fmt.Sprintf("%s IN ?", filter.Property), values)
+		} else {
+			qb.query = qb.query.Where(fmt.Sprintf("%s IN ?", filter.Property), []string{valueStr})
+		}
+	case FilterTypeNotIn:
+		// Handle comma-separated values for NOT IN clause
+		if strings.Contains(valueStr, ",") {
+			values := strings.Split(valueStr, ",")
+			// Trim whitespace from values
+			for i, v := range values {
+				values[i] = strings.TrimSpace(v)
+			}
+			qb.query = qb.query.Where(fmt.Sprintf("%s NOT IN ?", filter.Property), values)
+		} else {
+			qb.query = qb.query.Where(fmt.Sprintf("%s NOT IN ?", filter.Property), []string{valueStr})
+		}
+	case FilterTypeNull:
+		qb.query = qb.query.Where(fmt.Sprintf("%s IS NULL", filter.Property))
+	case FilterTypeNotNull:
+		qb.query = qb.query.Where(fmt.Sprintf("%s IS NOT NULL", filter.Property))
+	case FilterTypeDateRange:
+		// Handle date range in format: start_date,end_date
+		if strings.Contains(valueStr, ",") {
+			dates := strings.Split(valueStr, ",")
+			if len(dates) == 2 {
+				startDate := strings.TrimSpace(dates[0])
+				endDate := strings.TrimSpace(dates[1])
+				qb.query = qb.query.Where(fmt.Sprintf("%s >= ? AND %s <= ?", filter.Property, filter.Property), startDate, endDate)
+			}
+		}
+	case FilterTypeRegex:
+		// Use database-specific regex operator
+		qb.query = qb.query.Where(fmt.Sprintf("%s REGEXP ?", filter.Property), valueStr)
+	case FilterTypeScope:
+		// Handle scope filters - this would need to be implemented based on your model scopes
+		facades.Log().Warning(fmt.Sprintf("Scope filter '%s' not implemented", filter.Name))
+	}
+}
+
+// applyDefaultSorts applies default sorting
+func (qb *QueryBuilder) applyDefaultSorts() {
+	for _, sort := range qb.defaultSorts {
+		qb.query = qb.query.Order(fmt.Sprintf("%s %s", sort.Field, sort.Direction))
+	}
+}
+
+// findAllowedFilter finds an allowed filter by name
+func (qb *QueryBuilder) findAllowedFilter(name string) *AllowedFilter {
+	for _, filter := range qb.allowedFilters {
+		if filter.Name == name {
+			return &filter
+		}
+	}
+	return nil
+}
+
+// findAllowedSort finds an allowed sort by name
+func (qb *QueryBuilder) findAllowedSort(name string) *AllowedSort {
+	for _, sort := range qb.allowedSorts {
+		if sort.Name == name {
+			return &sort
+		}
+	}
+	return nil
+}
+
+// findAllowedInclude finds an allowed include by name
+func (qb *QueryBuilder) findAllowedInclude(name string) *AllowedInclude {
+	for _, include := range qb.allowedIncludes {
+		if include.Name == name {
+			return &include
+		}
+	}
+	return nil
+}
+
+// isFieldAllowed checks if a field is allowed for selection
+func (qb *QueryBuilder) isFieldAllowed(field string) bool {
+	if len(qb.allowedFields) == 0 {
+		return true // If no restrictions, allow all fields
+	}
+
+	for _, allowedField := range qb.allowedFields {
+		if allowedField.Name == field {
+			return true
+		}
+	}
+	return false
+}
+
+// Chain methods to allow method chaining with the underlying query
+
+// Where adds a where clause
+func (qb *QueryBuilder) Where(column string, args ...interface{}) *QueryBuilder {
+	qb.query = qb.query.Where(column, args...)
+	return qb
+}
+
+// OrWhere adds an or where clause
+func (qb *QueryBuilder) OrWhere(column string, args ...interface{}) *QueryBuilder {
+	qb.query = qb.query.OrWhere(column, args...)
+	return qb
+}
+
+// WithTrashed includes soft deleted records
+func (qb *QueryBuilder) WithTrashed() *QueryBuilder {
+	qb.query = qb.query.WithTrashed()
+	return qb
+}
+
+// OnlyTrashed only includes soft deleted records - Note: Not available in current ORM version
+func (qb *QueryBuilder) OnlyTrashed() *QueryBuilder {
+	facades.Log().Warning("OnlyTrashed not supported in current ORM version, using manual where clause")
+	qb.query = qb.query.Where("deleted_at IS NOT NULL")
+	return qb
+}
+
+// Join adds a join clause
+func (qb *QueryBuilder) Join(table string, args ...interface{}) *QueryBuilder {
+	qb.query = qb.query.Join(table, args...)
+	return qb
+}
+
+// LeftJoin adds a left join clause - Note: Not available in current ORM version
+func (qb *QueryBuilder) LeftJoin(table string, args ...interface{}) *QueryBuilder {
+	facades.Log().Warning("LeftJoin not supported in current ORM version")
+	return qb
+}
+
+// RightJoin adds a right join clause - Note: Not available in current ORM version
+func (qb *QueryBuilder) RightJoin(table string, args ...interface{}) *QueryBuilder {
+	facades.Log().Warning("RightJoin not supported in current ORM version")
+	return qb
+}
+
+// GroupBy adds a group by clause
+func (qb *QueryBuilder) GroupBy(columns ...string) *QueryBuilder {
+	qb.query = qb.query.Group(strings.Join(columns, ","))
+	return qb
+}
+
+// Having adds a having clause
+func (qb *QueryBuilder) Having(column string, args ...interface{}) *QueryBuilder {
+	qb.query = qb.query.Having(column, args...)
+	return qb
+}
+
+// Limit sets the limit
+func (qb *QueryBuilder) Limit(limit int) *QueryBuilder {
+	qb.query = qb.query.Limit(limit)
+	return qb
+}
+
+// Offset sets the offset
+func (qb *QueryBuilder) Offset(offset int) *QueryBuilder {
+	qb.query = qb.query.Offset(offset)
+	return qb
+}
+
+// Helper methods for pagination
+
+// getPaginationConfig returns the pagination configuration (custom or default)
+func (qb *QueryBuilder) getPaginationConfig() *PaginationConfig {
+	if qb.paginationConfig != nil {
+		return qb.paginationConfig
+	}
+	return DefaultPaginationConfig()
+}
+
+// applyCursorPagination applies cursor-based pagination to a query
+func (qb *QueryBuilder) applyCursorPagination(query orm.Query, cursorStr string, limit int, cursorFields []CursorField, reverse bool) (orm.Query, error) {
+	if cursorStr != "" {
+		cursor, err := qb.decodeCursor(cursorStr)
+		if err != nil {
+			return query, err
+		}
+
+		if cursor != nil && len(cursor.Values) > 0 {
+			// Build WHERE clause for cursor pagination
+			whereConditions := make([]string, 0)
+			whereValues := make([]interface{}, 0)
+
+			for _, field := range cursorFields {
+				if value, exists := cursor.Values[field.Name]; exists {
+					operator := ">"
+					if field.Direction == "desc" {
+						operator = "<"
+					}
+					if reverse {
+						// Reverse the operator for reverse pagination
+						if operator == ">" {
+							operator = "<"
+						} else {
+							operator = ">"
+						}
+					}
+
+					whereConditions = append(whereConditions, fmt.Sprintf("%s %s ?", field.Name, operator))
+					whereValues = append(whereValues, value)
+				}
+			}
+
+			if len(whereConditions) > 0 {
+				// For multiple cursor fields, we need a composite comparison
+				if len(whereConditions) == 1 {
+					query = query.Where(whereConditions[0], whereValues[0])
+				} else {
+					// Build composite WHERE clause: (field1, field2) > (value1, value2)
+					fieldNames := make([]string, len(cursorFields))
+					for i, field := range cursorFields {
+						fieldNames[i] = field.Name
+					}
+
+					operator := ">"
+					if cursorFields[0].Direction == "desc" {
+						operator = "<"
+					}
+					if reverse {
+						if operator == ">" {
+							operator = "<"
+						} else {
+							operator = ">"
+						}
+					}
+
+					compositeWhere := fmt.Sprintf("(%s) %s (%s)",
+						strings.Join(fieldNames, ", "),
+						operator,
+						strings.Repeat("?,", len(whereValues)-1)+"?")
+					query = query.Where(compositeWhere, whereValues...)
+				}
+			}
+		}
+	}
+
+	// Apply ordering
+	for _, field := range cursorFields {
+		direction := field.Direction
+		if reverse {
+			// Reverse the direction for reverse pagination
+			if direction == "asc" {
+				direction = "desc"
+			} else {
+				direction = "asc"
+			}
+		}
+		query = query.Order(fmt.Sprintf("%s %s", field.Name, direction))
+	}
+
+	return query, nil
+}
+
+// buildCursorPaginationResult builds the cursor pagination result
+func (qb *QueryBuilder) buildCursorPaginationResult(dest interface{}, cursorStr string, limit int, cursorFields []CursorField, reverse bool) (*CursorPaginationResult, error) {
+	resultCount := qb.getResultCount(dest)
+	hasNext := resultCount > limit
+	hasPrev := cursorStr != ""
+
+	// Trim results to actual limit if we got extra
+	actualCount := resultCount
+	if hasNext {
+		qb.trimResults(dest, limit)
+		actualCount = limit
+	}
+
+	paginationInfo := &PaginationInfo{
+		Type:    "cursor",
+		Count:   actualCount,
+		Limit:   limit,
+		HasNext: hasNext,
+		HasPrev: hasPrev,
+	}
+
+	// Generate next cursor if there are more results
+	if hasNext && actualCount > 0 {
+		lastItem := qb.getLastItem(dest)
+		if lastItem != nil {
+			nextCursor, err := qb.generateCursor(lastItem, cursorFields)
+			if err == nil {
+				paginationInfo.NextCursor = &nextCursor
+			}
+		}
+	}
+
+	// Set previous cursor
+	if hasPrev {
+		paginationInfo.PrevCursor = &cursorStr
+	}
+
+	result := &CursorPaginationResult{
+		Data:       dest,
+		Pagination: paginationInfo,
+	}
+
+	return result, nil
+}
+
+// getResultCount gets the count of results using reflection
+func (qb *QueryBuilder) getResultCount(results interface{}) int {
+	val := reflect.ValueOf(results)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	if val.Kind() == reflect.Slice {
+		return val.Len()
+	}
+	return 0
+}
+
+// trimResults trims the results slice to the specified limit
+func (qb *QueryBuilder) trimResults(results interface{}, limit int) {
+	val := reflect.ValueOf(results)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	if val.Kind() == reflect.Slice && val.Len() > limit {
+		// Trim the slice to the limit
+		newSlice := val.Slice(0, limit)
+		val.Set(newSlice)
+	}
+}
+
+// getLastItem gets the last item from results
+func (qb *QueryBuilder) getLastItem(results interface{}) interface{} {
+	val := reflect.ValueOf(results)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	if val.Kind() == reflect.Slice && val.Len() > 0 {
+		return val.Index(val.Len() - 1).Interface()
+	}
+	return nil
+}
+
+// generateCursor generates a cursor from an item and cursor fields
+func (qb *QueryBuilder) generateCursor(item interface{}, cursorFields []CursorField) (string, error) {
+	cursor := &Cursor{
+		Values: make(map[string]interface{}),
+	}
+
+	val := reflect.ValueOf(item)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+
+	for _, field := range cursorFields {
+		fieldValue := val.FieldByName(qb.toCamelCase(field.Name))
+		if fieldValue.IsValid() {
+			cursor.Values[field.Name] = fieldValue.Interface()
+		}
+	}
+
+	return qb.encodeCursor(cursor)
+}
+
+// encodeCursor encodes a cursor to a base64 string
+func (qb *QueryBuilder) encodeCursor(cursor *Cursor) (string, error) {
+	data, err := json.Marshal(cursor)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(data), nil
+}
+
+// decodeCursor decodes a base64 string to a cursor
+func (qb *QueryBuilder) decodeCursor(cursorStr string) (*Cursor, error) {
+	if cursorStr == "" {
+		return nil, nil
+	}
+
+	data, err := base64.StdEncoding.DecodeString(cursorStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %v", err)
+	}
+
+	var cursor Cursor
+	err = json.Unmarshal(data, &cursor)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor data: %v", err)
+	}
+
+	return &cursor, nil
+}
+
+// toCamelCase converts snake_case to CamelCase for struct field names
+func (qb *QueryBuilder) toCamelCase(s string) string {
+	parts := strings.Split(s, "_")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+// Advanced methods for QueryBuilder compatibility
+
+// WithAggregates adds aggregation functions (placeholder for compatibility)
+func (qb *QueryBuilder) WithAggregates(aggregates ...AggregateField) *QueryBuilder {
+	facades.Log().Warning("WithAggregates called on basic QueryBuilder - use QueryBuilder for full functionality")
+	return qb
+}
+
+// WithJoins adds join clauses (placeholder for compatibility)
+func (qb *QueryBuilder) WithJoins(joins ...JoinClause) *QueryBuilder {
+	facades.Log().Warning("WithJoins called on basic QueryBuilder - use QueryBuilder for full functionality")
+	return qb
+}
+
+// WithWindowFunctions adds window functions (placeholder for compatibility)
+func (qb *QueryBuilder) WithWindowFunctions(functions ...WindowFunction) *QueryBuilder {
+	facades.Log().Warning("WithWindowFunctions called on basic QueryBuilder - use QueryBuilder for full functionality")
+	return qb
+}
+
+// GetWithFullResult executes query and returns comprehensive results (placeholder for compatibility)
+func (qb *QueryBuilder) GetWithFullResult(dest interface{}) (*QueryResult, error) {
+	facades.Log().Warning("GetWithFullResult called on basic QueryBuilder - use QueryBuilder for full functionality")
+
+	err := qb.Get(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return basic result structure
+	return &QueryResult{
+		Data: dest,
+		Metadata: map[string]interface{}{
+			"query_type": "basic",
+			"warning":    "Use QueryBuilder for full functionality",
+		},
+	}, nil
+}
+
+// AutoPaginate automatically chooses pagination type based on query parameters
+func (qb *QueryBuilder) AutoPaginate(dest interface{}, options ...PaginationOptions) (*UnifiedPaginationResult, error) {
+	config := qb.getPaginationConfig()
+
+	// Determine pagination type from query parameter
+	paginationType := config.Type
+	if qb.request != nil {
+		typeParam := qb.request.Request().Input(config.TypeParameter, "")
+		switch typeParam {
+		case "cursor":
+			paginationType = PaginationTypeCursor
+		case "offset":
+			paginationType = PaginationTypeOffset
+		}
+	}
+
+	// Use the appropriate pagination method
+	switch paginationType {
+	case PaginationTypeCursor:
+		result, err := qb.CursorPaginate(dest, options...)
+		if err != nil {
+			return nil, err
+		}
+		return &UnifiedPaginationResult{
+			Data:       result.Data,
+			Pagination: result.Pagination,
+		}, nil
+	default:
+		result, err := qb.OffsetPaginate(dest)
+		if err != nil {
+			return nil, err
+		}
+		return &UnifiedPaginationResult{
+			Data:       result.Data,
+			Pagination: result.Pagination,
+		}, nil
+	}
+}
+
+// CursorPaginate applies cursor-based pagination and returns paginated results
+func (qb *QueryBuilder) CursorPaginate(dest interface{}, options ...PaginationOptions) (*CursorPaginationResult, error) {
+	config := qb.getPaginationConfig()
+
+	// Parse pagination parameters from request
+	var cursor string
+	var limit int
+	var reverse bool
+
+	if qb.request != nil {
+		cursor = qb.request.Request().Input(config.CursorParameter, "")
+		limitStr := qb.request.Request().Input(config.LimitParameter, strconv.Itoa(config.DefaultLimit))
+		limit, _ = strconv.Atoi(limitStr)
+		reverse = qb.request.Request().Input("reverse", "false") == "true"
+	} else {
+		limit = config.DefaultLimit
+	}
+
+	// Apply limit constraints
+	if limit <= 0 {
+		limit = config.DefaultLimit
+	}
+	if limit > config.MaxLimit {
+		limit = config.MaxLimit
+	}
+
+	// Get cursor fields from options or use default
+	var cursorFields []CursorField
+	if len(options) > 0 && len(options[0].CursorFields) > 0 {
+		cursorFields = options[0].CursorFields
+		if len(options) > 0 {
+			reverse = options[0].Reverse
+		}
+	} else {
+		// Default cursor fields: id and created_at
+		cursorFields = []CursorField{
+			{Name: "created_at", Direction: "desc"},
+			{Name: "id", Direction: "desc"},
+		}
+	}
+
+	// Build and execute query
+	query := qb.Build()
+	query, err := qb.applyCursorPagination(query, cursor, limit, cursorFields, reverse)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute query with limit + 1 to check for more results
+	query = query.Limit(limit + 1)
+	err = query.Find(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build pagination result
+	return qb.buildCursorPaginationResult(dest, cursor, limit, cursorFields, reverse)
+}
+
+// OffsetPaginate applies offset-based pagination and returns paginated results
+func (qb *QueryBuilder) OffsetPaginate(dest interface{}) (*OffsetPaginationResult, error) {
+	config := qb.getPaginationConfig()
+
+	// Parse pagination parameters from request
+	var page int = 1
+	var limit int = config.DefaultLimit
+
+	if qb.request != nil {
+		pageStr := qb.request.Request().Input(config.PageParameter, "1")
+		page, _ = strconv.Atoi(pageStr)
+		limitStr := qb.request.Request().Input(config.LimitParameter, strconv.Itoa(config.DefaultLimit))
+		limit, _ = strconv.Atoi(limitStr)
+	}
+
+	// Apply constraints
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = config.DefaultLimit
+	}
+	if limit > config.MaxLimit {
+		limit = config.MaxLimit
+	}
+
+	// Get total count first
+	countQuery := qb.Build()
+	total, err := countQuery.Count()
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate pagination values
+	offset := (page - 1) * limit
+	lastPage := int((total + int64(limit) - 1) / int64(limit)) // Ceiling division
+	if lastPage < 1 {
+		lastPage = 1
+	}
+
+	// Build and execute paginated query
+	query := qb.Build()
+	query = query.Offset(offset).Limit(limit)
+	err = query.Find(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate result metrics
+	resultCount := qb.getResultCount(dest)
+	from := 0
+	to := 0
+	if resultCount > 0 {
+		from = offset + 1
+		to = offset + resultCount
+	}
+
+	return &OffsetPaginationResult{
+		Data: dest,
+		Pagination: &PaginationInfo{
+			Type:        "offset",
+			Count:       resultCount,
+			Limit:       limit,
+			HasNext:     page < lastPage,
+			HasPrev:     page > 1,
+			CurrentPage: &page,
+			LastPage:    &lastPage,
+			PerPage:     &limit,
+			Total:       &total,
+			From:        &from,
+			To:          &to,
+		},
+	}, nil
+}
+
+// SimplePaginate applies simple offset-based pagination (without total count)
+func (qb *QueryBuilder) SimplePaginate(dest interface{}) (*OffsetPaginationResult, error) {
+	config := qb.getPaginationConfig()
+
+	// Parse pagination parameters from request
+	var page int = 1
+	var limit int = config.DefaultLimit
+
+	if qb.request != nil {
+		pageStr := qb.request.Request().Input(config.PageParameter, "1")
+		page, _ = strconv.Atoi(pageStr)
+		limitStr := qb.request.Request().Input(config.LimitParameter, strconv.Itoa(config.DefaultLimit))
+		limit, _ = strconv.Atoi(limitStr)
+	}
+
+	// Apply constraints
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = config.DefaultLimit
+	}
+	if limit > config.MaxLimit {
+		limit = config.MaxLimit
+	}
+
+	// Calculate offset
+	offset := (page - 1) * limit
+
+	// Build and execute query with limit + 1 to check for more results
+	query := qb.Build()
+	query = query.Offset(offset).Limit(limit + 1)
+	err := query.Find(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if there are more results
+	resultCount := qb.getResultCount(dest)
+	hasNext := resultCount > limit
+
+	// Trim results to actual limit if we got extra
+	if hasNext {
+		qb.trimResults(dest, limit)
+		resultCount = limit
+	}
+
+	// Calculate result metrics
+	from := 0
+	to := 0
+	if resultCount > 0 {
+		from = offset + 1
+		to = offset + resultCount
+	}
+
+	lastPage := -1
+	total := int64(-1)
+
+	return &OffsetPaginationResult{
+		Data: dest,
+		Pagination: &PaginationInfo{
+			Type:        "simple",
+			Count:       resultCount,
+			Limit:       limit,
+			HasNext:     hasNext,
+			HasPrev:     page > 1,
+			CurrentPage: &page,
+			LastPage:    &lastPage,
+			PerPage:     &limit,
+			Total:       &total,
+			From:        &from,
+			To:          &to,
+		},
+	}, nil
+}
+
+// WithRequest sets the HTTP request context for parsing query parameters
+func (aqb *QueryBuilder) WithRequest(ctx http.Context) *QueryBuilder {
+	aqb.QueryBuilder = aqb.QueryBuilder.WithRequest(ctx)
+	return aqb
+}
+
+// WithQueryOptions sets query options
+func (aqb *QueryBuilder) WithQueryOptions(options *QueryOptions) *QueryBuilder {
+	aqb.options = options
+	return aqb
+}
+
+// Complex Filter Methods
+
+// AllowedComplexFilters specifies which complex filters are allowed
+func (aqb *QueryBuilder) AllowedComplexFilters(filters ...ComplexFilter) *QueryBuilder {
+	if !aqb.options.AllowComplexFilters {
+		facades.Log().Warning("Complex filters are disabled in query options")
+		return aqb
+	}
+
+	aqb.complexFilters = append(aqb.complexFilters, filters...)
+	return aqb
+}
+
+// applyComplexFilters processes complex filter parameters
+func (aqb *QueryBuilder) applyComplexFilters() {
+	if aqb.request == nil || !aqb.options.AllowComplexFilters {
+		return
+	}
+
+	// Parse complex filter parameter (JSON format)
+	complexFilterParam := aqb.request.Request().Input("complex_filter", "")
+	if complexFilterParam == "" {
+		return
+	}
+
+	var filterGroup FilterGroup
+	if err := json.Unmarshal([]byte(complexFilterParam), &filterGroup); err != nil {
+		facades.Log().Warning(fmt.Sprintf("Invalid complex filter JSON: %v", err))
+		return
+	}
+
+	// Validate and apply the complex filter
+	if aqb.validateFilterGroup(filterGroup) {
+		aqb.query = aqb.applyFilterGroup(aqb.query, filterGroup)
+	}
+}
+
+// validateFilterGroup validates a filter group recursively
+func (aqb *QueryBuilder) validateFilterGroup(group FilterGroup) bool {
+	// Check depth limit
+	return aqb.validateFilterGroupDepth(group, 0)
+}
+
+// validateFilterGroupDepth validates filter group depth recursively
+func (aqb *QueryBuilder) validateFilterGroupDepth(group FilterGroup, depth int) bool {
+	if depth > aqb.options.MaxFilterDepth {
+		facades.Log().Warning(fmt.Sprintf("Filter group exceeds maximum depth of %d", aqb.options.MaxFilterDepth))
+		return false
+	}
+
+	conditionCount := len(group.Conditions)
+	for _, subGroup := range group.Groups {
+		if !aqb.validateFilterGroupDepth(subGroup, depth+1) {
+			return false
+		}
+		conditionCount += aqb.countConditions(subGroup)
+	}
+
+	if conditionCount > aqb.options.MaxFilterConditions {
+		facades.Log().Warning(fmt.Sprintf("Filter group exceeds maximum conditions of %d", aqb.options.MaxFilterConditions))
+		return false
+	}
+
+	return true
+}
+
+// countConditions counts total conditions in a filter group
+func (aqb *QueryBuilder) countConditions(group FilterGroup) int {
+	count := len(group.Conditions)
+	for _, subGroup := range group.Groups {
+		count += aqb.countConditions(subGroup)
+	}
+	return count
+}
+
+// applyFilterGroup applies a filter group to the query
+func (aqb *QueryBuilder) applyFilterGroup(query orm.Query, group FilterGroup) orm.Query {
+	if len(group.Conditions) == 0 && len(group.Groups) == 0 {
+		return query
+	}
+
+	// Build WHERE clause parts
+	var whereParts []string
+	var whereValues []interface{}
+
+	// Process conditions
+	for _, condition := range group.Conditions {
+		if part, values := aqb.buildConditionSQL(condition); part != "" {
+			whereParts = append(whereParts, part)
+			whereValues = append(whereValues, values...)
+		}
+	}
+
+	// Process sub-groups
+	for _, subGroup := range group.Groups {
+		// For sub-groups, we need to wrap them in parentheses
+		subQuery := facades.Orm().Query() // Create a temporary query for sub-group
+		subQuery = aqb.applyFilterGroup(subQuery, subGroup)
+		// Note: This is a simplified implementation
+		// In a real scenario, you'd need to extract the WHERE clause from the sub-query
+		facades.Log().Debug("Sub-group processing not fully implemented")
+	}
+
+	// Combine parts with the appropriate operator
+	if len(whereParts) > 0 {
+		operator := " AND "
+		if group.Operator == LogicalOr {
+			operator = " OR "
+		}
+
+		whereClause := strings.Join(whereParts, operator)
+		if group.Operator == LogicalNot {
+			whereClause = "NOT (" + whereClause + ")"
+		}
+
+		return query.Where(whereClause, whereValues...)
+	}
+
+	return query
+}
+
+// buildConditionSQL builds SQL for a single condition
+func (aqb *QueryBuilder) buildConditionSQL(condition FilterCondition) (string, []interface{}) {
+	field := condition.Field
+	operator := condition.Operator
+	value := condition.Value
+	values := condition.Values
+
+	switch operator {
+	case OpEqual:
+		return fmt.Sprintf("%s = ?", field), []interface{}{value}
+	case OpNotEqual:
+		return fmt.Sprintf("%s != ?", field), []interface{}{value}
+	case OpGreaterThan:
+		return fmt.Sprintf("%s > ?", field), []interface{}{value}
+	case OpLessThan:
+		return fmt.Sprintf("%s < ?", field), []interface{}{value}
+	case OpGreaterThanOrEqual:
+		return fmt.Sprintf("%s >= ?", field), []interface{}{value}
+	case OpLessThanOrEqual:
+		return fmt.Sprintf("%s <= ?", field), []interface{}{value}
+	case OpLike:
+		return fmt.Sprintf("%s LIKE ?", field), []interface{}{value}
+	case OpNotLike:
+		return fmt.Sprintf("%s NOT LIKE ?", field), []interface{}{value}
+	case OpIn:
+		if len(values) > 0 {
+			placeholders := strings.Repeat("?,", len(values))
+			placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
+			return fmt.Sprintf("%s IN (%s)", field, placeholders), values
+		}
+		return "", nil
+	case OpNotIn:
+		if len(values) > 0 {
+			placeholders := strings.Repeat("?,", len(values))
+			placeholders = placeholders[:len(placeholders)-1]
+			return fmt.Sprintf("%s NOT IN (%s)", field, placeholders), values
+		}
+		return "", nil
+	case OpBetween:
+		if len(values) >= 2 {
+			return fmt.Sprintf("%s BETWEEN ? AND ?", field), []interface{}{values[0], values[1]}
+		}
+		return "", nil
+	case OpNotBetween:
+		if len(values) >= 2 {
+			return fmt.Sprintf("%s NOT BETWEEN ? AND ?", field), []interface{}{values[0], values[1]}
+		}
+		return "", nil
+	case OpIsNull:
+		return fmt.Sprintf("%s IS NULL", field), nil
+	case OpIsNotNull:
+		return fmt.Sprintf("%s IS NOT NULL", field), nil
+	case OpRegex:
+		return fmt.Sprintf("%s REGEXP ?", field), []interface{}{value}
+	default:
+		facades.Log().Warning(fmt.Sprintf("Unknown operator: %s", operator))
+		return "", nil
+	}
+}
+
+// Aggregation Methods
+
+// WithAggregates adds aggregate functions to the query
+func (aqb *QueryBuilder) WithAggregates(aggregates ...AggregateField) *QueryBuilder {
+	if !aqb.options.AllowAggregation {
+		facades.Log().Warning("Aggregation is disabled in query options")
+		return aqb
+	}
+
+	aqb.aggregates = append(aqb.aggregates, aggregates...)
+	return aqb
+}
+
+// GroupBy sets the GROUP BY clause
+func (aqb *QueryBuilder) GroupBy(fields ...string) *QueryBuilder {
+	if !aqb.options.AllowGroupBy {
+		facades.Log().Warning("GROUP BY is disabled in query options")
+		return aqb
+	}
+
+	aqb.groupBy = &GroupByClause{
+		Fields: fields,
+	}
+	return aqb
+}
+
+// Having adds HAVING conditions
+func (aqb *QueryBuilder) Having(conditions ...FilterCondition) *QueryBuilder {
+	if !aqb.options.AllowHaving {
+		facades.Log().Warning("HAVING is disabled in query options")
+		return aqb
+	}
+
+	if aqb.groupBy == nil {
+		aqb.groupBy = &GroupByClause{}
+	}
+	aqb.groupBy.Having = append(aqb.groupBy.Having, conditions...)
+	return aqb
+}
+
+// WithWindowFunctions adds window functions to the query
+func (aqb *QueryBuilder) WithWindowFunctions(functions ...WindowFunction) *QueryBuilder {
+	aqb.windowFunctions = append(aqb.windowFunctions, functions...)
+	return aqb
+}
+
+// applyAggregation applies aggregation to the query
+func (aqb *QueryBuilder) applyAggregation() {
+	if len(aqb.aggregates) == 0 && aqb.groupBy == nil && len(aqb.windowFunctions) == 0 {
+		return
+	}
+
+	// Build SELECT clause with aggregates
+	var selectParts []string
+
+	// Add regular fields if GROUP BY is used
+	if aqb.groupBy != nil && len(aqb.groupBy.Fields) > 0 {
+		selectParts = append(selectParts, strings.Join(aqb.groupBy.Fields, ", "))
+		aqb.query = aqb.query.Group(strings.Join(aqb.groupBy.Fields, ", "))
+	}
+
+	// Add aggregate functions
+	for _, agg := range aqb.aggregates {
+		var aggSQL string
+		if agg.Distinct {
+			aggSQL = fmt.Sprintf("%s(DISTINCT %s)", agg.Function, agg.Field)
+		} else {
+			aggSQL = fmt.Sprintf("%s(%s)", agg.Function, agg.Field)
+		}
+
+		if agg.Alias != "" {
+			aggSQL += " AS " + agg.Alias
+		}
+
+		selectParts = append(selectParts, aggSQL)
+	}
+
+	// Add window functions
+	for _, wf := range aqb.windowFunctions {
+		var windowSQL string
+		if wf.Field != "" {
+			windowSQL = fmt.Sprintf("%s(%s)", wf.Function, wf.Field)
+		} else {
+			windowSQL = wf.Function + "()"
+		}
+
+		windowSQL += " OVER ("
+
+		var windowParts []string
+		if len(wf.PartitionBy) > 0 {
+			windowParts = append(windowParts, "PARTITION BY "+strings.Join(wf.PartitionBy, ", "))
+		}
+		if len(wf.OrderBy) > 0 {
+			windowParts = append(windowParts, "ORDER BY "+strings.Join(wf.OrderBy, ", "))
+		}
+		if wf.Frame != "" {
+			windowParts = append(windowParts, wf.Frame)
+		}
+
+		windowSQL += strings.Join(windowParts, " ") + ")"
+
+		if wf.Alias != "" {
+			windowSQL += " AS " + wf.Alias
+		}
+
+		selectParts = append(selectParts, windowSQL)
+	}
+
+	// Apply SELECT if we have parts
+	if len(selectParts) > 0 {
+		// Note: Goravel ORM might not support complex SELECT statements directly
+		// This is a simplified implementation
+		facades.Log().Debug("Complex SELECT with aggregates: " + strings.Join(selectParts, ", "))
+	}
+
+	// Apply HAVING conditions
+	if aqb.groupBy != nil && len(aqb.groupBy.Having) > 0 {
+		for _, condition := range aqb.groupBy.Having {
+			if sql, values := aqb.buildConditionSQL(condition); sql != "" {
+				aqb.query = aqb.query.Having(sql, values...)
+			}
+		}
+	}
+}
+
+// Join Methods
+
+// WithJoins adds join clauses to the query
+func (aqb *QueryBuilder) WithJoins(joins ...JoinClause) *QueryBuilder {
+	if !aqb.options.AllowJoins {
+		facades.Log().Warning("Joins are disabled in query options")
+		return aqb
+	}
+
+	aqb.joins = append(aqb.joins, joins...)
+	return aqb
+}
+
+// applyJoins applies join clauses to the query
+func (aqb *QueryBuilder) applyJoins() {
+	for _, join := range aqb.joins {
+		aqb.applyJoin(join)
+	}
+}
+
+// applyJoin applies a single join clause
+func (aqb *QueryBuilder) applyJoin(join JoinClause) {
+	if len(join.Conditions) == 0 {
+		return
+	}
+
+	// Build join conditions
+	var joinConditions []string
+	var joinValues []interface{}
+
+	for _, condition := range join.Conditions {
+		if condition.Value != nil {
+			// Join with value
+			if sql, values := aqb.buildConditionSQL(FilterCondition{
+				Field:    condition.LeftField,
+				Operator: condition.Operator,
+				Value:    condition.Value,
+			}); sql != "" {
+				joinConditions = append(joinConditions, sql)
+				joinValues = append(joinValues, values...)
+			}
+		} else {
+			// Join with field
+			joinConditions = append(joinConditions,
+				fmt.Sprintf("%s %s %s", condition.LeftField, condition.Operator, condition.RightField))
+		}
+	}
+
+	if len(joinConditions) == 0 {
+		return
+	}
+
+	// Apply the join
+	joinClause := strings.Join(joinConditions, " AND ")
+
+	// Note: Goravel ORM has limited join support
+	// This is a simplified implementation
+	switch join.Type {
+	case JoinInner:
+		aqb.query = aqb.query.Join(join.Table+" ON "+joinClause, joinValues...)
+	case JoinLeft:
+		// Left join not directly supported, log warning
+		facades.Log().Warning("LEFT JOIN not fully supported in current ORM version")
+		aqb.query = aqb.query.Join(join.Table+" ON "+joinClause, joinValues...)
+	default:
+		facades.Log().Warning(fmt.Sprintf("Join type %s not supported", join.Type))
+	}
+}
+
+// Subquery Methods
+
+// WithSubQueries adds subqueries to the query
+func (aqb *QueryBuilder) WithSubQueries(subQueries ...SubQuery) *QueryBuilder {
+	if !aqb.options.AllowSubQueries {
+		facades.Log().Warning("Subqueries are disabled in query options")
+		return aqb
+	}
+
+	aqb.subQueries = append(aqb.subQueries, subQueries...)
+	return aqb
+}
+
+// applySubQueries applies subqueries to the query
+func (aqb *QueryBuilder) applySubQueries() {
+	for _, subQuery := range aqb.subQueries {
+		aqb.applySubQuery(subQuery)
+	}
+}
+
+// applySubQuery applies a single subquery
+func (aqb *QueryBuilder) applySubQuery(subQuery SubQuery) {
+	// Build subquery SQL
+	subQuerySQL := fmt.Sprintf("SELECT %s FROM %s", subQuery.SelectField, subQuery.Table)
+
+	if subQuery.Alias != "" {
+		subQuerySQL += " AS " + subQuery.Alias
+	}
+
+	// Add conditions
+	if len(subQuery.Conditions) > 0 {
+		var whereParts []string
+		var whereValues []interface{}
+
+		for _, condition := range subQuery.Conditions {
+			if sql, values := aqb.buildConditionSQL(condition); sql != "" {
+				whereParts = append(whereParts, sql)
+				whereValues = append(whereValues, values...)
+			}
+		}
+
+		if len(whereParts) > 0 {
+			subQuerySQL += " WHERE " + strings.Join(whereParts, " AND ")
+		}
+	}
+
+	// Apply based on subquery type
+	switch subQuery.Type {
+	case SubQueryExists:
+		aqb.query = aqb.query.Where("EXISTS (" + subQuerySQL + ")")
+	case SubQueryIn:
+		if subQuery.Field != "" {
+			aqb.query = aqb.query.Where(fmt.Sprintf("%s IN (%s)", subQuery.Field, subQuerySQL))
+		}
+	case SubQueryScalar:
+		// For scalar subqueries, this would typically be used in SELECT
+		facades.Log().Debug("Scalar subquery: " + subQuerySQL)
+	}
+}
+
+// Advanced Build and Execution Methods
+
+// Build applies all query parameters and returns the final query
+func (aqb *QueryBuilder) Build() orm.Query {
+	// Apply base query builder features first
+	aqb.query = aqb.QueryBuilder.Build()
+
+	// Apply advanced features
+	aqb.applyComplexFilters()
+	aqb.applyJoins()
+	aqb.applySubQueries()
+	aqb.applyAggregation()
+
+	return aqb.query
+}
+
+// GetWithAggregates executes the query and returns results with aggregates
+func (aqb *QueryBuilder) GetWithAggregates(dest interface{}) (*AggregationResult, error) {
+	startTime := time.Now()
+
+	query := aqb.Build()
+	err := query.Find(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	// For now, return a basic aggregation result
+	// In a full implementation, you'd extract aggregate values from the result
+	result := &AggregationResult{
+		Data:       dest,
+		Aggregates: make(map[string]interface{}),
+		GroupedBy:  nil,
+	}
+
+	if aqb.groupBy != nil {
+		result.GroupedBy = aqb.groupBy.Fields
+	}
+
+	// Log performance
+	duration := time.Since(startTime)
+	facades.Log().Debug(fmt.Sprintf("Query executed in %v", duration))
+
+	return result, nil
+}
+
+// GetWithFullResult executes the query and returns comprehensive results
+func (aqb *QueryBuilder) GetWithFullResult(dest interface{}) (*QueryResult, error) {
+	startTime := time.Now()
+
+	// Get basic aggregation result
+	aggResult, err := aqb.GetWithAggregates(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	duration := time.Since(startTime)
+
+	// Build comprehensive result
+	result := &QueryResult{
+		Data:       aggResult.Data,
+		Aggregates: aggResult.Aggregates,
+		Metadata: map[string]interface{}{
+			"query_type":          "advanced",
+			"has_aggregates":      len(aqb.aggregates) > 0,
+			"has_joins":           len(aqb.joins) > 0,
+			"has_subqueries":      len(aqb.subQueries) > 0,
+			"has_complex_filters": len(aqb.complexFilters) > 0,
+			"grouped_by":          aggResult.GroupedBy,
+		},
+		Performance: &PerformanceMetrics{
+			ExecutionTime: duration,
+			CacheHit:      false, // Would be determined by cache layer
+		},
+	}
+
+	// Add query plan if enabled
+	if aqb.options.EnableQueryPlan {
+		result.QueryPlan = aqb.generateQueryPlan()
+	}
+
+	return result, nil
+}
+
+// generateQueryPlan generates a mock query plan (in real implementation, this would analyze the actual query)
+func (aqb *QueryBuilder) generateQueryPlan() *QueryPlan {
+	return &QueryPlan{
+		EstimatedCost: 1.0,
+		EstimatedRows: 100,
+		Operations: []QueryPlanOperation{
+			{
+				Type:        "table_scan",
+				Table:       "users", // This would be determined dynamically
+				Cost:        0.5,
+				Rows:        100,
+				Description: "Full table scan",
+			},
+		},
+		IndexesUsed: []string{},
+		Warnings:    []string{},
+		Suggestions: []string{"Consider adding an index on frequently filtered columns"},
+	}
+}
+
+// Utility Methods
+
+// AddRawSelect adds a raw SELECT clause
+func (aqb *QueryBuilder) AddRawSelect(selectClause string) *QueryBuilder {
+	if !aqb.options.AllowRawSQL {
+		facades.Log().Warning("Raw SQL is disabled in query options")
+		return aqb
+	}
+
+	aqb.rawSelects = append(aqb.rawSelects, selectClause)
+	return aqb
+}
+
+// SetQueryTimeout sets query timeout
+func (aqb *QueryBuilder) SetQueryTimeout(seconds int) *QueryBuilder {
+	aqb.options.QueryTimeout = seconds
+	return aqb
+}
+
+// Validate validates the query configuration
+func (aqb *QueryBuilder) Validate() error {
+	// Check join depth
+	if len(aqb.joins) > aqb.options.MaxJoinDepth {
+		return fmt.Errorf("join depth exceeds maximum of %d", aqb.options.MaxJoinDepth)
+	}
+
+	// Check subquery depth (simplified check)
+	if len(aqb.subQueries) > aqb.options.MaxSubQueryDepth {
+		return fmt.Errorf("subquery depth exceeds maximum of %d", aqb.options.MaxSubQueryDepth)
+	}
+
+	// Validate complex filters
+	for _, filter := range aqb.complexFilters {
+		if !aqb.validateFilterGroup(filter.Root) {
+			return fmt.Errorf("invalid complex filter: %s", filter.Name)
+		}
+	}
+
+	return nil
+}
+
+// Helper function to create common aggregate fields
+func CountAggregate(field string, alias ...string) AggregateField {
+	a := AggregateField{Function: AggCount, Field: field}
+	if len(alias) > 0 {
+		a.Alias = alias[0]
+	}
+	return a
+}
+
+func SumAggregate(field string, alias ...string) AggregateField {
+	a := AggregateField{Function: AggSum, Field: field}
+	if len(alias) > 0 {
+		a.Alias = alias[0]
+	}
+	return a
+}
+
+func AvgAggregate(field string, alias ...string) AggregateField {
+	a := AggregateField{Function: AggAvg, Field: field}
+	if len(alias) > 0 {
+		a.Alias = alias[0]
+	}
+	return a
+}
+
+func MinAggregate(field string, alias ...string) AggregateField {
+	a := AggregateField{Function: AggMin, Field: field}
+	if len(alias) > 0 {
+		a.Alias = alias[0]
+	}
+	return a
+}
+
+func MaxAggregate(field string, alias ...string) AggregateField {
+	a := AggregateField{Function: AggMax, Field: field}
+	if len(alias) > 0 {
+		a.Alias = alias[0]
+	}
+	return a
+}
+
+// Helper function to create join clauses
+func InnerJoin(table string, conditions ...JoinCondition) JoinClause {
+	return JoinClause{
+		Type:       JoinInner,
+		Table:      table,
+		Conditions: conditions,
+	}
+}
+
+func LeftJoin(table string, conditions ...JoinCondition) JoinClause {
+	return JoinClause{
+		Type:       JoinLeft,
+		Table:      table,
+		Conditions: conditions,
+	}
+}
+
+// Helper function to create join conditions
+func JoinOn(leftField, rightField string) JoinCondition {
+	return JoinCondition{
+		LeftField:  leftField,
+		Operator:   OpEqual,
+		RightField: rightField,
+	}
+}
+
+func JoinWhere(field string, operator ComparisonOperator, value interface{}) JoinCondition {
+	return JoinCondition{
+		LeftField: field,
+		Operator:  operator,
+		Value:     value,
+	}
+}
