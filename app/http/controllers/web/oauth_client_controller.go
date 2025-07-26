@@ -22,15 +22,29 @@ func NewOAuthClientController() *OAuthClientController {
 	}
 }
 
+// getCurrentUser gets the current authenticated user from context
+func (c *OAuthClientController) getCurrentUser(ctx http.Context) *models.User {
+	// Get user from context (set by WebAuth middleware)
+	user := ctx.Value("user")
+	if user == nil {
+		return nil
+	}
+
+	// Type assertion to ensure it's a User pointer
+	if userPtr, ok := user.(*models.User); ok {
+		return userPtr
+	}
+
+	return nil
+}
+
 // Index displays the OAuth clients list
 func (c *OAuthClientController) Index(ctx http.Context) http.Response {
 	// Get authenticated user
-	user := ctx.Value("user")
-	if user == nil {
+	authenticatedUser := c.getCurrentUser(ctx)
+	if authenticatedUser == nil {
 		return ctx.Response().Redirect(302, "/login")
 	}
-
-	authenticatedUser := user.(*models.User)
 
 	// Get user's OAuth clients
 	var clients []models.OAuthClient
@@ -56,12 +70,10 @@ func (c *OAuthClientController) Index(ctx http.Context) http.Response {
 // Store creates a new OAuth client
 func (c *OAuthClientController) Store(ctx http.Context) http.Response {
 	// Get authenticated user
-	user := ctx.Value("user")
-	if user == nil {
+	authenticatedUser := c.getCurrentUser(ctx)
+	if authenticatedUser == nil {
 		return ctx.Response().Redirect(302, "/login")
 	}
-
-	authenticatedUser := user.(*models.User)
 
 	// Get form data
 	name := ctx.Request().Input("name")
@@ -137,12 +149,10 @@ func (c *OAuthClientController) Show(ctx http.Context) http.Response {
 	clientID := ctx.Request().Route("id")
 
 	// Get authenticated user
-	user := ctx.Value("user")
-	if user == nil {
+	authenticatedUser := c.getCurrentUser(ctx)
+	if authenticatedUser == nil {
 		return ctx.Response().Redirect(302, "/login")
 	}
-
-	authenticatedUser := user.(*models.User)
 
 	// Get the OAuth client
 	var client models.OAuthClient
@@ -167,12 +177,10 @@ func (c *OAuthClientController) Edit(ctx http.Context) http.Response {
 	clientID := ctx.Request().Route("id")
 
 	// Get authenticated user
-	user := ctx.Value("user")
-	if user == nil {
+	authenticatedUser := c.getCurrentUser(ctx)
+	if authenticatedUser == nil {
 		return ctx.Response().Redirect(302, "/login")
 	}
-
-	authenticatedUser := user.(*models.User)
 
 	// Get the OAuth client
 	var client models.OAuthClient
@@ -192,12 +200,10 @@ func (c *OAuthClientController) Update(ctx http.Context) http.Response {
 	clientID := ctx.Request().Route("id")
 
 	// Get authenticated user
-	user := ctx.Value("user")
-	if user == nil {
+	authenticatedUser := c.getCurrentUser(ctx)
+	if authenticatedUser == nil {
 		return ctx.Response().Redirect(302, "/login")
 	}
-
-	authenticatedUser := user.(*models.User)
 
 	// Get the OAuth client
 	var client models.OAuthClient
@@ -255,12 +261,10 @@ func (c *OAuthClientController) Delete(ctx http.Context) http.Response {
 	clientID := ctx.Request().Route("id")
 
 	// Get authenticated user
-	user := ctx.Value("user")
-	if user == nil {
+	authenticatedUser := c.getCurrentUser(ctx)
+	if authenticatedUser == nil {
 		return ctx.Response().Redirect(302, "/login")
 	}
-
-	authenticatedUser := user.(*models.User)
 
 	// Get the OAuth client
 	var client models.OAuthClient

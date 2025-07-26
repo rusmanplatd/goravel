@@ -146,7 +146,13 @@ func (c *GoogleOAuthController) Unlink(ctx http.Context) http.Response {
 		})
 	}
 
-	authenticatedUser := user.(*models.User)
+	authenticatedUser, ok := user.(*models.User)
+	if !ok {
+		return ctx.Response().Json(401, map[string]interface{}{
+			"error":   "unauthorized",
+			"message": "Invalid user context",
+		})
+	}
 
 	// Unlink Google account
 	err := c.googleOAuthService.UnlinkGoogleAccount(authenticatedUser.ID)

@@ -1,0 +1,200 @@
+{{define "organizations/index.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+    {{template "layouts/nav.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="container py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 fw-semibold text-dark">Organizations</h1>
+                    <p class="text-muted mb-0">Manage organizational structure and hierarchy</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="createOrganization()">
+                        <i class="fas fa-plus me-2"></i>Create Organization
+                    </button>
+                </div>
+            </div>
+
+            <!-- Organizations List -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div id="organizationsContainer">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Loading organizations...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create Organization Modal -->
+    <div class="modal fade" id="createOrganizationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Organization</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="createOrganizationForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="orgName" class="form-label">Organization Name</label>
+                            <input type="text" class="form-control" id="orgName" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="orgSlug" class="form-label">Slug</label>
+                            <input type="text" class="form-control" id="orgSlug" name="slug" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="orgDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="orgDescription" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="orgType" class="form-label">Type</label>
+                            <select class="form-select" id="orgType" name="type">
+                                <option value="company">Company</option>
+                                <option value="nonprofit">Non-profit</option>
+                                <option value="government">Government</option>
+                                <option value="educational">Educational</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Organization</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadOrganizations();
+        });
+
+        function loadOrganizations() {
+            fetch('/api/v1/organizations')
+                .then(response => response.json())
+                .then(data => {
+                    displayOrganizations(data.data || []);
+                })
+                .catch(error => {
+                    console.error('Error loading organizations:', error);
+                    document.getElementById('organizationsContainer').innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="fas fa-exclamation-triangle text-warning fa-3x mb-3"></i>
+                            <h5>Unable to load organizations</h5>
+                            <p class="text-muted">Please try again later or contact support.</p>
+                            <button class="btn btn-outline-primary" onclick="loadOrganizations()">
+                                <i class="fas fa-refresh me-2"></i>Retry
+                            </button>
+                        </div>
+                    `;
+                });
+        }
+
+        function displayOrganizations(organizations) {
+            const container = document.getElementById('organizationsContainer');
+            
+            if (organizations.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-sitemap text-muted fa-3x mb-3"></i>
+                        <h5>No organizations found</h5>
+                        <p class="text-muted">Create your first organization to get started.</p>
+                        <button class="btn btn-primary" onclick="createOrganization()">
+                            <i class="fas fa-plus me-2"></i>Create Organization
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="table-responsive"><table class="table table-hover">';
+            html += '<thead><tr><th>Name</th><th>Type</th><th>Description</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+            
+            organizations.forEach(org => {
+                html += `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px;">
+                                    <i class="fas fa-sitemap text-white"></i>
+                                </div>
+                                <div>
+                                    <strong>${org.name}</strong>
+                                    <br><small class="text-muted">${org.slug}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary">${org.type}</span></td>
+                        <td>${org.description || 'No description'}</td>
+                        <td>${new Date(org.created_at).toLocaleDateString()}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="editOrganization('${org.id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteOrganization('${org.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        function createOrganization() {
+            const modal = new bootstrap.Modal(document.getElementById('createOrganizationModal'));
+            modal.show();
+        }
+
+        document.getElementById('createOrganizationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+            
+            fetch('/api/v1/organizations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('createOrganizationModal')).hide();
+                    loadOrganizations();
+                    this.reset();
+                } else {
+                    alert('Error creating organization: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error creating organization');
+            });
+        });
+
+        // Auto-generate slug from name
+        document.getElementById('orgName').addEventListener('input', function() {
+            const slug = this.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            document.getElementById('orgSlug').value = slug;
+        });
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

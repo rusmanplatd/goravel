@@ -16,12 +16,20 @@ func Web() {
 	tenantController := web.NewTenantController()
 	roleController := web.NewRoleController()
 	permissionController := web.NewPermissionController()
+	organizationController := web.NewOrganizationController()
+	notificationController := web.NewNotificationController()
 	oauthController := web.NewOAuthController()
 	oauthClientController := web.NewOAuthClientController()
 	mfaController := web.NewMfaController()
 	webauthnController := web.NewWebAuthnController()
 	securityController := web.NewSecurityController()
 	accountSwitcherController := web.NewAccountSwitcherController()
+	chatController := web.NewChatController()
+	calendarController := web.NewCalendarController()
+	taskController := web.NewTaskController()
+	projectController := web.NewProjectController()
+	fileManagerController := web.NewFileManagerController()
+	profileController := web.NewProfileController()
 
 	// Authentication routes
 	facades.Route().Group(func(router route.Router) {
@@ -87,6 +95,66 @@ func Web() {
 		facades.Route().Middleware(middleware.WebAuth()).Put("/permissions/{id}", permissionController.Update)
 		facades.Route().Middleware(middleware.WebAuth()).Delete("/permissions/{id}", permissionController.Destroy)
 
+		// Organization management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/organizations", organizationController.Index)
+
+		// Notification management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/notifications", notificationController.Index)
+
+		// Chat management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/chat", chatController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/chat/create", chatController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/chat", chatController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/chat/{id}", chatController.Show)
+
+		// Calendar management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/calendar", calendarController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/calendar/create", calendarController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/calendar", calendarController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/calendar/{id}", calendarController.Show)
+
+		// Task management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tasks", taskController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tasks/create", taskController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/tasks", taskController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tasks/{id}", taskController.Show)
+
+		// Project management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/projects", projectController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/projects/create", projectController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/projects", projectController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/projects/{id}", projectController.Show)
+
+		// File management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/files", fileManagerController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/files/browse", fileManagerController.Browse)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/files/upload", fileManagerController.Upload)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/files/create-folder", fileManagerController.CreateFolder)
+		facades.Route().Middleware(middleware.WebAuth()).Delete("/files/{path}", fileManagerController.Delete)
+
+		// Profile management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/profile", profileController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/profile/edit", profileController.Edit)
+		facades.Route().Middleware(middleware.WebAuth()).Put("/profile", profileController.Update)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/profile/settings", profileController.Settings)
+		facades.Route().Middleware(middleware.WebAuth()).Put("/profile/settings", profileController.UpdateSettings)
+
+		// Placeholder routes for other navbar links
+		facades.Route().Middleware(middleware.WebAuth()).Get("/milestones", func(ctx http.Context) http.Response {
+			return ctx.Response().View().Make("coming-soon.tmpl", map[string]interface{}{
+				"title":   "Milestones",
+				"user":    ctx.Value("user"),
+				"feature": "Milestones",
+			})
+		})
+		facades.Route().Middleware(middleware.WebAuth()).Get("/task-boards", func(ctx http.Context) http.Response {
+			return ctx.Response().View().Make("coming-soon.tmpl", map[string]interface{}{
+				"title":   "Task Boards",
+				"user":    ctx.Value("user"),
+				"feature": "Task Boards",
+			})
+		})
+
 		// OAuth Client management (requires authentication)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/clients", oauthClientController.Index)
 		facades.Route().Middleware(middleware.WebAuth()).Post("/oauth/clients", oauthClientController.Store)
@@ -129,6 +197,16 @@ func Web() {
 		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/refresh", accountSwitcherController.RefreshAccount)
 		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/extend-session", accountSwitcherController.ExtendSession)
 		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/validate", accountSwitcherController.ValidateAccount)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/quick-switch", accountSwitcherController.QuickSwitch)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/auth/accounts/suggestions", accountSwitcherController.GetAccountSuggestions)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/auth/accounts/grouped", accountSwitcherController.GetAccountsByOrganization)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/auth/accounts/security-insights", accountSwitcherController.GetSecurityInsights)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/update-activity", accountSwitcherController.UpdateAccountActivity)
+
+		// Bulk operations
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/bulk-refresh", accountSwitcherController.BulkRefreshAccounts)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/bulk-extend-sessions", accountSwitcherController.BulkExtendSessions)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/bulk-remove", accountSwitcherController.BulkRemoveAccounts)
 	})
 
 	// OAuth2 Authorization routes (separate from API)

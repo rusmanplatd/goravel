@@ -8,6 +8,7 @@ import (
 	"goravel/app/http/requests"
 	"goravel/app/models"
 	"goravel/app/services"
+	"time"
 )
 
 type AuthController struct {
@@ -53,18 +54,97 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 		return ctx.Response().Redirect(302, "/login")
 	}
 
-	// Get basic stats
+	// Get comprehensive stats for all features
 	tenantCount, _ := facades.Orm().Query().Model(&models.Tenant{}).Count()
 	roleCount, _ := facades.Orm().Query().Model(&models.Role{}).Count()
 	permissionCount, _ := facades.Orm().Query().Model(&models.Permission{}).Count()
 	userCount, _ := facades.Orm().Query().Model(&models.User{}).Count()
 
+	// Organization stats
+	organizationCount, _ := facades.Orm().Query().Model(&models.Organization{}).Count()
+
+	// Chat system stats
+	chatRoomCount, _ := facades.Orm().Query().Table("chat_rooms").Count()
+	chatMessageCount, _ := facades.Orm().Query().Table("chat_messages").Count()
+
+	// Calendar stats
+	calendarEventCount, _ := facades.Orm().Query().Model(&models.CalendarEvent{}).Count()
+	upcomingEventsCount, _ := facades.Orm().Query().Model(&models.CalendarEvent{}).
+		Where("start_time > ?", time.Now()).
+		Where("start_time < ?", time.Now().AddDate(0, 0, 7)).
+		Count()
+
+	// Task management stats
+	taskCount, _ := facades.Orm().Query().Table("tasks").Count()
+	activeTasks, _ := facades.Orm().Query().Table("tasks").
+		Where("status IN ?", []string{"todo", "in_progress"}).
+		Count()
+	completedTasks, _ := facades.Orm().Query().Table("tasks").
+		Where("status = ?", "done").
+		Count()
+
+	// Notification stats
+	notificationCount, _ := facades.Orm().Query().Model(&models.Notification{}).Count()
+	unreadNotifications, _ := facades.Orm().Query().Model(&models.Notification{}).
+		Where("notifiable_id = ?", user.ID).
+		Where("read_at IS NULL").
+		Count()
+
+	// OAuth stats
+	oauthClientCount, _ := facades.Orm().Query().Table("oauth_clients").Count()
+	activeTokens, _ := facades.Orm().Query().Table("oauth_access_tokens").
+		Where("expires_at > ?", time.Now()).
+		Count()
+
+	// Activity stats (recent activity in last 24 hours)
+	recentActivityCount, _ := facades.Orm().Query().Model(&models.ActivityLog{}).
+		Where("created_at > ?", time.Now().AddDate(0, 0, -1)).
+		Count()
+
 	stats := map[string]interface{}{
-		"tenants":     tenantCount,
-		"roles":       roleCount,
-		"permissions": permissionCount,
-		"users":       userCount,
+		"tenants":              tenantCount,
+		"roles":                roleCount,
+		"permissions":          permissionCount,
+		"users":                userCount,
+		"organizations":        organizationCount,
+		"chat_rooms":           chatRoomCount,
+		"chat_messages":        chatMessageCount,
+		"calendar_events":      calendarEventCount,
+		"upcoming_events":      upcomingEventsCount,
+		"tasks":                taskCount,
+		"active_tasks":         activeTasks,
+		"completed_tasks":      completedTasks,
+		"notifications":        notificationCount,
+		"unread_notifications": unreadNotifications,
+		"oauth_clients":        oauthClientCount,
+		"active_tokens":        activeTokens,
+		"recent_activity":      recentActivityCount,
 	}
+
+	// Get recent activity for activity feed
+	var recentActivities []models.ActivityLog
+	facades.Orm().Query().Model(&models.ActivityLog{}).
+		With("User").
+		OrderBy("created_at DESC").
+		Limit(10).
+		Find(&recentActivities)
+
+	// Get upcoming events for quick view
+	var upcomingEvents []models.CalendarEvent
+	facades.Orm().Query().Model(&models.CalendarEvent{}).
+		Where("start_time > ?", time.Now()).
+		Where("start_time < ?", time.Now().AddDate(0, 0, 7)).
+		OrderBy("start_time ASC").
+		Limit(5).
+		Find(&upcomingEvents)
+
+	// Get recent notifications
+	var recentNotifications []models.Notification
+	facades.Orm().Query().Model(&models.Notification{}).
+		Where("notifiable_id = ?", user.ID).
+		OrderBy("created_at DESC").
+		Limit(5).
+		Find(&recentNotifications)
 
 	// Get multi-account session info
 	accounts, _ := c.multiAccountService.GetAllAccounts(ctx)
@@ -78,6 +158,9 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 		"title":                 "Dashboard",
 		"user":                  user,
 		"stats":                 stats,
+		"recent_activities":     recentActivities,
+		"upcoming_events":       upcomingEvents,
+		"recent_notifications":  recentNotifications,
 		"version":               support.Version,
 		"accounts":              accounts,
 		"active_account":        activeAccount,

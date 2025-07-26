@@ -1,0 +1,238 @@
+{{define "notifications/index.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+    {{template "layouts/nav.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="container py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 fw-semibold text-dark">Notifications</h1>
+                    <p class="text-muted mb-0">View and manage your notifications</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary" onclick="markAllAsRead()">
+                        <i class="fas fa-check-double me-2"></i>Mark All as Read
+                    </button>
+                </div>
+            </div>
+
+            <!-- Notification Filters -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="filter" id="all" value="all" checked>
+                                <label class="btn btn-outline-primary" for="all">All</label>
+                                
+                                <input type="radio" class="btn-check" name="filter" id="unread" value="unread">
+                                <label class="btn btn-outline-primary" for="unread">Unread</label>
+                                
+                                <input type="radio" class="btn-check" name="filter" id="read" value="read">
+                                <label class="btn btn-outline-primary" for="read">Read</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <span id="notificationCount" class="text-muted small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications List -->
+            <div class="card shadow-sm">
+                <div class="card-body p-0">
+                    <div id="notificationsContainer">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Loading notifications...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentFilter = 'all';
+        let notifications = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications();
+            
+            // Add filter event listeners
+            document.querySelectorAll('input[name="filter"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    currentFilter = this.value;
+                    filterAndDisplayNotifications();
+                });
+            });
+        });
+
+        function loadNotifications() {
+            fetch('/api/v1/notifications')
+                .then(response => response.json())
+                .then(data => {
+                    notifications = data.data || [];
+                    filterAndDisplayNotifications();
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                    document.getElementById('notificationsContainer').innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="fas fa-exclamation-triangle text-warning fa-3x mb-3"></i>
+                            <h5>Unable to load notifications</h5>
+                            <p class="text-muted">Please try again later or contact support.</p>
+                            <button class="btn btn-outline-primary" onclick="loadNotifications()">
+                                <i class="fas fa-refresh me-2"></i>Retry
+                            </button>
+                        </div>
+                    `;
+                });
+        }
+
+        function filterAndDisplayNotifications() {
+            let filteredNotifications = notifications;
+            
+            if (currentFilter === 'unread') {
+                filteredNotifications = notifications.filter(n => !n.read_at);
+            } else if (currentFilter === 'read') {
+                filteredNotifications = notifications.filter(n => n.read_at);
+            }
+            
+            displayNotifications(filteredNotifications);
+            updateNotificationCount(filteredNotifications.length);
+        }
+
+        function displayNotifications(notificationList) {
+            const container = document.getElementById('notificationsContainer');
+            
+            if (notificationList.length === 0) {
+                let message = 'No notifications found';
+                if (currentFilter === 'unread') {
+                    message = 'No unread notifications';
+                } else if (currentFilter === 'read') {
+                    message = 'No read notifications';
+                }
+                
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-bell text-muted fa-3x mb-3"></i>
+                        <h5>${message}</h5>
+                        <p class="text-muted">You're all caught up!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="list-group list-group-flush">';
+            
+            notificationList.forEach(notification => {
+                const isUnread = !notification.read_at;
+                const timeAgo = getTimeAgo(new Date(notification.created_at));
+                
+                html += `
+                    <div class="list-group-item list-group-item-action ${isUnread ? 'bg-light border-start border-primary border-3' : ''}" 
+                         onclick="markAsRead('${notification.id}')">
+                        <div class="d-flex w-100 justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px;">
+                                        <i class="fas fa-bell text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1">${notification.type}</h6>
+                                        ${isUnread ? '<span class="badge bg-primary">New</span>' : ''}
+                                    </div>
+                                </div>
+                                <p class="mb-1">${notification.data.title || notification.data.body || 'No content'}</p>
+                                <small class="text-muted">${timeAgo}</small>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    ${isUnread ? `<li><a class="dropdown-item" href="#" onclick="markAsRead('${notification.id}')"><i class="fas fa-check me-2"></i>Mark as Read</a></li>` : ''}
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="deleteNotification('${notification.id}')"><i class="fas fa-trash me-2"></i>Delete</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function updateNotificationCount(count) {
+            const countElement = document.getElementById('notificationCount');
+            countElement.textContent = `${count} notification${count !== 1 ? 's' : ''}`;
+        }
+
+        function markAsRead(notificationId) {
+            fetch(`/api/v1/notifications/${notificationId}/read`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadNotifications(); // Reload to update UI
+                }
+            })
+            .catch(error => {
+                console.error('Error marking notification as read:', error);
+            });
+        }
+
+        function markAllAsRead() {
+            fetch('/api/v1/notifications/mark-all-read', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadNotifications(); // Reload to update UI
+                }
+            })
+            .catch(error => {
+                console.error('Error marking all notifications as read:', error);
+            });
+        }
+
+        function deleteNotification(notificationId) {
+            if (confirm('Are you sure you want to delete this notification?')) {
+                fetch(`/api/v1/notifications/${notificationId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadNotifications(); // Reload to update UI
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting notification:', error);
+                });
+            }
+        }
+
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffInSeconds < 60) return 'Just now';
+            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+            if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+            
+            return date.toLocaleDateString();
+        }
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

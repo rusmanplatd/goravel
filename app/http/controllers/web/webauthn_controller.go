@@ -22,20 +22,20 @@ func NewWebAuthnController() *WebAuthnController {
 	}
 }
 
-// getCurrentUser gets the current authenticated user from session
+// getCurrentUser gets the current authenticated user from context
 func (c *WebAuthnController) getCurrentUser(ctx http.Context) *models.User {
-	userID := ctx.Request().Session().Get("user_id")
-	if userID == nil {
+	// Get user from context (set by WebAuth middleware)
+	user := ctx.Value("user")
+	if user == nil {
 		return nil
 	}
 
-	var user models.User
-	err := facades.Orm().Query().Where("id", userID).First(&user)
-	if err != nil {
-		return nil
+	// Type assertion to ensure it's a User pointer
+	if userPtr, ok := user.(*models.User); ok {
+		return userPtr
 	}
 
-	return &user
+	return nil
 }
 
 // ShowSetup displays the WebAuthn setup page

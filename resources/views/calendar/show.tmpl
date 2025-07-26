@@ -1,0 +1,281 @@
+{{define "calendar/show.tmpl"}}
+<div class="d-flex align-items-center mb-4">
+    <a href="/calendar" class="btn btn-outline-secondary btn-sm me-3">
+        <i class="fas fa-arrow-left me-1"></i>Back to Calendar
+    </a>
+    <div class="flex-grow-1">
+        <h1 class="h3 fw-semibold text-dark mb-1">{{.event.title}}</h1>
+        <p class="text-muted mb-0">Event Details & Management</p>
+    </div>
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="fas fa-cog me-1"></i>Actions
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/calendar/{{.event.id}}/edit"><i class="fas fa-edit me-2"></i>Edit Event</a></li>
+            <li><a class="dropdown-item" href="#" onclick="duplicateEvent()"><i class="fas fa-copy me-2"></i>Duplicate</a></li>
+            <li><a class="dropdown-item" href="#" onclick="exportEvent()"><i class="fas fa-download me-2"></i>Export</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#" onclick="deleteEvent()"><i class="fas fa-trash me-2"></i>Delete Event</a></li>
+        </ul>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Event Details -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle bg-{{.event.color}} d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
+                        <i class="fas fa-calendar text-white"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-1">{{.event.title}}</h5>
+                        <small class="text-muted">
+                            {{if eq .event.type "meeting"}}
+                            <i class="fas fa-users me-1"></i>Meeting
+                            {{else if eq .event.type "deadline"}}
+                            <i class="fas fa-exclamation me-1"></i>Deadline
+                            {{else if eq .event.type "presentation"}}
+                            <i class="fas fa-presentation me-1"></i>Presentation
+                            {{else}}
+                            <i class="fas fa-calendar me-1"></i>Event
+                            {{end}}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Date & Time -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-clock text-muted me-2"></i>
+                            <strong>Start Time</strong>
+                        </div>
+                        <p class="mb-0 ms-4">{{.event.start_time}}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-clock text-muted me-2"></i>
+                            <strong>End Time</strong>
+                        </div>
+                        <p class="mb-0 ms-4">{{.event.end_time}}</p>
+                    </div>
+                </div>
+
+                <!-- Location -->
+                {{if .event.location}}
+                <div class="mb-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-map-marker-alt text-muted me-2"></i>
+                        <strong>Location</strong>
+                    </div>
+                    <p class="mb-0 ms-4">{{.event.location}}</p>
+                </div>
+                {{end}}
+
+                <!-- Organizer -->
+                <div class="mb-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-user text-muted me-2"></i>
+                        <strong>Organizer</strong>
+                    </div>
+                    <p class="mb-0 ms-4">{{.event.organizer}}</p>
+                </div>
+
+                <!-- Description -->
+                <div class="mb-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-align-left text-muted me-2"></i>
+                        <strong>Description</strong>
+                    </div>
+                    <div class="ms-4">
+                        <p class="mb-0">{{.event.description}}</p>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="d-flex gap-2 pt-3 border-top">
+                    <button class="btn btn-success btn-sm" onclick="respondToEvent('accepted')">
+                        <i class="fas fa-check me-1"></i>Accept
+                    </button>
+                    <button class="btn btn-warning btn-sm" onclick="respondToEvent('tentative')">
+                        <i class="fas fa-question me-1"></i>Maybe
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="respondToEvent('declined')">
+                        <i class="fas fa-times me-1"></i>Decline
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="addToCalendar()">
+                        <i class="fas fa-calendar-plus me-1"></i>Add to Calendar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Related Events -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="fas fa-link me-2"></i>Related Events</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center p-2 border rounded mb-2">
+                            <div class="rounded-circle bg-info d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px;">
+                                <i class="fas fa-users text-white small"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 small">Follow-up Meeting</h6>
+                                <small class="text-muted">Tomorrow, 2:00 PM</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center p-2 border rounded mb-2">
+                            <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center me-3" style="width: 32px; height: 32px;">
+                                <i class="fas fa-tasks text-white small"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 small">Preparation Tasks</h6>
+                                <small class="text-muted">Due before event</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Attendees -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="fas fa-users me-2"></i>Attendees ({{len .event.attendees}})</h6>
+            </div>
+            <div class="card-body p-0">
+                {{range .event.attendees}}
+                <div class="d-flex align-items-center p-3 border-bottom">
+                    <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                        <span class="text-white small fw-medium">{{substr .name 0 1}}</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">{{.name}}</h6>
+                        <small class="text-muted">{{.email}}</small>
+                    </div>
+                    <div>
+                        {{if eq .status "accepted"}}
+                        <span class="badge bg-success">Accepted</span>
+                        {{else if eq .status "pending"}}
+                        <span class="badge bg-warning">Pending</span>
+                        {{else if eq .status "declined"}}
+                        <span class="badge bg-danger">Declined</span>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+            </div>
+            <div class="card-footer bg-white">
+                <button class="btn btn-outline-primary btn-sm w-100" onclick="inviteAttendees()">
+                    <i class="fas fa-user-plus me-1"></i>Invite More People
+                </button>
+            </div>
+        </div>
+
+        <!-- Event Statistics -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Response Summary</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="fw-bold text-success">2</div>
+                        <small class="text-muted">Accepted</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fw-bold text-warning">1</div>
+                        <small class="text-muted">Pending</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fw-bold text-danger">0</div>
+                        <small class="text-muted">Declined</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Meeting Tools -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="fas fa-tools me-2"></i>Meeting Tools</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary btn-sm" onclick="startMeeting()">
+                        <i class="fas fa-video me-1"></i>Start Video Call
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="shareScreen()">
+                        <i class="fas fa-desktop me-1"></i>Share Screen
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="takeNotes()">
+                        <i class="fas fa-sticky-note me-1"></i>Meeting Notes
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="recordMeeting()">
+                        <i class="fas fa-record-vinyl me-1"></i>Record Meeting
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function respondToEvent(response) {
+    showSuccess(`You have ${response} the event invitation.`);
+}
+
+function addToCalendar() {
+    showSuccess('Event added to your calendar.');
+}
+
+function duplicateEvent() {
+    showSuccess('Event duplicated successfully.');
+}
+
+function exportEvent() {
+    showSuccess('Event exported to ICS file.');
+}
+
+function deleteEvent() {
+    confirmDelete('Are you sure you want to delete this event?', function() {
+        showSuccess('Event deleted successfully.');
+        window.location.href = '/calendar';
+    });
+}
+
+function inviteAttendees() {
+    showSuccess('Invitation sent to selected attendees.');
+}
+
+function startMeeting() {
+    showSuccess('Starting video call...');
+}
+
+function shareScreen() {
+    showSuccess('Screen sharing initiated.');
+}
+
+function takeNotes() {
+    showSuccess('Opening meeting notes...');
+}
+
+function recordMeeting() {
+    showSuccess('Meeting recording started.');
+}
+</script>
+{{end}}
+
+{{template "layouts/app.tmpl" .}} 

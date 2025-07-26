@@ -10,14 +10,32 @@ import (
 
 type AppPasswordController struct{}
 
-// NewAppPasswordController creates a new app password controller
 func NewAppPasswordController() *AppPasswordController {
 	return &AppPasswordController{}
 }
 
+// getCurrentUser gets the current authenticated user from context
+func (c *AppPasswordController) getCurrentUser(ctx http.Context) *models.User {
+	// Get user from context (set by WebAuth middleware)
+	user := ctx.Value("user")
+	if user == nil {
+		return nil
+	}
+
+	// Type assertion to ensure it's a User pointer
+	if userPtr, ok := user.(*models.User); ok {
+		return userPtr
+	}
+
+	return nil
+}
+
 // Index displays the app passwords management page
 func (c *AppPasswordController) Index(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 
 	// Get all app passwords for the user
 	var appPasswords []models.AppPassword
@@ -43,7 +61,10 @@ func (c *AppPasswordController) Index(ctx http.Context) http.Response {
 
 // Create displays the form to create a new app password
 func (c *AppPasswordController) Create(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 
 	data := map[string]interface{}{
 		"title": "Create App Password",
@@ -55,7 +76,10 @@ func (c *AppPasswordController) Create(ctx http.Context) http.Response {
 
 // Store creates a new app password
 func (c *AppPasswordController) Store(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 
 	// Get form data
 	name := ctx.Request().Input("name")
@@ -103,7 +127,10 @@ func (c *AppPasswordController) Store(ctx http.Context) http.Response {
 
 // Revoke revokes an app password
 func (c *AppPasswordController) Revoke(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 	passwordID := ctx.Request().Route("id")
 
 	// Find the app password
@@ -138,7 +165,10 @@ func (c *AppPasswordController) Revoke(ctx http.Context) http.Response {
 
 // Delete permanently deletes an app password
 func (c *AppPasswordController) Delete(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 	passwordID := ctx.Request().Route("id")
 
 	// Find and delete the app password

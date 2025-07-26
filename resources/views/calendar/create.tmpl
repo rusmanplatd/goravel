@@ -1,0 +1,311 @@
+{{define "calendar/create.tmpl"}}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-6">
+        <div class="d-flex align-items-center mb-4">
+            <a href="/calendar" class="btn btn-outline-secondary btn-sm me-3">
+                <i class="fas fa-arrow-left me-1"></i>Back to Calendar
+            </a>
+            <div>
+                <h1 class="h3 fw-semibold text-dark mb-1">Create Event</h1>
+                <p class="text-muted mb-0">Schedule a new calendar event</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="/calendar" id="eventForm">
+                    <!-- Event Title -->
+                    <div class="mb-4">
+                        <label for="title" class="form-label fw-medium">Event Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-lg" id="title" name="title" required 
+                               placeholder="e.g., Team Meeting, Project Review">
+                        <div class="form-text">Choose a clear, descriptive title for your event</div>
+                    </div>
+
+                    <!-- Event Description -->
+                    <div class="mb-4">
+                        <label for="description" class="form-label fw-medium">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="Describe the purpose and agenda of this event..."></textarea>
+                        <div class="form-text">Add details about what will be discussed or accomplished</div>
+                    </div>
+
+                    <!-- Date & Time -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label fw-medium">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="start_time" class="form-label fw-medium">Start Time <span class="text-danger">*</span></label>
+                            <input type="time" class="form-control" id="start_time" name="start_time" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label fw-medium">End Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_time" class="form-label fw-medium">End Time <span class="text-danger">*</span></label>
+                            <input type="time" class="form-control" id="end_time" name="end_time" required>
+                        </div>
+                    </div>
+
+                    <!-- All Day Event -->
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="all_day" name="all_day">
+                            <label class="form-check-label" for="all_day">
+                                All day event
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="mb-4">
+                        <label for="location" class="form-label fw-medium">Location</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
+                            <input type="text" class="form-control" id="location" name="location" 
+                                   placeholder="Conference Room A, Zoom Link, etc.">
+                        </div>
+                        <div class="form-text">Physical location or virtual meeting link</div>
+                    </div>
+
+                    <!-- Event Type -->
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Event Type</label>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="card border-2 event-type-option" data-type="meeting">
+                                    <div class="card-body text-center p-3">
+                                        <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                                        <h6 class="mb-1">Meeting</h6>
+                                        <small class="text-muted">Team meetings</small>
+                                        <input type="radio" name="type" value="meeting" class="d-none" checked>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-2 event-type-option" data-type="deadline">
+                                    <div class="card-body text-center p-3">
+                                        <i class="fas fa-exclamation fa-2x text-danger mb-2"></i>
+                                        <h6 class="mb-1">Deadline</h6>
+                                        <small class="text-muted">Important dates</small>
+                                        <input type="radio" name="type" value="deadline" class="d-none">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-2 event-type-option" data-type="presentation">
+                                    <div class="card-body text-center p-3">
+                                        <i class="fas fa-presentation fa-2x text-success mb-2"></i>
+                                        <h6 class="mb-1">Presentation</h6>
+                                        <small class="text-muted">Demos & reviews</small>
+                                        <input type="radio" name="type" value="presentation" class="d-none">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-2 event-type-option" data-type="training">
+                                    <div class="card-body text-center p-3">
+                                        <i class="fas fa-graduation-cap fa-2x text-info mb-2"></i>
+                                        <h6 class="mb-1">Training</h6>
+                                        <small class="text-muted">Learning sessions</small>
+                                        <input type="radio" name="type" value="training" class="d-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attendees -->
+                    <div class="mb-4">
+                        <label for="attendees" class="form-label fw-medium">Attendees</label>
+                        <select class="form-select" id="attendees" name="attendees[]" multiple>
+                            <option value="user1">John Doe (john@example.com)</option>
+                            <option value="user2">Jane Smith (jane@example.com)</option>
+                            <option value="user3">Mike Johnson (mike@example.com)</option>
+                            <option value="user4">Sarah Wilson (sarah@example.com)</option>
+                            <option value="user5">Tom Brown (tom@example.com)</option>
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple attendees</div>
+                    </div>
+
+                    <!-- Reminder Settings -->
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Reminders</label>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="reminder_15min" name="reminders[]" value="15">
+                                    <label class="form-check-label" for="reminder_15min">
+                                        15 minutes before
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="reminder_1hour" name="reminders[]" value="60" checked>
+                                    <label class="form-check-label" for="reminder_1hour">
+                                        1 hour before
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="reminder_1day" name="reminders[]" value="1440">
+                                    <label class="form-check-label" for="reminder_1day">
+                                        1 day before
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="reminder_1week" name="reminders[]" value="10080">
+                                    <label class="form-check-label" for="reminder_1week">
+                                        1 week before
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Privacy & Visibility -->
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Privacy</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="privacy" id="privacy_public" value="public" checked>
+                            <label class="form-check-label" for="privacy_public">
+                                <strong>Public</strong> - Visible to everyone in the organization
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="privacy" id="privacy_private" value="private">
+                            <label class="form-check-label" for="privacy_private">
+                                <strong>Private</strong> - Only visible to attendees
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 pt-3 border-top">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="fas fa-plus me-2"></i>Create Event
+                        </button>
+                        <button type="button" class="btn btn-outline-success px-4" onclick="saveAsDraft()">
+                            <i class="fas fa-save me-2"></i>Save as Draft
+                        </button>
+                        <a href="/calendar" class="btn btn-outline-secondary px-4">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Set default dates
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    $('#start_date').val(tomorrow.toISOString().split('T')[0]);
+    $('#end_date').val(tomorrow.toISOString().split('T')[0]);
+    $('#start_time').val('10:00');
+    $('#end_time').val('11:00');
+    
+    // Event type selection
+    $('.event-type-option').on('click', function() {
+        $('.event-type-option').removeClass('border-primary bg-primary bg-opacity-10');
+        $(this).addClass('border-primary bg-primary bg-opacity-10');
+        
+        // Update radio button
+        $('.event-type-option input[type="radio"]').prop('checked', false);
+        $(this).find('input[type="radio"]').prop('checked', true);
+    });
+    
+    // Initialize first option as selected
+    $('.event-type-option[data-type="meeting"]').addClass('border-primary bg-primary bg-opacity-10');
+    
+    // All day event toggle
+    $('#all_day').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#start_time, #end_time').prop('disabled', true).val('');
+        } else {
+            $('#start_time, #end_time').prop('disabled', false);
+            $('#start_time').val('10:00');
+            $('#end_time').val('11:00');
+        }
+    });
+    
+    // Auto-set end date when start date changes
+    $('#start_date').on('change', function() {
+        const startDate = $(this).val();
+        if (startDate && !$('#end_date').val()) {
+            $('#end_date').val(startDate);
+        }
+    });
+    
+    // Form validation
+    $('#eventForm').on('submit', function(e) {
+        const title = $('#title').val().trim();
+        const startDate = $('#start_date').val();
+        const endDate = $('#end_date').val();
+        
+        if (!title) {
+            e.preventDefault();
+            showError('Please enter an event title');
+            $('#title').focus();
+            return;
+        }
+        
+        if (!startDate || !endDate) {
+            e.preventDefault();
+            showError('Please select start and end dates');
+            return;
+        }
+        
+        if (new Date(endDate) < new Date(startDate)) {
+            e.preventDefault();
+            showError('End date cannot be before start date');
+            $('#end_date').focus();
+            return;
+        }
+        
+        showSuccess('Creating event...');
+    });
+});
+
+function saveAsDraft() {
+    showSuccess('Event saved as draft');
+}
+</script>
+
+<style>
+.event-type-option {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.event-type-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.event-type-option.border-primary {
+    border-color: #0d6efd !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+</style>
+{{end}}
+
+{{template "layouts/app.tmpl" .}} 

@@ -1,0 +1,228 @@
+{{define "profile/index.tmpl"}}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 fw-semibold text-dark mb-1">User Profile</h1>
+        <p class="text-muted mb-0">Manage your personal information and view your activity</p>
+    </div>
+    <div>
+        <a href="/profile/edit" class="btn btn-primary">
+            <i class="fas fa-edit me-2"></i>Edit Profile
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Profile Information -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body text-center">
+                <!-- Avatar -->
+                <div class="mb-3">
+                    <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center mx-auto" style="width: 120px; height: 120px;">
+                        <span class="text-white display-4 fw-medium">{{substr .user.Name 0 1}}</span>
+                    </div>
+                </div>
+                
+                <!-- Basic Info -->
+                <h4 class="fw-semibold mb-1">{{.user.Name}}</h4>
+                <p class="text-muted mb-3">{{.user.Email}}</p>
+                
+                <!-- Bio -->
+                <div class="text-start mb-4">
+                    <h6 class="fw-semibold mb-2">About</h6>
+                    <p class="text-muted small">{{.profile.bio}}</p>
+                </div>
+                
+                <!-- Contact Info -->
+                <div class="text-start">
+                    <h6 class="fw-semibold mb-3">Contact Information</h6>
+                    
+                    {{if .profile.phone}}
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-phone text-muted me-2" style="width: 16px;"></i>
+                        <small>{{.profile.phone}}</small>
+                    </div>
+                    {{end}}
+                    
+                    {{if .profile.location}}
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-map-marker-alt text-muted me-2" style="width: 16px;"></i>
+                        <small>{{.profile.location}}</small>
+                    </div>
+                    {{end}}
+                    
+                    {{if .profile.website}}
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-globe text-muted me-2" style="width: 16px;"></i>
+                        <small><a href="{{.profile.website}}" target="_blank" class="text-decoration-none">{{.profile.website}}</a></small>
+                    </div>
+                    {{end}}
+                    
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-calendar text-muted me-2" style="width: 16px;"></i>
+                        <small>Joined {{.profile.joined_date}}</small>
+                    </div>
+                    
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-clock text-muted me-2" style="width: 16px;"></i>
+                        <small>Last login {{.profile.last_login}}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white border-top">
+                <div class="d-flex gap-2">
+                    <a href="/profile/edit" class="btn btn-outline-primary btn-sm flex-grow-1">
+                        <i class="fas fa-edit me-1"></i>Edit
+                    </a>
+                    <a href="/profile/settings" class="btn btn-outline-secondary btn-sm flex-grow-1">
+                        <i class="fas fa-cog me-1"></i>Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Stats -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Activity Stats</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-3">
+                        <div class="fw-bold text-primary h5">{{.stats.projects_created}}</div>
+                        <small class="text-muted">Projects Created</small>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <div class="fw-bold text-success h5">{{.stats.tasks_completed}}</div>
+                        <small class="text-muted">Tasks Completed</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="fw-bold text-info h5">{{.stats.messages_sent}}</div>
+                        <small class="text-muted">Messages Sent</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="fw-bold text-warning h5">{{.stats.files_uploaded}}</div>
+                        <small class="text-muted">Files Uploaded</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="col-lg-8">
+        <!-- Account Settings Overview -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="fas fa-user-cog me-2"></i>Account Overview</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-medium small">Email Address</label>
+                            <div class="d-flex align-items-center">
+                                <span class="me-2">{{.user.Email}}</span>
+                                <span class="badge bg-success">Verified</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-medium small">Language</label>
+                            <div>{{.profile.language}}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-medium small">Timezone</label>
+                            <div>{{.profile.timezone}}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-medium small">Two-Factor Authentication</label>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-success me-2">Enabled</span>
+                                <a href="/security/mfa/manage" class="text-decoration-none small">Manage</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 pt-3 border-top">
+                    <a href="/profile/edit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-edit me-1"></i>Edit Profile
+                    </a>
+                    <a href="/profile/settings" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-cog me-1"></i>Settings
+                    </a>
+                    <a href="/security" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-shield-alt me-1"></i>Security
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-history me-2"></i>Recent Activity</h6>
+                    <a href="/security/audit-log" class="text-decoration-none small">View All</a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {{range .recent_activity}}
+                <div class="d-flex align-items-center p-3 border-bottom">
+                    <div class="rounded-circle bg-light d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                        <i class="{{.icon}} {{.color}}"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1 small fw-medium">{{.action}}</h6>
+                        <p class="mb-0 text-muted small">{{.description}}</p>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted">{{.time}}</small>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+            <div class="card-footer bg-white text-center">
+                <a href="/security/audit-log" class="text-decoration-none small">
+                    View Complete Activity Log <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions Floating Button -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1000;">
+    <div class="dropdown dropup">
+        <button class="btn btn-primary rounded-circle shadow" type="button" data-bs-toggle="dropdown" style="width: 56px; height: 56px;">
+            <i class="fas fa-plus"></i>
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/tasks/create"><i class="fas fa-tasks me-2"></i>New Task</a></li>
+            <li><a class="dropdown-item" href="/calendar/create"><i class="fas fa-calendar me-2"></i>New Event</a></li>
+            <li><a class="dropdown-item" href="/projects/create"><i class="fas fa-project-diagram me-2"></i>New Project</a></li>
+            <li><a class="dropdown-item" href="/chat/create"><i class="fas fa-comments me-2"></i>New Chat</a></li>
+        </ul>
+    </div>
+</div>
+
+<style>
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.floating-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+</style>
+{{end}}
+
+{{template "layouts/app.tmpl" .}} 

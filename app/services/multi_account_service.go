@@ -25,17 +25,22 @@ type MultiAccountService struct {
 }
 
 type AccountSession struct {
-	UserID       string    `json:"user_id"`
-	Email        string    `json:"email"`
-	Name         string    `json:"name"`
-	Avatar       string    `json:"avatar,omitempty"`
-	LoginTime    time.Time `json:"login_time"`
-	LastAccessed time.Time `json:"last_accessed"`
-	LoginMethod  string    `json:"login_method"` // password, webauthn, google_oauth, etc.
-	IsActive     bool      `json:"is_active"`
-	ExpiresAt    time.Time `json:"expires_at"` // Account session expiration
-	IPAddress    string    `json:"ip_address"` // IP address when account was added
-	UserAgent    string    `json:"user_agent"` // User agent when account was added
+	UserID         string    `json:"user_id"`
+	Email          string    `json:"email"`
+	Name           string    `json:"name"`
+	Avatar         string    `json:"avatar,omitempty"`
+	LoginTime      time.Time `json:"login_time"`
+	LastAccessed   time.Time `json:"last_accessed"`
+	LoginMethod    string    `json:"login_method"` // password, webauthn, google_oauth, etc.
+	IsActive       bool      `json:"is_active"`
+	ExpiresAt      time.Time `json:"expires_at"`                // Account session expiration
+	IPAddress      string    `json:"ip_address"`                // IP address when account was added
+	UserAgent      string    `json:"user_agent"`                // User agent when account was added
+	Organization   string    `json:"organization,omitempty"`    // Organization name
+	AccountType    string    `json:"account_type,omitempty"`    // personal, business, admin
+	LastActivity   string    `json:"last_activity,omitempty"`   // Last action performed
+	SecurityLevel  string    `json:"security_level,omitempty"`  // high, medium, low
+	SessionWarning bool      `json:"session_warning,omitempty"` // Whether to show session warning
 }
 
 type MultiAccountSession struct {
@@ -241,17 +246,22 @@ func (s *MultiAccountService) AddAccount(ctx http.Context, user *models.User, lo
 
 	// Add new account
 	newAccount := AccountSession{
-		UserID:       user.ID,
-		Email:        user.Email,
-		Name:         user.Name,
-		Avatar:       user.Avatar,
-		LoginTime:    time.Now(),
-		LastAccessed: time.Now(),
-		LoginMethod:  loginMethod,
-		IsActive:     user.IsActive,
-		ExpiresAt:    time.Now().Add(AccountSessionTTL),
-		IPAddress:    ipAddress,
-		UserAgent:    userAgent,
+		UserID:         user.ID,
+		Email:          user.Email,
+		Name:           user.Name,
+		Avatar:         user.Avatar,
+		LoginTime:      time.Now(),
+		LastAccessed:   time.Now(),
+		LoginMethod:    loginMethod,
+		IsActive:       user.IsActive,
+		ExpiresAt:      time.Now().Add(AccountSessionTTL),
+		IPAddress:      ipAddress,
+		UserAgent:      userAgent,
+		Organization:   s.getOrganizationForUser(user),
+		AccountType:    s.getAccountTypeForUser(user),
+		LastActivity:   "logged_in",
+		SecurityLevel:  s.getSecurityLevelForLogin(loginMethod),
+		SessionWarning: false,
 	}
 
 	multiSession.Accounts = append(multiSession.Accounts, newAccount)
@@ -832,4 +842,159 @@ func (s *MultiAccountService) ExtendAccountSession(ctx http.Context, userID stri
 	})
 
 	return fmt.Errorf("account not found in session")
+}
+
+// GetAccountSuggestions returns account suggestions based on recent activity
+func (s *MultiAccountService) GetAccountSuggestions(ctx http.Context) ([]AccountSession, error) {
+	multiSession, err := s.GetMultiAccountSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort accounts by last accessed time (most recent first)
+	accounts := make([]AccountSession, len(multiSession.Accounts))
+	copy(accounts, multiSession.Accounts)
+
+	// Sort by last accessed, excluding the current active account
+	activeAccountID := multiSession.ActiveAccount
+	suggestions := []AccountSession{}
+
+	for _, account := range accounts {
+		if account.UserID != activeAccountID {
+			suggestions = append(suggestions, account)
+		}
+	}
+
+	// Sort by last accessed time (most recent first)
+	for i := 0; i < len(suggestions)-1; i++ {
+		for j := i + 1; j < len(suggestions); j++ {
+			if suggestions[i].LastAccessed.Before(suggestions[j].LastAccessed) {
+				suggestions[i], suggestions[j] = suggestions[j], suggestions[i]
+			}
+		}
+	}
+
+	// Return top 3 suggestions
+	if len(suggestions) > 3 {
+		suggestions = suggestions[:3]
+	}
+
+	return suggestions, nil
+}
+
+// Helper methods for account categorization
+func (s *MultiAccountService) getOrganizationForUser(user *models.User) string {
+	// Try to get organization from user's relationships
+	// This would typically involve checking user_organizations table
+	// For now, return empty string if no organization found
+	return ""
+}
+
+func (s *MultiAccountService) getAccountTypeForUser(user *models.User) string {
+	// Determine account type based on user properties
+	// This could be based on roles, permissions, or user properties
+	// For now, default to "personal"
+	return "personal"
+}
+
+func (s *MultiAccountService) getSecurityLevelForLogin(loginMethod string) string {
+	switch loginMethod {
+	case "webauthn":
+		return "high"
+	case "google_oauth":
+		return "medium"
+	case "password":
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
+// UpdateAccountActivity updates the last activity for an account
+func (s *MultiAccountService) UpdateAccountActivity(ctx http.Context, userID, activity string) error {
+	multiSession, err := s.GetMultiAccountSession(ctx)
+	if err != nil {
+		return err
+	}
+
+	for i, account := range multiSession.Accounts {
+		if account.UserID == userID {
+			multiSession.Accounts[i].LastActivity = activity
+			multiSession.Accounts[i].LastAccessed = time.Now()
+			return s.SaveMultiAccountSession(ctx, multiSession)
+		}
+	}
+
+	return fmt.Errorf("account not found")
+}
+
+// GetAccountsByOrganization returns accounts grouped by organization
+func (s *MultiAccountService) GetAccountsByOrganization(ctx http.Context) (map[string][]AccountSession, error) {
+	accounts, err := s.GetAllAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	grouped := make(map[string][]AccountSession)
+	for _, account := range accounts {
+		org := account.Organization
+		if org == "" {
+			org = "Personal"
+		}
+		grouped[org] = append(grouped[org], account)
+	}
+
+	return grouped, nil
+}
+
+// GetSecurityInsights returns security-related insights about the session
+func (s *MultiAccountService) GetSecurityInsights(ctx http.Context) (map[string]interface{}, error) {
+	multiSession, err := s.GetMultiAccountSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	insights := map[string]interface{}{
+		"total_accounts":        len(multiSession.Accounts),
+		"high_security_count":   0,
+		"medium_security_count": 0,
+		"low_security_count":    0,
+		"expired_soon_count":    0,
+		"different_ips":         make(map[string]int),
+		"login_methods":         make(map[string]int),
+	}
+
+	now := time.Now()
+	oneHourFromNow := now.Add(time.Hour)
+
+	for _, account := range multiSession.Accounts {
+		// Count security levels
+		switch account.SecurityLevel {
+		case "high":
+			insights["high_security_count"] = insights["high_security_count"].(int) + 1
+		case "medium":
+			insights["medium_security_count"] = insights["medium_security_count"].(int) + 1
+		case "low":
+			insights["low_security_count"] = insights["low_security_count"].(int) + 1
+		}
+
+		// Count accounts expiring soon
+		if account.ExpiresAt.Before(oneHourFromNow) {
+			insights["expired_soon_count"] = insights["expired_soon_count"].(int) + 1
+		}
+
+		// Count different IP addresses
+		ipMap := insights["different_ips"].(map[string]int)
+		ipMap[account.IPAddress]++
+
+		// Count login methods
+		methodMap := insights["login_methods"].(map[string]int)
+		methodMap[account.LoginMethod]++
+	}
+
+	insights["unique_ips"] = len(insights["different_ips"].(map[string]int))
+	insights["session_age_hours"] = time.Since(multiSession.CreatedAt).Hours()
+	insights["switch_frequency"] = float64(multiSession.SwitchCount) / time.Since(multiSession.CreatedAt).Hours()
+
+	return insights, nil
 }

@@ -19,9 +19,28 @@ func NewOAuthSecurityController() *OAuthSecurityController {
 	}
 }
 
+// getCurrentUser gets the current authenticated user from context
+func (c *OAuthSecurityController) getCurrentUser(ctx http.Context) *models.User {
+	// Get user from context (set by WebAuth middleware)
+	user := ctx.Value("user")
+	if user == nil {
+		return nil
+	}
+
+	// Type assertion to ensure it's a User pointer
+	if userPtr, ok := user.(*models.User); ok {
+		return userPtr
+	}
+
+	return nil
+}
+
 // Index displays the security center with connected apps
 func (c *OAuthSecurityController) Index(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 
 	// Get all active consents for the user
 	var consents []models.OAuthConsent
@@ -74,7 +93,10 @@ func (c *OAuthSecurityController) Index(ctx http.Context) http.Response {
 
 // RevokeConsent revokes a user's consent for a specific client
 func (c *OAuthSecurityController) RevokeConsent(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 	clientID := ctx.Request().Route("client_id")
 
 	// Find and revoke the consent
@@ -127,7 +149,10 @@ func (c *OAuthSecurityController) RevokeConsent(ctx http.Context) http.Response 
 
 // RevokeToken revokes a specific access token
 func (c *OAuthSecurityController) RevokeToken(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 	tokenID := ctx.Request().Route("token_id")
 
 	// Find and revoke the token
@@ -163,7 +188,10 @@ func (c *OAuthSecurityController) RevokeToken(ctx http.Context) http.Response {
 
 // ConsentHistory shows the consent history for a user
 func (c *OAuthSecurityController) ConsentHistory(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 
 	// Get all consents (including revoked ones) for the user
 	var consents []models.OAuthConsent
@@ -189,7 +217,10 @@ func (c *OAuthSecurityController) ConsentHistory(ctx http.Context) http.Response
 
 // AppDetails shows detailed information about a connected app
 func (c *OAuthSecurityController) AppDetails(ctx http.Context) http.Response {
-	user := ctx.Value("user").(*models.User)
+	user := c.getCurrentUser(ctx)
+	if user == nil {
+		return ctx.Response().Redirect(302, "/login")
+	}
 	clientID := ctx.Request().Route("client_id")
 
 	// Get client information

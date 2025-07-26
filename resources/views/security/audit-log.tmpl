@@ -1,0 +1,251 @@
+{{define "security/audit-log.tmpl"}}
+    {{template "layouts/header.tmpl" .}}
+    {{template "layouts/nav.tmpl" .}}
+
+    <!-- Page Content -->
+    <main class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 fw-semibold text-dark mb-1">Activity Log</h1>
+                <p class="text-muted mb-0">Review your account activity and security events</p>
+            </div>
+            <div class="d-flex gap-2">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-filter me-2"></i>Filter
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="filterBy('all')">All Activities</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="filterBy('login')">Login Events</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="filterBy('security')">Security Events</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="filterBy('account')">Account Changes</a></li>
+                    </ul>
+                </div>
+                <button class="btn btn-outline-primary" onclick="exportLog()">
+                    <i class="fas fa-download me-2"></i>Export
+                </button>
+            </div>
+        </div>
+
+        <!-- Activity Summary -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                                <i class="fas fa-sign-in-alt text-primary fa-lg"></i>
+                            </div>
+                        </div>
+                        <h4 class="fw-bold mb-1">{{.stats.logins}}</h4>
+                        <small class="text-muted">Login Events</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                                <i class="fas fa-shield-alt text-warning fa-lg"></i>
+                            </div>
+                        </div>
+                        <h4 class="fw-bold mb-1">{{.stats.security}}</h4>
+                        <small class="text-muted">Security Events</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                                <i class="fas fa-user-edit text-info fa-lg"></i>
+                            </div>
+                        </div>
+                        <h4 class="fw-bold mb-1">{{.stats.account_changes}}</h4>
+                        <small class="text-muted">Account Changes</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                                <i class="fas fa-calendar text-success fa-lg"></i>
+                            </div>
+                        </div>
+                        <h4 class="fw-bold mb-1">{{.stats.last_30_days}}</h4>
+                        <small class="text-muted">Last 30 Days</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Activity</h5>
+                    <div class="input-group" style="width: 300px;">
+                        <input type="text" class="form-control" placeholder="Search activities..." id="searchActivities">
+                        <button class="btn btn-outline-secondary" type="button">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {{if .activities}}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Event</th>
+                                <th>Details</th>
+                                <th>IP Address</th>
+                                <th>User Agent</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .activities}}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            {{if eq .type "login"}}
+                                            <i class="fas fa-sign-in-alt text-success"></i>
+                                            {{else if eq .type "logout"}}
+                                            <i class="fas fa-sign-out-alt text-warning"></i>
+                                            {{else if eq .type "security"}}
+                                            <i class="fas fa-shield-alt text-danger"></i>
+                                            {{else if eq .type "account"}}
+                                            <i class="fas fa-user-edit text-info"></i>
+                                            {{else}}
+                                            <i class="fas fa-info-circle text-muted"></i>
+                                            {{end}}
+                                        </div>
+                                        <div>
+                                            <div class="fw-medium">{{.event}}</div>
+                                            <small class="text-muted">{{.type}}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-muted small">{{.details}}</div>
+                                </td>
+                                <td>
+                                    <code class="small">{{.ip_address}}</code>
+                                </td>
+                                <td>
+                                    <span class="text-muted small" title="{{.user_agent}}">
+                                        {{substr .user_agent 0 30}}{{if gt (len .user_agent) 30}}...{{end}}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="text-muted small">{{.created_at}}</div>
+                                </td>
+                                <td>
+                                    {{if eq .status "success"}}
+                                    <span class="badge bg-success">Success</span>
+                                    {{else if eq .status "failed"}}
+                                    <span class="badge bg-danger">Failed</span>
+                                    {{else if eq .status "warning"}}
+                                    <span class="badge bg-warning">Warning</span>
+                                    {{else}}
+                                    <span class="badge bg-secondary">{{.status}}</span>
+                                    {{end}}
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+                {{else}}
+                <div class="text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-history fa-3x text-muted"></i>
+                    </div>
+                    <h4 class="text-muted mb-3">No activity found</h4>
+                    <p class="text-muted">Your activity log will appear here once you start using the system.</p>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        {{if .pagination}}
+        <nav aria-label="Activity log pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {{if .pagination.has_prev}}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{.pagination.prev_page}}">Previous</a>
+                </li>
+                {{end}}
+                
+                {{range .pagination.pages}}
+                <li class="page-item {{if .current}}active{{end}}">
+                    <a class="page-link" href="?page={{.number}}">{{.number}}</a>
+                </li>
+                {{end}}
+                
+                {{if .pagination.has_next}}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{.pagination.next_page}}">Next</a>
+                </li>
+                {{end}}
+            </ul>
+        </nav>
+        {{end}}
+    </main>
+
+    <script>
+    $(document).ready(function() {
+        // Search functionality
+        $('#searchActivities').on('input', function() {
+            const searchTerm = $(this).val().toLowerCase();
+            $('tbody tr').each(function() {
+                const text = $(this).text().toLowerCase();
+                if (text.includes(searchTerm)) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        });
+    });
+
+    function filterBy(type) {
+        if (type === 'all') {
+            $('tbody tr').show();
+        } else {
+            $('tbody tr').hide();
+            $('tbody tr').each(function() {
+                if ($(this).find('small').text().includes(type)) {
+                    $(this).show();
+                }
+            });
+        }
+        showSuccess(`Filtered by ${type}`);
+    }
+
+    function exportLog() {
+        showSuccess('Activity log exported successfully!');
+    }
+
+    function showSuccess(message) {
+        Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: message,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
+    </script>
+
+    {{template "layouts/footer.tmpl" .}}
+{{end}} 

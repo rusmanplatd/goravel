@@ -1,0 +1,168 @@
+{{define "content"}}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-6">
+        <div class="d-flex align-items-center mb-4">
+            <a href="/chat" class="btn btn-outline-secondary btn-sm me-3">
+                <i class="fas fa-arrow-left me-1"></i>Back
+            </a>
+            <div>
+                <h1 class="h3 fw-semibold text-dark mb-1">Create Chat Room</h1>
+                <p class="text-muted mb-0">Set up a new space for team collaboration</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="/chat">
+                    <!-- Room Name -->
+                    <div class="mb-4">
+                        <label for="name" class="form-label fw-medium">Room Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-lg" id="name" name="name" required 
+                               placeholder="e.g., Development Team, Project Alpha">
+                        <div class="form-text">Choose a clear, descriptive name for your chat room</div>
+                    </div>
+
+                    <!-- Room Description -->
+                    <div class="mb-4">
+                        <label for="description" class="form-label fw-medium">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="Describe the purpose of this chat room..."></textarea>
+                        <div class="form-text">Help members understand what this room is for</div>
+                    </div>
+
+                    <!-- Room Type -->
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Room Type</label>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card border-2 room-type-option" data-type="public">
+                                    <div class="card-body text-center p-3">
+                                        <i class="fas fa-globe fa-2x text-primary mb-2"></i>
+                                        <h6 class="mb-1">Public Room</h6>
+                                        <small class="text-muted">Anyone in the organization can join</small>
+                                        <input type="radio" name="type" value="public" class="d-none" checked>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-2 room-type-option" data-type="private">
+                                    <div class="card-body text-center p-3">
+                                        <i class="fas fa-lock fa-2x text-warning mb-2"></i>
+                                        <h6 class="mb-1">Private Room</h6>
+                                        <small class="text-muted">Invitation only</small>
+                                        <input type="radio" name="type" value="private" class="d-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Initial Members (for private rooms) -->
+                    <div class="mb-4 d-none" id="membersSection">
+                        <label for="members" class="form-label fw-medium">Invite Members</label>
+                        <select class="form-select" id="members" name="members[]" multiple>
+                            <option value="user1">John Doe (john@example.com)</option>
+                            <option value="user2">Jane Smith (jane@example.com)</option>
+                            <option value="user3">Mike Johnson (mike@example.com)</option>
+                            <option value="user4">Sarah Wilson (sarah@example.com)</option>
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple members</div>
+                    </div>
+
+                    <!-- Room Settings -->
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Room Settings</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="allowFileSharing" name="settings[]" value="file_sharing" checked>
+                            <label class="form-check-label" for="allowFileSharing">
+                                Allow file sharing
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="allowNotifications" name="settings[]" value="notifications" checked>
+                            <label class="form-check-label" for="allowNotifications">
+                                Enable notifications
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="allowThreads" name="settings[]" value="threads">
+                            <label class="form-check-label" for="allowThreads">
+                                Enable message threads
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 pt-3 border-top">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="fas fa-plus me-2"></i>Create Room
+                        </button>
+                        <a href="/chat" class="btn btn-outline-secondary px-4">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Room type selection
+    $('.room-type-option').on('click', function() {
+        $('.room-type-option').removeClass('border-primary bg-primary bg-opacity-10');
+        $(this).addClass('border-primary bg-primary bg-opacity-10');
+        
+        // Update radio button
+        $('.room-type-option input[type="radio"]').prop('checked', false);
+        $(this).find('input[type="radio"]').prop('checked', true);
+        
+        // Show/hide members section for private rooms
+        if ($(this).data('type') === 'private') {
+            $('#membersSection').removeClass('d-none');
+        } else {
+            $('#membersSection').addClass('d-none');
+        }
+    });
+    
+    // Initialize first option as selected
+    $('.room-type-option[data-type="public"]').addClass('border-primary bg-primary bg-opacity-10');
+    
+    // Form validation
+    $('form').on('submit', function(e) {
+        const name = $('#name').val().trim();
+        if (!name) {
+            e.preventDefault();
+            showError('Please enter a room name');
+            $('#name').focus();
+            return;
+        }
+        
+        showSuccess('Creating chat room...');
+    });
+});
+</script>
+
+<style>
+.room-type-option {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.room-type-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.room-type-option.border-primary {
+    border-color: #0d6efd !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+</style>
+{{end}}
+
+{{template "layouts/app.tmpl" .}} 

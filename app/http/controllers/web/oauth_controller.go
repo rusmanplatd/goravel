@@ -240,7 +240,10 @@ func (c *OAuthController) ShowAuthorize(ctx http.Context) http.Response {
 		return ctx.Response().Redirect(302, loginURL)
 	}
 
-	authenticatedUser := user.(*models.User)
+	authenticatedUser, ok := user.(*models.User)
+	if !ok {
+		return c.redirectWithError(ctx, redirectURI, "server_error", "Invalid user context", state)
+	}
 
 	// Parse and validate scopes
 	requestedScopes := c.oauthService.ParseScopes(scope)
@@ -334,7 +337,10 @@ func (c *OAuthController) HandleAuthorize(ctx http.Context) http.Response {
 		return c.redirectWithError(ctx, redirectURI, "access_denied", "User not authenticated", state)
 	}
 
-	authenticatedUser := user.(*models.User)
+	authenticatedUser, ok := user.(*models.User)
+	if !ok {
+		return c.redirectWithError(ctx, redirectURI, "server_error", "Invalid user context", state)
+	}
 
 	// Parse scopes
 	requestedScopes := c.oauthService.ParseScopes(scope)
