@@ -1,7 +1,6 @@
 package seeders
 
 import (
-	"errors"
 	"time"
 
 	"goravel/app/models"
@@ -21,15 +20,10 @@ func (s *OrganizationSeeder) Signature() string {
 func (s *OrganizationSeeder) Run() error {
 	facades.Log().Info("Starting organization seeder...")
 
-	var err error
-
-	// Create sample organizations
-	organizations := []map[string]interface{}{
+	// Update existing organizations with detailed information
+	organizationUpdates := []map[string]interface{}{
 		{
-			"name":          "Goravel Corporation",
-			"slug":          "goravel-corp",
-			"domain":        "goravel.com",
-			"description":   "Leading enterprise software solutions provider specializing in modern web applications",
+			"tenant_slug":   "goravel-corp",
 			"type":          "company",
 			"industry":      "Technology",
 			"size":          "large",
@@ -40,298 +34,230 @@ func (s *OrganizationSeeder) Run() error {
 			"contact_phone": "+1-555-123-4567",
 			"address":       "123 Tech Street, San Francisco, CA 94105",
 			"postal_code":   "94105",
-			"is_active":     true,
 			"is_verified":   true,
-			"settings":      `{"theme":"light","timezone":"America/Los_Angeles","language":"en","features":{"api_access":true,"analytics":true,"multi_user":true},"branding":{"logo":"https://goravel.com/logo.png","primary_color":"#3B82F6"}}`,
 		},
 		{
-			"name":          "Acme Solutions",
-			"slug":          "acme-solutions",
-			"domain":        "acme-solutions.com",
-			"description":   "Innovative consulting firm providing digital transformation services",
+			"tenant_slug":   "demo-company",
 			"type":          "company",
 			"industry":      "Consulting",
 			"size":          "medium",
-			"website":       "https://acme-solutions.com",
-			"logo":          "https://acme-solutions.com/logo.png",
-			"contact_email": "hello@acme-solutions.com",
+			"website":       "https://demo.com",
+			"logo":          "https://demo.com/logo.png",
+			"contact_email": "hello@demo.com",
 			"contact_phone": "+1-555-987-6543",
 			"address":       "456 Business Ave, New York, NY 10001",
 			"postal_code":   "10001",
-			"is_active":     true,
 			"is_verified":   true,
-			"settings":      `{"theme":"dark","timezone":"America/New_York","language":"en","features":{"api_access":true,"analytics":false,"multi_user":true},"branding":{"logo":"https://acme-solutions.com/logo.png","primary_color":"#10B981"}}`,
 		},
 		{
-			"name":          "Startup Inc",
-			"slug":          "startup-inc",
-			"domain":        "startup-inc.com",
-			"description":   "Fast-growing startup focused on AI and machine learning solutions",
+			"tenant_slug":   "test-org",
 			"type":          "company",
 			"industry":      "Artificial Intelligence",
 			"size":          "startup",
-			"website":       "https://startup-inc.com",
-			"logo":          "https://startup-inc.com/logo.png",
-			"contact_email": "team@startup-inc.com",
+			"website":       "https://test.org",
+			"logo":          "https://test.org/logo.png",
+			"contact_email": "team@test.org",
 			"contact_phone": "+1-555-456-7890",
 			"address":       "789 Innovation Blvd, Austin, TX 73301",
 			"postal_code":   "73301",
-			"is_active":     true,
 			"is_verified":   false,
-			"settings":      `{"theme":"auto","timezone":"America/Chicago","language":"en","features":{"api_access":true,"analytics":true,"multi_user":false},"branding":{"logo":"https://startup-inc.com/logo.png","primary_color":"#F59E0B"}}`,
 		},
 		{
-			"name":          "NonProfit Foundation",
-			"slug":          "nonprofit-foundation",
-			"domain":        "nonprofit-foundation.org",
-			"description":   "Dedicated to making a positive impact through technology and education",
+			"tenant_slug":   "startup-inc",
 			"type":          "nonprofit",
 			"industry":      "Education",
 			"size":          "medium",
-			"website":       "https://nonprofit-foundation.org",
-			"logo":          "https://nonprofit-foundation.org/logo.png",
-			"contact_email": "info@nonprofit-foundation.org",
+			"website":       "https://startup.inc",
+			"logo":          "https://startup.inc/logo.png",
+			"contact_email": "info@startup.inc",
 			"contact_phone": "+1-555-321-6547",
 			"address":       "321 Charity Lane, Boston, MA 02101",
 			"postal_code":   "02101",
-			"is_active":     true,
 			"is_verified":   true,
-			"settings":      `{"theme":"light","timezone":"America/New_York","language":"en","features":{"api_access":false,"analytics":true,"multi_user":true},"branding":{"logo":"https://nonprofit-foundation.org/logo.png","primary_color":"#8B5CF6"}}`,
 		},
 		{
-			"name":          "Government Agency",
-			"slug":          "government-agency",
-			"domain":        "gov-agency.gov",
-			"description":   "Federal agency responsible for digital services and citizen engagement",
+			"tenant_slug":   "enterprise-solutions",
 			"type":          "government",
 			"industry":      "Government",
 			"size":          "enterprise",
-			"website":       "https://gov-agency.gov",
-			"logo":          "https://gov-agency.gov/logo.png",
-			"contact_email": "contact@gov-agency.gov",
+			"website":       "https://enterprise.solutions",
+			"logo":          "https://enterprise.solutions/logo.png",
+			"contact_email": "contact@enterprise.solutions",
 			"contact_phone": "+1-555-111-2222",
 			"address":       "100 Government Plaza, Washington, DC 20001",
 			"postal_code":   "20001",
-			"is_active":     true,
 			"is_verified":   true,
-			"settings":      `{"theme":"light","timezone":"America/New_York","language":"en","features":{"api_access":true,"analytics":true,"multi_user":true},"branding":{"logo":"https://gov-agency.gov/logo.png","primary_color":"#DC2626"}}`,
 		},
 	}
 
-	// Create organizations
-	for _, orgData := range organizations {
-		// Find or create a tenant for this organization
+	// Update organizations with detailed information
+	for _, orgUpdate := range organizationUpdates {
+		// Find tenant by slug
 		var tenant models.Tenant
-		err := facades.Orm().Query().Where("slug = ?", orgData["slug"].(string)).First(&tenant)
+		err := facades.Orm().Query().Where("slug = ?", orgUpdate["tenant_slug"].(string)).First(&tenant)
 		if err != nil {
-			// Create a new tenant for this organization
-			tenant = models.Tenant{
-				Name:        orgData["name"].(string),
-				Slug:        orgData["slug"].(string),
-				Domain:      orgData["domain"].(string),
-				Description: orgData["description"].(string),
-				IsActive:    orgData["is_active"].(bool),
-				Settings:    orgData["settings"].(string),
-			}
-			err = facades.Orm().Query().Create(&tenant)
-			if err != nil {
-				facades.Log().Error("Failed to create tenant for organization: " + err.Error())
-				return err
-			}
+			facades.Log().Warning("Tenant not found for slug: " + orgUpdate["tenant_slug"].(string))
+			continue
 		}
 
-		seederID := models.USER_SEEDER_ULID
-		if len(tenant.ID) != 26 {
-			facades.Log().Error("Tenant ID length is not 26 characters", map[string]interface{}{"tenant_id": tenant.ID, "length": len(tenant.ID)})
-			return errors.New("Tenant ID length is not 26 characters")
+		// Find the organization for this tenant
+		var organization models.Organization
+		err = facades.Orm().Query().Where("tenant_id = ?", tenant.ID).First(&organization)
+		if err != nil {
+			facades.Log().Warning("Organization not found for tenant: " + tenant.Name)
+			continue
 		}
-		organization := &models.Organization{
-			BaseModel: models.BaseModel{
-				CreatedBy: &seederID,
-				UpdatedBy: &seederID,
-				DeletedBy: nil,
-			},
-			Name:         orgData["name"].(string),
-			Slug:         orgData["slug"].(string),
-			Domain:       orgData["domain"].(string),
-			Description:  orgData["description"].(string),
-			Type:         orgData["type"].(string),
-			Industry:     orgData["industry"].(string),
-			Size:         orgData["size"].(string),
-			Website:      orgData["website"].(string),
-			Logo:         orgData["logo"].(string),
-			Banner:       orgData["banner"].(string),
-			ContactEmail: orgData["contact_email"].(string),
-			ContactPhone: orgData["contact_phone"].(string),
-			Address:      orgData["address"].(string),
-			PostalCode:   orgData["postal_code"].(string),
-			IsActive:     orgData["is_active"].(bool),
-			IsVerified:   orgData["is_verified"].(bool),
-			Settings:     orgData["settings"].(string),
-			TenantID:     tenant.ID,
-			Level:        0,
-			Path:         "/",
+
+		// Update organization with detailed information
+		updateData := map[string]interface{}{
+			"type":          orgUpdate["type"].(string),
+			"industry":      orgUpdate["industry"].(string),
+			"size":          orgUpdate["size"].(string),
+			"website":       orgUpdate["website"].(string),
+			"logo":          orgUpdate["logo"].(string),
+			"contact_email": orgUpdate["contact_email"].(string),
+			"contact_phone": orgUpdate["contact_phone"].(string),
+			"address":       orgUpdate["address"].(string),
+			"postal_code":   orgUpdate["postal_code"].(string),
+			"is_verified":   orgUpdate["is_verified"].(bool),
 		}
-		if len(organization.TenantID) != 26 {
-			facades.Log().Error("Organization TenantID length is not 26 characters", map[string]interface{}{"tenant_id": organization.TenantID, "length": len(organization.TenantID)})
-			return errors.New("Organization TenantID length is not 26 characters")
+
+		// Add banner if present
+		if banner, ok := orgUpdate["banner"]; ok {
+			updateData["banner"] = banner.(string)
 		}
 
 		// Set verification date if verified
-		if organization.IsVerified {
+		if orgUpdate["is_verified"].(bool) {
 			now := time.Now()
-			organization.VerifiedAt = &now
+			updateData["verified_at"] = &now
 		}
 
-		err = facades.Orm().Query().Create(organization)
-		if err != nil {
-			facades.Log().Error("Failed to create organization: "+err.Error(), map[string]interface{}{"organization": organization})
-			return err
+		for field, value := range updateData {
+			_, err = facades.Orm().Query().Model(&organization).Where("id = ?", organization.ID).Update(field, value)
+			if err != nil {
+				facades.Log().Error("Failed to update organization field "+field+": "+err.Error(), map[string]interface{}{"organization_id": organization.ID})
+				break
+			}
 		}
-		facades.Log().Info("Created organization: "+organization.Name, map[string]interface{}{"organization_id": organization.ID})
+		if err != nil {
+			facades.Log().Error("Failed to update organization: "+err.Error(), map[string]interface{}{"organization_id": organization.ID})
+			continue
+		}
+
+		facades.Log().Info("Updated organization: "+organization.Name, map[string]interface{}{"organization_id": organization.ID})
+	}
+
+	// Create subsidiary organizations for existing root organizations
+	subsidiaries := []map[string]interface{}{
+		{
+			"parent_tenant_slug": "goravel-corp",
+			"name":               "Goravel Europe",
+			"slug":               "goravel-europe",
+			"domain":             "goravel-europe.com",
+			"description":        "European subsidiary of Goravel Corporation",
+			"type":               "company",
+			"industry":           "Technology",
+			"size":               "medium",
+			"website":            "https://goravel-europe.com",
+			"logo":               "https://goravel-europe.com/logo.png",
+			"contact_email":      "contact@goravel-europe.com",
+			"contact_phone":      "+44-20-1234-5678",
+			"address":            "10 Tech Street, London, UK SW1A 1AA",
+			"postal_code":        "SW1A 1AA",
+			"is_active":          true,
+			"is_verified":        true,
+			"settings":           `{"theme":"light","timezone":"Europe/London","language":"en","features":{"api_access":true,"analytics":true,"multi_user":true},"branding":{"logo":"https://goravel-europe.com/logo.png","primary_color":"#3B82F6"}}`,
+		},
+		{
+			"parent_tenant_slug": "demo-company",
+			"name":               "Demo Asia Pacific",
+			"slug":               "demo-asia-pacific",
+			"domain":             "demo-asia-pacific.com",
+			"description":        "Asia Pacific regional office of Demo Company",
+			"type":               "company",
+			"industry":           "Consulting",
+			"size":               "small",
+			"website":            "https://demo-asia-pacific.com",
+			"logo":               "https://demo-asia-pacific.com/logo.png",
+			"contact_email":      "hello@demo-asia-pacific.com",
+			"contact_phone":      "+81-3-1234-5678",
+			"address":            "5 Business Street, Tokyo, Japan 100-0001",
+			"postal_code":        "100-0001",
+			"is_active":          true,
+			"is_verified":        true,
+			"settings":           `{"theme":"dark","timezone":"Asia/Tokyo","language":"en","features":{"api_access":true,"analytics":false,"multi_user":true},"branding":{"logo":"https://demo-asia-pacific.com/logo.png","primary_color":"#10B981"}}`,
+		},
 	}
 
 	// Create subsidiary organizations
-	subsidiaries := []map[string]interface{}{
-		{
-			"name":          "Goravel Europe",
-			"slug":          "goravel-europe",
-			"domain":        "goravel-europe.com",
-			"description":   "European subsidiary of Goravel Corporation",
-			"type":          "company",
-			"industry":      "Technology",
-			"size":          "medium",
-			"website":       "https://goravel-europe.com",
-			"logo":          "https://goravel-europe.com/logo.png",
-			"contact_email": "contact@goravel-europe.com",
-			"contact_phone": "+44-20-1234-5678",
-			"address":       "10 Tech Street, London, UK SW1A 1AA",
-			"postal_code":   "SW1A 1AA",
-			"is_active":     true,
-			"is_verified":   true,
-			"settings":      `{"theme":"light","timezone":"Europe/London","language":"en","features":{"api_access":true,"analytics":true,"multi_user":true},"branding":{"logo":"https://goravel-europe.com/logo.png","primary_color":"#3B82F6"}}`,
-		},
-		{
-			"name":          "Acme Asia Pacific",
-			"slug":          "acme-asia-pacific",
-			"domain":        "acme-asia-pacific.com",
-			"description":   "Asia Pacific regional office of Acme Solutions",
-			"type":          "company",
-			"industry":      "Consulting",
-			"size":          "small",
-			"website":       "https://acme-asia-pacific.com",
-			"logo":          "https://acme-asia-pacific.com/logo.png",
-			"contact_email": "hello@acme-asia-pacific.com",
-			"contact_phone": "+81-3-1234-5678",
-			"address":       "5 Business Street, Tokyo, Japan 100-0001",
-			"postal_code":   "100-0001",
-			"is_active":     true,
-			"is_verified":   true,
-			"settings":      `{"theme":"dark","timezone":"Asia/Tokyo","language":"en","features":{"api_access":true,"analytics":false,"multi_user":true},"branding":{"logo":"https://acme-asia-pacific.com/logo.png","primary_color":"#10B981"}}`,
-		},
-	}
+	for _, subData := range subsidiaries {
+		// Find parent tenant
+		var parentTenant models.Tenant
+		err := facades.Orm().Query().Where("slug = ?", subData["parent_tenant_slug"].(string)).First(&parentTenant)
+		if err != nil {
+			facades.Log().Warning("Parent tenant not found for slug: " + subData["parent_tenant_slug"].(string))
+			continue
+		}
 
-	// Get parent organizations
-	var goravelOrg models.Organization
-	err = facades.Orm().Query().Where("slug = ?", "goravel-corp").First(&goravelOrg)
-	if err == nil {
-		// Create Goravel Europe subsidiary
+		// Find parent organization
+		var parentOrg models.Organization
+		err = facades.Orm().Query().Where("tenant_id = ?", parentTenant.ID).First(&parentOrg)
+		if err != nil {
+			facades.Log().Warning("Parent organization not found for tenant: " + parentTenant.Name)
+			continue
+		}
+
+		// Check if subsidiary already exists
+		var existingSubsidiary models.Organization
+		err = facades.Orm().Query().Where("slug = ? AND tenant_id = ?", subData["slug"].(string), parentTenant.ID).First(&existingSubsidiary)
+		if err == nil {
+			facades.Log().Info("Subsidiary organization already exists: " + existingSubsidiary.Name)
+			continue
+		}
+
 		seederID := models.USER_SEEDER_ULID
-		goravelEurope := &models.Organization{
+		subsidiary := &models.Organization{
 			BaseModel: models.BaseModel{
 				CreatedBy: &seederID,
 				UpdatedBy: &seederID,
 				DeletedBy: nil,
 			},
-			Name:                 subsidiaries[0]["name"].(string),
-			Slug:                 subsidiaries[0]["slug"].(string),
-			Domain:               subsidiaries[0]["domain"].(string),
-			Description:          subsidiaries[0]["description"].(string),
-			Type:                 subsidiaries[0]["type"].(string),
-			Industry:             subsidiaries[0]["industry"].(string),
-			Size:                 subsidiaries[0]["size"].(string),
-			Website:              subsidiaries[0]["website"].(string),
-			Logo:                 subsidiaries[0]["logo"].(string),
-			ContactEmail:         subsidiaries[0]["contact_email"].(string),
-			ContactPhone:         subsidiaries[0]["contact_phone"].(string),
-			Address:              subsidiaries[0]["address"].(string),
-			PostalCode:           subsidiaries[0]["postal_code"].(string),
-			IsActive:             subsidiaries[0]["is_active"].(bool),
-			IsVerified:           subsidiaries[0]["is_verified"].(bool),
-			Settings:             subsidiaries[0]["settings"].(string),
-			TenantID:             goravelOrg.TenantID,
-			ParentOrganizationID: &goravelOrg.ID,
+			Name:                 subData["name"].(string),
+			Slug:                 subData["slug"].(string),
+			Domain:               subData["domain"].(string),
+			Description:          subData["description"].(string),
+			Type:                 subData["type"].(string),
+			Industry:             subData["industry"].(string),
+			Size:                 subData["size"].(string),
+			Website:              subData["website"].(string),
+			Logo:                 subData["logo"].(string),
+			ContactEmail:         subData["contact_email"].(string),
+			ContactPhone:         subData["contact_phone"].(string),
+			Address:              subData["address"].(string),
+			PostalCode:           subData["postal_code"].(string),
+			IsActive:             subData["is_active"].(bool),
+			IsVerified:           subData["is_verified"].(bool),
+			Settings:             subData["settings"].(string),
+			TenantID:             parentTenant.ID,
+			ParentOrganizationID: &parentOrg.ID,
 			Level:                1,
-			Path:                 goravelOrg.Path + "/" + goravelOrg.ID,
-		}
-		if len(goravelEurope.TenantID) != 26 {
-			facades.Log().Error("Subsidiary TenantID length is not 26 characters", map[string]interface{}{"tenant_id": goravelEurope.TenantID, "length": len(goravelEurope.TenantID)})
-			return errors.New("Subsidiary TenantID length is not 26 characters")
+			Path:                 parentOrg.Path + parentOrg.ID + "/",
 		}
 
 		// Set verification date if verified
-		if goravelEurope.IsVerified {
+		if subsidiary.IsVerified {
 			now := time.Now()
-			goravelEurope.VerifiedAt = &now
+			subsidiary.VerifiedAt = &now
 		}
 
-		err = facades.Orm().Query().Create(goravelEurope)
+		err = facades.Orm().Query().Create(subsidiary)
 		if err != nil {
-			facades.Log().Error("Failed to create subsidiary organization: "+err.Error(), map[string]interface{}{"subsidiary": goravelEurope})
-		} else {
-			facades.Log().Info("Created subsidiary organization: "+goravelEurope.Name, map[string]interface{}{"organization_id": goravelEurope.ID})
-		}
-	}
-
-	var acmeOrg models.Organization
-	err = facades.Orm().Query().Where("slug = ?", "acme-solutions").First(&acmeOrg)
-	if err == nil {
-		// Create Acme Asia Pacific subsidiary
-		seederID := models.USER_SEEDER_ULID
-		acmeAsiaPacific := &models.Organization{
-			BaseModel: models.BaseModel{
-				CreatedBy: &seederID,
-				UpdatedBy: &seederID,
-				DeletedBy: nil,
-			},
-			Name:                 subsidiaries[1]["name"].(string),
-			Slug:                 subsidiaries[1]["slug"].(string),
-			Domain:               subsidiaries[1]["domain"].(string),
-			Description:          subsidiaries[1]["description"].(string),
-			Type:                 subsidiaries[1]["type"].(string),
-			Industry:             subsidiaries[1]["industry"].(string),
-			Size:                 subsidiaries[1]["size"].(string),
-			Website:              subsidiaries[1]["website"].(string),
-			Logo:                 subsidiaries[1]["logo"].(string),
-			ContactEmail:         subsidiaries[1]["contact_email"].(string),
-			ContactPhone:         subsidiaries[1]["contact_phone"].(string),
-			Address:              subsidiaries[1]["address"].(string),
-			PostalCode:           subsidiaries[1]["postal_code"].(string),
-			IsActive:             subsidiaries[1]["is_active"].(bool),
-			IsVerified:           subsidiaries[1]["is_verified"].(bool),
-			Settings:             subsidiaries[1]["settings"].(string),
-			TenantID:             acmeOrg.TenantID,
-			ParentOrganizationID: &acmeOrg.ID,
-			Level:                1,
-			Path:                 acmeOrg.Path + "/" + acmeOrg.ID,
-		}
-		if len(acmeAsiaPacific.TenantID) != 26 {
-			facades.Log().Error("Subsidiary TenantID length is not 26 characters", map[string]interface{}{"tenant_id": acmeAsiaPacific.TenantID, "length": len(acmeAsiaPacific.TenantID)})
-			return errors.New("Subsidiary TenantID length is not 26 characters")
+			facades.Log().Error("Failed to create subsidiary organization: "+err.Error(), map[string]interface{}{"subsidiary": subsidiary})
+			continue
 		}
 
-		// Set verification date if verified
-		if acmeAsiaPacific.IsVerified {
-			now := time.Now()
-			acmeAsiaPacific.VerifiedAt = &now
-		}
-
-		err = facades.Orm().Query().Create(acmeAsiaPacific)
-		if err != nil {
-			facades.Log().Error("Failed to create subsidiary organization: "+err.Error(), map[string]interface{}{"subsidiary": acmeAsiaPacific})
-		} else {
-			facades.Log().Info("Created subsidiary organization: "+acmeAsiaPacific.Name, map[string]interface{}{"organization_id": acmeAsiaPacific.ID})
-		}
+		facades.Log().Info("Created subsidiary organization: "+subsidiary.Name, map[string]interface{}{"organization_id": subsidiary.ID})
 	}
 
 	facades.Log().Info("Organization seeder completed successfully")

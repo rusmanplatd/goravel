@@ -146,6 +146,11 @@ func (tc *TenantController) Store(ctx http.Context) http.Response {
 		})
 	}
 
+	// Generate slug if not provided
+	if tenant.Slug == "" && tenant.Name != "" {
+		tenant.Slug = helpers.GenerateSlug(tenant.Name)
+	}
+
 	// Set default values
 	tenant.IsActive = true
 

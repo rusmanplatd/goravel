@@ -26,6 +26,7 @@ func (r *M20210101000001CreateUsersTable) Up() error {
 		table.String("mfa_secret").Nullable().Comment("TOTP secret for multi-factor authentication")
 		table.Boolean("mfa_enabled").Default(false).Comment("Whether MFA is enabled for this user")
 		table.TimestampTz("mfa_enabled_at").Nullable().Comment("When MFA was enabled")
+		table.Text("mfa_backup_codes").Nullable().Comment("MFA backup codes as JSON")
 
 		// Password reset fields
 		table.String("password_reset_token").Nullable().Comment("Password reset token")

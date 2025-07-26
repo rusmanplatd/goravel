@@ -9,6 +9,7 @@ import (
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
+	"gorm.io/gorm"
 )
 
 type OrganizationService struct {
@@ -117,7 +118,28 @@ func (s *OrganizationService) CreateOrganization(data map[string]interface{}) (*
 		organization.PostalCode = postalCode.(string)
 	}
 	if tenantID, exists := data["tenant_id"]; exists && tenantID != nil {
-		organization.TenantID = tenantID.(string)
+		tenantIDStr := tenantID.(string)
+
+		// Validate that the tenant exists
+		var tenant models.Tenant
+		err := facades.Orm().Query().Where("id = ?", tenantIDStr).First(&tenant)
+		if err != nil || tenant.ID == "" {
+			return nil, errors.New("tenant not found")
+		}
+
+		// Check if tenant already has an organization (one-to-one relationship)
+		var existingOrg models.Organization
+		err = facades.Orm().Query().Where("tenant_id = ?", tenantIDStr).First(&existingOrg)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			// Database error (not just "record not found")
+			return nil, errors.New("error checking existing organization")
+		}
+		if err == nil {
+			// Organization found - this violates one-to-one constraint
+			return nil, errors.New("tenant already has an organization")
+		}
+
+		organization.TenantID = tenantIDStr
 	} else {
 		return nil, errors.New("tenant_id is required")
 	}
@@ -207,7 +229,31 @@ func (s *OrganizationService) UpdateOrganization(id string, data map[string]inte
 	// Handle tenant_id field (required)
 	if tenantID, exists := data["tenant_id"]; exists {
 		if tenantID != nil {
-			organization.TenantID = tenantID.(string)
+			tenantIDStr := tenantID.(string)
+
+			// Only validate if tenant_id is changing
+			if organization.TenantID != tenantIDStr {
+				// Validate that the new tenant exists
+				var tenant models.Tenant
+				err := facades.Orm().Query().Where("id = ?", tenantIDStr).First(&tenant)
+				if err != nil || tenant.ID == "" {
+					return nil, errors.New("tenant not found")
+				}
+
+				// Check if new tenant already has an organization (one-to-one relationship)
+				var existingOrg models.Organization
+				err = facades.Orm().Query().Where("tenant_id = ? AND id != ?", tenantIDStr, organization.ID).First(&existingOrg)
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					// Database error (not just "record not found")
+					return nil, errors.New("error checking existing organization")
+				}
+				if err == nil {
+					// Organization found - this violates one-to-one constraint
+					return nil, errors.New("tenant already has an organization")
+				}
+			}
+
+			organization.TenantID = tenantIDStr
 		} else {
 			return nil, errors.New("tenant_id is required")
 		}
@@ -327,6 +373,19 @@ func (s *OrganizationService) DeleteOrganization(id string) error {
 	}, "low")
 
 	return nil
+}
+
+// DeleteOrganizationByTenantID deletes an organization by tenant ID
+func (s *OrganizationService) DeleteOrganizationByTenantID(tenantID string) error {
+	organization := &models.Organization{}
+	err := facades.Orm().Query().Where("tenant_id = ?", tenantID).First(organization)
+	if err != nil {
+		// If no organization found, it's not an error for deletion
+		return nil
+	}
+
+	// Use the existing DeleteOrganization method
+	return s.DeleteOrganization(organization.ID)
 }
 
 // ListOrganizations retrieves organizations with filtering and pagination

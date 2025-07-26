@@ -127,9 +127,13 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 		})
 	}
 
+	// Generate slug from name
+	slug := helpers.GenerateSlug(name)
+
 	// Create tenant
 	tenant := models.Tenant{
 		Name:        name,
+		Slug:        slug,
 		Domain:      domain,
 		Description: description,
 		IsActive:    isActive,
