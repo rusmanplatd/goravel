@@ -10,6 +10,7 @@ import (
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
 	"goravel/app/models"
+	"goravel/app/querybuilder"
 )
 
 type DistrictController struct {
@@ -24,90 +25,51 @@ func NewDistrictController() *DistrictController {
 
 // Index returns all districts
 // @Summary Get all districts
-// @Description Retrieve a list of all districts with optional filtering and cursor-based pagination
+// @Description Retrieve a list of all districts with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags districts
 // @Accept json
 // @Produce json
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by name or code"
-// @Param is_active query bool false "Filter by active status"
-// @Param city_id query string false "Filter by city ID"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.District}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[name] query string false "Filter by name (partial match)"
+// @Param filter[code] query string false "Filter by code (partial match)"
+// @Param filter[is_active] query bool false "Filter by active status"
+// @Param filter[city_id] query string false "Filter by city ID"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("name")
+// @Param include query string false "Include relationships (comma-separated): city,city.province,city.province.country"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.District}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /districts [get]
 func (dc *DistrictController) Index(ctx http.Context) http.Response {
-	// Get query parameters
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	isActive := ctx.Request().Input("is_active", "")
-	cityID := ctx.Request().Input("city_id", "")
-
-	// Build query
-	query := facades.Orm().Query()
-
-	// Apply search filter
-	if search != "" {
-		query = query.Where("name LIKE ? OR code LIKE ?", "%"+search+"%", "%"+search+"%")
-	}
-
-	// Apply active status filter
-	if isActive != "" {
-		if isActive == "true" {
-			query = query.Where("is_active = ?", true)
-		} else if isActive == "false" {
-			query = query.Where("is_active = ?", false)
-		}
-	}
-
-	// Apply city filter
-	if cityID != "" {
-		query = query.Where("city_id = ?", cityID)
-	}
-
-	// Apply cursor-based pagination
-	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
-	if err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid cursor format",
-			Timestamp: time.Now(),
-		})
-	}
-
 	var districts []models.District
-	err = query.Find(&districts)
+
+	// Create query builder with allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.District{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("name"),
+			querybuilder.Partial("code"),
+			querybuilder.Exact("is_active"),
+			querybuilder.Exact("city_id"),
+		).
+		AllowedSorts("name", "code", "created_at", "updated_at").
+		AllowedIncludes("city", "city.province", "city.province.country").
+		DefaultSort("name")
+
+	// Use AutoPaginate for unified pagination support
+	result, err := qb.AutoPaginate(&districts)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve districts",
+			Message:   "Failed to retrieve districts: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	// Check if there are more results
-	hasMore := len(districts) > limit
-	if hasMore {
-		districts = districts[:limit] // Remove the extra item
-	}
-
-	// Build pagination info
-	paginationInfo := helpers.BuildPaginationInfo(districts, limit, cursor, hasMore)
-
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   districts,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Districts retrieved successfully", result)
 }
 
 // Show returns a specific district

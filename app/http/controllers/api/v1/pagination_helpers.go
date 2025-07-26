@@ -10,6 +10,18 @@ func getStringValue(m map[string]interface{}, key string) string {
 	return ""
 }
 
+// Helper function to get string pointer for optional fields
+func getStringPtr(m map[string]interface{}, key string) *string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			if str != "" {
+				return &str
+			}
+		}
+	}
+	return nil
+}
+
 func getBoolValue(m map[string]interface{}, key string) bool {
 	if val, ok := m[key]; ok {
 		if b, ok := val.(bool); ok {

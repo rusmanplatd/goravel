@@ -12,6 +12,7 @@ import (
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
 	"goravel/app/models"
+	"goravel/app/querybuilder"
 )
 
 type CalendarEventController struct {
@@ -24,112 +25,59 @@ func NewCalendarEventController() *CalendarEventController {
 	}
 }
 
-// Index returns all calendar events with filtering
+// Index returns all calendar events
 // @Summary Get all calendar events
-// @Description Retrieve a list of calendar events with cursor-based pagination and filtering
+// @Description Retrieve a list of all calendar events with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags calendar-events
 // @Accept json
 // @Produce json
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param start_date query string false "Start date filter (ISO 8601)"
-// @Param end_date query string false "End date filter (ISO 8601)"
-// @Param type query string false "Event type filter"
-// @Param status query string false "Event status filter"
-// @Param participant_id query string false "Filter by participant ID"
-// @Param creator_id query string false "Filter by creator ID"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.CalendarEvent}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[title] query string false "Filter by title (partial match)"
+// @Param filter[type] query string false "Filter by event type"
+// @Param filter[status] query string false "Filter by event status"
+// @Param filter[created_by] query string false "Filter by creator ID"
+// @Param filter[start_time] query string false "Filter by start time (date range)"
+// @Param filter[end_time] query string false "Filter by end time (date range)"
+// @Param filter[tenant_id] query string false "Filter by tenant ID"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): creator,tenant,participants,meeting"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.CalendarEvent}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /calendar-events [get]
 func (cec *CalendarEventController) Index(ctx http.Context) http.Response {
-	// Get query parameters
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	startDate := ctx.Request().Input("start_date", "")
-	endDate := ctx.Request().Input("end_date", "")
-	eventType := ctx.Request().Input("type", "")
-	status := ctx.Request().Input("status", "")
-	participantID := ctx.Request().Input("participant_id", "")
-	creatorID := ctx.Request().Input("creator_id", "")
-
-	// Build query
-	query := facades.Orm().Query().Model(&models.CalendarEvent{})
-
-	// Apply filters
-	if startDate != "" {
-		if parsed, err := time.Parse(time.RFC3339, startDate); err == nil {
-			query = query.Where("start_time >= ?", parsed)
-		}
-	}
-
-	if endDate != "" {
-		if parsed, err := time.Parse(time.RFC3339, endDate); err == nil {
-			query = query.Where("end_time <= ?", parsed)
-		}
-	}
-
-	if eventType != "" {
-		query = query.Where("type = ?", eventType)
-	}
-
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
-
-	if creatorID != "" {
-		query = query.Where("created_by = ?", creatorID)
-	}
-
-	if participantID != "" {
-		query = query.Join("JOIN event_participants ON calendar_events.id = event_participants.event_id").
-			Where("event_participants.user_id = ?", participantID)
-	}
-
-	// Apply cursor-based pagination
-	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
-	if err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid cursor format",
-			Timestamp: time.Now(),
-		})
-	}
-
-	// Preload relationships
-	query = query.With("Creator").With("Tenant").With("Participants.User").With("Meeting")
-
 	var events []models.CalendarEvent
-	err = query.Find(&events)
+
+	// Create query builder with allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.CalendarEvent{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("title"),
+			querybuilder.Exact("type"),
+			querybuilder.Exact("status"),
+			querybuilder.Exact("created_by"),
+			querybuilder.DateRange("start_time"),
+			querybuilder.DateRange("end_time"),
+			querybuilder.Exact("tenant_id"),
+		).
+		AllowedSorts("title", "type", "status", "start_time", "end_time", "created_at", "updated_at").
+		AllowedIncludes("creator", "tenant", "participants", "meeting").
+		DefaultSort("-created_at")
+
+	// Use AutoPaginate for unified pagination support
+	result, err := qb.AutoPaginate(&events)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve calendar events",
+			Message:   "Failed to retrieve calendar events: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	// Check if there are more results
-	hasMore := len(events) > limit
-	if hasMore {
-		events = events[:limit] // Remove the extra item
-	}
-
-	// Build pagination info
-	paginationInfo := helpers.BuildPaginationInfo(events, limit, cursor, hasMore)
-
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   events,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Calendar events retrieved successfully", result)
 }
 
 // Show returns a specific calendar event
@@ -817,8 +765,8 @@ func (cec *CalendarEventController) GetMyEvents(ctx http.Context) http.Response 
 		Status: "success",
 		Data:   events,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),

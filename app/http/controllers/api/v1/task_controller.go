@@ -8,6 +8,7 @@ import (
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
 	"goravel/app/models"
+	"goravel/app/querybuilder"
 	"goravel/app/services"
 )
 
@@ -23,91 +24,76 @@ func NewTaskController() *TaskController {
 
 // Index returns all tasks for a project
 // @Summary Get all tasks
-// @Description Retrieve a list of all tasks in a project with filtering and cursor-based pagination
+// @Description Retrieve a list of all tasks in a project with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags tasks
 // @Accept json
 // @Produce json
-// @Param organization_id path string true "Organization ID"
-// @Param id path string true "Project ID"
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by title or description"
-// @Param status query string false "Filter by task status"
-// @Param priority query string false "Filter by task priority"
-// @Param type query string false "Filter by task type"
-// @Param assignee_id query string false "Filter by assignee"
-// @Param milestone_id query string false "Filter by milestone"
-// @Param is_active query bool false "Filter by active status"
-// @Param is_archived query bool false "Filter by archived status"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.Task}
+// @Param id path string true "Organization ID"
+// @Param project_id path string true "Project ID"
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[title] query string false "Filter by title (partial match)"
+// @Param filter[description] query string false "Filter by description (partial match)"
+// @Param filter[status] query string false "Filter by task status"
+// @Param filter[priority] query string false "Filter by priority level"
+// @Param filter[type] query string false "Filter by task type"
+// @Param filter[assignee_id] query string false "Filter by assignee ID"
+// @Param filter[milestone_id] query string false "Filter by milestone ID"
+// @Param filter[is_active] query bool false "Filter by active status"
+// @Param filter[is_archived] query bool false "Filter by archived status"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): assignee,creator,project,organization,milestone,labels,comments,activities"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Task}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /organizations/{id}/projects/{project_id}/tasks [get]
 func (tc *TaskController) Index(ctx http.Context) http.Response {
 	organizationID := ctx.Request().Route("id")
 	projectID := ctx.Request().Route("project_id")
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	status := ctx.Request().Input("status", "")
-	priority := ctx.Request().Input("priority", "")
-	taskType := ctx.Request().Input("type", "")
-	assigneeID := ctx.Request().Input("assignee_id", "")
-	milestoneID := ctx.Request().Input("milestone_id", "")
-	isActive := ctx.Request().Input("is_active", "")
-	isArchived := ctx.Request().Input("is_archived", "")
 
-	// Build filters
-	filters := make(map[string]interface{})
-	filters["organization_id"] = organizationID
-	filters["project_id"] = projectID
-	if search != "" {
-		filters["search"] = search
-	}
-	if status != "" {
-		filters["status"] = status
-	}
-	if priority != "" {
-		filters["priority"] = priority
-	}
-	if taskType != "" {
-		filters["type"] = taskType
-	}
-	if assigneeID != "" {
-		filters["assignee_id"] = assigneeID
-	}
-	if milestoneID != "" {
-		filters["milestone_id"] = milestoneID
-	}
-	if isActive != "" {
-		filters["is_active"] = isActive == "true"
-	}
-	if isArchived != "" {
-		filters["is_archived"] = isArchived == "true"
-	}
+	var tasks []models.Task
 
-	// Get tasks
-	tasks, paginationInfo, err := tc.taskService.ListTasks(filters, cursor, limit)
+	// Create query builder with allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.Task{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("title"),
+			querybuilder.Partial("description"),
+			querybuilder.Exact("status"),
+			querybuilder.Exact("priority"),
+			querybuilder.Exact("type"),
+			querybuilder.Exact("assignee_id"),
+			querybuilder.Exact("milestone_id"),
+			querybuilder.Exact("is_active"),
+			querybuilder.Exact("is_archived"),
+			querybuilder.Exact("organization_id"),
+			querybuilder.Exact("project_id"),
+		).
+		AllowedSorts("title", "status", "priority", "type", "due_date", "created_at", "updated_at").
+		AllowedIncludes("assignee", "creator", "project", "organization", "milestone", "labels", "comments", "activities").
+		DefaultSort("-created_at")
+
+	// Apply path constraints to the base query
+	query := qb.Build().
+		Where("organization_id = ?", organizationID).
+		Where("project_id = ?", projectID)
+
+	// Create a new query builder with the constrained query
+	constrainedQB := querybuilder.For(query).WithRequest(ctx)
+
+	// Use AutoPaginate for unified pagination support
+	result, err := constrainedQB.AutoPaginate(&tasks)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve tasks",
+			Message:   "Failed to retrieve tasks: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   tasks,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Tasks retrieved successfully", result)
 }
 
 // Show returns a specific task

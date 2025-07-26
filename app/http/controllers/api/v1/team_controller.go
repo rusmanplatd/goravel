@@ -7,6 +7,8 @@ import (
 
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
+	"goravel/app/models"
+	"goravel/app/querybuilder"
 	"goravel/app/services"
 )
 
@@ -22,68 +24,63 @@ func NewTeamController() *TeamController {
 
 // Index returns all teams for an organization
 // @Summary Get all teams
-// @Description Retrieve a list of all teams in an organization with filtering and cursor-based pagination
+// @Description Retrieve a list of all teams in an organization with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags teams
 // @Accept json
 // @Produce json
 // @Param organization_id path string true "Organization ID"
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by name or description"
-// @Param type query string false "Filter by team type"
-// @Param is_active query bool false "Filter by active status"
-// @Param department_id query string false "Filter by department"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.Team}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[name] query string false "Filter by name (partial match)"
+// @Param filter[description] query string false "Filter by description (partial match)"
+// @Param filter[type] query string false "Filter by team type"
+// @Param filter[is_active] query bool false "Filter by active status"
+// @Param filter[department_id] query string false "Filter by department ID"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): organization,department,users,projects"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Team}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /organizations/{organization_id}/teams [get]
 func (tc *TeamController) Index(ctx http.Context) http.Response {
 	organizationID := ctx.Request().Route("organization_id")
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	teamType := ctx.Request().Input("type", "")
-	isActive := ctx.Request().Input("is_active", "")
-	departmentID := ctx.Request().Input("department_id", "")
 
-	// Build filters
-	filters := make(map[string]interface{})
-	filters["organization_id"] = organizationID
-	if search != "" {
-		filters["search"] = search
-	}
-	if teamType != "" {
-		filters["type"] = teamType
-	}
-	if isActive != "" {
-		filters["is_active"] = isActive == "true"
-	}
-	if departmentID != "" {
-		filters["department_id"] = departmentID
-	}
+	var teams []models.Team
 
-	// Get teams
-	teams, paginationInfo, err := tc.organizationService.ListTeams(filters, cursor, limit)
+	// Create query builder with allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.Team{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("name"),
+			querybuilder.Partial("description"),
+			querybuilder.Exact("type"),
+			querybuilder.Exact("is_active"),
+			querybuilder.Exact("department_id"),
+			querybuilder.Exact("organization_id"),
+		).
+		AllowedSorts("name", "type", "created_at", "updated_at").
+		AllowedIncludes("organization", "department", "users", "projects").
+		DefaultSort("-created_at")
+
+	// Apply organization constraint to the base query
+	query := qb.Build().Where("organization_id = ?", organizationID)
+
+	// Create a new query builder with the constrained query
+	constrainedQB := querybuilder.For(query).WithRequest(ctx)
+
+	// Use AutoPaginate for unified pagination support
+	result, err := constrainedQB.AutoPaginate(&teams)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve teams",
+			Message:   "Failed to retrieve teams: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   teams,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Teams retrieved successfully", result)
 }
 
 // Show returns a specific team
@@ -391,8 +388,8 @@ func (tc *TeamController) Users(ctx http.Context) http.Response {
 		Status: "success",
 		Data:   users,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),

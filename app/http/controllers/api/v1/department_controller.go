@@ -7,6 +7,8 @@ import (
 
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
+	"goravel/app/models"
+	"goravel/app/querybuilder"
 	"goravel/app/services"
 )
 
@@ -22,63 +24,61 @@ func NewDepartmentController() *DepartmentController {
 
 // Index returns all departments for an organization
 // @Summary Get all departments
-// @Description Retrieve a list of all departments in an organization with filtering and cursor-based pagination
+// @Description Retrieve a list of all departments in an organization with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags departments
 // @Accept json
 // @Produce json
 // @Param organization_id path string true "Organization ID"
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by name or description"
-// @Param is_active query bool false "Filter by active status"
-// @Param parent_department_id query string false "Filter by parent department"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.Department}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[name] query string false "Filter by name (partial match)"
+// @Param filter[description] query string false "Filter by description (partial match)"
+// @Param filter[is_active] query bool false "Filter by active status"
+// @Param filter[parent_department_id] query string false "Filter by parent department"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): organization,parent,children,users,teams"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Department}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /organizations/{organization_id}/departments [get]
 func (dc *DepartmentController) Index(ctx http.Context) http.Response {
 	organizationID := ctx.Request().Route("organization_id")
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	isActive := ctx.Request().Input("is_active", "")
-	parentDeptID := ctx.Request().Input("parent_department_id", "")
 
-	// Build filters
-	filters := make(map[string]interface{})
-	filters["organization_id"] = organizationID
-	if search != "" {
-		filters["search"] = search
-	}
-	if isActive != "" {
-		filters["is_active"] = isActive == "true"
-	}
-	if parentDeptID != "" {
-		filters["parent_department_id"] = parentDeptID
-	}
+	var departments []models.Department
 
-	// Get departments
-	departments, paginationInfo, err := dc.organizationService.ListDepartments(filters, cursor, limit)
+	// Create query builder with allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.Department{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("name"),
+			querybuilder.Partial("description"),
+			querybuilder.Exact("is_active"),
+			querybuilder.Exact("parent_department_id"),
+			querybuilder.Exact("organization_id"),
+		).
+		AllowedSorts("name", "created_at", "updated_at").
+		AllowedIncludes("organization", "parent", "children", "users", "teams").
+		DefaultSort("-created_at")
+
+	// Apply organization constraint to the base query
+	query := qb.Build().Where("organization_id = ?", organizationID)
+
+	// Create a new query builder with the constrained query
+	constrainedQB := querybuilder.For(query).WithRequest(ctx)
+
+	// Use AutoPaginate for unified pagination support
+	result, err := constrainedQB.AutoPaginate(&departments)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve departments",
+			Message:   "Failed to retrieve departments: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   departments,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Departments retrieved successfully", result)
 }
 
 // Show returns a specific department
@@ -383,8 +383,8 @@ func (dc *DepartmentController) Users(ctx http.Context) http.Response {
 		Status: "success",
 		Data:   users,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),

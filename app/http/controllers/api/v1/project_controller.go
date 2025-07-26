@@ -7,6 +7,8 @@ import (
 
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
+	"goravel/app/models"
+	"goravel/app/querybuilder"
 	"goravel/app/services"
 )
 
@@ -22,68 +24,63 @@ func NewProjectController() *ProjectController {
 
 // Index returns all projects for an organization
 // @Summary Get all projects
-// @Description Retrieve a list of all projects in an organization with filtering and cursor-based pagination
+// @Description Retrieve a list of all projects in an organization with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags projects
 // @Accept json
 // @Produce json
 // @Param organization_id path string true "Organization ID"
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by name or description"
-// @Param status query string false "Filter by project status"
-// @Param priority query string false "Filter by project priority"
-// @Param is_active query bool false "Filter by active status"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.Project}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[name] query string false "Filter by name (partial match)"
+// @Param filter[description] query string false "Filter by description (partial match)"
+// @Param filter[status] query string false "Filter by project status"
+// @Param filter[priority] query string false "Filter by priority level"
+// @Param filter[is_active] query bool false "Filter by active status"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): organization,teams,users,tasks,milestones"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Project}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /organizations/{organization_id}/projects [get]
 func (pc *ProjectController) Index(ctx http.Context) http.Response {
 	organizationID := ctx.Request().Route("organization_id")
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	status := ctx.Request().Input("status", "")
-	priority := ctx.Request().Input("priority", "")
-	isActive := ctx.Request().Input("is_active", "")
 
-	// Build filters
-	filters := make(map[string]interface{})
-	filters["organization_id"] = organizationID
-	if search != "" {
-		filters["search"] = search
-	}
-	if status != "" {
-		filters["status"] = status
-	}
-	if priority != "" {
-		filters["priority"] = priority
-	}
-	if isActive != "" {
-		filters["is_active"] = isActive == "true"
-	}
+	var projects []models.Project
 
-	// Get projects
-	projects, paginationInfo, err := pc.organizationService.ListProjects(filters, cursor, limit)
+	// Create query builder with allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.Project{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("name"),
+			querybuilder.Partial("description"),
+			querybuilder.Exact("status"),
+			querybuilder.Exact("priority"),
+			querybuilder.Exact("is_active"),
+			querybuilder.Exact("organization_id"),
+		).
+		AllowedSorts("name", "status", "priority", "start_date", "end_date", "created_at", "updated_at").
+		AllowedIncludes("organization", "teams", "users", "tasks", "milestones").
+		DefaultSort("-created_at")
+
+	// Apply organization constraint to the base query
+	query := qb.Build().Where("organization_id = ?", organizationID)
+
+	// Create a new query builder with the constrained query
+	constrainedQB := querybuilder.For(query).WithRequest(ctx)
+
+	// Use AutoPaginate for unified pagination support
+	result, err := constrainedQB.AutoPaginate(&projects)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve projects",
+			Message:   "Failed to retrieve projects: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   projects,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Projects retrieved successfully", result)
 }
 
 // Show returns a specific project
@@ -397,8 +394,8 @@ func (pc *ProjectController) Users(ctx http.Context) http.Response {
 		Status: "success",
 		Data:   users,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
@@ -601,8 +598,8 @@ func (pc *ProjectController) Teams(ctx http.Context) http.Response {
 		Status: "success",
 		Data:   teams,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),

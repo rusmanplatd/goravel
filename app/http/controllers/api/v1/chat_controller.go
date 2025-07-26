@@ -326,8 +326,8 @@ func (cc *ChatController) GetMessages(ctx http.Context) http.Response {
 		Status: "success",
 		Data:   messages,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),

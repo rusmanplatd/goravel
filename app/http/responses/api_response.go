@@ -27,7 +27,7 @@ type APIResponse struct {
 }
 
 // PaginatedResponse represents a paginated API response
-// @Description Paginated API response format
+// @Description Paginated API response format with unified pagination support
 type PaginatedResponse struct {
 	// Response status
 	// @example success
@@ -48,10 +48,32 @@ type PaginatedResponse struct {
 	Timestamp time.Time `json:"timestamp" example:"2024-01-15T10:30:00Z"`
 }
 
+// QueryBuilderResponse represents a response using QueryBuilder's unified pagination
+// @Description Response format for QueryBuilder AutoPaginate results
+type QueryBuilderResponse struct {
+	// Response status
+	// @example success
+	Status string `json:"status" example:"success"`
+
+	// Response message
+	// @example Data retrieved successfully
+	Message string `json:"message,omitempty" example:"Data retrieved successfully"`
+
+	// Response data (embedded from UnifiedPaginationResult)
+	Data interface{} `json:"data,omitempty"`
+
+	// Pagination information (embedded from UnifiedPaginationResult)
+	Pagination *PaginationInfo `json:"pagination,omitempty"`
+
+	// Response timestamp
+	// @example 2024-01-15T10:30:00Z
+	Timestamp time.Time `json:"timestamp" example:"2024-01-15T10:30:00Z"`
+}
+
 // PaginationInfo represents pagination metadata
-// @Description Pagination metadata for querybuilder responses with support for both offset and cursor pagination
+// @Description Unified pagination metadata supporting both offset and cursor pagination
 type PaginationInfo struct {
-	// Type of pagination used
+	// Type of pagination used (offset, cursor, or simple)
 	// @example offset
 	Type string `json:"type" example:"offset"`
 

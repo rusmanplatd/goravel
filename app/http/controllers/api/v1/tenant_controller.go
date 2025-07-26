@@ -10,6 +10,7 @@ import (
 	"goravel/app/helpers"
 	"goravel/app/http/responses"
 	"goravel/app/models"
+	"goravel/app/querybuilder"
 )
 
 type TenantController struct{}
@@ -20,83 +21,49 @@ func NewTenantController() *TenantController {
 
 // Index returns all tenants
 // @Summary Get all tenants
-// @Description Retrieve a list of all tenants with cursor-based pagination
+// @Description Retrieve a list of all tenants with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags tenants
 // @Accept json
 // @Produce json
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by name or domain"
-// @Param is_active query bool false "Filter by active status"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.Tenant}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[name] query string false "Filter by name (partial match)"
+// @Param filter[domain] query string false "Filter by domain (partial match)"
+// @Param filter[is_active] query bool false "Filter by active status"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): users,roles"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Tenant}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /tenants [get]
 func (tc *TenantController) Index(ctx http.Context) http.Response {
-	// Get query parameters
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	isActive := ctx.Request().Input("is_active", "")
-
-	// Build query
-	query := facades.Orm().Query()
-
-	// Apply search filter
-	if search != "" {
-		query = query.Where("name LIKE ? OR domain LIKE ?", "%"+search+"%", "%"+search+"%")
-	}
-
-	// Apply active status filter
-	if isActive != "" {
-		if isActive == "true" {
-			query = query.Where("is_active = ?", true)
-		} else if isActive == "false" {
-			query = query.Where("is_active = ?", false)
-		}
-	}
-
-	// Apply cursor-based pagination
-	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
-	if err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid cursor format",
-			Timestamp: time.Now(),
-		})
-	}
-
 	var tenants []models.Tenant
-	err = query.Find(&tenants)
+
+	// Create query builder with allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.Tenant{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("name"),
+			querybuilder.Partial("domain"),
+			querybuilder.Exact("is_active"),
+		).
+		AllowedSorts("name", "domain", "created_at", "updated_at").
+		AllowedIncludes("users", "roles").
+		DefaultSort("-created_at")
+
+	// Use AutoPaginate for unified pagination support
+	result, err := qb.AutoPaginate(&tenants)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve tenants",
+			Message:   "Failed to retrieve tenants: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	// Check if there are more results
-	hasMore := len(tenants) > limit
-	if hasMore {
-		tenants = tenants[:limit] // Remove the extra item
-	}
-
-	// Build pagination info
-	paginationInfo := helpers.BuildPaginationInfo(tenants, limit, cursor, hasMore)
-
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   tenants,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Tenants retrieved successfully", result)
 }
 
 // Show returns a specific tenant

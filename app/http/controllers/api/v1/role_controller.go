@@ -6,9 +6,9 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
-	"goravel/app/helpers"
 	"goravel/app/http/responses"
 	"goravel/app/models"
+	"goravel/app/querybuilder"
 )
 
 type RoleController struct{}
@@ -17,17 +17,22 @@ func NewRoleController() *RoleController {
 	return &RoleController{}
 }
 
-// Index returns all roles for a tenant
+// Index returns all roles for the current tenant
 // @Summary Get all roles
-// @Description Retrieve a list of all roles with cursor-based pagination
+// @Description Retrieve a list of all roles for the current tenant with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags roles
 // @Accept json
 // @Produce json
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by name"
-// @Param is_active query bool false "Filter by active status"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.Role}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[name] query string false "Filter by name (partial match)"
+// @Param filter[is_active] query bool false "Filter by active status"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): permissions,users,tenant"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Role}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /roles [get]
 func (rc *RoleController) Index(ctx http.Context) http.Response {
@@ -40,71 +45,37 @@ func (rc *RoleController) Index(ctx http.Context) http.Response {
 		})
 	}
 
-	// Get query parameters
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	isActive := ctx.Request().Input("is_active", "")
-
-	// Build query
-	query := facades.Orm().Query().Where("tenant_id = ?", tenantID)
-
-	// Apply search filter
-	if search != "" {
-		query = query.Where("name LIKE ?", "%"+search+"%")
-	}
-
-	// Apply active status filter
-	if isActive != "" {
-		if isActive == "true" {
-			query = query.Where("is_active = ?", true)
-		} else if isActive == "false" {
-			query = query.Where("is_active = ?", false)
-		}
-	}
-
-	// Apply cursor-based pagination
-	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
-	if err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid cursor format",
-			Timestamp: time.Now(),
-		})
-	}
-
 	var roles []models.Role
-	err = query.Find(&roles)
+
+	// Create query builder with tenant context and allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.Role{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("name"),
+			querybuilder.Exact("is_active"),
+			querybuilder.Exact("tenant_id"),
+		).
+		AllowedSorts("name", "created_at", "updated_at").
+		AllowedIncludes("permissions", "users", "tenant").
+		DefaultSort("-created_at")
+
+	// Apply tenant constraint to the base query
+	query := qb.Build().Where("tenant_id = ?", tenantID)
+
+	// Create a new query builder with the constrained query
+	constrainedQB := querybuilder.For(query).WithRequest(ctx)
+
+	// Use AutoPaginate for unified pagination support
+	result, err := constrainedQB.AutoPaginate(&roles)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve roles",
+			Message:   "Failed to retrieve roles: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	// Check if there are more results
-	hasMore := len(roles) > limit
-	if hasMore {
-		roles = roles[:limit] // Remove the extra item
-	}
-
-	// Build pagination info
-	paginationInfo := helpers.BuildPaginationInfo(roles, limit, cursor, hasMore)
-
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   roles,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Roles retrieved successfully", result)
 }
 
 // Show returns a specific role

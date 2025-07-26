@@ -10,6 +10,7 @@ import (
 	"goravel/app/helpers"
 	"goravel/app/http/responses"
 	"goravel/app/models"
+	"goravel/app/querybuilder"
 )
 
 type ActivityLogController struct {
@@ -22,15 +23,24 @@ func NewActivityLogController() *ActivityLogController {
 	}
 }
 
-// Index returns all activity logs for a tenant
+// Index returns all activity logs for the current tenant
 // @Summary Get all activity logs
-// @Description Retrieve a list of all activity logs with cursor-based pagination
+// @Description Retrieve a list of all activity logs for the current tenant with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags activity-logs
 // @Accept json
 // @Produce json
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.ActivityLog}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[action] query string false "Filter by action (partial match)"
+// @Param filter[subject_type] query string false "Filter by subject type"
+// @Param filter[causer_type] query string false "Filter by causer type"
+// @Param filter[causer_id] query string false "Filter by causer ID"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): causer,subject,tenant"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.ActivityLog}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /activity-logs [get]
 func (alc *ActivityLogController) Index(ctx http.Context) http.Response {
@@ -43,55 +53,39 @@ func (alc *ActivityLogController) Index(ctx http.Context) http.Response {
 		})
 	}
 
-	// Get query parameters
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-
-	// Build query
-	query := facades.Orm().Query().Where("tenant_id = ?", tenantID)
-
-	// Apply cursor-based pagination
-	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
-	if err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid cursor format",
-			Timestamp: time.Now(),
-		})
-	}
-
 	var activities []models.ActivityLog
-	err = query.Find(&activities)
+
+	// Create query builder with tenant context and allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.ActivityLog{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("action"),
+			querybuilder.Exact("subject_type"),
+			querybuilder.Exact("causer_type"),
+			querybuilder.Exact("causer_id"),
+			querybuilder.Exact("tenant_id"),
+		).
+		AllowedSorts("action", "subject_type", "causer_type", "created_at", "updated_at").
+		AllowedIncludes("causer", "subject", "tenant").
+		DefaultSort("-created_at")
+
+	// Apply tenant constraint to the base query
+	query := qb.Build().Where("tenant_id = ?", tenantID)
+
+	// Create a new query builder with the constrained query
+	constrainedQB := querybuilder.For(query).WithRequest(ctx)
+
+	// Use AutoPaginate for unified pagination support
+	result, err := constrainedQB.AutoPaginate(&activities)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve activity logs",
+			Message:   "Failed to retrieve activity logs: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	// Check if there are more results
-	hasMore := len(activities) > limit
-	if hasMore {
-		activities = activities[:limit] // Remove the extra item
-	}
-
-	// Build pagination info
-	paginationInfo := helpers.BuildPaginationInfo(activities, limit, cursor, hasMore)
-
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   activities,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Activity logs retrieved successfully", result)
 }
 
 // Show returns a specific activity log
@@ -192,8 +186,8 @@ func (alc *ActivityLogController) GetActivitiesForSubject(ctx http.Context) http
 		Status: "success",
 		Data:   activities,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
@@ -271,8 +265,8 @@ func (alc *ActivityLogController) GetActivitiesForCauser(ctx http.Context) http.
 		Status: "success",
 		Data:   activities,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
@@ -348,8 +342,8 @@ func (alc *ActivityLogController) GetActivitiesByLogName(ctx http.Context) http.
 		Status: "success",
 		Data:   activities,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
@@ -445,8 +439,8 @@ func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) htt
 		Status: "success",
 		Data:   activities,
 		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
+			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
+			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
 			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),

@@ -6,9 +6,9 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
-	"goravel/app/helpers"
 	"goravel/app/http/responses"
 	"goravel/app/models"
+	"goravel/app/querybuilder"
 )
 
 type PermissionController struct{}
@@ -17,17 +17,22 @@ func NewPermissionController() *PermissionController {
 	return &PermissionController{}
 }
 
-// Index returns all permissions for a tenant
+// Index returns all permissions for the current tenant
 // @Summary Get all permissions
-// @Description Retrieve a list of all permissions with cursor-based pagination
+// @Description Retrieve a list of all permissions for the current tenant with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags permissions
 // @Accept json
 // @Produce json
-// @Param cursor query string false "Cursor for pagination"
-// @Param limit query int false "Items per page" default(10)
-// @Param search query string false "Search by name"
-// @Param guard query string false "Filter by guard"
-// @Success 200 {object} responses.PaginatedResponse{data=[]models.Permission}
+// @Param pagination_type query string false "Pagination type: offset or cursor" Enums(offset,cursor) default(offset)
+// @Param page query int false "Page number for offset pagination" default(1)
+// @Param cursor query string false "Cursor for cursor pagination"
+// @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
+// @Param filter[name] query string false "Filter by name (partial match)"
+// @Param filter[guard] query string false "Filter by guard name"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
+// @Param include query string false "Include relationships (comma-separated): roles,users,tenant"
+// @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Permission}
+// @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /permissions [get]
 func (pc *PermissionController) Index(ctx http.Context) http.Response {
@@ -40,67 +45,37 @@ func (pc *PermissionController) Index(ctx http.Context) http.Response {
 		})
 	}
 
-	// Get query parameters
-	cursor := ctx.Request().Input("cursor", "")
-	limit := ctx.Request().InputInt("limit", 10)
-	search := ctx.Request().Input("search", "")
-	guard := ctx.Request().Input("guard", "")
-
-	// Build query
-	query := facades.Orm().Query().Where("tenant_id = ?", tenantID)
-
-	// Apply search filter
-	if search != "" {
-		query = query.Where("name LIKE ?", "%"+search+"%")
-	}
-
-	// Apply guard filter
-	if guard != "" {
-		query = query.Where("guard = ?", guard)
-	}
-
-	// Apply cursor-based pagination
-	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
-	if err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid cursor format",
-			Timestamp: time.Now(),
-		})
-	}
-
 	var permissions []models.Permission
-	err = query.Find(&permissions)
+
+	// Create query builder with tenant context and allowed filters, sorts, and includes
+	qb := querybuilder.For(&models.Permission{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Partial("name"),
+			querybuilder.Exact("guard"),
+			querybuilder.Exact("tenant_id"),
+		).
+		AllowedSorts("name", "guard", "created_at", "updated_at").
+		AllowedIncludes("roles", "users", "tenant").
+		DefaultSort("-created_at")
+
+	// Apply tenant constraint to the base query
+	query := qb.Build().Where("tenant_id = ?", tenantID)
+
+	// Create a new query builder with the constrained query
+	constrainedQB := querybuilder.For(query).WithRequest(ctx)
+
+	// Use AutoPaginate for unified pagination support
+	result, err := constrainedQB.AutoPaginate(&permissions)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve permissions",
+			Message:   "Failed to retrieve permissions: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	// Check if there are more results
-	hasMore := len(permissions) > limit
-	if hasMore {
-		permissions = permissions[:limit] // Remove the extra item
-	}
-
-	// Build pagination info
-	paginationInfo := helpers.BuildPaginationInfo(permissions, limit, cursor, hasMore)
-
-	return ctx.Response().Success().Json(responses.PaginatedResponse{
-		Status: "success",
-		Data:   permissions,
-		Pagination: responses.PaginationInfo{
-			NextCursor: getStringValue(paginationInfo, "next_cursor"),
-			PrevCursor: getStringValue(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
-		},
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Permissions retrieved successfully", result)
 }
 
 // Show returns a specific permission
