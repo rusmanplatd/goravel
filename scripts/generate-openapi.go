@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -60,6 +61,7 @@ type Operation struct {
 	RequestBody *RequestBody          `json:"requestBody,omitempty" yaml:"requestBody,omitempty"`
 	Responses   map[string]Response   `json:"responses" yaml:"responses"`
 	Security    []map[string][]string `json:"security,omitempty" yaml:"security,omitempty"`
+	Deprecated  bool                  `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`
 }
 
 type Parameter struct {
@@ -104,6 +106,8 @@ type Schema struct {
 	ReadOnly    bool              `json:"readOnly,omitempty" yaml:"readOnly,omitempty"`
 	WriteOnly   bool              `json:"writeOnly,omitempty" yaml:"writeOnly,omitempty"`
 	Deprecated  bool              `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`
+	Minimum     *float64          `json:"minimum,omitempty" yaml:"minimum,omitempty"`
+	Maximum     *float64          `json:"maximum,omitempty" yaml:"maximum,omitempty"`
 }
 
 type Components struct {
@@ -115,12 +119,20 @@ type Components struct {
 }
 
 type SecurityScheme struct {
-	Type         string `json:"type" yaml:"type"`
-	Description  string `json:"description,omitempty" yaml:"description,omitempty"`
-	Name         string `json:"name,omitempty" yaml:"name,omitempty"`
-	In           string `json:"in,omitempty" yaml:"in,omitempty"`
-	Scheme       string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-	BearerFormat string `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
+	Type         string                `json:"type" yaml:"type"`
+	Description  string                `json:"description,omitempty" yaml:"description,omitempty"`
+	Name         string                `json:"name,omitempty" yaml:"name,omitempty"`
+	In           string                `json:"in,omitempty" yaml:"in,omitempty"`
+	Scheme       string                `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	BearerFormat string                `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
+	Flows        map[string]OAuth2Flow `json:"flows,omitempty" yaml:"flows,omitempty"`
+}
+
+type OAuth2Flow struct {
+	AuthorizationURL string            `json:"authorizationUrl,omitempty" yaml:"authorizationUrl,omitempty"`
+	TokenURL         string            `json:"tokenUrl,omitempty" yaml:"tokenUrl,omitempty"`
+	RefreshURL       string            `json:"refreshUrl,omitempty" yaml:"refreshUrl,omitempty"`
+	Scopes           map[string]string `json:"scopes" yaml:"scopes"`
 }
 
 type Tag struct {
@@ -139,6 +151,10 @@ type RouteInfo struct {
 	RequestBody *RequestBody
 	Responses   map[string]Response
 	Tags        []string
+	Security    []map[string][]string
+	OperationID string
+	Deprecated  bool
+	IsPublic    bool
 }
 
 type StructInfo struct {
@@ -168,6 +184,29 @@ type HandlerMethodInfo struct {
 type TagInfo struct {
 	Name        string
 	Description string
+}
+
+// AnnotationInfo holds parsed OpenAPI annotation data from controller methods
+type AnnotationInfo struct {
+	Summary     string
+	Description string
+	Tags        []string
+	Parameters  []Parameter
+	RequestBody *RequestBody
+	Responses   map[string]Response
+	Router      RouterInfo
+	Accept      []string
+	Produce     []string
+	Security    []map[string][]string
+	Deprecated  bool
+	OperationID string
+	IsPublic    bool
+}
+
+// RouterInfo holds parsed @Router annotation data
+type RouterInfo struct {
+	Path   string
+	Method string
 }
 
 // QueryBuilderInfo holds information about querybuilder usage in a controller
@@ -235,6 +274,377 @@ func CollectTagsFromControllers(controllerDir string) []Tag {
 	return tags
 }
 
+// parseOpenAPIAnnotations extracts OpenAPI annotations from controller method comments
+func parseOpenAPIAnnotations(controllerFile, methodName string) *AnnotationInfo {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, controllerFile, nil, parser.ParseComments)
+	if err != nil {
+		return nil
+	}
+
+	var annotation *AnnotationInfo
+	ast.Inspect(node, func(n ast.Node) bool {
+		if fn, ok := n.(*ast.FuncDecl); ok && fn.Name.Name == methodName {
+			if fn.Doc != nil {
+				annotation = parseAnnotationsFromComments(fn.Doc.List)
+			}
+			return false
+		}
+		return true
+	})
+	return annotation
+}
+
+// parseAnnotationsFromComments parses OpenAPI annotations from comment lines
+func parseAnnotationsFromComments(comments []*ast.Comment) *AnnotationInfo {
+	annotation := &AnnotationInfo{
+		Parameters: []Parameter{},
+		Responses:  make(map[string]Response),
+		Accept:     []string{},
+		Produce:    []string{},
+		Security:   []map[string][]string{},
+	}
+
+	fullComment := ""
+	for _, comment := range comments {
+		fullComment += comment.Text + "\n"
+	}
+
+	// Parse @Summary
+	if re := regexp.MustCompile(`@Summary\s+(.+)`); re.MatchString(fullComment) {
+		if matches := re.FindStringSubmatch(fullComment); len(matches) > 1 {
+			annotation.Summary = strings.TrimSpace(matches[1])
+		}
+	}
+
+	// Parse @Description (can be multi-line)
+	if re := regexp.MustCompile(`@Description\s+([\s\S]*?)(?:@\w+|$)`); re.MatchString(fullComment) {
+		if matches := re.FindStringSubmatch(fullComment); len(matches) > 1 {
+			desc := strings.TrimSpace(matches[1])
+			desc = strings.ReplaceAll(desc, "//", "")
+			desc = strings.TrimSpace(desc)
+			annotation.Description = desc
+		}
+	}
+
+	// Parse @Tags
+	if re := regexp.MustCompile(`@Tags\s+([\w\-, ]+)`); re.MatchString(fullComment) {
+		if matches := re.FindStringSubmatch(fullComment); len(matches) > 1 {
+			tags := strings.Split(strings.TrimSpace(matches[1]), ",")
+			for i := range tags {
+				tags[i] = strings.TrimSpace(tags[i])
+			}
+			annotation.Tags = tags
+		}
+	}
+
+	// Parse @Accept (also supports @Consumes)
+	acceptRe := regexp.MustCompile(`@(?:Accept|Consumes)\s+([\w\-, /]+)`)
+	if acceptRe.MatchString(fullComment) {
+		if matches := acceptRe.FindStringSubmatch(fullComment); len(matches) > 1 {
+			accepts := strings.Split(strings.TrimSpace(matches[1]), ",")
+			for i := range accepts {
+				accepts[i] = strings.TrimSpace(accepts[i])
+				if accepts[i] == "json" {
+					accepts[i] = "application/json"
+				} else if accepts[i] == "xml" {
+					accepts[i] = "application/xml"
+				} else if accepts[i] == "form" {
+					accepts[i] = "application/x-www-form-urlencoded"
+				} else if accepts[i] == "multipart" {
+					accepts[i] = "multipart/form-data"
+				}
+			}
+			annotation.Accept = accepts
+		}
+	}
+
+	// Parse @Produce
+	if re := regexp.MustCompile(`@Produce\s+([\w\-, /]+)`); re.MatchString(fullComment) {
+		if matches := re.FindStringSubmatch(fullComment); len(matches) > 1 {
+			produces := strings.Split(strings.TrimSpace(matches[1]), ",")
+			for i := range produces {
+				produces[i] = strings.TrimSpace(produces[i])
+				if produces[i] == "json" {
+					produces[i] = "application/json"
+				} else if produces[i] == "xml" {
+					produces[i] = "application/xml"
+				} else if produces[i] == "html" {
+					produces[i] = "text/html"
+				} else if produces[i] == "plain" {
+					produces[i] = "text/plain"
+				}
+			}
+			annotation.Produce = produces
+		}
+	}
+
+	// Parse @Security
+	securityRe := regexp.MustCompile(`@Security\s+(\w+)(?:\s+\[([^\]]*)\])?`)
+	securityMatches := securityRe.FindAllStringSubmatch(fullComment, -1)
+	for _, match := range securityMatches {
+		if len(match) >= 2 {
+			securityScheme := strings.TrimSpace(match[1])
+			var scopes []string
+			if len(match) > 2 && match[2] != "" {
+				scopes = strings.Split(strings.TrimSpace(match[2]), ",")
+				for i := range scopes {
+					scopes[i] = strings.TrimSpace(scopes[i])
+				}
+			}
+			annotation.Security = append(annotation.Security, map[string][]string{
+				securityScheme: scopes,
+			})
+		}
+	}
+
+	// Parse @Deprecated
+	if strings.Contains(fullComment, "@Deprecated") || strings.Contains(fullComment, "@deprecated") {
+		annotation.Deprecated = true
+	}
+
+	// Parse @Public (marks endpoint as not requiring authentication)
+	if strings.Contains(fullComment, "@Public") || strings.Contains(fullComment, "@public") {
+		annotation.IsPublic = true
+	}
+
+	// Parse @ID (operationId)
+	if re := regexp.MustCompile(`@ID\s+(\w+)`); re.MatchString(fullComment) {
+		if matches := re.FindStringSubmatch(fullComment); len(matches) > 1 {
+			annotation.OperationID = strings.TrimSpace(matches[1])
+		}
+	}
+
+	// Parse @Router
+	if re := regexp.MustCompile(`@Router\s+([^\s]+)\s+\[(\w+)\]`); re.MatchString(fullComment) {
+		if matches := re.FindStringSubmatch(fullComment); len(matches) > 2 {
+			annotation.Router = RouterInfo{
+				Path:   strings.TrimSpace(matches[1]),
+				Method: strings.ToUpper(strings.TrimSpace(matches[2])),
+			}
+		}
+	}
+
+	// Parse @Param annotations with enhanced support
+	paramRe := regexp.MustCompile(`@Param\s+(\w+)\s+(\w+)\s+(\w+)\s+(true|false)\s+"([^"]*)"(?:\s+(.+))?`)
+	paramMatches := paramRe.FindAllStringSubmatch(fullComment, -1)
+	for _, match := range paramMatches {
+		if len(match) >= 6 {
+			param := Parameter{
+				Name:        match[1],
+				In:          match[2],
+				Description: match[5],
+				Required:    match[4] == "true",
+				Schema:      Schema{Type: match[3]},
+			}
+
+			// Parse additional schema properties from the optional part
+			if len(match) > 6 && match[6] != "" {
+				parseParameterExtras(&param, match[6])
+			}
+
+			annotation.Parameters = append(annotation.Parameters, param)
+		}
+	}
+
+	// Parse @Success and @Failure annotations with enhanced support
+	responseRe := regexp.MustCompile(`@(Success|Failure)\s+(\d+)\s+\{object\}\s+([^}\s]+(?:\{[^}]*\})?)\s*(?:"([^"]*)")?`)
+	responseMatches := responseRe.FindAllStringSubmatch(fullComment, -1)
+	for _, match := range responseMatches {
+		if len(match) >= 4 {
+			statusCode := match[2]
+			schemaRef := match[3]
+			description := "Success"
+			if match[1] == "Failure" {
+				description = "Error"
+			}
+			if len(match) > 4 && match[4] != "" {
+				description = match[4]
+			}
+
+			// Convert schema reference to proper format
+			if !strings.HasPrefix(schemaRef, "#/components/schemas/") {
+				// Handle complex schema references like responses.APIResponse{data=models.User}
+				if strings.Contains(schemaRef, "{") {
+					// For now, use the base type
+					schemaRef = strings.Split(schemaRef, "{")[0]
+				}
+				// Convert package.Type to just Type
+				if strings.Contains(schemaRef, ".") {
+					parts := strings.Split(schemaRef, ".")
+					schemaRef = parts[len(parts)-1]
+				}
+				schemaRef = "#/components/schemas/" + schemaRef
+			}
+
+			response := Response{
+				Description: description,
+				Content: map[string]MediaType{
+					"application/json": {
+						Schema: Schema{Ref: schemaRef},
+					},
+				},
+			}
+			annotation.Responses[statusCode] = response
+		}
+	}
+
+	// Parse request body from @Param with body type
+	for _, param := range annotation.Parameters {
+		if param.In == "body" {
+			schemaRef := param.Schema.Type
+			if !strings.HasPrefix(schemaRef, "#/components/schemas/") {
+				// Convert package.Type to just Type
+				if strings.Contains(schemaRef, ".") {
+					parts := strings.Split(schemaRef, ".")
+					schemaRef = parts[len(parts)-1]
+				}
+				schemaRef = "#/components/schemas/" + schemaRef
+			}
+
+			contentType := "application/json"
+			if len(annotation.Accept) > 0 {
+				contentType = annotation.Accept[0]
+			}
+
+			annotation.RequestBody = &RequestBody{
+				Description: param.Description,
+				Required:    param.Required,
+				Content: map[string]MediaType{
+					contentType: {
+						Schema: Schema{Ref: schemaRef},
+					},
+				},
+			}
+			break
+		}
+	}
+
+	// Remove body parameters from the parameters list since they're now in RequestBody
+	filteredParams := []Parameter{}
+	for _, param := range annotation.Parameters {
+		if param.In != "body" {
+			filteredParams = append(filteredParams, param)
+		}
+	}
+	annotation.Parameters = filteredParams
+
+	return annotation
+}
+
+// parseParameterExtras parses additional parameter properties like Enums, default, minimum, maximum
+func parseParameterExtras(param *Parameter, extras string) {
+	// Parse Enums
+	if re := regexp.MustCompile(`Enums\(([^)]+)\)`); re.MatchString(extras) {
+		if matches := re.FindStringSubmatch(extras); len(matches) > 1 {
+			enumValues := strings.Split(matches[1], ",")
+			param.Schema.Enum = make([]interface{}, len(enumValues))
+			for i, val := range enumValues {
+				param.Schema.Enum[i] = strings.TrimSpace(val)
+			}
+		}
+	}
+
+	// Parse default
+	if re := regexp.MustCompile(`default\(([^)]+)\)`); re.MatchString(extras) {
+		if matches := re.FindStringSubmatch(extras); len(matches) > 1 {
+			defaultVal := strings.TrimSpace(matches[1])
+			// Remove quotes if present
+			defaultVal = strings.Trim(defaultVal, `"'`)
+			if param.Schema.Type == "integer" {
+				if intVal, err := strconv.Atoi(defaultVal); err == nil {
+					param.Schema.Default = intVal
+				}
+			} else if param.Schema.Type == "number" {
+				if floatVal, err := strconv.ParseFloat(defaultVal, 64); err == nil {
+					param.Schema.Default = floatVal
+				}
+			} else if param.Schema.Type == "boolean" {
+				param.Schema.Default = defaultVal == "true"
+			} else {
+				param.Schema.Default = defaultVal
+			}
+		}
+	}
+
+	// Parse minimum
+	if re := regexp.MustCompile(`minimum\(([^)]+)\)`); re.MatchString(extras) {
+		if matches := re.FindStringSubmatch(extras); len(matches) > 1 {
+			if minVal, err := strconv.ParseFloat(strings.TrimSpace(matches[1]), 64); err == nil {
+				param.Schema.Minimum = &minVal
+			}
+		}
+	}
+
+	// Parse maximum
+	if re := regexp.MustCompile(`maximum\(([^)]+)\)`); re.MatchString(extras) {
+		if matches := re.FindStringSubmatch(extras); len(matches) > 1 {
+			if maxVal, err := strconv.ParseFloat(strings.TrimSpace(matches[1]), 64); err == nil {
+				param.Schema.Maximum = &maxVal
+			}
+		}
+	}
+
+	// Parse example
+	if re := regexp.MustCompile(`example\(([^)]+)\)`); re.MatchString(extras) {
+		if matches := re.FindStringSubmatch(extras); len(matches) > 1 {
+			exampleVal := strings.TrimSpace(matches[1])
+			exampleVal = strings.Trim(exampleVal, `"'`)
+			if param.Schema.Type == "integer" {
+				if intVal, err := strconv.Atoi(exampleVal); err == nil {
+					param.Schema.Example = intVal
+				}
+			} else if param.Schema.Type == "number" {
+				if floatVal, err := strconv.ParseFloat(exampleVal, 64); err == nil {
+					param.Schema.Example = floatVal
+				}
+			} else if param.Schema.Type == "boolean" {
+				param.Schema.Example = exampleVal == "true"
+			} else {
+				param.Schema.Example = exampleVal
+			}
+		}
+	}
+
+	// Parse format for specific types
+	if param.Schema.Type == "string" {
+		if strings.Contains(extras, "format(date-time)") {
+			param.Schema.Format = "date-time"
+		} else if strings.Contains(extras, "format(date)") {
+			param.Schema.Format = "date"
+		} else if strings.Contains(extras, "format(email)") {
+			param.Schema.Format = "email"
+		} else if strings.Contains(extras, "format(uri)") {
+			param.Schema.Format = "uri"
+		} else if strings.Contains(extras, "format(ulid)") {
+			param.Schema.Format = "ulid"
+		} else if strings.Contains(extras, "format(uuid)") {
+			param.Schema.Format = "uuid"
+		} else if strings.Contains(extras, "format(password)") {
+			param.Schema.Format = "password"
+		} else if strings.Contains(extras, "format(binary)") {
+			param.Schema.Format = "binary"
+		} else if strings.Contains(extras, "format(byte)") {
+			param.Schema.Format = "byte"
+		}
+	}
+
+	// Parse collectionFormat for array parameters
+	if param.Schema.Type == "array" || strings.Contains(extras, "collectionFormat") {
+		if strings.Contains(extras, "collectionFormat(csv)") {
+			// CSV is the default, no need to set anything special
+		} else if strings.Contains(extras, "collectionFormat(ssv)") {
+			// Space separated values
+		} else if strings.Contains(extras, "collectionFormat(tsv)") {
+			// Tab separated values
+		} else if strings.Contains(extras, "collectionFormat(pipes)") {
+			// Pipe separated values
+		} else if strings.Contains(extras, "collectionFormat(multi)") {
+			// Multiple parameter instances
+		}
+	}
+}
+
 func main() {
 	fmt.Println("Generating OpenAPI 3.0 specification...")
 
@@ -273,7 +683,7 @@ func main() {
 		Paths:      make(map[string]PathItem),
 		Components: Components{Schemas: make(map[string]Schema)},
 		Security: []map[string][]string{
-			{"bearerAuth": {}},
+			{"BearerAuth": {}},
 		},
 		Tags: dynamicTags,
 	}
@@ -361,52 +771,7 @@ func parseRoutesFromFile(filename string) []RouteInfo {
 	return routes
 }
 
-// extractOpenAPIDocFromController parses the controller file and extracts @Tags, @Summary, and @Description for a given method
-func extractOpenAPIDocFromController(controllerFile, methodName string) (tags []string, summary, description string) {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, controllerFile, nil, parser.ParseComments)
-	if err != nil {
-		return nil, "", ""
-	}
-
-	ast.Inspect(node, func(n ast.Node) bool {
-		if fn, ok := n.(*ast.FuncDecl); ok && fn.Name.Name == methodName {
-			if fn.Doc != nil {
-				// Concatenate all comment lines
-				fullComment := ""
-				for _, comment := range fn.Doc.List {
-					fullComment += comment.Text + "\n"
-				}
-				// Extract @Tags (single-line only)
-				tagsRe := regexp.MustCompile(`@Tags\s+([\w\-, ]+)`)
-				if matches := tagsRe.FindStringSubmatch(fullComment); len(matches) > 1 {
-					tags = strings.Split(strings.TrimSpace(matches[1]), ",")
-					for i := range tags {
-						tags[i] = strings.TrimSpace(tags[i])
-					}
-				}
-				// Extract @Summary and @Description (multi-line, up to next @ or end)
-				summaryRe := regexp.MustCompile(`@Summary\s+([\s\S]*?)(?:@|$)`)
-				descRe := regexp.MustCompile(`@Description\s+([\s\S]*?)(?:@|$)`)
-				if matches := summaryRe.FindStringSubmatch(fullComment); len(matches) > 1 {
-					summary = strings.TrimSpace(matches[1])
-					// Remove trailing '//' and whitespace
-					summary = strings.TrimRight(summary, "/ 	\n")
-				}
-				if matches := descRe.FindStringSubmatch(fullComment); len(matches) > 1 {
-					description = strings.TrimSpace(matches[1])
-					// Remove trailing '//' and whitespace
-					description = strings.TrimRight(description, "/ 	\n")
-				}
-			}
-			return false
-		}
-		return true
-	})
-	return
-}
-
-// extractRouteFromCall now uses the dynamic handler map and handles middleware chaining
+// extractRouteFromCall now uses dynamic annotation parsing instead of hardcoded mappings
 func extractRouteFromCall(call *ast.CallExpr, fset *token.FileSet) RouteInfo {
 	route := RouteInfo{}
 
@@ -442,32 +807,63 @@ func extractRouteFromCall(call *ast.CallExpr, fset *token.FileSet) RouteInfo {
 					handlerStr := fmt.Sprintf("%s.%s", handlerTypeName, handler.Sel.Name)
 					route.Handler = handlerStr
 
+					// Parse OpenAPI annotations from controller method
 					if info, ok := globalHandlerMap[handlerStr]; ok {
-						tags, summary, description := extractOpenAPIDocFromController(info.FilePath, info.MethodName)
-						if len(tags) > 0 {
-							route.Tags = tags
-						}
-						if summary != "" {
-							route.Summary = summary
-						}
-						if description != "" {
-							route.Description = description
+						if annotation := parseOpenAPIAnnotations(info.FilePath, info.MethodName); annotation != nil {
+							// Use annotation data if available
+							if annotation.Summary != "" {
+								route.Summary = annotation.Summary
+							}
+							if annotation.Description != "" {
+								route.Description = annotation.Description
+							}
+							if len(annotation.Tags) > 0 {
+								route.Tags = annotation.Tags
+							}
+							if len(annotation.Parameters) > 0 {
+								route.Parameters = annotation.Parameters
+							}
+							if annotation.RequestBody != nil {
+								route.RequestBody = annotation.RequestBody
+							}
+							if len(annotation.Responses) > 0 {
+								route.Responses = annotation.Responses
+							}
+							if len(annotation.Security) > 0 {
+								route.Security = annotation.Security
+							}
+							if annotation.OperationID != "" {
+								route.OperationID = annotation.OperationID
+							}
+							if annotation.Deprecated {
+								route.Deprecated = true
+							}
+							if annotation.IsPublic {
+								route.IsPublic = true
+							}
+
+							// If @Router annotation specifies a different path/method, use it
+							if annotation.Router.Path != "" && annotation.Router.Method != "" {
+								route.Path = annotation.Router.Path
+								route.Method = annotation.Router.Method
+							}
 						}
 					}
+
+					// Fallback to default generation if no annotations found
+					if len(route.Parameters) == 0 {
+						route.Parameters = extractPathParameters(route.Path)
+					}
+					if len(route.Responses) == 0 {
+						route.Responses = generateDefaultResponses(route.Method, route.Path)
+					}
+					if route.RequestBody == nil && (route.Method == "POST" || route.Method == "PUT") {
+						route.RequestBody = generateRequestBodyFromPath(route.Path, route.Method)
+					}
+
 				case *ast.FuncLit:
 					// Inline function - skip for now
 					return route
-				}
-
-				// Generate default responses
-				route.Responses = generateDefaultResponses(route.Method, route.Path)
-
-				// Generate parameters for path variables
-				route.Parameters = extractPathParameters(route.Path)
-
-				// Generate request body for POST/PUT operations
-				if route.Method == "POST" || route.Method == "PUT" {
-					route.RequestBody = generateRequestBody(route.Path, route.Method)
 				}
 			}
 		}
@@ -578,339 +974,11 @@ func extractPathParameters(path string) []Parameter {
 		})
 	}
 
-	// Add querybuilder parameters for list endpoints
-	if strings.HasSuffix(path, "s") && !strings.Contains(path, "{") {
-		// Add pagination parameters
-		params = append(params,
-			Parameter{
-				Name:        "cursor",
-				In:          "query",
-				Description: "Cursor for pagination",
-				Required:    false,
-				Schema:      Schema{Type: "string"},
-			},
-			Parameter{
-				Name:        "limit",
-				In:          "query",
-				Description: "Items per page (max: 100)",
-				Required:    false,
-				Schema:      Schema{Type: "integer", Default: 15, Example: 20},
-			},
-			Parameter{
-				Name:        "page",
-				In:          "query",
-				Description: "Page number for offset pagination",
-				Required:    false,
-				Schema:      Schema{Type: "integer", Default: 1, Example: 1},
-			},
-			Parameter{
-				Name:        "pagination_type",
-				In:          "query",
-				Description: "Type of pagination to use",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"offset", "cursor"}, Default: "offset"},
-			},
-		)
-
-		// Add querybuilder filter parameters
-		params = append(params,
-			Parameter{
-				Name:        "filter",
-				In:          "query",
-				Description: "Filter parameters in the format filter[field]=value. Multiple filters can be applied.",
-				Required:    false,
-				Schema: Schema{
-					Type: "object",
-					Example: map[string]interface{}{
-						"name":       "john",
-						"is_active":  "true",
-						"created_at": "2024-01-01",
-					},
-				},
-			},
-			Parameter{
-				Name:        "filter_group",
-				In:          "query",
-				Description: "Complex filter group in JSON format for advanced filtering with AND/OR logic.",
-				Required:    false,
-				Schema: Schema{
-					Type:        "string",
-					Description: "JSON string representing a filter group",
-					Example:     `{"operator":"AND","conditions":[{"field":"name","operator":"LIKE","value":"%john%"},{"field":"is_active","operator":"=","value":true}]}`,
-				},
-			},
-			Parameter{
-				Name:        "sort",
-				In:          "query",
-				Description: "Sort fields. Use comma-separated values. Prefix with '-' for descending order.",
-				Required:    false,
-				Schema: Schema{
-					Type:    "string",
-					Example: "name,-created_at,id",
-				},
-			},
-			Parameter{
-				Name:        "include",
-				In:          "query",
-				Description: "Include related resources. Use comma-separated values.",
-				Required:    false,
-				Schema: Schema{
-					Type:    "string",
-					Example: "roles,tenants,permissions",
-				},
-			},
-			Parameter{
-				Name:        "fields",
-				In:          "query",
-				Description: "Select specific fields to return. Use comma-separated values.",
-				Required:    false,
-				Schema: Schema{
-					Type:    "string",
-					Example: "id,name,email,created_at",
-				},
-			},
-		)
-
-		// Add common search parameters
-		params = append(params,
-			Parameter{
-				Name:        "search",
-				In:          "query",
-				Description: "Search across searchable fields",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "search term"},
-			},
-		)
-
-		// Add model-specific filter parameters based on path
-		modelParams := getModelSpecificParameters(path)
-		params = append(params, modelParams...)
-	}
-
 	return params
 }
 
-// getModelSpecificParameters returns model-specific filter parameters based on the endpoint path
-func getModelSpecificParameters(path string) []Parameter {
-	var params []Parameter
-
-	// Extract model name from path (e.g., /api/v1/users -> users)
-	segments := strings.Split(strings.Trim(path, "/"), "/")
-	if len(segments) < 3 {
-		return params
-	}
-
-	modelName := segments[2] // Assuming /api/v1/{model}
-
-	switch modelName {
-	case "users":
-		params = append(params,
-			Parameter{
-				Name:        "filter[name]",
-				In:          "query",
-				Description: "Filter by user name",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "john"},
-			},
-			Parameter{
-				Name:        "filter[email]",
-				In:          "query",
-				Description: "Filter by email address",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "john@example.com"},
-			},
-			Parameter{
-				Name:        "filter[is_active]",
-				In:          "query",
-				Description: "Filter by active status",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"true", "false"}, Example: "true"},
-			},
-			Parameter{
-				Name:        "filter[tenant_id]",
-				In:          "query",
-				Description: "Filter by tenant ID",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
-			},
-		)
-	case "tasks":
-		params = append(params,
-			Parameter{
-				Name:        "filter[status]",
-				In:          "query",
-				Description: "Filter by task status",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"todo", "in_progress", "done", "archived"}, Example: "in_progress"},
-			},
-			Parameter{
-				Name:        "filter[priority]",
-				In:          "query",
-				Description: "Filter by task priority",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"low", "medium", "high", "urgent"}, Example: "high"},
-			},
-			Parameter{
-				Name:        "filter[assignee_id]",
-				In:          "query",
-				Description: "Filter by assignee user ID",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
-			},
-			Parameter{
-				Name:        "filter[type]",
-				In:          "query",
-				Description: "Filter by task type",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"task", "bug", "feature", "epic"}, Example: "task"},
-			},
-		)
-	case "calendar-events":
-		params = append(params,
-			Parameter{
-				Name:        "filter[start_date]",
-				In:          "query",
-				Description: "Filter events starting from this date",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "date-time", Example: "2024-01-01T00:00:00Z"},
-			},
-			Parameter{
-				Name:        "filter[end_date]",
-				In:          "query",
-				Description: "Filter events ending before this date",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "date-time", Example: "2024-12-31T23:59:59Z"},
-			},
-			Parameter{
-				Name:        "filter[type]",
-				In:          "query",
-				Description: "Filter by event type",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"meeting", "appointment", "reminder", "event"}, Example: "meeting"},
-			},
-			Parameter{
-				Name:        "filter[status]",
-				In:          "query",
-				Description: "Filter by event status",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"scheduled", "in_progress", "completed", "cancelled"}, Example: "scheduled"},
-			},
-		)
-	case "countries", "provinces", "cities", "districts":
-		params = append(params,
-			Parameter{
-				Name:        "filter[name]",
-				In:          "query",
-				Description: "Filter by name",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "Indonesia"},
-			},
-			Parameter{
-				Name:        "filter[code]",
-				In:          "query",
-				Description: "Filter by code",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "ID"},
-			},
-			Parameter{
-				Name:        "filter[is_active]",
-				In:          "query",
-				Description: "Filter by active status",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"true", "false"}, Example: "true"},
-			},
-		)
-
-		// Add parent relationship filters
-		if modelName == "provinces" {
-			params = append(params, Parameter{
-				Name:        "filter[country_id]",
-				In:          "query",
-				Description: "Filter by country ID",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
-			})
-		} else if modelName == "cities" {
-			params = append(params, Parameter{
-				Name:        "filter[province_id]",
-				In:          "query",
-				Description: "Filter by province ID",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
-			})
-		} else if modelName == "districts" {
-			params = append(params, Parameter{
-				Name:        "filter[city_id]",
-				In:          "query",
-				Description: "Filter by city ID",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
-			})
-		}
-	case "roles", "permissions":
-		params = append(params,
-			Parameter{
-				Name:        "filter[name]",
-				In:          "query",
-				Description: "Filter by name",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "admin"},
-			},
-			Parameter{
-				Name:        "filter[guard]",
-				In:          "query",
-				Description: "Filter by guard name",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "web"},
-			},
-		)
-	case "organizations", "teams", "departments", "projects":
-		params = append(params,
-			Parameter{
-				Name:        "filter[name]",
-				In:          "query",
-				Description: "Filter by name",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "Development Team"},
-			},
-			Parameter{
-				Name:        "filter[is_active]",
-				In:          "query",
-				Description: "Filter by active status",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"true", "false"}, Example: "true"},
-			},
-		)
-	case "activity-logs":
-		params = append(params,
-			Parameter{
-				Name:        "filter[action]",
-				In:          "query",
-				Description: "Filter by action type",
-				Required:    false,
-				Schema:      Schema{Type: "string", Enum: []interface{}{"create", "update", "delete", "login", "logout"}, Example: "create"},
-			},
-			Parameter{
-				Name:        "filter[model_type]",
-				In:          "query",
-				Description: "Filter by model type",
-				Required:    false,
-				Schema:      Schema{Type: "string", Example: "User"},
-			},
-			Parameter{
-				Name:        "filter[user_id]",
-				In:          "query",
-				Description: "Filter by user ID",
-				Required:    false,
-				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
-			},
-		)
-	}
-
-	return params
-}
-
-func generateRequestBody(path, method string) *RequestBody {
+// generateRequestBodyFromPath provides fallback request body generation for paths without annotations
+func generateRequestBodyFromPath(path, method string) *RequestBody {
 	// Determine request schema based on path and method
 	var schemaRef string
 
@@ -922,53 +990,11 @@ func generateRequestBody(path, method string) *RequestBody {
 		schemaRef = "#/components/schemas/ForgotPasswordRequest"
 	} else if strings.Contains(path, "/auth/reset-password") {
 		schemaRef = "#/components/schemas/ResetPasswordRequest"
-	} else if strings.Contains(path, "/auth/mfa/enable") {
-		schemaRef = "#/components/schemas/EnableMfaRequest"
-	} else if strings.Contains(path, "/auth/mfa/disable") {
-		schemaRef = "#/components/schemas/DisableMfaRequest"
-	} else if strings.Contains(path, "/auth/mfa/verify") {
-		schemaRef = "#/components/schemas/VerifyMfaRequest"
-	} else if strings.Contains(path, "/auth/webauthn/register") {
-		schemaRef = "#/components/schemas/WebauthnRegisterRequest"
-	} else if strings.Contains(path, "/auth/webauthn/authenticate") {
-		schemaRef = "#/components/schemas/WebauthnAuthenticateRequest"
-	} else if strings.Contains(path, "/auth/change-password") {
-		schemaRef = "#/components/schemas/ChangePasswordRequest"
-	} else if strings.Contains(path, "/auth/refresh") {
-		schemaRef = "#/components/schemas/RefreshTokenRequest"
 	} else if strings.Contains(path, "/users") {
 		if method == "POST" {
 			schemaRef = "#/components/schemas/CreateUserRequest"
 		} else if method == "PUT" {
 			schemaRef = "#/components/schemas/UpdateUserRequest"
-		}
-	} else if strings.Contains(path, "/tenants") {
-		if method == "POST" {
-			schemaRef = "#/components/schemas/CreateTenantRequest"
-		}
-	} else if strings.Contains(path, "/countries") {
-		if method == "POST" {
-			schemaRef = "#/components/schemas/CreateCountryRequest"
-		} else if method == "PUT" {
-			schemaRef = "#/components/schemas/UpdateCountryRequest"
-		}
-	} else if strings.Contains(path, "/provinces") {
-		if method == "POST" {
-			schemaRef = "#/components/schemas/CreateProvinceRequest"
-		} else if method == "PUT" {
-			schemaRef = "#/components/schemas/UpdateProvinceRequest"
-		}
-	} else if strings.Contains(path, "/cities") {
-		if method == "POST" {
-			schemaRef = "#/components/schemas/CreateCityRequest"
-		} else if method == "PUT" {
-			schemaRef = "#/components/schemas/UpdateCityRequest"
-		}
-	} else if strings.Contains(path, "/districts") {
-		if method == "POST" {
-			schemaRef = "#/components/schemas/CreateDistrictRequest"
-		} else if method == "PUT" {
-			schemaRef = "#/components/schemas/UpdateDistrictRequest"
 		}
 	}
 
@@ -1352,8 +1378,10 @@ func convertStructToSchema(typeDecl *ast.TypeSpec, structType *ast.StructType, f
 	return schema
 }
 
-func requiresAuthentication(path string) bool {
-	// Public endpoints that don't require authentication
+// requiresAuthentication is now replaced by @Security annotations in controller methods
+// This function serves as a fallback for routes without explicit security annotations
+func requiresAuthenticationFallback(path string) bool {
+	// Public endpoints that don't require authentication (fallback only)
 	publicEndpoints := []string{
 		"/api/v1/auth/login",
 		"/api/v1/auth/register",
@@ -1369,9 +1397,9 @@ func requiresAuthentication(path string) bool {
 		"/api/v1/oauth/device/complete",
 		"/api/v1/oauth/token/exchange",
 		"/api/docs",
-		"/api/docs/openapi.yaml",
+		"/api/docs/openapi.html",
 		"/api/docs/openapi.json",
-		"/api/openapi.html",
+		"/api/docs/openapi.yaml",
 	}
 
 	for _, endpoint := range publicEndpoints {
@@ -1387,10 +1415,15 @@ func buildPaths(openAPI *OpenAPI, routes []RouteInfo) {
 	for _, route := range routes {
 		pathItem := openAPI.Paths[route.Path]
 
+		// Use custom operationID if provided, otherwise generate one
+		operationID := route.OperationID
+		if operationID == "" {
+			operationID = generateOperationID(route.Method, route.Path)
+		}
+
 		// Patch empty summary/description
 		summary := route.Summary
 		description := route.Description
-		operationID := generateOperationID(route.Method, route.Path)
 		if strings.TrimSpace(summary) == "" {
 			summary = operationID
 		}
@@ -1406,12 +1439,33 @@ func buildPaths(openAPI *OpenAPI, routes []RouteInfo) {
 			Parameters:  route.Parameters,
 			RequestBody: route.RequestBody,
 			Responses:   route.Responses,
+			Deprecated:  route.Deprecated,
 		}
 
-		// Add security requirement for protected endpoints
-		if requiresAuthentication(route.Path) {
-			operation.Security = []map[string][]string{
-				{"bearerAuth": {}},
+		// Handle security based on annotations
+		if route.IsPublic {
+			// Explicitly marked as public - no security required
+			operation.Security = nil
+		} else if len(route.Security) > 0 {
+			// Use security from @Security annotations
+			operation.Security = route.Security
+		} else {
+			// Smart default: if no explicit security annotation, check if it's a public endpoint
+			// Authentication endpoints without @Security are assumed to be public
+			isAuthEndpoint := strings.Contains(route.Path, "/auth/") &&
+				(strings.Contains(route.Path, "/login") ||
+					strings.Contains(route.Path, "/register") ||
+					strings.Contains(route.Path, "/forgot-password") ||
+					strings.Contains(route.Path, "/reset-password"))
+
+			if isAuthEndpoint || !requiresAuthenticationFallback(route.Path) {
+				// Public endpoint - no security required
+				operation.Security = nil
+			} else {
+				// Default security for protected endpoints (fallback)
+				operation.Security = []map[string][]string{
+					{"BearerAuth": {}},
+				}
 			}
 		}
 
@@ -1669,11 +1723,37 @@ func addSchemas(openAPI *OpenAPI, models map[string]StructInfo, requests map[str
 
 func addSecuritySchemes(openAPI *OpenAPI) {
 	openAPI.Components.SecuritySchemes = map[string]SecurityScheme{
-		"bearerAuth": {
+		"BearerAuth": {
 			Type:         "http",
 			Scheme:       "bearer",
 			BearerFormat: "JWT",
 			Description:  "JWT token for API authentication",
+		},
+		"apiKey": {
+			Type:        "apiKey",
+			Name:        "X-API-Key",
+			In:          "header",
+			Description: "API key for authentication",
+		},
+		"oauth2": {
+			Type:        "oauth2",
+			Description: "OAuth2 authentication",
+			Flows: map[string]OAuth2Flow{
+				"authorizationCode": {
+					AuthorizationURL: "/oauth/authorize",
+					TokenURL:         "/oauth/token",
+					Scopes:           map[string]string{},
+				},
+				"clientCredentials": {
+					TokenURL: "/oauth/token",
+					Scopes:   map[string]string{},
+				},
+			},
+		},
+		"basicAuth": {
+			Type:        "http",
+			Scheme:      "basic",
+			Description: "Basic HTTP authentication",
 		},
 	}
 }
@@ -1706,11 +1786,30 @@ func generateYAML(openAPI *OpenAPI, filename string) {
 		return
 	}
 
-	err = os.WriteFile(filename, data, 0644)
+	// Post-process YAML to fix quoting issues with operators
+	yamlString := string(data)
+	yamlString = fixYAMLOperatorQuoting(yamlString)
+
+	err = os.WriteFile(filename, []byte(yamlString), 0644)
 	if err != nil {
 		fmt.Printf("Error writing YAML file: %v\n", err)
 		return
 	}
+}
+
+// fixYAMLOperatorQuoting fixes YAML quoting issues with comparison operators
+func fixYAMLOperatorQuoting(yamlContent string) string {
+	// Fix unquoted operators that have special meaning in YAML
+	operators := []string{"=", "<", "<="}
+
+	for _, op := range operators {
+		// Pattern: "- " + operator at end of line (with proper indentation)
+		pattern := regexp.MustCompile(`(?m)^(\s+- )` + regexp.QuoteMeta(op) + `$`)
+		replacement := "${1}'" + op + "'"
+		yamlContent = pattern.ReplaceAllString(yamlContent, replacement)
+	}
+
+	return yamlContent
 }
 
 func generateJSON(openAPI *OpenAPI, filename string) {

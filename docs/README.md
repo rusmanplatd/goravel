@@ -79,7 +79,7 @@ The generated OpenAPI specification includes:
 
 Once the server is running, you can view the API documentation at:
 
-- **Interactive UI**: http://localhost:3000/api/openapi.html
+- **Interactive UI**: http://localhost:3000/api/docs/openapi.html
 - **YAML Specification**: http://localhost:3000/api/docs/openapi.yaml
 - **JSON Specification**: http://localhost:3000/api/docs/openapi.json
 

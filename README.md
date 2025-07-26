@@ -149,7 +149,7 @@ The application includes seed data for testing:
 - Districts within cities
 
 ### API Documentation
-- Interactive API documentation: `/api/openapi.html`
+- Interactive API documentation: `/api/docs/openapi.html`
 - OpenAPI JSON: `/api/docs/openapi.json`
 - OpenAPI YAML: `/api/docs/openapi.yaml`
 

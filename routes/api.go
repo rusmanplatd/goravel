@@ -311,13 +311,13 @@ func Api() {
 			"message":      "API Documentation",
 			"openapi":      "/api/docs/openapi.yaml",
 			"openapi_json": "/api/docs/openapi.json",
-			"ui":           "/api/openapi.html",
+			"ui":           "/api/docs/openapi.html",
 		})
 	})
 
 	// Serve OpenAPI 3.0 UI
-	facades.Route().Get("/api/openapi.html", func(ctx http.Context) http.Response {
-		return ctx.Response().File("public/openapi.html")
+	facades.Route().Get("/api/docs/openapi.html", func(ctx http.Context) http.Response {
+		return ctx.Response().File("public/docs/openapi.html")
 	})
 
 	// Serve OpenAPI 3.0 YAML

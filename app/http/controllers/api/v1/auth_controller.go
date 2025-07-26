@@ -66,6 +66,7 @@ type LoginResponse struct {
 // @Tags Authentication
 // @Accept json
 // @Produce json
+// @Public
 // @Param request body requests.LoginRequest true "Login credentials"
 // @Success 200 {object} responses.ApiResponse{data=LoginResponse}
 // @Failure 400 {object} responses.ApiResponse
