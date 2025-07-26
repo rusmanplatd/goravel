@@ -27,6 +27,12 @@ func (r *M20250115000007CreateActivityLogsTable) Up() error {
 		table.Ulid("tenant_id").Comment("Tenant reference")
 		table.TimestampsTz()
 
+		// Add audit fields from BaseModel
+		table.Ulid("created_by").Nullable().Comment("Creator reference")
+		table.Ulid("updated_by").Nullable().Comment("Last updater reference")
+		table.Timestamp("deleted_at").Nullable().Comment("Soft delete timestamp")
+		table.Ulid("deleted_by").Nullable().Comment("Deleter reference")
+
 		// Primary key
 		table.Primary("id")
 
@@ -38,9 +44,16 @@ func (r *M20250115000007CreateActivityLogsTable) Up() error {
 		table.Index("causer_id")
 		table.Index("tenant_id")
 		table.Index("created_at")
+		table.Index("created_by")
+		table.Index("updated_by")
+		table.Index("deleted_at")
+		table.Index("deleted_by")
 
 		// Foreign keys - commented out due to type mismatch
 		// table.Foreign("tenant_id").References("id").On("tenants")
+		// table.Foreign("created_by").References("id").On("users")
+		// table.Foreign("updated_by").References("id").On("users")
+		// table.Foreign("deleted_by").References("id").On("users")
 	})
 }
 

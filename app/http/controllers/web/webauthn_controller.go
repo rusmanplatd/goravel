@@ -199,9 +199,7 @@ func (c *WebAuthnController) FinishAuthentication(ctx http.Context) http.Respons
 		})
 	}
 
-	// Set session for web authentication (backward compatibility)
-	ctx.Request().Session().Put("user_id", user.ID)
-	ctx.Request().Session().Put("user_email", user.Email)
+	// Multi-account session is already set by AddAccount above
 
 	// Check for intended URL and redirect appropriately
 	intendedURL := ctx.Request().Session().Get("intended_url", "/dashboard")

@@ -47,12 +47,11 @@ func (c *AuthController) ShowRegister(ctx http.Context) http.Response {
 // ShowDashboard displays the main dashboard
 func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 	// Get user from context (set by middleware)
-	user := ctx.Value("user")
-	if user == nil {
+	user, ok := ctx.Value("user").(*models.User)
+	if !ok {
+		facades.Log().Error("ShowDashboard: User not found in context")
 		return ctx.Response().Redirect(302, "/login")
 	}
-
-	authenticatedUser := user.(*models.User)
 
 	// Get basic stats
 	tenantCount, _ := facades.Orm().Query().Model(&models.Tenant{}).Count()
@@ -77,7 +76,7 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 
 	return ctx.Response().View().Make("dashboard.tmpl", map[string]interface{}{
 		"title":                 "Dashboard",
-		"user":                  authenticatedUser,
+		"user":                  user,
 		"stats":                 stats,
 		"version":               support.Version,
 		"accounts":              accounts,
@@ -166,11 +165,9 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 			"error":   err.Error(),
 			"user_id": user.ID,
 		})
+		// Even if multi-account session fails, we can still redirect to dashboard
+		// The user will be able to login again if needed
 	}
-
-	// Set session data for web authentication (backward compatibility)
-	ctx.Request().Session().Put("user_id", user.ID)
-	ctx.Request().Session().Put("user_email", user.Email)
 
 	// Check for intended URL and redirect appropriately
 	intendedURL := ctx.Request().Session().Get("intended_url", "/dashboard")

@@ -5,7 +5,6 @@ import (
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type UserSeeder struct {
@@ -21,6 +20,7 @@ func (s *UserSeeder) Run() error {
 	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
 	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
+	UserSeederUlid := models.USER_SEEDER_ULID
 	// Ensure system user for seeding exists
 	var systemUser models.User
 	err := facades.Orm().Query().Where("id = ?", models.USER_SEEDER_ULID).First(&systemUser)
@@ -36,64 +36,52 @@ func (s *UserSeeder) Run() error {
 		if err != nil {
 			return err
 		}
-		facades.Log().Info("Created system seeder user with ULID: " + models.USER_SEEDER_ULID)
+		facades.Log().Info("Created system seeder user with ULID: " + UserSeederUlid)
 	}
 
 	// Create default users
 	users := []map[string]interface{}{
 		{
-			"name":       "Super Administrator",
-			"email":      "superadmin@goravel.com",
-			"password":   "password123",
-			"role":       "super-admin",
-			"isActive":   true,
-			"created_by": models.USER_SEEDER_ULID, // System-created
-			"updated_by": models.USER_SEEDER_ULID, // System-created
+			"name":     "Super Administrator",
+			"email":    "superadmin@goravel.com",
+			"password": "password123",
+			"role":     "super-admin",
+			"isActive": true,
 		},
 		{
-			"name":       "Admin User",
-			"email":      "admin@goravel.com",
-			"password":   "password123",
-			"role":       "admin",
-			"isActive":   true,
-			"created_by": models.USER_SEEDER_ULID, // System-created
-			"updated_by": models.USER_SEEDER_ULID, // System-created
+			"name":     "Admin User",
+			"email":    "admin@goravel.com",
+			"password": "password123",
+			"role":     "admin",
+			"isActive": true,
 		},
 		{
-			"name":       "Manager User",
-			"email":      "manager@goravel.com",
-			"password":   "password123",
-			"role":       "manager",
-			"isActive":   true,
-			"created_by": models.USER_SEEDER_ULID, // System-created
-			"updated_by": models.USER_SEEDER_ULID, // System-created
+			"name":     "Manager User",
+			"email":    "manager@goravel.com",
+			"password": "password123",
+			"role":     "manager",
+			"isActive": true,
 		},
 		{
-			"name":       "Regular User",
-			"email":      "user@goravel.com",
-			"password":   "password123",
-			"role":       "user",
-			"isActive":   true,
-			"created_by": models.USER_SEEDER_ULID, // System-created
-			"updated_by": models.USER_SEEDER_ULID, // System-created
+			"name":     "Regular User",
+			"email":    "user@goravel.com",
+			"password": "password123",
+			"role":     "user",
+			"isActive": true,
 		},
 		{
-			"name":       "Test User",
-			"email":      "test@goravel.com",
-			"password":   "password123",
-			"role":       "user",
-			"isActive":   true,
-			"created_by": models.USER_SEEDER_ULID, // System-created
-			"updated_by": models.USER_SEEDER_ULID, // System-created
+			"name":     "Test User",
+			"email":    "test@goravel.com",
+			"password": "password123",
+			"role":     "user",
+			"isActive": true,
 		},
 		{
-			"name":       "Guest User",
-			"email":      "guest@goravel.com",
-			"password":   "password123",
-			"role":       "guest",
-			"isActive":   true,
-			"created_by": models.USER_SEEDER_ULID, // System-created
-			"updated_by": models.USER_SEEDER_ULID, // System-created
+			"name":     "Guest User",
+			"email":    "guest@goravel.com",
+			"password": "password123",
+			"role":     "guest",
+			"isActive": true,
 		},
 	}
 
@@ -101,8 +89,8 @@ func (s *UserSeeder) Run() error {
 		var existingUser models.User
 		err := facades.Orm().Query().Where("email = ?", userData["email"]).First(&existingUser)
 		if err != nil || existingUser.ID == "" {
-			// Hash password
-			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userData["password"].(string)), bcrypt.DefaultCost)
+			// Hash password using framework's Hash facade
+			hashedPassword, err := facades.Hash().Make(userData["password"].(string))
 			if err != nil {
 				return err
 			}
@@ -111,8 +99,12 @@ func (s *UserSeeder) Run() error {
 			user := models.User{
 				Name:     userData["name"].(string),
 				Email:    userData["email"].(string),
-				Password: string(hashedPassword),
+				Password: hashedPassword,
 				IsActive: userData["isActive"].(bool),
+				BaseModel: models.BaseModel{
+					CreatedBy: &UserSeederUlid,
+					UpdatedBy: &UserSeederUlid,
+				},
 			}
 
 			err = facades.Orm().Query().Create(&user)

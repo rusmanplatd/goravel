@@ -56,124 +56,112 @@ func Web() {
 		// Account addition (guest route for adding accounts to existing session)
 		router.Get("/auth/add-account", accountSwitcherController.AddAccountPrompt)
 
-		// Protected routes (authentication required)
-		router.Group(func(router route.Router) {
-			// Apply web auth middleware
-			router.Middleware(middleware.WebAuth())
+		// Protected routes (authentication required) - Apply middleware individually
+		// Dashboard
+		facades.Route().Middleware(middleware.WebAuth()).Get("/dashboard", authController.ShowDashboard)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/logout", authController.Logout)
 
-			// Dashboard
-			router.Get("/dashboard", authController.ShowDashboard)
-			router.Post("/logout", authController.Logout)
+		// Tenant management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants", tenantController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/create", tenantController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/tenants", tenantController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/{id}", tenantController.Show)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/{id}/edit", tenantController.Edit)
+		facades.Route().Middleware(middleware.WebAuth()).Put("/tenants/{id}", tenantController.Update)
+		facades.Route().Middleware(middleware.WebAuth()).Delete("/tenants/{id}", tenantController.Delete)
 
-			// Tenant management
-			router.Get("/tenants", tenantController.Index)
-			router.Get("/tenants/create", tenantController.Create)
-			router.Post("/tenants", tenantController.Store)
-			router.Get("/tenants/{id}", tenantController.Show)
-			router.Get("/tenants/{id}/edit", tenantController.Edit)
-			router.Put("/tenants/{id}", tenantController.Update)
-			router.Delete("/tenants/{id}", tenantController.Delete)
+		// Role management (within tenant context)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/roles", roleController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/roles/create", roleController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/roles", roleController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/roles/{id}", roleController.Show)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/roles/{id}/edit", roleController.Edit)
+		facades.Route().Middleware(middleware.WebAuth()).Put("/roles/{id}", roleController.Update)
+		facades.Route().Middleware(middleware.WebAuth()).Delete("/roles/{id}", roleController.Delete)
 
-			// Role management (within tenant context)
-			router.Get("/roles", roleController.Index)
-			router.Get("/roles/create", roleController.Create)
-			router.Post("/roles", roleController.Store)
-			router.Get("/roles/{id}", roleController.Show)
-			router.Get("/roles/{id}/edit", roleController.Edit)
-			router.Put("/roles/{id}", roleController.Update)
-			router.Delete("/roles/{id}", roleController.Delete)
+		// Permission management (within tenant context)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/permissions", permissionController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/permissions/create", permissionController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/permissions", permissionController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/permissions/{id}/edit", permissionController.Edit)
+		facades.Route().Middleware(middleware.WebAuth()).Put("/permissions/{id}", permissionController.Update)
+		facades.Route().Middleware(middleware.WebAuth()).Delete("/permissions/{id}", permissionController.Destroy)
 
-			// Permission management (within tenant context)
-			router.Get("/permissions", permissionController.Index)
-			router.Get("/permissions/create", permissionController.Create)
-			router.Post("/permissions", permissionController.Store)
-			router.Get("/permissions/{id}/edit", permissionController.Edit)
-			router.Put("/permissions/{id}", permissionController.Update)
-			router.Delete("/permissions/{id}", permissionController.Destroy)
+		// OAuth Client management (requires authentication)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/clients", oauthClientController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/oauth/clients", oauthClientController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/clients/{id}", oauthClientController.Show)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/clients/{id}/edit", oauthClientController.Edit)
+		facades.Route().Middleware(middleware.WebAuth()).Put("/oauth/clients/{id}", oauthClientController.Update)
+		facades.Route().Middleware(middleware.WebAuth()).Delete("/oauth/clients/{id}", oauthClientController.Delete)
 
-			// OAuth Client management (requires authentication)
-			router.Get("/oauth/clients", oauthClientController.Index)
-			router.Post("/oauth/clients", oauthClientController.Store)
-			router.Get("/oauth/clients/{id}", oauthClientController.Show)
-			router.Get("/oauth/clients/{id}/edit", oauthClientController.Edit)
-			router.Put("/oauth/clients/{id}", oauthClientController.Update)
-			router.Delete("/oauth/clients/{id}", oauthClientController.Delete)
+		// Security Settings
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security", securityController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/change-password", securityController.ShowChangePassword)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/security/change-password", securityController.ChangePassword)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/sessions", securityController.ShowSessions)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/security/sessions/{id}/revoke", securityController.RevokeSession)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/audit-log", securityController.ShowAuditLog)
 
-			// Security Settings
-			router.Get("/security", securityController.Index)
-			router.Get("/security/change-password", securityController.ShowChangePassword)
-			router.Post("/security/change-password", securityController.ChangePassword)
-			router.Get("/security/sessions", securityController.ShowSessions)
-			router.Post("/security/sessions/{id}/revoke", securityController.RevokeSession)
-			router.Get("/security/audit-log", securityController.ShowAuditLog)
+		// MFA Management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/mfa/setup", mfaController.ShowSetup)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/mfa/manage", mfaController.ShowManage)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/security/mfa/enable", mfaController.Enable)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/security/mfa/disable", mfaController.Disable)
 
-			// MFA Management
-			router.Get("/security/mfa/setup", mfaController.ShowSetup)
-			router.Get("/security/mfa/manage", mfaController.ShowManage)
-			router.Post("/security/mfa/enable", mfaController.Enable)
-			router.Post("/security/mfa/disable", mfaController.Disable)
+		// WebAuthn Management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/webauthn/setup", webauthnController.ShowSetup)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/webauthn/manage", webauthnController.ShowManage)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/security/webauthn/begin-registration", webauthnController.BeginRegistration)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/security/webauthn/finish-registration", webauthnController.FinishRegistration)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/webauthn/credentials", webauthnController.ShowCredentials)
+		facades.Route().Middleware(middleware.WebAuth()).Put("/security/webauthn/credentials/{id}/name", webauthnController.UpdateCredentialName)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/security/webauthn/credentials/{id}/delete", webauthnController.DeleteCredential)
 
-			// WebAuthn Management
-			router.Get("/security/webauthn/setup", webauthnController.ShowSetup)
-			router.Get("/security/webauthn/manage", webauthnController.ShowManage)
-			router.Post("/security/webauthn/begin-registration", webauthnController.BeginRegistration)
-			router.Post("/security/webauthn/finish-registration", webauthnController.FinishRegistration)
-			router.Get("/security/webauthn/credentials", webauthnController.ShowCredentials)
-			router.Put("/security/webauthn/credentials/{id}/name", webauthnController.UpdateCredentialName)
-			router.Get("/security/webauthn/credentials/{id}/delete", webauthnController.DeleteCredential)
+		// Multi-Account Management
+		facades.Route().Middleware(middleware.WebAuth()).Get("/auth/accounts", accountSwitcherController.ShowAccountSwitcher)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/auth/accounts/api", accountSwitcherController.GetAccounts)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/switch-account", accountSwitcherController.SwitchAccount)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/remove-account", accountSwitcherController.RemoveAccount)
 
-			// Multi-Account Management
-			router.Get("/auth/accounts", accountSwitcherController.ShowAccountSwitcher)
-			router.Get("/auth/accounts/api", accountSwitcherController.GetAccounts)
-			router.Post("/auth/switch-account", accountSwitcherController.SwitchAccount)
-			router.Post("/auth/remove-account", accountSwitcherController.RemoveAccount)
-
-			// Enhanced Multi-Account API endpoints
-			router.Get("/auth/accounts/statistics", accountSwitcherController.GetSessionStatistics)
-			router.Post("/auth/accounts/refresh", accountSwitcherController.RefreshAccount)
-			router.Post("/auth/accounts/extend-session", accountSwitcherController.ExtendSession)
-			router.Post("/auth/accounts/validate", accountSwitcherController.ValidateAccount)
-		})
+		// Enhanced Multi-Account API endpoints
+		facades.Route().Middleware(middleware.WebAuth()).Get("/auth/accounts/statistics", accountSwitcherController.GetSessionStatistics)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/refresh", accountSwitcherController.RefreshAccount)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/extend-session", accountSwitcherController.ExtendSession)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/auth/accounts/validate", accountSwitcherController.ValidateAccount)
 	})
 
 	// OAuth2 Authorization routes (separate from API)
 	facades.Route().Group(func(router route.Router) {
-		// Apply web auth middleware for OAuth authorization
-		router.Middleware(middleware.WebAuth())
-
 		// OAuth authorization endpoint (requires authentication)
-		router.Get("/oauth/authorize", oauthController.ShowAuthorize)
-		router.Post("/oauth/authorize", oauthController.HandleAuthorize)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/authorize", oauthController.ShowAuthorize)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/oauth/authorize", oauthController.HandleAuthorize)
 	})
 
 	// OAuth Security Center routes (protected)
 	oauthSecurityController := web.NewOAuthSecurityController()
 	facades.Route().Group(func(router route.Router) {
-		router.Middleware(middleware.WebAuth())
-
 		// Security center main page
-		router.Get("/oauth/security", oauthSecurityController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/security", oauthSecurityController.Index)
 
 		// Consent and token management
-		router.Post("/oauth/security/revoke-consent/{client_id}", oauthSecurityController.RevokeConsent)
-		router.Post("/oauth/security/revoke-token/{token_id}", oauthSecurityController.RevokeToken)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/oauth/security/revoke-consent/{client_id}", oauthSecurityController.RevokeConsent)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/oauth/security/revoke-token/{token_id}", oauthSecurityController.RevokeToken)
 
 		// Detailed views
-		router.Get("/oauth/security/history", oauthSecurityController.ConsentHistory)
-		router.Get("/oauth/security/apps/{client_id}", oauthSecurityController.AppDetails)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/security/history", oauthSecurityController.ConsentHistory)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/security/apps/{client_id}", oauthSecurityController.AppDetails)
 	})
 
 	// App Passwords routes (protected)
 	appPasswordController := web.NewAppPasswordController()
 	facades.Route().Group(func(router route.Router) {
-		router.Middleware(middleware.WebAuth())
-
 		// App passwords management
-		router.Get("/oauth/app-passwords", appPasswordController.Index)
-		router.Get("/oauth/app-passwords/create", appPasswordController.Create)
-		router.Post("/oauth/app-passwords", appPasswordController.Store)
-		router.Post("/oauth/app-passwords/{id}/revoke", appPasswordController.Revoke)
-		router.Delete("/oauth/app-passwords/{id}", appPasswordController.Delete)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/app-passwords", appPasswordController.Index)
+		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/app-passwords/create", appPasswordController.Create)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/oauth/app-passwords", appPasswordController.Store)
+		facades.Route().Middleware(middleware.WebAuth()).Post("/oauth/app-passwords/{id}/revoke", appPasswordController.Revoke)
+		facades.Route().Middleware(middleware.WebAuth()).Delete("/oauth/app-passwords/{id}", appPasswordController.Delete)
 	})
 
 	// OAuth2 Playground routes (public for development)
@@ -193,10 +181,7 @@ func Web() {
 	facades.Route().Get("/auth/google/callback", googleOAuthController.Callback)
 
 	// Protected Google OAuth routes
-	facades.Route().Group(func(router route.Router) {
-		router.Middleware(middleware.WebAuth())
-		router.Post("/auth/google/unlink", googleOAuthController.Unlink)
-	})
+	facades.Route().Middleware(middleware.WebAuth()).Post("/auth/google/unlink", googleOAuthController.Unlink)
 
 	// Default route
 	facades.Route().Get("/", func(ctx http.Context) http.Response {

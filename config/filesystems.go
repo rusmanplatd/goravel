@@ -36,12 +36,12 @@ func init() {
 			},
 			"minio": map[string]any{
 				"driver":   "custom",
-				"key":      config.Env("MINIO_ACCESS_KEY_ID"),
-				"secret":   config.Env("MINIO_ACCESS_KEY_SECRET"),
-				"region":   config.Env("MINIO_REGION"),
-				"bucket":   config.Env("MINIO_BUCKET"),
-				"url":      config.Env("MINIO_URL"),
-				"endpoint": config.Env("MINIO_ENDPOINT"),
+				"key":      config.Env("MINIO_ACCESS_KEY_ID", "miniouserroot"),
+				"secret":   config.Env("MINIO_ACCESS_KEY_SECRET", "miniouserrootpassword"),
+				"region":   config.Env("MINIO_REGION", "ap-southeast-1"),
+				"bucket":   config.Env("MINIO_BUCKET", "goravelstorage"),
+				"url":      config.Env("MINIO_URL", "http://localhost:9000"),
+				"endpoint": config.Env("MINIO_ENDPOINT", "localhost:9000"),
 				"ssl":      config.Env("MINIO_SSL", false),
 				"via": func() (filesystem.Driver, error) {
 					return miniofacades.Minio("minio") // The `minio` value is the `disks` key

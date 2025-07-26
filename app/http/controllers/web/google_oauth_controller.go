@@ -119,9 +119,7 @@ func (c *GoogleOAuthController) Callback(ctx http.Context) http.Response {
 		})
 	}
 
-	// Set session data for web authentication (backward compatibility)
-	ctx.Request().Session().Put("user_id", user.ID)
-	ctx.Request().Session().Put("user_email", user.Email)
+	// Multi-account session is already set by AddAccount above
 
 	// Log successful login
 	facades.Log().Info("Successful Google OAuth login", map[string]interface{}{

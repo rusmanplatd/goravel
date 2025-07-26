@@ -11,6 +11,14 @@ import (
 	"goravel/app/models"
 )
 
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 type MultiAccountService struct {
 	jwtService   *JWTService
 	auditService *AuditService
@@ -54,8 +62,29 @@ func NewMultiAccountService() *MultiAccountService {
 
 // GetMultiAccountSession retrieves the multi-account session from the session storage
 func (s *MultiAccountService) GetMultiAccountSession(ctx http.Context) (*MultiAccountSession, error) {
-	sessionData := ctx.Request().Session().Get("multi_account_session")
+	facades.Log().Info("GetMultiAccountSession: Starting")
+
+	// Check if session is available
+	session := ctx.Request().Session()
+	if session == nil {
+		facades.Log().Info("GetMultiAccountSession: No session available, returning empty session")
+		return &MultiAccountSession{
+			Accounts:     []AccountSession{},
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+			LastSwitchAt: time.Now(),
+			SwitchCount:  0,
+		}, nil
+	}
+
+	sessionData := session.Get("multi_account_session")
+	facades.Log().Info("GetMultiAccountSession: Raw session data", map[string]interface{}{
+		"session_data": sessionData,
+		"data_type":    fmt.Sprintf("%T", sessionData),
+	})
+
 	if sessionData == nil {
+		facades.Log().Info("GetMultiAccountSession: No multi_account_session data, returning empty session")
 		return &MultiAccountSession{
 			Accounts:     []AccountSession{},
 			CreatedAt:    time.Now(),
@@ -68,13 +97,30 @@ func (s *MultiAccountService) GetMultiAccountSession(ctx http.Context) (*MultiAc
 	var multiSession MultiAccountSession
 	sessionBytes, ok := sessionData.(string)
 	if !ok {
+		facades.Log().Error("GetMultiAccountSession: Invalid session data format", map[string]interface{}{
+			"data_type": fmt.Sprintf("%T", sessionData),
+		})
 		return nil, fmt.Errorf("invalid session data format")
 	}
 
+	facades.Log().Info("GetMultiAccountSession: Session bytes", map[string]interface{}{
+		"session_bytes_length":  len(sessionBytes),
+		"session_bytes_preview": sessionBytes[:min(200, len(sessionBytes))],
+	})
+
 	err := json.Unmarshal([]byte(sessionBytes), &multiSession)
 	if err != nil {
+		facades.Log().Error("GetMultiAccountSession: Failed to unmarshal session data", map[string]interface{}{
+			"error":         err.Error(),
+			"session_bytes": sessionBytes,
+		})
 		return nil, fmt.Errorf("failed to unmarshal session data: %v", err)
 	}
+
+	facades.Log().Info("GetMultiAccountSession: Successfully unmarshaled", map[string]interface{}{
+		"active_account": multiSession.ActiveAccount,
+		"account_count":  len(multiSession.Accounts),
+	})
 
 	// Clean up expired accounts
 	multiSession = s.cleanupExpiredAccounts(multiSession)
@@ -125,6 +171,13 @@ func (s *MultiAccountService) cleanupExpiredAccounts(multiSession MultiAccountSe
 
 // SaveMultiAccountSession saves the multi-account session to session storage
 func (s *MultiAccountService) SaveMultiAccountSession(ctx http.Context, multiSession *MultiAccountSession) error {
+	// Check if session is available
+	session := ctx.Request().Session()
+	if session == nil {
+		// Session not available, skip saving
+		return nil
+	}
+
 	multiSession.UpdatedAt = time.Now()
 
 	sessionBytes, err := json.Marshal(multiSession)
@@ -132,7 +185,7 @@ func (s *MultiAccountService) SaveMultiAccountSession(ctx http.Context, multiSes
 		return fmt.Errorf("failed to marshal session data: %v", err)
 	}
 
-	ctx.Request().Session().Put("multi_account_session", string(sessionBytes))
+	session.Put("multi_account_session", string(sessionBytes))
 	return nil
 }
 
@@ -310,8 +363,11 @@ func (s *MultiAccountService) SwitchAccount(ctx http.Context, userID string) err
 	multiSession.SwitchCount++
 
 	// Update legacy session values for backward compatibility
-	ctx.Request().Session().Put("user_id", userID)
-	ctx.Request().Session().Put("user_email", targetAccount.Email)
+	session := ctx.Request().Session()
+	if session != nil {
+		session.Put("user_id", userID)
+		session.Put("user_email", targetAccount.Email)
+	}
 
 	// Log successful account switch
 	s.auditService.LogMultiAccountActivity(ctx, "account_switched", map[string]interface{}{
@@ -386,13 +442,19 @@ func (s *MultiAccountService) RemoveAccount(ctx http.Context, userID string) err
 		if len(multiSession.Accounts) > 0 {
 			multiSession.ActiveAccount = multiSession.Accounts[0].UserID
 			// Update legacy session values
-			ctx.Request().Session().Put("user_id", multiSession.ActiveAccount)
-			ctx.Request().Session().Put("user_email", multiSession.Accounts[0].Email)
+			session := ctx.Request().Session()
+			if session != nil {
+				session.Put("user_id", multiSession.ActiveAccount)
+				session.Put("user_email", multiSession.Accounts[0].Email)
+			}
 		} else {
 			// No accounts left, clear session
 			multiSession.ActiveAccount = ""
-			ctx.Request().Session().Forget("user_id")
-			ctx.Request().Session().Forget("user_email")
+			session := ctx.Request().Session()
+			if session != nil {
+				session.Forget("user_id")
+				session.Forget("user_email")
+			}
 		}
 	}
 
@@ -411,21 +473,49 @@ func (s *MultiAccountService) RemoveAccount(ctx http.Context, userID string) err
 
 // GetActiveAccount returns the currently active account
 func (s *MultiAccountService) GetActiveAccount(ctx http.Context) (*AccountSession, error) {
+	facades.Log().Info("GetActiveAccount: Starting")
+
+	// Debug: Check if session exists
+	session := ctx.Request().Session()
+	if session == nil {
+		facades.Log().Error("GetActiveAccount: No session available")
+		return nil, fmt.Errorf("no session available")
+	}
+
+	facades.Log().Info("GetActiveAccount: Session ID", map[string]interface{}{
+		"session_id": session.GetID(),
+	})
+
 	multiSession, err := s.GetMultiAccountSession(ctx)
 	if err != nil {
+		facades.Log().Error("GetActiveAccount: Failed to get multi-account session", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return nil, err
 	}
 
+	facades.Log().Info("GetActiveAccount: Session retrieved", map[string]interface{}{
+		"active_account": multiSession.ActiveAccount,
+		"account_count":  len(multiSession.Accounts),
+		"accounts":       multiSession.Accounts,
+	})
+
 	if multiSession.ActiveAccount == "" {
+		facades.Log().Info("GetActiveAccount: No active account set")
 		return nil, fmt.Errorf("no active account")
 	}
 
 	for _, account := range multiSession.Accounts {
 		if account.UserID == multiSession.ActiveAccount {
+			facades.Log().Info("GetActiveAccount: Found active account", map[string]interface{}{
+				"user_id": account.UserID,
+				"email":   account.Email,
+			})
 			return &account, nil
 		}
 	}
 
+	facades.Log().Warning("GetActiveAccount: Active account not found in session accounts")
 	return nil, fmt.Errorf("active account not found in session")
 }
 
@@ -469,9 +559,12 @@ func (s *MultiAccountService) ClearAllAccounts(ctx http.Context) error {
 		"total_switches":   multiSession.SwitchCount,
 	})
 
-	ctx.Request().Session().Forget("multi_account_session")
-	ctx.Request().Session().Forget("user_id")
-	ctx.Request().Session().Forget("user_email")
+	session := ctx.Request().Session()
+	if session != nil {
+		session.Forget("multi_account_session")
+		session.Forget("user_id")
+		session.Forget("user_email")
+	}
 	return nil
 }
 
@@ -684,12 +777,18 @@ func (s *MultiAccountService) CleanupInactiveSessions(ctx http.Context, inactivi
 			if !activeFound {
 				if len(activeAccounts) > 0 {
 					multiSession.ActiveAccount = activeAccounts[0].UserID
-					ctx.Request().Session().Put("user_id", activeAccounts[0].UserID)
-					ctx.Request().Session().Put("user_email", activeAccounts[0].Email)
+					session := ctx.Request().Session()
+					if session != nil {
+						session.Put("user_id", activeAccounts[0].UserID)
+						session.Put("user_email", activeAccounts[0].Email)
+					}
 				} else {
 					multiSession.ActiveAccount = ""
-					ctx.Request().Session().Forget("user_id")
-					ctx.Request().Session().Forget("user_email")
+					session := ctx.Request().Session()
+					if session != nil {
+						session.Forget("user_id")
+						session.Forget("user_email")
+					}
 				}
 			}
 		}

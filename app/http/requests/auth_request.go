@@ -5,23 +5,23 @@ package requests
 type LoginRequest struct {
 	// User's email address
 	// @example john.doe@example.com
-	Email string `json:"email" binding:"required,email" example:"john.doe@example.com" validate:"required,email"`
+	Email string `json:"email" form:"email" binding:"required,email" example:"john.doe@example.com" validate:"required,email"`
 
 	// User's password
 	// @example password123
-	Password string `json:"password" binding:"required" example:"password123" validate:"required"`
+	Password string `json:"password" form:"password" binding:"required" example:"password123" validate:"required"`
 
 	// Whether to remember the user
 	// @example false
-	Remember bool `json:"remember" example:"false"`
+	Remember bool `json:"remember" form:"remember" example:"false"`
 
 	// MFA code if enabled
 	// @example 123456
-	MfaCode string `json:"mfa_code,omitempty" example:"123456"`
+	MfaCode string `json:"mfa_code,omitempty" form:"mfa_code" example:"123456"`
 
 	// WebAuthn assertion if using WebAuthn
 	// @example {"id":"abc123","response":{"authenticatorData":"...","clientDataJSON":"...","signature":"..."}}
-	WebauthnAssertion map[string]interface{} `json:"webauthn_assertion,omitempty" example:"{\"id\":\"abc123\",\"response\":{\"authenticatorData\":\"...\",\"clientDataJSON\":\"...\",\"signature\":\"...\"}}"`
+	WebauthnAssertion map[string]interface{} `json:"webauthn_assertion,omitempty" form:"webauthn_assertion" example:"{\"id\":\"abc123\",\"response\":{\"authenticatorData\":\"...\",\"clientDataJSON\":\"...\",\"signature\":\"...\"}}"`
 }
 
 // RegisterRequest represents the request for user registration
@@ -29,24 +29,24 @@ type LoginRequest struct {
 type RegisterRequest struct {
 	// User's full name
 	// @example John Doe
-	Name string `json:"name" binding:"required" example:"John Doe" validate:"required"`
+	Name string `json:"name" form:"name" binding:"required" example:"John Doe" validate:"required"`
 
 	// User's email address
 	// @example john.doe@example.com
-	Email string `json:"email" binding:"required,email" example:"john.doe@example.com" validate:"required,email"`
+	Email string `json:"email" form:"email" binding:"required,email" example:"john.doe@example.com" validate:"required,email"`
 
 	// User's password
 	// @example password123
 	// @minLength 8
-	Password string `json:"password" binding:"required,min=8" example:"password123" validate:"required,min=8"`
+	Password string `json:"password" form:"password" binding:"required,min=8" example:"password123" validate:"required,min=8"`
 
 	// Password confirmation
 	// @example password123
-	PasswordConfirmation string `json:"password_confirmation" binding:"required,eqfield=Password" example:"password123" validate:"required,eqfield=Password"`
+	PasswordConfirmation string `json:"password_confirmation" form:"password_confirmation" binding:"required,eqfield=Password" example:"password123" validate:"required,eqfield=Password"`
 
 	// Whether to accept terms
 	// @example true
-	AcceptTerms bool `json:"accept_terms" binding:"required" example:"true" validate:"required"`
+	AcceptTerms bool `json:"accept_terms" form:"accept_terms" binding:"required" example:"true" validate:"required"`
 }
 
 // ForgotPasswordRequest represents the request for password reset

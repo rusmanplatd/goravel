@@ -8,44 +8,46 @@ import (
 	"goravel/app/services"
 )
 
-// WebAuth returns a middleware function for web authentication using sessions
+// WebAuth returns a middleware function for web authentication using multi-account sessions
 func WebAuth() http.Middleware {
 	return func(ctx http.Context) {
-		multiAccountService := services.NewMultiAccountService()
+		facades.Log().Info("WebAuth middleware: Starting execution")
 
-		// Try to get active account from multi-account session first
-		activeAccount, err := multiAccountService.GetActiveAccount(ctx)
-		if err == nil && activeAccount != nil {
-			// Get full user data from database
-			var user models.User
-			err := facades.Orm().Query().Where("id", activeAccount.UserID).First(&user)
-			if err == nil && user.IsActive {
-				// Add user to context
-				ctx.WithValue("user", &user)
-				ctx.WithValue("user_id", user.ID)
-				ctx.WithValue("multi_account_session", true)
-
-				// Continue to next middleware/handler
-				ctx.Request().Next()
-				return
-			}
-		}
-
-		// Fallback to legacy session check
-		userID := ctx.Request().Session().Get("user_id")
-		if userID == nil {
-			// Redirect to login page for web routes
+		// Check if session is available
+		session := ctx.Request().Session()
+		if session == nil {
+			facades.Log().Info("WebAuth middleware: No session available, redirecting to login")
 			ctx.Response().Redirect(302, "/login")
 			return
 		}
 
-		// Get user from database
+		facades.Log().Info("WebAuth middleware: Session found, checking multi-account session")
+		multiAccountService := services.NewMultiAccountService()
+
+		// Get active account from multi-account session
+		activeAccount, err := multiAccountService.GetActiveAccount(ctx)
+		if err != nil || activeAccount == nil {
+			facades.Log().Info("WebAuth middleware: No active account found, redirecting to login", map[string]interface{}{
+				"error": err,
+			})
+			ctx.Response().Redirect(302, "/login")
+			return
+		}
+
+		facades.Log().Info("WebAuth middleware: Active account found", map[string]interface{}{
+			"user_id": activeAccount.UserID,
+			"email":   activeAccount.Email,
+		})
+
+		// Get full user data from database
 		var user models.User
-		err = facades.Orm().Query().Where("id", userID).First(&user)
+		err = facades.Orm().Query().Where("id", activeAccount.UserID).First(&user)
 		if err != nil {
-			// Clear invalid session and redirect to login
-			ctx.Request().Session().Forget("user_id")
-			ctx.Request().Session().Forget("user_email")
+			facades.Log().Error("WebAuth middleware: User not found in database", map[string]interface{}{
+				"user_id": activeAccount.UserID,
+				"error":   err.Error(),
+			})
+			// Clear multi-account session and redirect to login
 			multiAccountService.ClearAllAccounts(ctx)
 			ctx.Response().Redirect(302, "/login")
 			return
@@ -53,17 +55,26 @@ func WebAuth() http.Middleware {
 
 		// Check if user is active
 		if !user.IsActive {
-			// Clear session and redirect to login
-			ctx.Request().Session().Forget("user_id")
-			ctx.Request().Session().Forget("user_email")
+			facades.Log().Warning("WebAuth middleware: User account is not active", map[string]interface{}{
+				"user_id": activeAccount.UserID,
+			})
+			// Clear multi-account session and redirect to login
 			multiAccountService.ClearAllAccounts(ctx)
 			ctx.Response().Redirect(302, "/login?error=account_deactivated")
 			return
 		}
 
+		facades.Log().Info("WebAuth middleware: Authentication successful", map[string]interface{}{
+			"user_id": user.ID,
+			"email":   user.Email,
+		})
+
 		// Add user to context
 		ctx.WithValue("user", &user)
 		ctx.WithValue("user_id", user.ID)
+		ctx.WithValue("multi_account_session", true)
+
+		facades.Log().Info("WebAuth middleware: User added to context, continuing to next handler")
 
 		// Continue to next middleware/handler
 		ctx.Request().Next()
