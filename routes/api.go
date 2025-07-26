@@ -329,4 +329,53 @@ func Api() {
 	facades.Route().Get("/api/docs/openapi.json", func(ctx http.Context) http.Response {
 		return ctx.Response().File("docs/openapi.json")
 	})
+
+	// WebSocket routes
+	websocketController := v1.NewWebSocketController()
+
+	// WebSocket connection endpoint (with middleware chain)
+	facades.Route().Middleware(
+		middleware.WebSocketCORS(),
+		middleware.WebSocketAuth(),
+		middleware.WebSocketSecurity(),
+		middleware.WebSocketRateLimit(),
+	).Get("/api/v1/ws", websocketController.Connect)
+
+	// WebSocket management endpoints (protected)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/websocket/stats", websocketController.GetConnectionStats)
+	facades.Route().Get("/api/v1/websocket/health", websocketController.HealthCheck)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/websocket/test", websocketController.SendTestNotification)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/websocket/broadcast", websocketController.BroadcastMessage)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/websocket/connections/{connection_id}", websocketController.CloseConnection)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/websocket/users/{user_id}/connections", websocketController.CloseUserConnections)
+
+	// Chat WebSocket routes (real-time chat functionality)
+	// Chat room WebSocket connection for real-time messaging
+	facades.Route().Middleware(
+		middleware.WebSocketCORS(),
+		middleware.WebSocketAuth(),
+		middleware.WebSocketSecurity(),
+		middleware.WebSocketRateLimit(),
+	).Get("/api/v1/ws/chat/rooms/{room_id}", websocketController.ConnectToChatRoom)
+
+	// Chat typing indicator WebSocket endpoint
+	facades.Route().Middleware(
+		middleware.WebSocketCORS(),
+		middleware.WebSocketAuth(),
+		middleware.WebSocketSecurity(),
+		middleware.WebSocketRateLimit(),
+	).Get("/api/v1/ws/chat/typing/{room_id}", websocketController.ConnectToTypingIndicator)
+
+	// Chat user presence WebSocket endpoint
+	facades.Route().Middleware(
+		middleware.WebSocketCORS(),
+		middleware.WebSocketAuth(),
+		middleware.WebSocketSecurity(),
+		middleware.WebSocketRateLimit(),
+	).Get("/api/v1/ws/chat/presence", websocketController.ConnectToUserPresence)
+
+	// Chat WebSocket management endpoints (protected)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/websocket/chat/rooms/{room_id}/connections", websocketController.GetChatRoomConnections)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/websocket/chat/rooms/{room_id}/broadcast", websocketController.BroadcastToChatRoom)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/websocket/chat/rooms/{room_id}/connections", websocketController.CloseChatRoomConnections)
 }
