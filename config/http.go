@@ -1,6 +1,8 @@
 package config
 
 import (
+	"html/template"
+
 	"github.com/gin-gonic/gin/render"
 	"github.com/goravel/framework/contracts/route"
 	"github.com/goravel/framework/facades"
@@ -24,7 +26,23 @@ func init() {
 				},
 				// Optional, default is http/template
 				"template": func() (render.HTMLRender, error) {
-					return gin.DefaultTemplate()
+					return gin.NewTemplate(gin.RenderOptions{
+						FuncMap: template.FuncMap{
+							"substr": func(str string, start, length int) string {
+								if start < 0 {
+									start = 0
+								}
+								if start >= len(str) {
+									return ""
+								}
+								end := start + length
+								if end > len(str) {
+									end = len(str)
+								}
+								return str[start:end]
+							},
+						},
+					})
 				},
 			},
 		},

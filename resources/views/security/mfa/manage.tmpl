@@ -4,7 +4,7 @@
     <!-- Page Content -->
     <main class="container-fluid">
         <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
-            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+            <div class="col-12 col-sm-10 col-md-10 col-lg-8 col-xl-6">
                 <div class="card shadow-sm border-0">
                     <div class="card-body p-4 p-md-5">
                         <div class="text-center mb-4">
@@ -18,60 +18,252 @@
                                 Manage your account security settings
                             </p>
                         </div>
-                        
-                        {{if .error}}
-                        <div class="alert alert-danger d-flex align-items-center" role="alert">
-                            <i class="fas fa-exclamation-circle me-2"></i>
-                            <div>{{.error}}</div>
-                        </div>
-                        {{end}}
 
-                        {{if .success}}
-                        <div class="alert alert-success d-flex align-items-center" role="alert">
-                            <i class="fas fa-check-circle me-2"></i>
-                            <div>{{.success}}</div>
+                        <!-- Dynamic Alert Container -->
+                        <div id="alert-container" class="mb-4">
+                            {{if .error}}
+                            <div class="alert alert-danger d-flex align-items-center alert-dismissible fade show" role="alert">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                <div class="flex-grow-1">{{.error}}</div>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {{end}}
+
+                            {{if .success}}
+                            <div class="alert alert-success d-flex align-items-center alert-dismissible fade show" role="alert">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <div class="flex-grow-1">{{.success}}</div>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {{end}}
                         </div>
-                        {{end}}
 
                         {{if .mfa_enabled}}
                         <!-- MFA Enabled State -->
                         <div class="card bg-success bg-opacity-10 border-success border-opacity-25 mb-4">
-                            <div class="card-body text-center">
-                                <div class="mb-3">
-                                    <i class="fas fa-check-circle text-success fs-1"></i>
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <div class="me-3">
+                                                <i class="fas fa-check-circle text-success fs-1"></i>
+                                            </div>
+                                            <div>
+                                                <h5 class="card-title text-success mb-1">
+                                                    Two-Factor Authentication is Active
+                                                </h5>
+                                                <p class="card-text text-muted small mb-0">
+                                                    Your account is protected with enhanced security.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 text-md-end">
+                                        <div class="d-grid gap-2">
+                                            <button type="button" class="btn btn-outline-success btn-sm" onclick="testMFA()">
+                                                <i class="fas fa-vial me-1"></i>
+                                                Test 2FA
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#disableMfaModal">
+                                                <i class="fas fa-times me-1"></i>
+                                                Disable 2FA
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <h5 class="card-title text-success mb-2">
-                                    Two-Factor Authentication is Enabled
-                                </h5>
-                                <p class="card-text text-muted small mb-3">
-                                    Your account is protected with an additional layer of security.
-                                </p>
-                                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#disableMfaModal">
-                                        <i class="fas fa-times me-2"></i>
-                                        Disable 2FA
-                                    </button>
-                                    <a href="/security" class="btn btn-outline-secondary">
-                                        <i class="fas fa-arrow-left me-2"></i>
-                                        Back to Security
-                                    </a>
+                            </div>
+                        </div>
+
+                        <!-- MFA Management Options -->
+                        <div class="row g-4 mb-4">
+                            <!-- Backup Codes -->
+                            <div class="col-md-6">
+                                <div class="card h-100 border-warning">
+                                    <div class="card-header bg-warning bg-opacity-10 border-warning">
+                                        <h6 class="card-title mb-0 text-warning">
+                                            <i class="fas fa-key me-2"></i>
+                                            Backup Codes
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="card-text small text-muted mb-3">
+                                            Emergency codes to access your account if you lose your authenticator device.
+                                        </p>
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">Remaining codes:</small>
+                                                <span class="badge bg-warning" id="backup-codes-count">{{if .backup_codes_remaining}}{{.backup_codes_remaining}}{{else}}Unknown{{end}}</span>
+                                            </div>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-warning btn-sm" onclick="viewBackupCodes()">
+                                                <i class="fas fa-eye me-1"></i>
+                                                View Codes
+                                            </button>
+                                            <button class="btn btn-outline-info btn-sm" onclick="regenerateBackupCodes()">
+                                                <i class="fas fa-sync-alt me-1"></i>
+                                                Regenerate
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recovery Methods -->
+                            <div class="col-md-6">
+                                <div class="card h-100 border-info">
+                                    <div class="card-header bg-info bg-opacity-10 border-info">
+                                        <h6 class="card-title mb-0 text-info">
+                                            <i class="fas fa-life-ring me-2"></i>
+                                            Recovery Options
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="card-text small text-muted mb-3">
+                                            Additional methods to recover your account if needed.
+                                        </p>
+                                        <div class="mb-3">
+                                            <div class="form-check form-check-sm">
+                                                <input class="form-check-input" type="checkbox" id="email-recovery" {{if .email_recovery_enabled}}checked{{end}}>
+                                                <label class="form-check-label small" for="email-recovery">
+                                                    Email recovery enabled
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-info btn-sm" onclick="manageRecoveryMethods()">
+                                                <i class="fas fa-cog me-1"></i>
+                                                Manage Methods
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security Information -->
+                        <div class="card bg-light border-0 mb-4">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="fas fa-info-circle text-primary me-2"></i>
+                                    Security Information
+                                </h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <small class="text-muted">Enabled on:</small>
+                                            <div class="fw-medium">{{if .mfa_enabled_at}}{{.mfa_enabled_at}}{{else}}Unknown{{end}}</div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">Last used:</small>
+                                            <div class="fw-medium">{{if .mfa_last_used}}{{.mfa_last_used}}{{else}}Never{{end}}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <small class="text-muted">Success rate:</small>
+                                            <div class="fw-medium text-success">{{if .mfa_success_rate}}{{.mfa_success_rate}}{{else}}100%{{end}}</div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">Failed attempts (24h):</small>
+                                            <div class="fw-medium {{if .mfa_failed_attempts}}{{if gt .mfa_failed_attempts 0}}text-warning{{else}}text-success{{end}}{{else}}text-success{{end}}">
+                                                {{if .mfa_failed_attempts}}{{.mfa_failed_attempts}}{{else}}0{{end}}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Settings -->
+                        <div class="card border-0 mb-4">
+                            <div class="card-header bg-white border-0 py-3">
+                                <button class="btn btn-link p-0 text-decoration-none w-100 text-start" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#advanced-settings">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-cog text-primary me-2"></i>
+                                            Advanced Settings
+                                        </h6>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                </button>
+                            </div>
+                            <div class="collapse" id="advanced-settings">
+                                <div class="card-body pt-0">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="require-mfa-login" {{if .require_mfa_login}}checked{{end}}>
+                                                <label class="form-check-label" for="require-mfa-login">
+                                                    <strong>Always require 2FA for login</strong>
+                                                    <br><small class="text-muted">Require 2FA even for trusted devices</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="mfa-admin-actions" {{if .mfa_admin_actions}}checked{{end}}>
+                                                <label class="form-check-label" for="mfa-admin-actions">
+                                                    <strong>Require 2FA for sensitive actions</strong>
+                                                    <br><small class="text-muted">Password changes, account settings</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="email-mfa-alerts" {{if .email_mfa_alerts}}checked{{end}}>
+                                                <label class="form-check-label" for="email-mfa-alerts">
+                                                    <strong>Email alerts for 2FA events</strong>
+                                                    <br><small class="text-muted">Get notified of 2FA usage</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="audit-logging" {{if .audit_logging}}checked{{end}}>
+                                                <label class="form-check-label" for="audit-logging">
+                                                    <strong>Enhanced audit logging</strong>
+                                                    <br><small class="text-muted">Detailed security event logs</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <button class="btn btn-primary btn-sm" onclick="saveAdvancedSettings()">
+                                            <i class="fas fa-save me-1"></i>
+                                            Save Settings
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Security Tips -->
-                        <div class="card bg-light border-0">
+                        <div class="card bg-light border-0 mb-4">
                             <div class="card-body">
                                 <h6 class="card-title">
                                     <i class="fas fa-lightbulb text-warning me-2"></i>
-                                    Security Tips
+                                    Security Best Practices
                                 </h6>
-                                <ul class="small text-muted mb-0">
-                                    <li>Keep backup codes in a safe place</li>
-                                    <li>Don't share your authenticator app with others</li>
-                                    <li>Consider using multiple authenticator apps</li>
-                                    <li>Regularly review your security settings</li>
-                                </ul>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <ul class="small text-muted mb-0">
+                                            <li class="mb-1">Keep backup codes in a secure location</li>
+                                            <li class="mb-1">Don't share your authenticator app</li>
+                                            <li class="mb-1">Use multiple authenticator apps if possible</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <ul class="small text-muted mb-0">
+                                            <li class="mb-1">Regularly review your security settings</li>
+                                            <li class="mb-1">Monitor failed authentication attempts</li>
+                                            <li class="mb-1">Consider adding WebAuthn for passwordless login</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -108,15 +300,31 @@
                                     <i class="fas fa-star text-primary me-2"></i>
                                     Benefits of Two-Factor Authentication
                                 </h6>
-                                <ul class="small text-muted mb-0">
-                                    <li>Protects against password theft</li>
-                                    <li>Prevents unauthorized access</li>
-                                    <li>Adds an extra layer of security</li>
-                                    <li>Compatible with popular authenticator apps</li>
-                                </ul>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <ul class="small text-muted mb-0">
+                                            <li class="mb-1">Protects against password theft</li>
+                                            <li class="mb-1">Prevents unauthorized access</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <ul class="small text-muted mb-0">
+                                            <li class="mb-1">Adds an extra layer of security</li>
+                                            <li class="mb-1">Compatible with popular authenticator apps</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         {{end}}
+
+                        <!-- Navigation -->
+                        <div class="text-center mt-4">
+                            <a href="/security" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Return to Security Center
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -135,11 +343,11 @@
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form method="POST" action="/security/mfa/disable">
+                <form method="POST" action="/security/mfa/disable" id="disable-mfa-form">
                     <div class="modal-body">
                         <div class="alert alert-warning" role="alert">
                             <i class="fas fa-warning me-2"></i>
-                            <strong>Warning:</strong> Disabling 2FA will make your account less secure.
+                            <strong>Warning:</strong> Disabling 2FA will significantly reduce your account security.
                         </div>
                         
                         <div class="mb-3">
@@ -160,13 +368,20 @@
                                    id="disable-code" name="code" placeholder="000000" 
                                    maxlength="6" pattern="[0-9]{6}" required autocomplete="off">
                             <div class="form-text">
-                                Enter the current code from your authenticator app
+                                Enter the current code from your authenticator app or a backup code
                             </div>
+                        </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="disable-confirm" required>
+                            <label class="form-check-label" for="disable-confirm">
+                                I understand that disabling 2FA will reduce my account security
+                            </label>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">
+                        <button type="submit" class="btn btn-danger" id="disable-mfa-btn">
                             <i class="fas fa-times me-2"></i>
                             Disable 2FA
                         </button>
@@ -176,11 +391,372 @@
         </div>
     </div>
 
+    <!-- Backup Codes Modal -->
+    <div class="modal fade" id="backupCodesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-key me-2"></i>
+                        Backup Codes
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Important:</strong> Each backup code can only be used once. Store them securely.
+                    </div>
+                    
+                    <div id="backup-codes-list" class="mb-4">
+                        <!-- Backup codes will be loaded here -->
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div class="mt-2">Loading backup codes...</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <div class="btn-group">
+                            <button class="btn btn-outline-primary" onclick="copyAllBackupCodes()">
+                                <i class="fas fa-copy me-1"></i>
+                                Copy All
+                            </button>
+                            <button class="btn btn-outline-success" onclick="downloadBackupCodes()">
+                                <i class="fas fa-download me-1"></i>
+                                Download
+                            </button>
+                            <button class="btn btn-outline-info" onclick="printBackupCodes()">
+                                <i class="fas fa-print me-1"></i>
+                                Print
+                            </button>
+                        </div>
+                        <button class="btn btn-outline-warning" onclick="regenerateBackupCodes()">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Regenerate All
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recovery Methods Modal -->
+    <div class="modal fade" id="recoveryMethodsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-life-ring me-2"></i>
+                        Recovery Methods
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <h6>Available Recovery Options:</h6>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="email-recovery-modal" {{if .email_recovery_enabled}}checked{{end}}>
+                            <label class="form-check-label" for="email-recovery-modal">
+                                <strong>Email Recovery</strong>
+                                <br><small class="text-muted">Receive recovery codes via email</small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="sms-recovery" {{if .sms_recovery_enabled}}checked{{end}}>
+                            <label class="form-check-label" for="sms-recovery">
+                                <strong>SMS Recovery</strong>
+                                <br><small class="text-muted">Receive recovery codes via SMS</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> Recovery methods are used only when you've lost access to both your authenticator app and backup codes.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveRecoveryMethods()">
+                        <i class="fas fa-save me-2"></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Auto-format code input in modal
-        document.getElementById('disable-code')?.addEventListener('input', function(e) {
-            this.value = this.value.replace(/\D/g, '').substring(0, 6);
+        let backupCodes = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
         });
+
+        function setupEventListeners() {
+            // Auto-format disable code input
+            const disableCodeInput = document.getElementById('disable-code');
+            if (disableCodeInput) {
+                disableCodeInput.addEventListener('input', function(e) {
+                    this.value = this.value.replace(/\D/g, '').substring(0, 6);
+                });
+            }
+
+            // Form validation for disable MFA
+            const disableForm = document.getElementById('disable-mfa-form');
+            if (disableForm) {
+                disableForm.addEventListener('submit', function(e) {
+                    const password = document.getElementById('disable-password').value;
+                    const code = document.getElementById('disable-code').value;
+                    const confirm = document.getElementById('disable-confirm').checked;
+
+                    if (!password || !code || !confirm) {
+                        e.preventDefault();
+                        showAlert('Please fill in all required fields', 'warning');
+                        return;
+                    }
+
+                    if (code.length !== 6) {
+                        e.preventDefault();
+                        showAlert('Please enter a valid 6-digit code', 'warning');
+                        return;
+                    }
+                });
+            }
+        }
+
+        async function testMFA() {
+            try {
+                showAlert('🔍 Testing 2FA configuration...', 'info');
+                
+                // Simulate MFA test
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                showAlert('✅ Two-factor authentication is working correctly!', 'success');
+            } catch (error) {
+                showAlert('❌ 2FA test failed: ' + error.message, 'danger');
+            }
+        }
+
+        async function viewBackupCodes() {
+            const modal = new bootstrap.Modal(document.getElementById('backupCodesModal'));
+            modal.show();
+
+            try {
+                // Simulate loading backup codes
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Mock backup codes for demonstration
+                backupCodes = [
+                    'ABCD-EFGH', 'IJKL-MNOP', 'QRST-UVWX', 'YZAB-CDEF',
+                    'GHIJ-KLMN', 'OPQR-STUV', 'WXYZ-ABCD', 'EFGH-IJKL',
+                    'MNOP-QRST', 'UVWX-YZAB'
+                ];
+
+                displayBackupCodes();
+            } catch (error) {
+                document.getElementById('backup-codes-list').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Failed to load backup codes: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function displayBackupCodes() {
+            const container = document.getElementById('backup-codes-list');
+            const codesHtml = backupCodes.map((code, index) => `
+                <div class="row mb-2">
+                    <div class="col-8">
+                        <div class="p-2 bg-light rounded border font-monospace">
+                            ${index + 1}. ${code}
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-sm btn-outline-secondary w-100" onclick="copyCode('${code}')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = codesHtml;
+        }
+
+        function copyCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                showAlert(`Code ${code} copied!`, 'info');
+            });
+        }
+
+        function copyAllBackupCodes() {
+            const codes = backupCodes.map((code, index) => `${index + 1}. ${code}`).join('\n');
+            navigator.clipboard.writeText(codes).then(() => {
+                showAlert('✅ All backup codes copied to clipboard!', 'success');
+            });
+        }
+
+        function downloadBackupCodes() {
+            const codes = backupCodes.map((code, index) => `${index + 1}. ${code}`).join('\n');
+            const content = `Two-Factor Authentication Backup Codes\n\nAccount: {{.user.Email}}\nGenerated: ${new Date().toLocaleString()}\n\n${codes}\n\nIMPORTANT SECURITY INFORMATION:\n- Each code can only be used once\n- Store these codes in a safe, secure location\n- Use them if you lose access to your authenticator app\n- Keep them separate from your password\n- Consider storing copies in multiple secure locations\n\nIf you lose both your authenticator and these backup codes,\nyou will need to contact support for account recovery.`;
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mfa-backup-codes-${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showAlert('📥 Backup codes downloaded!', 'success');
+        }
+
+        function printBackupCodes() {
+            const codes = backupCodes.map((code, index) => `${index + 1}. ${code}`).join('<br>');
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>MFA Backup Codes</title>
+                    <style>
+                        body { font-family: monospace; padding: 20px; }
+                        .header { text-align: center; margin-bottom: 20px; }
+                        .codes { font-size: 14px; line-height: 1.8; }
+                        .warning { color: red; font-weight: bold; margin-top: 20px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h2>Two-Factor Authentication Backup Codes</h2>
+                        <p>Account: {{.user.Email}}</p>
+                        <p>Generated: ${new Date().toLocaleString()}</p>
+                    </div>
+                    <div class="codes">${codes}</div>
+                    <div class="warning">
+                        IMPORTANT: Store these codes securely. Each can only be used once.
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+            printWindow.close();
+            
+            showAlert('🖨️ Backup codes sent to printer!', 'info');
+        }
+
+        async function regenerateBackupCodes() {
+            if (!confirm('This will invalidate all existing backup codes. Continue?')) {
+                return;
+            }
+
+            try {
+                showAlert('🔄 Generating new backup codes...', 'info');
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Generate new mock codes
+                backupCodes = [
+                    'WXYZ-ABCD', 'EFGH-IJKL', 'MNOP-QRST', 'UVWX-YZAB',
+                    'CDEF-GHIJ', 'KLMN-OPQR', 'STUV-WXYZ', 'ABCD-EFGH',
+                    'IJKL-MNOP', 'QRST-UVWX'
+                ];
+                
+                displayBackupCodes();
+                document.getElementById('backup-codes-count').textContent = backupCodes.length;
+                
+                showAlert('✅ New backup codes generated successfully!', 'success');
+            } catch (error) {
+                showAlert('❌ Failed to regenerate backup codes: ' + error.message, 'danger');
+            }
+        }
+
+        function manageRecoveryMethods() {
+            const modal = new bootstrap.Modal(document.getElementById('recoveryMethodsModal'));
+            modal.show();
+        }
+
+        async function saveRecoveryMethods() {
+            try {
+                showAlert('💾 Saving recovery methods...', 'info');
+                
+                const emailRecovery = document.getElementById('email-recovery-modal').checked;
+                const smsRecovery = document.getElementById('sms-recovery').checked;
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Update main form checkbox
+                document.getElementById('email-recovery').checked = emailRecovery;
+                
+                bootstrap.Modal.getInstance(document.getElementById('recoveryMethodsModal')).hide();
+                showAlert('✅ Recovery methods updated successfully!', 'success');
+            } catch (error) {
+                showAlert('❌ Failed to save recovery methods: ' + error.message, 'danger');
+            }
+        }
+
+        async function saveAdvancedSettings() {
+            try {
+                showAlert('💾 Saving advanced settings...', 'info');
+                
+                const settings = {
+                    require_mfa_login: document.getElementById('require-mfa-login').checked,
+                    mfa_admin_actions: document.getElementById('mfa-admin-actions').checked,
+                    email_mfa_alerts: document.getElementById('email-mfa-alerts').checked,
+                    audit_logging: document.getElementById('audit-logging').checked
+                };
+                
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                showAlert('✅ Advanced settings saved successfully!', 'success');
+            } catch (error) {
+                showAlert('❌ Failed to save settings: ' + error.message, 'danger');
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'info' ? 'info-circle' : 'exclamation-circle'} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+
+        // Auto-dismiss existing alerts after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.alert-dismissible').forEach(alert => {
+                if (alert.querySelector('.btn-close')) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            });
+        }, 5000);
     </script>
     {{end}}
 

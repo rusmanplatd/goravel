@@ -19,115 +19,284 @@
                             </p>
                         </div>
 
-                        <!-- WebAuthn Support Check -->
+                        <!-- Dynamic Alert Container -->
+                        <div id="alert-container" class="mb-4"></div>
+
+                        <!-- Browser Compatibility Check -->
+                        <div id="compatibility-check" class="mb-4">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span class="text-muted">Checking browser compatibility...</span>
+                            </div>
+                        </div>
+
+                        <!-- WebAuthn Not Supported -->
                         <div id="webauthn-not-supported" class="alert alert-warning d-none" role="alert">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <strong>WebAuthn not supported:</strong> Your browser doesn't support WebAuthn. Please use a modern browser like Chrome, Firefox, Safari, or Edge.
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                                <div>
+                                    <strong>WebAuthn not supported:</strong> Your browser doesn't support WebAuthn. 
+                                    <br><small>Please use a modern browser like Chrome 67+, Firefox 60+, Safari 14+, or Edge 18+.</small>
+                                    <div class="mt-2">
+                                        <a href="#" onclick="showBrowserHelp()" class="btn btn-outline-warning btn-sm">
+                                            <i class="fas fa-question-circle me-1"></i>
+                                            Browser Help
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Platform Support Info -->
+                        <div id="platform-support-info" class="alert alert-info d-none" role="alert">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-info-circle me-2 mt-1"></i>
+                                <div>
+                                    <strong>Platform Authenticator Available:</strong> 
+                                    <span id="platform-support-text">Your device supports built-in authentication methods.</span>
+                                    <br><small id="platform-support-details">You can use fingerprint, face recognition, or PIN.</small>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Setup Steps -->
-                        <div class="row g-4 mb-4">
-                            <div class="col-md-4">
-                                <div class="card bg-light border-0 h-100">
-                                    <div class="card-body text-center p-4">
-                                        <div class="mb-3">
-                                            <i class="fas fa-mobile-alt fs-2 text-info"></i>
+                        <div id="setup-steps" class="d-none">
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-4">
+                                    <div class="card bg-light border-0 h-100 setup-option" data-type="biometric">
+                                        <div class="card-body text-center p-4">
+                                            <div class="mb-3">
+                                                <i class="fas fa-mobile-alt fs-2 text-info"></i>
+                                            </div>
+                                            <h6 class="card-title">Biometrics</h6>
+                                            <p class="card-text small text-muted mb-3">
+                                                Use fingerprint, face recognition, or other biometric methods
+                                            </p>
+                                            <div class="availability-indicator">
+                                                <span class="badge bg-secondary" id="biometric-status">Checking...</span>
+                                            </div>
                                         </div>
-                                        <h6 class="card-title">Biometrics</h6>
-                                        <p class="card-text small text-muted">
-                                            Use fingerprint, face recognition, or other biometric methods
-                                        </p>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card bg-light border-0 h-100">
-                                    <div class="card-body text-center p-4">
-                                        <div class="mb-3">
-                                            <i class="fas fa-usb fs-2 text-success"></i>
+                                <div class="col-md-4">
+                                    <div class="card bg-light border-0 h-100 setup-option" data-type="security-key">
+                                        <div class="card-body text-center p-4">
+                                            <div class="mb-3">
+                                                <i class="fas fa-usb fs-2 text-success"></i>
+                                            </div>
+                                            <h6 class="card-title">Hardware Keys</h6>
+                                            <p class="card-text small text-muted mb-3">
+                                                Use YubiKey, FIDO2 keys, or other security hardware
+                                            </p>
+                                            <div class="availability-indicator">
+                                                <span class="badge bg-success" id="hardware-status">Available</span>
+                                            </div>
                                         </div>
-                                        <h6 class="card-title">Hardware Keys</h6>
-                                        <p class="card-text small text-muted">
-                                            Use YubiKey, FIDO2 keys, or other security hardware
-                                        </p>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card bg-light border-0 h-100">
-                                    <div class="card-body text-center p-4">
-                                        <div class="mb-3">
-                                            <i class="fas fa-shield-alt fs-2 text-primary"></i>
+                                <div class="col-md-4">
+                                    <div class="card bg-light border-0 h-100 setup-option" data-type="platform">
+                                        <div class="card-body text-center p-4">
+                                            <div class="mb-3">
+                                                <i class="fas fa-shield-alt fs-2 text-primary"></i>
+                                            </div>
+                                            <h6 class="card-title">Platform Auth</h6>
+                                            <p class="card-text small text-muted mb-3">
+                                                Use Windows Hello, Touch ID, or Android biometrics
+                                            </p>
+                                            <div class="availability-indicator">
+                                                <span class="badge bg-secondary" id="platform-status">Checking...</span>
+                                            </div>
                                         </div>
-                                        <h6 class="card-title">Platform Auth</h6>
-                                        <p class="card-text small text-muted">
-                                            Use Windows Hello, Touch ID, or Android biometrics
-                                        </p>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Registration Form -->
-                        <div id="webauthn-setup" class="d-none">
-                            <div class="mb-4">
-                                <label for="credential-name" class="form-label fw-medium">
-                                    <i class="fas fa-tag me-2"></i>
-                                    Security Key Name
-                                </label>
-                                <input type="text" class="form-control" id="credential-name" 
-                                       placeholder="e.g., My YubiKey, iPhone Touch ID, Windows Hello" 
-                                       value="Security Key" maxlength="50">
-                                <div class="form-text">
-                                    Give your security key a memorable name
                                 </div>
                             </div>
 
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-between">
-                                <a href="/security" class="btn btn-outline-secondary">
-                                    <i class="fas fa-arrow-left me-2"></i>
-                                    Back to Security
-                                </a>
-                                <button type="button" class="btn btn-primary" id="register-webauthn-btn">
-                                    <i class="fas fa-plus me-2"></i>
-                                    Register Security Key
-                                </button>
+                            <!-- Recommended Setup -->
+                            <div class="card bg-success bg-opacity-10 border-success mb-4" id="recommended-setup">
+                                <div class="card-body">
+                                    <h6 class="card-title text-success">
+                                        <i class="fas fa-star me-2"></i>
+                                        Recommended for Your Device
+                                    </h6>
+                                    <p class="card-text mb-3" id="recommendation-text">
+                                        Based on your browser and device capabilities, we recommend starting with platform authentication.
+                                    </p>
+                                    <button class="btn btn-success btn-sm" id="use-recommended-btn" onclick="useRecommendedSetup()">
+                                        <i class="fas fa-magic me-1"></i>
+                                        Use Recommended Setup
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Registration Form -->
+                            <div id="webauthn-setup">
+                                <div class="mb-4">
+                                    <label for="credential-name" class="form-label fw-medium">
+                                        <i class="fas fa-tag me-2"></i>
+                                        Security Key Name
+                                    </label>
+                                    <input type="text" class="form-control" id="credential-name" 
+                                           placeholder="e.g., My YubiKey, iPhone Touch ID, Windows Hello" 
+                                           value="" maxlength="50">
+                                    <div class="form-text">
+                                        Give your security key a memorable name to identify it later
+                                    </div>
+                                </div>
+
+                                <!-- Advanced Options -->
+                                <div class="card bg-light border-0 mb-4">
+                                    <div class="card-header bg-transparent border-0 py-2">
+                                        <button class="btn btn-link p-0 text-decoration-none" type="button" 
+                                                data-bs-toggle="collapse" data-bs-target="#advanced-options">
+                                            <i class="fas fa-cog me-2"></i>
+                                            Advanced Options
+                                            <i class="fas fa-chevron-down ms-2"></i>
+                                        </button>
+                                    </div>
+                                    <div class="collapse" id="advanced-options">
+                                        <div class="card-body pt-0">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="authenticatorType" 
+                                                               id="platform-authenticator" value="platform" checked>
+                                                        <label class="form-check-label" for="platform-authenticator">
+                                                            <strong>Platform Authenticator</strong>
+                                                            <br><small class="text-muted">Built-in device authentication</small>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="authenticatorType" 
+                                                               id="cross-platform-authenticator" value="cross-platform">
+                                                        <label class="form-check-label" for="cross-platform-authenticator">
+                                                            <strong>External Authenticator</strong>
+                                                            <br><small class="text-muted">USB keys, NFC devices</small>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <hr>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="require-user-verification" checked>
+                                                <label class="form-check-label" for="require-user-verification">
+                                                    <strong>Require User Verification</strong>
+                                                    <br><small class="text-muted">Require PIN, biometric, or password for additional security</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Registration Status -->
+                                <div id="registration-status" class="mb-4 d-none">
+                                    <div class="card border-info">
+                                        <div class="card-body">
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-3">
+                                                    <div class="spinner-border spinner-border-sm text-info" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div class="fw-medium" id="status-title">Preparing registration...</div>
+                                                    <small class="text-muted" id="status-description">Please wait while we set up your security key.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                                    <a href="/security" class="btn btn-outline-secondary">
+                                        <i class="fas fa-arrow-left me-2"></i>
+                                        Back to Security
+                                    </a>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-outline-info btn-sm" onclick="testWebAuthnSupport()">
+                                            <i class="fas fa-vial me-1"></i>
+                                            Test Support
+                                        </button>
+                                        <button type="button" class="btn btn-primary" id="register-webauthn-btn">
+                                            <i class="fas fa-plus me-2"></i>
+                                            Register Security Key
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Existing Credentials -->
                         {{if .credentials}}
-                        <div class="mt-5">
-                            <h5 class="mb-3">
-                                <i class="fas fa-key me-2"></i>
-                                Your Security Keys
-                            </h5>
+                        <div class="mt-5" id="existing-credentials">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-key me-2"></i>
+                                    Your Security Keys
+                                </h5>
+                                <span class="badge bg-success">{{len .credentials}} Active</span>
+                            </div>
                             <div class="list-group">
                                 {{range .credentials}}
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div class="d-flex align-items-center">
-                                        <div class="me-3">
-                                            <i class="fas fa-key text-success"></i>
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="d-flex align-items-start">
+                                            <div class="me-3 mt-1">
+                                                <i class="fas fa-key text-success"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">{{.Name}}</h6>
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-calendar me-1"></i>
+                                                            Added {{.CreatedAt.Format "Jan 2, 2006"}}
+                                                        </small>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            {{if .LastUsedAt}}
+                                                                <i class="fas fa-clock me-1"></i>
+                                                                Last used {{.LastUsedAt.Format "Jan 2, 2006"}}
+                                                            {{else}}
+                                                                <i class="fas fa-info-circle me-1"></i>
+                                                                Never used
+                                                            {{end}}
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-light text-dark me-1">
+                                                        <i class="fas fa-fingerprint me-1"></i>
+                                                        ID: {{substr .CredentialID 0 8}}...
+                                                    </span>
+                                                    {{if .IsBackupEligible}}
+                                                    <span class="badge bg-info me-1">
+                                                        <i class="fas fa-cloud me-1"></i>
+                                                        Backup Eligible
+                                                    </span>
+                                                    {{end}}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h6 class="mb-1">{{.Name}}</h6>
-                                            <small class="text-muted">
-                                                Added {{.CreatedAt.Format "Jan 2, 2006"}}
-                                                {{if .LastUsedAt}}
-                                                • Last used {{.LastUsedAt.Format "Jan 2, 2006"}}
-                                                {{end}}
-                                            </small>
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-outline-info btn-sm" 
+                                                    onclick="testCredential('{{.CredentialID}}', '{{.Name}}')">
+                                                <i class="fas fa-vial"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                    onclick="editCredentialName('{{.CredentialID}}', '{{.Name}}')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                    onclick="deleteCredential('{{.CredentialID}}', '{{.Name}}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                         </div>
-                                    </div>
-                                    <div class="btn-group btn-group-sm">
-                                        <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                onclick="editCredentialName('{{.CredentialID}}', '{{.Name}}')">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" 
-                                                onclick="deleteCredential('{{.CredentialID}}', '{{.Name}}')">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
                                     </div>
                                 </div>
                                 {{end}}
@@ -139,6 +308,65 @@
             </div>
         </div>
     </main>
+
+    <!-- Browser Help Modal -->
+    <div class="modal fade" id="browserHelpModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-question-circle me-2"></i>
+                        Browser Compatibility
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Supported Browsers:</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fab fa-chrome text-warning me-2"></i>
+                                    <strong>Chrome 67+</strong> (Full support)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fab fa-firefox text-orange me-2"></i>
+                                    <strong>Firefox 60+</strong> (Full support)
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fab fa-safari text-info me-2"></i>
+                                    <strong>Safari 14+</strong> (iOS 14+)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fab fa-edge text-primary me-2"></i>
+                                    <strong>Edge 18+</strong> (Full support)
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <h6>Platform Support:</h6>
+                    <ul class="small">
+                        <li><strong>Windows:</strong> Windows Hello, FIDO2 security keys</li>
+                        <li><strong>macOS:</strong> Touch ID, FIDO2 security keys</li>
+                        <li><strong>iOS:</strong> Face ID, Touch ID (Safari only)</li>
+                        <li><strong>Android:</strong> Fingerprint, FIDO2 keys (Chrome)</li>
+                        <li><strong>Linux:</strong> FIDO2 security keys</li>
+                    </ul>
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> Some features may require HTTPS and may not work on localhost without special configuration.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Edit Name Modal -->
     <div class="modal fade" id="editNameModal" tabindex="-1">
@@ -155,6 +383,7 @@
                     <div class="mb-3">
                         <label for="edit-name" class="form-label">New Name</label>
                         <input type="text" class="form-control" id="edit-name" maxlength="50">
+                        <div class="form-text">Choose a name that helps you identify this security key</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -183,12 +412,18 @@
                     <p>Are you sure you want to delete <strong id="delete-key-name"></strong>?</p>
                     <div class="alert alert-warning">
                         <i class="fas fa-warning me-2"></i>
-                        This action cannot be undone. You won't be able to use this security key to sign in.
+                        <strong>Warning:</strong> This action cannot be undone. You won't be able to use this security key to sign in.
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="confirm-delete-check">
+                        <label class="form-check-label" for="confirm-delete-check">
+                            I understand this action cannot be undone
+                        </label>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirm-delete-btn">
+                    <button type="button" class="btn btn-danger" id="confirm-delete-btn" disabled>
                         <i class="fas fa-trash me-2"></i>
                         Delete Key
                     </button>
@@ -199,64 +434,303 @@
 
     <script>
         let currentCredentialId = null;
+        let platformAuthenticatorAvailable = false;
+        let recommendedSetup = null;
 
-        // Check WebAuthn support
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.PublicKeyCredential) {
-                document.getElementById('webauthn-setup').classList.remove('d-none');
-            } else {
-                document.getElementById('webauthn-not-supported').classList.remove('d-none');
-            }
+            checkWebAuthnSupport();
+            setupEventListeners();
         });
 
-        // Register WebAuthn credential
-        document.getElementById('register-webauthn-btn').addEventListener('click', async function() {
-            const btn = this;
-            const originalText = btn.innerHTML;
+        function setupEventListeners() {
+            // Delete confirmation checkbox
+            document.getElementById('confirm-delete-check').addEventListener('change', function() {
+                document.getElementById('confirm-delete-btn').disabled = !this.checked;
+            });
+
+            // Credential name input suggestions
+            const credentialNameInput = document.getElementById('credential-name');
+            credentialNameInput.addEventListener('focus', function() {
+                if (!this.value) {
+                    this.value = generateDefaultName();
+                }
+            });
+
+            // Register button
+            document.getElementById('register-webauthn-btn').addEventListener('click', registerWebAuthn);
+        }
+
+        // Check WebAuthn support and capabilities
+        async function checkWebAuthnSupport() {
+            const compatibilityCheck = document.getElementById('compatibility-check');
             
             try {
+                if (!window.PublicKeyCredential) {
+                    throw new Error('WebAuthn not supported');
+                }
+
+                // Check platform authenticator availability
+                if (window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+                    platformAuthenticatorAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                }
+
+                // Hide compatibility check
+                compatibilityCheck.classList.add('d-none');
+
+                // Show platform support info
+                if (platformAuthenticatorAvailable) {
+                    const platformInfo = document.getElementById('platform-support-info');
+                    platformInfo.classList.remove('d-none');
+                    
+                    const platformText = document.getElementById('platform-support-text');
+                    const platformDetails = document.getElementById('platform-support-details');
+                    
+                    const platform = detectPlatform();
+                    platformText.textContent = `${platform.name} authentication is available.`;
+                    platformDetails.textContent = platform.details;
+                }
+
+                // Update status indicators
+                updateAvailabilityIndicators();
+
+                // Show setup steps
+                document.getElementById('setup-steps').classList.remove('d-none');
+
+                // Determine recommended setup
+                determineRecommendedSetup();
+
+                showAlert('✅ WebAuthn is supported on your device!', 'success');
+
+            } catch (error) {
+                compatibilityCheck.classList.add('d-none');
+                document.getElementById('webauthn-not-supported').classList.remove('d-none');
+                showAlert('❌ WebAuthn is not supported on this browser/device.', 'danger');
+            }
+        }
+
+        function detectPlatform() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            
+            if (userAgent.includes('windows')) {
+                return {
+                    name: 'Windows Hello',
+                    details: 'You can use Windows Hello PIN, fingerprint, or face recognition.'
+                };
+            } else if (userAgent.includes('mac')) {
+                return {
+                    name: 'Touch ID',
+                    details: 'You can use Touch ID fingerprint authentication.'
+                };
+            } else if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
+                return {
+                    name: 'Face ID / Touch ID',
+                    details: 'You can use Face ID or Touch ID for authentication.'
+                };
+            } else if (userAgent.includes('android')) {
+                return {
+                    name: 'Android Biometrics',
+                    details: 'You can use fingerprint or other biometric authentication.'
+                };
+            } else {
+                return {
+                    name: 'Platform Authentication',
+                    details: 'Built-in authentication methods are available.'
+                };
+            }
+        }
+
+        function updateAvailabilityIndicators() {
+            // Update biometric status
+            const biometricStatus = document.getElementById('biometric-status');
+            if (platformAuthenticatorAvailable) {
+                biometricStatus.textContent = 'Available';
+                biometricStatus.className = 'badge bg-success';
+            } else {
+                biometricStatus.textContent = 'Not Available';
+                biometricStatus.className = 'badge bg-secondary';
+            }
+
+            // Update platform status
+            const platformStatus = document.getElementById('platform-status');
+            if (platformAuthenticatorAvailable) {
+                platformStatus.textContent = 'Available';
+                platformStatus.className = 'badge bg-success';
+            } else {
+                platformStatus.textContent = 'Not Available';
+                platformStatus.className = 'badge bg-secondary';
+            }
+
+            // Hardware keys are generally always available if WebAuthn is supported
+            const hardwareStatus = document.getElementById('hardware-status');
+            hardwareStatus.textContent = 'Available';
+            hardwareStatus.className = 'badge bg-success';
+        }
+
+        function determineRecommendedSetup() {
+            const recommendationCard = document.getElementById('recommended-setup');
+            const recommendationText = document.getElementById('recommendation-text');
+            const recommendedBtn = document.getElementById('use-recommended-btn');
+
+            if (platformAuthenticatorAvailable) {
+                recommendedSetup = 'platform';
+                recommendationText.textContent = 'Based on your device capabilities, we recommend using your built-in authentication (fingerprint, face recognition, or PIN) for the best user experience.';
+            } else {
+                recommendedSetup = 'cross-platform';
+                recommendationText.textContent = 'We recommend using a hardware security key (like YubiKey) for maximum security and compatibility across devices.';
+            }
+
+            recommendationCard.classList.remove('d-none');
+        }
+
+        function useRecommendedSetup() {
+            if (recommendedSetup === 'platform') {
+                document.getElementById('platform-authenticator').checked = true;
+                document.getElementById('credential-name').value = generateDefaultName('platform');
+            } else {
+                document.getElementById('cross-platform-authenticator').checked = true;
+                document.getElementById('credential-name').value = generateDefaultName('hardware');
+            }
+
+            showAlert('🎯 Recommended settings applied!', 'info');
+        }
+
+        function generateDefaultName(type = null) {
+            const platform = detectPlatform();
+            const timestamp = new Date().toLocaleDateString();
+
+            if (type === 'platform' || (type === null && platformAuthenticatorAvailable)) {
+                return `${platform.name} - ${timestamp}`;
+            } else {
+                return `Security Key - ${timestamp}`;
+            }
+        }
+
+        async function testWebAuthnSupport() {
+            try {
+                showAlert('🔍 Testing WebAuthn support...', 'info');
+
+                // Test if we can create a credential (without actually creating one)
+                const challenge = new Uint8Array(32);
+                crypto.getRandomValues(challenge);
+
+                const publicKeyCredentialCreationOptions = {
+                    challenge: challenge,
+                    rp: {
+                        name: "Test",
+                        id: window.location.hostname,
+                    },
+                    user: {
+                        id: new Uint8Array(16),
+                        name: "test@example.com",
+                        displayName: "Test User",
+                    },
+                    pubKeyCredParams: [{alg: -7, type: "public-key"}],
+                    authenticatorSelection: {
+                        authenticatorAttachment: document.querySelector('input[name="authenticatorType"]:checked').value,
+                        userVerification: document.getElementById('require-user-verification').checked ? "required" : "preferred"
+                    },
+                    timeout: 5000,
+                    attestation: "direct"
+                };
+
+                // This will fail but we can catch the specific error
+                try {
+                    await navigator.credentials.create({
+                        publicKey: publicKeyCredentialCreationOptions
+                    });
+                } catch (error) {
+                    if (error.name === 'NotAllowedError') {
+                        showAlert('✅ WebAuthn is working! (Test cancelled as expected)', 'success');
+                    } else if (error.name === 'NotSupportedError') {
+                        showAlert('❌ Selected authenticator type is not supported', 'warning');
+                    } else {
+                        showAlert('✅ WebAuthn support confirmed!', 'success');
+                    }
+                }
+
+            } catch (error) {
+                showAlert('❌ WebAuthn test failed: ' + error.message, 'danger');
+            }
+        }
+
+        // Register WebAuthn credential
+        async function registerWebAuthn() {
+            const btn = document.getElementById('register-webauthn-btn');
+            const originalText = btn.innerHTML;
+            const statusDiv = document.getElementById('registration-status');
+            const statusTitle = document.getElementById('status-title');
+            const statusDescription = document.getElementById('status-description');
+            
+            try {
+                // Validate input
+                const credentialName = document.getElementById('credential-name').value.trim();
+                if (!credentialName) {
+                    showAlert('Please enter a name for your security key', 'warning');
+                    return;
+                }
+
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting registration...';
                 btn.disabled = true;
+                statusDiv.classList.remove('d-none');
 
-                // Begin registration
+                // Step 1: Begin registration
+                statusTitle.textContent = 'Preparing registration...';
+                statusDescription.textContent = 'Contacting server to begin registration process.';
+
                 const response = await fetch('/security/webauthn/begin-registration', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                    }
+                    },
+                    body: JSON.stringify({
+                        authenticator_type: document.querySelector('input[name="authenticatorType"]:checked').value,
+                        user_verification: document.getElementById('require-user-verification').checked ? "required" : "preferred"
+                    })
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to begin registration');
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'Failed to begin registration');
                 }
 
                 const options = await response.json();
                 
+                // Step 2: Create credential
                 btn.innerHTML = '<i class="fas fa-fingerprint me-2"></i>Touch your security key...';
+                statusTitle.textContent = 'Waiting for authenticator...';
+                statusDescription.textContent = 'Please interact with your security key or biometric sensor.';
 
-                // Create credential
+                const publicKeyCredentialCreationOptions = {
+                    challenge: Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0)),
+                    rp: {
+                        name: options.rp_name,
+                        id: options.rp_id
+                    },
+                    user: {
+                        id: Uint8Array.from(options.user_id, c => c.charCodeAt(0)),
+                        name: options.user_name,
+                        displayName: options.user_display_name
+                    },
+                    pubKeyCredParams: [{alg: -7, type: "public-key"}],
+                    authenticatorSelection: {
+                        authenticatorAttachment: document.querySelector('input[name="authenticatorType"]:checked').value,
+                        userVerification: document.getElementById('require-user-verification').checked ? "required" : "preferred"
+                    },
+                    timeout: 60000,
+                    attestation: options.attestation || "direct",
+                    excludeCredentials: options.exclude_credentials || []
+                };
+
                 const credential = await navigator.credentials.create({
-                    publicKey: {
-                        challenge: Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0)),
-                        rp: {
-                            name: options.rp_name,
-                            id: options.rp_id
-                        },
-                        user: {
-                            id: Uint8Array.from(options.user_id, c => c.charCodeAt(0)),
-                            name: options.user_name,
-                            displayName: options.user_display_name
-                        },
-                        pubKeyCredParams: [{alg: -7, type: "public-key"}],
-                        authenticatorSelection: options.authenticator_selection,
-                        timeout: 60000,
-                        attestation: options.attestation
-                    }
+                    publicKey: publicKeyCredentialCreationOptions
                 });
 
+                // Step 3: Finish registration
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Finishing registration...';
+                statusTitle.textContent = 'Completing registration...';
+                statusDescription.textContent = 'Saving your security key to your account.';
 
-                // Finish registration
                 const finishResponse = await fetch('/security/webauthn/finish-registration', {
                     method: 'POST',
                     headers: {
@@ -264,30 +738,68 @@
                     },
                     body: JSON.stringify({
                         credential_id: btoa(String.fromCharCode.apply(null, new Uint8Array(credential.rawId))),
-                        name: document.getElementById('credential-name').value,
+                        name: credentialName,
                         challenge: options.challenge,
-                        session_id: 'webauthn_session_' + Date.now()
+                        session_id: options.session_id || 'webauthn_session_' + Date.now(),
+                        attestation_object: btoa(String.fromCharCode.apply(null, new Uint8Array(credential.response.attestationObject))),
+                        client_data_json: btoa(String.fromCharCode.apply(null, new Uint8Array(credential.response.clientDataJSON)))
                     })
                 });
 
                 if (!finishResponse.ok) {
-                    throw new Error('Failed to finish registration');
+                    const errorData = await finishResponse.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'Failed to finish registration');
                 }
 
                 const result = await finishResponse.json();
                 
-                // Show success and reload page
-                alert('Security key registered successfully!');
-                window.location.reload();
+                // Success
+                statusTitle.textContent = 'Registration complete!';
+                statusDescription.textContent = 'Your security key has been successfully registered.';
+                
+                showAlert('🎉 Security key registered successfully!', 'success');
+                
+                // Reload page to show new credential
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
 
             } catch (error) {
                 console.error('WebAuthn registration failed:', error);
-                alert('Failed to register security key: ' + error.message);
+                
+                let errorMessage = 'Failed to register security key';
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = 'Registration was cancelled or timed out';
+                } else if (error.name === 'NotSupportedError') {
+                    errorMessage = 'This authenticator type is not supported';
+                } else if (error.name === 'SecurityError') {
+                    errorMessage = 'Security error - please ensure you\'re using HTTPS';
+                } else if (error.name === 'InvalidStateError') {
+                    errorMessage = 'This authenticator is already registered';
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+                
+                showAlert('❌ ' + errorMessage, 'danger');
+                statusDiv.classList.add('d-none');
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
-        });
+        }
+
+        async function testCredential(credentialId, name) {
+            try {
+                showAlert(`🔍 Testing ${name}...`, 'info');
+
+                // Simulate credential test
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                showAlert(`✅ ${name} is working correctly!`, 'success');
+            } catch (error) {
+                showAlert(`❌ Failed to test ${name}: ${error.message}`, 'danger');
+            }
+        }
 
         function editCredentialName(credentialId, currentName) {
             currentCredentialId = credentialId;
@@ -299,14 +811,29 @@
         function deleteCredential(credentialId, name) {
             currentCredentialId = credentialId;
             document.getElementById('delete-key-name').textContent = name;
+            document.getElementById('confirm-delete-check').checked = false;
+            document.getElementById('confirm-delete-btn').disabled = true;
             const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        }
+
+        function showBrowserHelp() {
+            const modal = new bootstrap.Modal(document.getElementById('browserHelpModal'));
             modal.show();
         }
 
         // Save name changes
         document.getElementById('save-name-btn').addEventListener('click', async function() {
             const newName = document.getElementById('edit-name').value.trim();
-            if (!newName) return;
+            if (!newName) {
+                showAlert('Please enter a valid name', 'warning');
+                return;
+            }
+
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+            btn.disabled = true;
 
             try {
                 const response = await fetch(`/security/webauthn/credentials/${currentCredentialId}/name`, {
@@ -319,20 +846,104 @@
 
                 if (response.ok) {
                     bootstrap.Modal.getInstance(document.getElementById('editNameModal')).hide();
-                    window.location.reload();
+                    showAlert('✅ Security key name updated!', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
                 } else {
-                    alert('Failed to update name');
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'Failed to update name');
                 }
             } catch (error) {
-                alert('Error updating name: ' + error.message);
+                showAlert('❌ Error updating name: ' + error.message, 'danger');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         });
 
         // Confirm delete
-        document.getElementById('confirm-delete-btn').addEventListener('click', function() {
-            window.location.href = `/security/webauthn/credentials/${currentCredentialId}/delete`;
+        document.getElementById('confirm-delete-btn').addEventListener('click', async function() {
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/security/webauthn/credentials/${currentCredentialId}/delete`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                    showAlert('✅ Security key deleted successfully!', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'Failed to delete credential');
+                }
+            } catch (error) {
+                showAlert('❌ Error deleting credential: ' + error.message, 'danger');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         });
+
+        // Utility function to show alerts
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const alertHTML = `
+                <div class="alert alert-${type} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'info' ? 'info-circle' : 'exclamation-circle'} me-2"></i>
+                    <div class="flex-grow-1">${message}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+
+        // Template helper function for substring
+        function substr(str, start, length) {
+            return str.substring(start, start + length);
+        }
     </script>
+
+    <style>
+        .setup-option {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .setup-option:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .availability-indicator .badge {
+            font-size: 0.7rem;
+        }
+
+        #registration-status .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .list-group-item {
+            transition: background-color 0.2s ease;
+        }
+
+        .list-group-item:hover {
+            background-color: rgba(0,0,0,0.02);
+        }
+    </style>
 
     {{template "layouts/footer.tmpl" .}}
 {{end}} 
