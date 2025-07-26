@@ -49,31 +49,65 @@ type PaginatedResponse struct {
 }
 
 // PaginationInfo represents pagination metadata
-// @Description Pagination metadata for list responses
+// @Description Pagination metadata for querybuilder responses with support for both offset and cursor pagination
 type PaginationInfo struct {
-	// Cursor for the next page
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	NextCursor string `json:"next_cursor,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	// Type of pagination used
+	// @example offset
+	Type string `json:"type" example:"offset"`
 
-	// Cursor for the previous page
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	PrevCursor string `json:"prev_cursor,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	// Number of items in current page
+	// @example 20
+	Count int `json:"count" example:"20"`
 
-	// Whether there are more pages
+	// Maximum items per page
+	// @example 20
+	Limit int `json:"limit" example:"20"`
+
+	// Whether there are more items after current page
 	// @example true
-	HasMore bool `json:"has_more" example:"true"`
+	HasNext bool `json:"has_next" example:"true"`
 
-	// Whether there are previous pages
+	// Whether there are items before current page
 	// @example false
 	HasPrev bool `json:"has_prev" example:"false"`
 
-	// Number of items in current page
-	// @example 10
-	Count int `json:"count" example:"10"`
+	// Offset pagination fields
+	// Current page number (offset pagination only)
+	// @example 1
+	CurrentPage *int `json:"current_page,omitempty" example:"1"`
 
-	// Maximum number of items per page
-	// @example 10
-	Limit int `json:"limit" example:"10"`
+	// Last page number (offset pagination only)
+	// @example 5
+	LastPage *int `json:"last_page,omitempty" example:"5"`
+
+	// Items per page (offset pagination only)
+	// @example 20
+	PerPage *int `json:"per_page,omitempty" example:"20"`
+
+	// Total number of items (offset pagination only)
+	// @example 100
+	Total *int64 `json:"total,omitempty" example:"100"`
+
+	// Starting item number (offset pagination only)
+	// @example 1
+	From *int `json:"from,omitempty" example:"1"`
+
+	// Ending item number (offset pagination only)
+	// @example 20
+	To *int `json:"to,omitempty" example:"20"`
+
+	// Cursor pagination fields
+	// Cursor for next page (cursor pagination only)
+	// @example eyJpZCI6MTIzfQ==
+	NextCursor *string `json:"next_cursor,omitempty" example:"eyJpZCI6MTIzfQ=="`
+
+	// Cursor for previous page (cursor pagination only)
+	// @example eyJpZCI6MTAwfQ==
+	PrevCursor *string `json:"prev_cursor,omitempty" example:"eyJpZCI6MTAwfQ=="`
+
+	// Legacy fields for backward compatibility
+	// @deprecated Use HasNext instead
+	HasMore bool `json:"has_more,omitempty" example:"true"`
 }
 
 // ErrorResponse represents an error response

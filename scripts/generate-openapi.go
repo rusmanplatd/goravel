@@ -170,6 +170,18 @@ type TagInfo struct {
 	Description string
 }
 
+// QueryBuilderInfo holds information about querybuilder usage in a controller
+type QueryBuilderInfo struct {
+	UsesQueryBuilder bool
+	AllowedFilters   []string
+	AllowedSorts     []string
+	AllowedIncludes  []string
+	AllowedFields    []string
+	HasPagination    bool
+	PaginationType   string
+	ModelType        string
+}
+
 // CollectTagsFromControllers scans all controller files and collects unique tags and their descriptions
 func CollectTagsFromControllers(controllerDir string) []Tag {
 	tagMap := make(map[string]string)
@@ -394,61 +406,68 @@ func extractOpenAPIDocFromController(controllerFile, methodName string) (tags []
 	return
 }
 
-// extractRouteFromCall now uses the dynamic handler map
+// extractRouteFromCall now uses the dynamic handler map and handles middleware chaining
 func extractRouteFromCall(call *ast.CallExpr, fset *token.FileSet) RouteInfo {
 	route := RouteInfo{}
 
-	// Check if this is a facades.Route().Method() call
+	// Check if this is a method call (e.g., Get, Post, Put, Delete)
 	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-		// Check if it's a method call on Route()
-		if methodCall, ok := sel.X.(*ast.CallExpr); ok {
-			if methodSel, ok := methodCall.Fun.(*ast.SelectorExpr); ok {
-				if ident, ok := methodSel.X.(*ast.Ident); ok {
-					if ident.Name == "facades" && methodSel.Sel.Name == "Route" {
-						method := sel.Sel.Name
-						route.Method = strings.ToUpper(method)
+		method := sel.Sel.Name
 
-						// Extract path and handler from arguments
-						if len(call.Args) >= 2 {
-							if lit, ok := call.Args[0].(*ast.BasicLit); ok {
-								route.Path = strings.Trim(lit.Value, "\"")
-							}
-							if sel, ok := call.Args[1].(*ast.SelectorExpr); ok {
-								handlerTypeName := ""
-								if ident, ok := sel.X.(*ast.Ident); ok {
-									handlerTypeName = ident.Name
-								}
-								if realType, ok := varTypeMap[handlerTypeName]; ok {
-									handlerTypeName = realType
-								}
-								handlerStr := fmt.Sprintf("%s.%s", handlerTypeName, sel.Sel.Name)
-								route.Handler = handlerStr
-								if info, ok := globalHandlerMap[handlerStr]; ok {
-									tags, summary, description := extractOpenAPIDocFromController(info.FilePath, info.MethodName)
-									if len(tags) > 0 {
-										route.Tags = tags
-									}
-									if summary != "" {
-										route.Summary = summary
-									}
-									if description != "" {
-										route.Description = description
-									}
-								}
-							}
+		// Check if it's an HTTP method
+		httpMethods := map[string]bool{
+			"Get": true, "Post": true, "Put": true, "Delete": true, "Patch": true, "Options": true, "Head": true,
+		}
+
+		if httpMethods[method] {
+			route.Method = strings.ToUpper(method)
+
+			// Extract path and handler from arguments
+			if len(call.Args) >= 2 {
+				if lit, ok := call.Args[0].(*ast.BasicLit); ok {
+					route.Path = strings.Trim(lit.Value, "\"")
+				}
+
+				// Handle different types of handler arguments
+				switch handler := call.Args[1].(type) {
+				case *ast.SelectorExpr:
+					// Direct controller method: controllerVar.Method
+					handlerTypeName := ""
+					if ident, ok := handler.X.(*ast.Ident); ok {
+						handlerTypeName = ident.Name
+					}
+					if realType, ok := varTypeMap[handlerTypeName]; ok {
+						handlerTypeName = realType
+					}
+					handlerStr := fmt.Sprintf("%s.%s", handlerTypeName, handler.Sel.Name)
+					route.Handler = handlerStr
+
+					if info, ok := globalHandlerMap[handlerStr]; ok {
+						tags, summary, description := extractOpenAPIDocFromController(info.FilePath, info.MethodName)
+						if len(tags) > 0 {
+							route.Tags = tags
 						}
-
-						// Generate default responses
-						route.Responses = generateDefaultResponses(route.Method, route.Path)
-
-						// Generate parameters for path variables
-						route.Parameters = extractPathParameters(route.Path)
-
-						// Generate request body for POST/PUT operations
-						if route.Method == "POST" || route.Method == "PUT" {
-							route.RequestBody = generateRequestBody(route.Path, route.Method)
+						if summary != "" {
+							route.Summary = summary
+						}
+						if description != "" {
+							route.Description = description
 						}
 					}
+				case *ast.FuncLit:
+					// Inline function - skip for now
+					return route
+				}
+
+				// Generate default responses
+				route.Responses = generateDefaultResponses(route.Method, route.Path)
+
+				// Generate parameters for path variables
+				route.Parameters = extractPathParameters(route.Path)
+
+				// Generate request body for POST/PUT operations
+				if route.Method == "POST" || route.Method == "PUT" {
+					route.RequestBody = generateRequestBody(route.Path, route.Method)
 				}
 			}
 		}
@@ -483,14 +502,31 @@ func generateDefaultResponses(method, path string) map[string]Response {
 
 	switch method {
 	case "GET":
-		responses["200"] = Response{
-			Description: "Success",
-			Content: map[string]MediaType{
-				"application/json": {Schema: Schema{Ref: "#/components/schemas/APIResponse"}},
-			},
+		// Check if this is a list endpoint (plural resource without ID)
+		if strings.HasSuffix(path, "s") && !strings.Contains(path, "{") {
+			// List endpoint with pagination
+			responses["200"] = Response{
+				Description: "Success",
+				Content: map[string]MediaType{
+					"application/json": {Schema: Schema{Ref: "#/components/schemas/PaginatedResponse"}},
+				},
+			}
+		} else {
+			// Single resource endpoint
+			responses["200"] = Response{
+				Description: "Success",
+				Content: map[string]MediaType{
+					"application/json": {Schema: Schema{Ref: "#/components/schemas/APIResponse"}},
+				},
+			}
 		}
 		responses["401"] = Response{Description: "Unauthorized"}
 		responses["403"] = Response{Description: "Forbidden"}
+
+		// Add 404 for single resource endpoints
+		if strings.Contains(path, "{") {
+			responses["404"] = Response{Description: "Not found"}
+		}
 	case "POST":
 		responses["201"] = Response{
 			Description: "Created",
@@ -499,6 +535,8 @@ func generateDefaultResponses(method, path string) map[string]Response {
 			},
 		}
 		responses["400"] = Response{Description: "Bad request"}
+		responses["401"] = Response{Description: "Unauthorized"}
+		responses["403"] = Response{Description: "Forbidden"}
 		responses["422"] = Response{Description: "Validation error"}
 	case "PUT":
 		responses["200"] = Response{
@@ -507,10 +545,15 @@ func generateDefaultResponses(method, path string) map[string]Response {
 				"application/json": {Schema: Schema{Ref: "#/components/schemas/APIResponse"}},
 			},
 		}
+		responses["400"] = Response{Description: "Bad request"}
+		responses["401"] = Response{Description: "Unauthorized"}
+		responses["403"] = Response{Description: "Forbidden"}
 		responses["404"] = Response{Description: "Not found"}
 		responses["422"] = Response{Description: "Validation error"}
 	case "DELETE":
 		responses["204"] = Response{Description: "Deleted"}
+		responses["401"] = Response{Description: "Unauthorized"}
+		responses["403"] = Response{Description: "Forbidden"}
 		responses["404"] = Response{Description: "Not found"}
 	}
 
@@ -535,22 +578,333 @@ func extractPathParameters(path string) []Parameter {
 		})
 	}
 
-	// Add common query parameters for list endpoints
+	// Add querybuilder parameters for list endpoints
 	if strings.HasSuffix(path, "s") && !strings.Contains(path, "{") {
-		params = append(params, Parameter{
-			Name:        "cursor",
-			In:          "query",
-			Description: "Cursor for pagination",
-			Required:    false,
-			Schema:      Schema{Type: "string"},
-		})
-		params = append(params, Parameter{
-			Name:        "limit",
-			In:          "query",
-			Description: "Items per page",
-			Required:    false,
-			Schema:      Schema{Type: "integer", Default: 10},
-		})
+		// Add pagination parameters
+		params = append(params,
+			Parameter{
+				Name:        "cursor",
+				In:          "query",
+				Description: "Cursor for pagination",
+				Required:    false,
+				Schema:      Schema{Type: "string"},
+			},
+			Parameter{
+				Name:        "limit",
+				In:          "query",
+				Description: "Items per page (max: 100)",
+				Required:    false,
+				Schema:      Schema{Type: "integer", Default: 15, Example: 20},
+			},
+			Parameter{
+				Name:        "page",
+				In:          "query",
+				Description: "Page number for offset pagination",
+				Required:    false,
+				Schema:      Schema{Type: "integer", Default: 1, Example: 1},
+			},
+			Parameter{
+				Name:        "pagination_type",
+				In:          "query",
+				Description: "Type of pagination to use",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"offset", "cursor"}, Default: "offset"},
+			},
+		)
+
+		// Add querybuilder filter parameters
+		params = append(params,
+			Parameter{
+				Name:        "filter",
+				In:          "query",
+				Description: "Filter parameters in the format filter[field]=value. Multiple filters can be applied.",
+				Required:    false,
+				Schema: Schema{
+					Type: "object",
+					Example: map[string]interface{}{
+						"name":       "john",
+						"is_active":  "true",
+						"created_at": "2024-01-01",
+					},
+				},
+			},
+			Parameter{
+				Name:        "filter_group",
+				In:          "query",
+				Description: "Complex filter group in JSON format for advanced filtering with AND/OR logic.",
+				Required:    false,
+				Schema: Schema{
+					Type:        "string",
+					Description: "JSON string representing a filter group",
+					Example:     `{"operator":"AND","conditions":[{"field":"name","operator":"LIKE","value":"%john%"},{"field":"is_active","operator":"=","value":true}]}`,
+				},
+			},
+			Parameter{
+				Name:        "sort",
+				In:          "query",
+				Description: "Sort fields. Use comma-separated values. Prefix with '-' for descending order.",
+				Required:    false,
+				Schema: Schema{
+					Type:    "string",
+					Example: "name,-created_at,id",
+				},
+			},
+			Parameter{
+				Name:        "include",
+				In:          "query",
+				Description: "Include related resources. Use comma-separated values.",
+				Required:    false,
+				Schema: Schema{
+					Type:    "string",
+					Example: "roles,tenants,permissions",
+				},
+			},
+			Parameter{
+				Name:        "fields",
+				In:          "query",
+				Description: "Select specific fields to return. Use comma-separated values.",
+				Required:    false,
+				Schema: Schema{
+					Type:    "string",
+					Example: "id,name,email,created_at",
+				},
+			},
+		)
+
+		// Add common search parameters
+		params = append(params,
+			Parameter{
+				Name:        "search",
+				In:          "query",
+				Description: "Search across searchable fields",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "search term"},
+			},
+		)
+
+		// Add model-specific filter parameters based on path
+		modelParams := getModelSpecificParameters(path)
+		params = append(params, modelParams...)
+	}
+
+	return params
+}
+
+// getModelSpecificParameters returns model-specific filter parameters based on the endpoint path
+func getModelSpecificParameters(path string) []Parameter {
+	var params []Parameter
+
+	// Extract model name from path (e.g., /api/v1/users -> users)
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	if len(segments) < 3 {
+		return params
+	}
+
+	modelName := segments[2] // Assuming /api/v1/{model}
+
+	switch modelName {
+	case "users":
+		params = append(params,
+			Parameter{
+				Name:        "filter[name]",
+				In:          "query",
+				Description: "Filter by user name",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "john"},
+			},
+			Parameter{
+				Name:        "filter[email]",
+				In:          "query",
+				Description: "Filter by email address",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "john@example.com"},
+			},
+			Parameter{
+				Name:        "filter[is_active]",
+				In:          "query",
+				Description: "Filter by active status",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"true", "false"}, Example: "true"},
+			},
+			Parameter{
+				Name:        "filter[tenant_id]",
+				In:          "query",
+				Description: "Filter by tenant ID",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
+			},
+		)
+	case "tasks":
+		params = append(params,
+			Parameter{
+				Name:        "filter[status]",
+				In:          "query",
+				Description: "Filter by task status",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"todo", "in_progress", "done", "archived"}, Example: "in_progress"},
+			},
+			Parameter{
+				Name:        "filter[priority]",
+				In:          "query",
+				Description: "Filter by task priority",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"low", "medium", "high", "urgent"}, Example: "high"},
+			},
+			Parameter{
+				Name:        "filter[assignee_id]",
+				In:          "query",
+				Description: "Filter by assignee user ID",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
+			},
+			Parameter{
+				Name:        "filter[type]",
+				In:          "query",
+				Description: "Filter by task type",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"task", "bug", "feature", "epic"}, Example: "task"},
+			},
+		)
+	case "calendar-events":
+		params = append(params,
+			Parameter{
+				Name:        "filter[start_date]",
+				In:          "query",
+				Description: "Filter events starting from this date",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "date-time", Example: "2024-01-01T00:00:00Z"},
+			},
+			Parameter{
+				Name:        "filter[end_date]",
+				In:          "query",
+				Description: "Filter events ending before this date",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "date-time", Example: "2024-12-31T23:59:59Z"},
+			},
+			Parameter{
+				Name:        "filter[type]",
+				In:          "query",
+				Description: "Filter by event type",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"meeting", "appointment", "reminder", "event"}, Example: "meeting"},
+			},
+			Parameter{
+				Name:        "filter[status]",
+				In:          "query",
+				Description: "Filter by event status",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"scheduled", "in_progress", "completed", "cancelled"}, Example: "scheduled"},
+			},
+		)
+	case "countries", "provinces", "cities", "districts":
+		params = append(params,
+			Parameter{
+				Name:        "filter[name]",
+				In:          "query",
+				Description: "Filter by name",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "Indonesia"},
+			},
+			Parameter{
+				Name:        "filter[code]",
+				In:          "query",
+				Description: "Filter by code",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "ID"},
+			},
+			Parameter{
+				Name:        "filter[is_active]",
+				In:          "query",
+				Description: "Filter by active status",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"true", "false"}, Example: "true"},
+			},
+		)
+
+		// Add parent relationship filters
+		if modelName == "provinces" {
+			params = append(params, Parameter{
+				Name:        "filter[country_id]",
+				In:          "query",
+				Description: "Filter by country ID",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
+			})
+		} else if modelName == "cities" {
+			params = append(params, Parameter{
+				Name:        "filter[province_id]",
+				In:          "query",
+				Description: "Filter by province ID",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
+			})
+		} else if modelName == "districts" {
+			params = append(params, Parameter{
+				Name:        "filter[city_id]",
+				In:          "query",
+				Description: "Filter by city ID",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
+			})
+		}
+	case "roles", "permissions":
+		params = append(params,
+			Parameter{
+				Name:        "filter[name]",
+				In:          "query",
+				Description: "Filter by name",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "admin"},
+			},
+			Parameter{
+				Name:        "filter[guard]",
+				In:          "query",
+				Description: "Filter by guard name",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "web"},
+			},
+		)
+	case "organizations", "teams", "departments", "projects":
+		params = append(params,
+			Parameter{
+				Name:        "filter[name]",
+				In:          "query",
+				Description: "Filter by name",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "Development Team"},
+			},
+			Parameter{
+				Name:        "filter[is_active]",
+				In:          "query",
+				Description: "Filter by active status",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"true", "false"}, Example: "true"},
+			},
+		)
+	case "activity-logs":
+		params = append(params,
+			Parameter{
+				Name:        "filter[action]",
+				In:          "query",
+				Description: "Filter by action type",
+				Required:    false,
+				Schema:      Schema{Type: "string", Enum: []interface{}{"create", "update", "delete", "login", "logout"}, Example: "create"},
+			},
+			Parameter{
+				Name:        "filter[model_type]",
+				In:          "query",
+				Description: "Filter by model type",
+				Required:    false,
+				Schema:      Schema{Type: "string", Example: "User"},
+			},
+			Parameter{
+				Name:        "filter[user_id]",
+				In:          "query",
+				Description: "Filter by user ID",
+				Required:    false,
+				Schema:      Schema{Type: "string", Format: "ulid", Example: "01HKQJR9M2XYZ123456789ABCD"},
+			},
+		)
 	}
 
 	return params
@@ -1127,6 +1481,188 @@ func addSchemas(openAPI *OpenAPI, models map[string]StructInfo, requests map[str
 				},
 			},
 			Required: []string{"status", "timestamp"},
+		}
+	}
+
+	// Add paginated response schema
+	if _, exists := openAPI.Components.Schemas["PaginatedResponse"]; !exists {
+		openAPI.Components.Schemas["PaginatedResponse"] = Schema{
+			Type:        "object",
+			Description: "Paginated API response format with querybuilder support",
+			Properties: map[string]Schema{
+				"status": {
+					Type:        "string",
+					Description: "Response status",
+					Example:     "success",
+				},
+				"message": {
+					Type:        "string",
+					Description: "Response message",
+					Example:     "Data retrieved successfully",
+				},
+				"data": {
+					Type:        "array",
+					Description: "Array of items",
+					Items: &Schema{
+						Type:        "object",
+						Description: "Resource item",
+					},
+				},
+				"pagination": {
+					Ref: "#/components/schemas/PaginationInfo",
+				},
+				"timestamp": {
+					Type:        "string",
+					Format:      "date-time",
+					Description: "Response timestamp",
+					Example:     "2024-01-15T10:30:00Z",
+				},
+			},
+			Required: []string{"status", "data", "pagination", "timestamp"},
+		}
+	}
+
+	// Add pagination info schema
+	if _, exists := openAPI.Components.Schemas["PaginationInfo"]; !exists {
+		openAPI.Components.Schemas["PaginationInfo"] = Schema{
+			Type:        "object",
+			Description: "Pagination metadata for querybuilder responses",
+			Properties: map[string]Schema{
+				"type": {
+					Type:        "string",
+					Description: "Type of pagination used",
+					Enum:        []interface{}{"offset", "cursor"},
+					Example:     "offset",
+				},
+				"count": {
+					Type:        "integer",
+					Description: "Number of items in current page",
+					Example:     20,
+				},
+				"limit": {
+					Type:        "integer",
+					Description: "Maximum items per page",
+					Example:     20,
+				},
+				"has_next": {
+					Type:        "boolean",
+					Description: "Whether there are more items after current page",
+					Example:     true,
+				},
+				"has_prev": {
+					Type:        "boolean",
+					Description: "Whether there are items before current page",
+					Example:     false,
+				},
+				// Offset pagination fields
+				"current_page": {
+					Type:        "integer",
+					Description: "Current page number (offset pagination only)",
+					Example:     1,
+					Nullable:    true,
+				},
+				"last_page": {
+					Type:        "integer",
+					Description: "Last page number (offset pagination only)",
+					Example:     5,
+					Nullable:    true,
+				},
+				"per_page": {
+					Type:        "integer",
+					Description: "Items per page (offset pagination only)",
+					Example:     20,
+					Nullable:    true,
+				},
+				"total": {
+					Type:        "integer",
+					Description: "Total number of items (offset pagination only)",
+					Example:     100,
+					Nullable:    true,
+				},
+				"from": {
+					Type:        "integer",
+					Description: "Starting item number (offset pagination only)",
+					Example:     1,
+					Nullable:    true,
+				},
+				"to": {
+					Type:        "integer",
+					Description: "Ending item number (offset pagination only)",
+					Example:     20,
+					Nullable:    true,
+				},
+				// Cursor pagination fields
+				"next_cursor": {
+					Type:        "string",
+					Description: "Cursor for next page (cursor pagination only)",
+					Example:     "eyJpZCI6MTIzfQ==",
+					Nullable:    true,
+				},
+				"prev_cursor": {
+					Type:        "string",
+					Description: "Cursor for previous page (cursor pagination only)",
+					Example:     "eyJpZCI6MTAwfQ==",
+					Nullable:    true,
+				},
+			},
+			Required: []string{"type", "count", "limit", "has_next", "has_prev"},
+		}
+	}
+
+	// Add filter group schema for complex filtering
+	if _, exists := openAPI.Components.Schemas["FilterGroup"]; !exists {
+		openAPI.Components.Schemas["FilterGroup"] = Schema{
+			Type:        "object",
+			Description: "Filter group for complex querybuilder filtering",
+			Properties: map[string]Schema{
+				"operator": {
+					Type:        "string",
+					Description: "Logical operator for combining conditions",
+					Enum:        []interface{}{"AND", "OR"},
+					Example:     "AND",
+				},
+				"conditions": {
+					Type:        "array",
+					Description: "Array of filter conditions",
+					Items: &Schema{
+						Ref: "#/components/schemas/FilterCondition",
+					},
+				},
+				"groups": {
+					Type:        "array",
+					Description: "Nested filter groups",
+					Items: &Schema{
+						Ref: "#/components/schemas/FilterGroup",
+					},
+				},
+			},
+			Required: []string{"operator"},
+		}
+	}
+
+	// Add filter condition schema
+	if _, exists := openAPI.Components.Schemas["FilterCondition"]; !exists {
+		openAPI.Components.Schemas["FilterCondition"] = Schema{
+			Type:        "object",
+			Description: "Individual filter condition for querybuilder",
+			Properties: map[string]Schema{
+				"field": {
+					Type:        "string",
+					Description: "Field name to filter on",
+					Example:     "name",
+				},
+				"operator": {
+					Type:        "string",
+					Description: "Comparison operator",
+					Enum:        []interface{}{"=", "!=", ">", ">=", "<", "<=", "LIKE", "NOT LIKE", "IN", "NOT IN", "BETWEEN", "IS NULL", "IS NOT NULL"},
+					Example:     "LIKE",
+				},
+				"value": {
+					Description: "Value to compare against",
+					Example:     "%john%",
+				},
+			},
+			Required: []string{"field", "operator"},
 		}
 	}
 }
