@@ -112,8 +112,9 @@ func init() {
 		// Enable PKCE (Proof Key for Code Exchange) (default: true)
 		"enable_pkce": config.Env("OAUTH_ENABLE_PKCE", true),
 
-		// Enable Implicit Grant (default: false - deprecated)
-		"enable_implicit_grant": config.Env("OAUTH_ENABLE_IMPLICIT_GRANT", false),
+		// Implicit Grant has been removed for security reasons
+		// Use Authorization Code flow with PKCE instead
+		// "enable_implicit_grant": false, // REMOVED - deprecated and insecure
 
 		// Enable Device Authorization Grant (default: true)
 		"enable_device_authorization_grant": config.Env("OAUTH_ENABLE_DEVICE_AUTHORIZATION_GRANT", true),

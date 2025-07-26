@@ -3,9 +3,10 @@ package services
 import (
 	"crypto/rand"
 	"fmt"
-	mathRand "math/rand"
 	"strings"
 	"unicode"
+
+	"github.com/goravel/framework/facades"
 )
 
 type PasswordValidationService struct{}
@@ -405,8 +406,11 @@ func (s *PasswordValidationService) getRandomIndex(max int) int {
 	bytes := make([]byte, 4)
 	_, err := rand.Read(bytes)
 	if err != nil {
-		// Fallback to math/rand if crypto/rand fails
-		return mathRand.Intn(max)
+		// Do not fallback to insecure math/rand - return error instead
+		facades.Log().Error("Failed to generate secure random number", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return 0 // Return 0 instead of insecure random
 	}
 
 	// Convert bytes to int and mod by max

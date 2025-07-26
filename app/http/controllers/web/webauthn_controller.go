@@ -122,7 +122,16 @@ func (c *WebAuthnController) FinishRegistration(ctx http.Context) http.Response 
 		credentialName = "Security Key"
 	}
 
-	credential, err := c.webauthnService.FinishRegistration(user, credentialName, request.Response)
+	// Parse the credential creation response
+	credentialCreation := &services.WebAuthnCredentialCreation{
+		ID:       request.Response["id"].(string),
+		RawID:    request.Response["rawId"].(string),
+		Type:     request.Response["type"].(string),
+		Response: request.Response["response"].(map[string]interface{}),
+	}
+
+	// Finish registration
+	credential, err := c.webauthnService.FinishRegistration(user.ID, credentialCreation)
 	if err != nil {
 		return ctx.Response().Json(400, map[string]interface{}{
 			"error": err.Error(),
@@ -183,10 +192,21 @@ func (c *WebAuthnController) FinishAuthentication(ctx http.Context) http.Respons
 		})
 	}
 
-	err = c.webauthnService.FinishLogin(&user, response)
+	// Parse the assertion response
+	assertion := &services.WebAuthnAssertion{
+		ID:       response["id"].(string),
+		RawID:    response["rawId"].(string),
+		Type:     response["type"].(string),
+		Response: response["response"].(map[string]interface{}),
+	}
+
+	// Finish login
+	_, err = c.webauthnService.FinishLogin(user.ID, assertion)
 	if err != nil {
 		return ctx.Response().Json(400, map[string]interface{}{
-			"error": err.Error(),
+			"success": false,
+			"message": "WebAuthn authentication failed",
+			"error":   err.Error(),
 		})
 	}
 
@@ -224,7 +244,7 @@ func (c *WebAuthnController) DeleteCredential(ctx http.Context) http.Response {
 		return ctx.Response().Redirect(302, "/security/webauthn/manage?error=Invalid credential ID")
 	}
 
-	err := c.webauthnService.DeleteCredential(user, credentialID)
+	err := c.webauthnService.DeleteCredential(user.ID, credentialID)
 	if err != nil {
 		return ctx.Response().Redirect(302, "/security/webauthn/manage?error=Failed to delete credential")
 	}

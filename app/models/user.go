@@ -48,6 +48,8 @@ type User struct {
 	MfaSecret string `json:"mfa_secret,omitempty" example:"abc123def456"`
 	// @example 2024-01-15T10:30:00Z
 	MfaEnabledAt *time.Time `json:"mfa_enabled_at,omitempty" example:"2024-01-15T10:30:00Z"`
+	// @example [{"code":"1234-5678","used":false}]
+	MfaBackupCodes string `gorm:"type:text" json:"mfa_backup_codes,omitempty" example:"[{\"code\":\"1234-5678\",\"used\":false}]"`
 
 	// Password reset fields
 	// @example abc123def456

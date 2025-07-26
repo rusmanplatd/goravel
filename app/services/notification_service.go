@@ -215,17 +215,16 @@ func (s *NotificationService) useGoravelQueue() bool {
 }
 
 func (s *NotificationService) dispatchToGoravelQueue(job *NotificationQueueJob) error {
-	// Dispatch to Goravel's queue system
-	// Note: This is a placeholder - actual implementation would depend on Goravel's queue API
-	facades.Log().Info("Dispatching notification to Goravel queue", map[string]interface{}{
+	// Goravel queue system integration requires implementing queue.Job interface
+	// For now, fall back to background processing until proper queue job implementation
+	facades.Log().Info("Queue integration requires proper Job interface implementation", map[string]interface{}{
 		"job_id":            job.ID,
 		"notification_type": job.NotificationType,
 		"queue_name":        job.QueueName,
 		"delay":             job.Delay,
 	})
 
-	// In a real implementation, you'd use facades.Queue().Dispatch() or similar
-	// For now, fall back to background processing
+	// Fall back to background processing
 	return s.processInBackground(context.Background(), job)
 }
 

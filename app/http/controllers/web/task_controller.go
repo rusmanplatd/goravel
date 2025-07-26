@@ -1,7 +1,10 @@
 package web
 
 import (
+	"goravel/app/models"
+
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
 )
 
 type TaskController struct {
@@ -19,54 +22,43 @@ func (r *TaskController) Index(ctx http.Context) http.Response {
 		return ctx.Response().Redirect(302, "/login")
 	}
 
-	// Get tasks data
+	// Get user's tasks from database
+	var tasks []models.Task
+	err := facades.Orm().Query().Where("assignee_id", user.(*models.User).ID).Find(&tasks)
+	if err != nil {
+		facades.Log().Error("Failed to fetch tasks", map[string]interface{}{
+			"error":   err.Error(),
+			"user_id": user.(*models.User).ID,
+		})
+		return ctx.Response().View().Make("error.tmpl", map[string]interface{}{
+			"error": "Failed to load tasks",
+		})
+	}
+
+	// Calculate task statistics
+	var stats = map[string]int{
+		"total":       len(tasks),
+		"pending":     0,
+		"in_progress": 0,
+		"completed":   0,
+	}
+
+	for _, task := range tasks {
+		switch task.Status {
+		case "todo":
+			stats["pending"]++
+		case "in_progress":
+			stats["in_progress"]++
+		case "done":
+			stats["completed"]++
+		}
+	}
+
 	data := map[string]interface{}{
 		"title": "Tasks",
 		"user":  user,
-		"tasks": []map[string]interface{}{
-			{
-				"id":          1,
-				"title":       "Implement user authentication",
-				"description": "Add OAuth2 and multi-factor authentication support",
-				"status":      "in_progress",
-				"priority":    "high",
-				"assignee":    "John Doe",
-				"due_date":    "2024-01-20",
-				"project":     "Project Alpha",
-				"labels":      []string{"backend", "security"},
-				"progress":    65,
-			},
-			{
-				"id":          2,
-				"title":       "Design dashboard UI",
-				"description": "Create responsive dashboard with analytics widgets",
-				"status":      "pending",
-				"priority":    "medium",
-				"assignee":    "Jane Smith",
-				"due_date":    "2024-01-25",
-				"project":     "Project Alpha",
-				"labels":      []string{"frontend", "design"},
-				"progress":    0,
-			},
-			{
-				"id":          3,
-				"title":       "Write API documentation",
-				"description": "Document all REST endpoints with examples",
-				"status":      "completed",
-				"priority":    "low",
-				"assignee":    "Mike Johnson",
-				"due_date":    "2024-01-15",
-				"project":     "Project Beta",
-				"labels":      []string{"documentation"},
-				"progress":    100,
-			},
-		},
-		"stats": map[string]interface{}{
-			"total":       25,
-			"pending":     8,
-			"in_progress": 12,
-			"completed":   5,
-		},
+		"tasks": tasks,
+		"stats": stats,
 	}
 
 	return ctx.Response().View().Make("tasks/index.tmpl", data)

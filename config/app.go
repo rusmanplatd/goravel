@@ -49,7 +49,11 @@ func init() {
 		// This value determines the "environment" your application is currently
 		// running in. This may determine how you prefer to configure various
 		// services the application utilizes. Set this in your ".env" file.
-		"env": config.Env("APP_ENV", "production"),
+		"env": config.Env("APP_ENV", "local"),
+
+		// Application Master Key for E2EE key encryption at rest
+		// Generate with: openssl rand -base64 32
+		"master_key": config.Env("APP_MASTER_KEY", ""),
 
 		// Application Debug Mode
 		"debug": config.Env("APP_DEBUG", false),

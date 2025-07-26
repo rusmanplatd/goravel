@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -191,39 +192,45 @@ func (s *AuthService) ResetPassword(ctx http.Context, req *requests.ResetPasswor
 	return facades.Orm().Query().Save(&user)
 }
 
-// EnableMfa enables two-factor authentication for a user
+// EnableMfa enables MFA for a user
 func (s *AuthService) EnableMfa(ctx http.Context, user *models.User, req *requests.EnableMfaRequest) (map[string]interface{}, error) {
-	// Generate MFA secret if not provided
-	secret := req.Secret
-	if secret == "" {
-		secret = s.totpService.GenerateSecret()
-	}
-
-	// Verify the provided code
-	if !s.totpService.ValidateCode(secret, req.Code) {
+	// Validate the provided code against the secret
+	if !s.totpService.ValidateCode(req.Secret, req.Code) {
 		return nil, fmt.Errorf("invalid MFA code")
 	}
 
-	// Enable MFA for user
+	// Enable MFA for the user
 	now := time.Now()
 	user.MfaEnabled = true
-	user.MfaSecret = secret
+	user.MfaSecret = req.Secret
 	user.MfaEnabledAt = &now
 
-	err := facades.Orm().Query().Save(user)
-	if err != nil {
+	// Generate backup codes
+	backupCodes := s.totpService.GenerateBackupCodes(10)
+
+	// Store backup codes (simplified - in production you'd store them securely)
+	backupCodesJSON, _ := json.Marshal(backupCodes)
+	user.MfaBackupCodes = string(backupCodesJSON)
+
+	// Save user
+	if err := facades.Orm().Query().Save(user); err != nil {
 		return nil, err
 	}
 
-	// Generate QR code URL
-	qrCodeURL := s.totpService.GenerateQRCodeURL(secret, user.Email, user.Name)
-
-	// Send MFA setup email
-	s.emailService.SendMfaSetupEmail(user)
+	// Generate QR code URL for backup
+	config := TOTPConfig{
+		Issuer:      facades.Config().GetString("app.name", "Goravel"),
+		AccountName: user.Email,
+		Secret:      req.Secret,
+		Algorithm:   "SHA1",
+		Digits:      6,
+		Period:      30,
+	}
+	qrURL := s.totpService.GenerateQRCodeURL(config)
 
 	return map[string]interface{}{
-		"secret":      secret,
-		"qr_code_url": qrCodeURL,
+		"backup_codes": backupCodes,
+		"qr_code":      qrURL,
 	}, nil
 }
 
@@ -252,35 +259,59 @@ func (s *AuthService) VerifyMfa(user *models.User, code string) bool {
 	return s.totpService.ValidateCode(user.MfaSecret, code)
 }
 
-// GenerateMfaSetup generates MFA setup data
+// GenerateMfaSetup generates MFA setup data for a user
 func (s *AuthService) GenerateMfaSetup(user *models.User) map[string]interface{} {
+	// Generate a new secret
 	secret := s.totpService.GenerateSecret()
-	qrCodeURL := s.totpService.GenerateQRCodeURL(secret, user.Email, "Goravel")
+
+	// Generate QR code URL
+	config := TOTPConfig{
+		Issuer:      facades.Config().GetString("app.name", "Goravel"),
+		AccountName: user.Email,
+		Secret:      secret,
+		Algorithm:   "SHA1",
+		Digits:      6,
+		Period:      30,
+	}
+	qrURL := s.totpService.GenerateQRCodeURL(config)
 
 	return map[string]interface{}{
-		"secret":      secret,
-		"qr_code_url": qrCodeURL,
+		"secret":  secret,
+		"qr_code": qrURL,
 	}
 }
 
 // WebauthnRegister registers a new WebAuthn credential
 func (s *AuthService) WebauthnRegister(ctx http.Context, user *models.User, req *requests.WebauthnRegisterRequest) (*models.WebauthnCredential, error) {
-	// Use the improved WebAuthn service for credential registration
-	return s.webauthnService.FinishRegistration(user, req.Name, req.AttestationResponse)
+	// Extract credential creation data from the attestation response
+	attestationResponse := req.AttestationResponse
+
+	// Convert the request to the expected format
+	credentialCreation := &WebAuthnCredentialCreation{
+		ID:       attestationResponse["id"].(string),
+		RawID:    attestationResponse["rawId"].(string),
+		Type:     attestationResponse["type"].(string),
+		Response: attestationResponse["response"].(map[string]interface{}),
+	}
+
+	return s.webauthnService.FinishRegistration(user.ID, credentialCreation)
 }
 
 // WebauthnAuthenticate authenticates using WebAuthn
 func (s *AuthService) WebauthnAuthenticate(ctx http.Context, user *models.User, req *requests.WebauthnAuthenticateRequest) bool {
-	// Use the improved WebAuthn service for authentication
-	success, err := s.webauthnService.FinishAuthentication(user, req.AssertionResponse)
-	if err != nil {
-		facades.Log().Warning("WebAuthn authentication failed", map[string]interface{}{
-			"user_id": user.ID,
-			"error":   err.Error(),
-		})
-		return false
+	// Extract assertion data from the assertion response
+	assertionResponse := req.AssertionResponse
+
+	// Convert the request to the expected format
+	assertion := &WebAuthnAssertion{
+		ID:       assertionResponse["id"].(string),
+		RawID:    assertionResponse["rawId"].(string),
+		Type:     assertionResponse["type"].(string),
+		Response: assertionResponse["response"].(map[string]interface{}),
 	}
-	return success
+
+	success, err := s.webauthnService.FinishLogin(user.ID, assertion)
+	return err == nil && success
 }
 
 // ChangePassword changes user password
@@ -300,9 +331,9 @@ func (s *AuthService) ChangePassword(ctx http.Context, user *models.User, req *r
 	return facades.Orm().Query().Save(user)
 }
 
-// RefreshToken refreshes a JWT token
-func (s *AuthService) RefreshToken(ctx http.Context, req *requests.RefreshTokenRequest) (string, error) {
-	return s.jwtService.RefreshAccessToken(req.RefreshToken)
+// RefreshToken refreshes an access token using a refresh token
+func (s *AuthService) RefreshToken(refreshToken string) (string, error) {
+	return s.jwtService.RefreshToken(refreshToken)
 }
 
 // Logout handles user logout
@@ -319,17 +350,8 @@ func (s *AuthService) Logout(ctx http.Context, user *models.User) error {
 // Helper methods
 
 func (s *AuthService) GenerateJWTToken(user *models.User, remember bool) (string, error) {
-	if user == nil {
-		return "", fmt.Errorf("user is required")
-	}
-
-	if remember {
-		// Generate refresh token for remember me
-		return s.jwtService.GenerateRefreshToken(user.ID, user.Email)
-	}
-
-	// Generate access token
-	return s.jwtService.GenerateAccessToken(user.ID, user.Email)
+	accessToken, _, err := s.jwtService.GenerateTokenPair(user.ID, user.Email, remember)
+	return accessToken, err
 }
 
 func (s *AuthService) generateResetToken() string {
@@ -409,4 +431,9 @@ func (s *AuthService) GetJWTService() *JWTService {
 // GetEmailService returns the email service
 func (s *AuthService) GetEmailService() *EmailService {
 	return s.emailService
+}
+
+// VerifyPassword verifies a user's password
+func (s *AuthService) VerifyPassword(user *models.User, password string) bool {
+	return facades.Hash().Check(password, user.Password)
 }

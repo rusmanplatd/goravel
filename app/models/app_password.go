@@ -7,6 +7,9 @@ import (
 )
 
 // AppPassword represents an app-specific password for legacy applications
+// DEPRECATED: This model is deprecated and should be replaced with OAuth2 personal access tokens
+// for better security and standards compliance. Consider using OAuth2 Client Credentials flow
+// or Personal Access Tokens instead.
 type AppPassword struct {
 	ID         string     `json:"id" gorm:"primaryKey;type:char(26)"`
 	UserID     string     `json:"user_id" gorm:"type:char(26);index;not null"`
@@ -28,6 +31,7 @@ func (AppPassword) TableName() string {
 }
 
 // GeneratePassword creates a new app password with the format: xxxx-xxxx-xxxx-xxxx
+// DEPRECATED: Use OAuth2 Personal Access Tokens instead
 func (a *AppPassword) GeneratePassword() (string, error) {
 	// Generate 16 random bytes
 	bytes := make([]byte, 16)

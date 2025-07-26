@@ -28,6 +28,7 @@ func TestChatSystem(t *testing.T) {
 		encryptedMsg, err := e2eeService.EncryptMessage(message, recipientPublicKeys)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, encryptedMsg.Content)
+		assert.NotEmpty(t, encryptedMsg.Signature) // Check signature is present
 
 		decryptedMessage, err := e2eeService.DecryptMessage(encryptedMsg, keyPair.PrivateKey)
 		assert.NoError(t, err)
@@ -57,6 +58,124 @@ func TestChatSystem(t *testing.T) {
 		decryptedWithRoomKey, err := e2eeService.DecryptWithRoomKey(encryptedWithRoomKey, roomKey)
 		assert.NoError(t, err)
 		assert.Equal(t, message, decryptedWithRoomKey)
+	})
+
+	// Test E2EE Security Features
+	t.Run("E2EE Security", func(t *testing.T) {
+		e2eeService := services.NewE2EEService()
+
+		// Test input validation
+		t.Run("Input Validation", func(t *testing.T) {
+			keyPair, _ := e2eeService.GenerateKeyPair()
+
+			// Test empty message
+			_, err := e2eeService.EncryptMessage("", []string{keyPair.PublicKey})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "message cannot be empty")
+
+			// Test no recipients
+			_, err = e2eeService.EncryptMessage("test", []string{})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "at least one recipient public key is required")
+
+			// Test invalid public key
+			_, err = e2eeService.EncryptMessage("test", []string{"invalid-key"})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid public key")
+
+			// Test too large message
+			largeMessage := make([]byte, 65*1024) // 65KB
+			for i := range largeMessage {
+				largeMessage[i] = 'A'
+			}
+			_, err = e2eeService.EncryptMessage(string(largeMessage), []string{keyPair.PublicKey})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "message too large")
+		})
+
+		// Test message authentication
+		t.Run("Message Authentication", func(t *testing.T) {
+			keyPair, _ := e2eeService.GenerateKeyPair()
+			message := "Test message for authentication"
+
+			encryptedMsg, err := e2eeService.EncryptMessage(message, []string{keyPair.PublicKey})
+			assert.NoError(t, err)
+			assert.NotEmpty(t, encryptedMsg.Signature)
+
+			// Test successful decryption with valid signature
+			decryptedMessage, err := e2eeService.DecryptMessage(encryptedMsg, keyPair.PrivateKey)
+			assert.NoError(t, err)
+			assert.Equal(t, message, decryptedMessage)
+
+			// Test failed decryption with tampered signature
+			originalSignature := encryptedMsg.Signature
+			encryptedMsg.Signature = "tampered-signature"
+			_, err = e2eeService.DecryptMessage(encryptedMsg, keyPair.PrivateKey)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "message integrity verification failed")
+
+			// Restore original signature
+			encryptedMsg.Signature = originalSignature
+
+			// Test failed decryption with tampered content
+			originalContent := encryptedMsg.Content
+			encryptedMsg.Content = "tampered-content"
+			_, err = e2eeService.DecryptMessage(encryptedMsg, keyPair.PrivateKey)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "message integrity verification failed")
+
+			// Restore original content
+			encryptedMsg.Content = originalContent
+		})
+
+		// Test multiple recipients
+		t.Run("Multiple Recipients", func(t *testing.T) {
+			// Generate multiple key pairs
+			keyPair1, _ := e2eeService.GenerateKeyPair()
+			keyPair2, _ := e2eeService.GenerateKeyPair()
+			keyPair3, _ := e2eeService.GenerateKeyPair()
+
+			message := "Message for multiple recipients"
+			recipients := []string{keyPair1.PublicKey, keyPair2.PublicKey, keyPair3.PublicKey}
+
+			// Encrypt for multiple recipients
+			encryptedMsg, err := e2eeService.EncryptMessage(message, recipients)
+			assert.NoError(t, err)
+			assert.Len(t, encryptedMsg.Metadata, 3) // Should have 3 encrypted keys
+
+			// Test that each recipient can decrypt
+			decrypted1, err := e2eeService.DecryptMessage(encryptedMsg, keyPair1.PrivateKey)
+			assert.NoError(t, err)
+			assert.Equal(t, message, decrypted1)
+
+			decrypted2, err := e2eeService.DecryptMessage(encryptedMsg, keyPair2.PrivateKey)
+			assert.NoError(t, err)
+			assert.Equal(t, message, decrypted2)
+
+			decrypted3, err := e2eeService.DecryptMessage(encryptedMsg, keyPair3.PrivateKey)
+			assert.NoError(t, err)
+			assert.Equal(t, message, decrypted3)
+		})
+
+		// Test public key validation
+		t.Run("Public Key Validation", func(t *testing.T) {
+			keyPair, _ := e2eeService.GenerateKeyPair()
+
+			// Test valid key
+			err := e2eeService.ValidatePublicKey(keyPair.PublicKey)
+			assert.NoError(t, err)
+
+			// Test invalid PEM format
+			err = e2eeService.ValidatePublicKey("not-a-pem-key")
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "failed to decode PEM block")
+
+			// Test wrong key type
+			invalidKey := "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKB\n-----END PRIVATE KEY-----"
+			err = e2eeService.ValidatePublicKey(invalidKey)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid key type")
+		})
 	})
 
 	// Test chat service
@@ -147,13 +266,12 @@ func TestChatSystem(t *testing.T) {
 // TestChatModels tests the chat model structures
 func TestChatModels(t *testing.T) {
 	t.Run("Chat Room Model", func(t *testing.T) {
-		chatRoom := models.ChatRoom{
+		chatRoom := &models.ChatRoom{
 			Name:        "Test Room",
 			Description: "Test Description",
 			Type:        "group",
 			IsActive:    true,
 			TenantID:    "test_tenant",
-			CreatedBy:   "test_user",
 		}
 
 		assert.Equal(t, "Test Room", chatRoom.Name)

@@ -134,12 +134,15 @@ func (s *OrganizationService) CreateOrganization(data map[string]interface{}) (*
 		return nil, err
 	}
 
-	// Log activity
-	s.auditService.LogEvent(nil, "organization.created", "Organization created", "", "", map[string]interface{}{
-		"organization_id": organization.ID,
-		"name":            organization.Name,
-		"slug":            organization.Slug,
-	}, "low")
+	// Log the creation
+	s.auditService.LogSimpleEvent(
+		EventOrganizationCreated,
+		"Organization created",
+		map[string]interface{}{
+			"organization_id":   organization.ID,
+			"organization_name": organization.Name,
+		},
+	)
 
 	return organization, nil
 }
@@ -281,7 +284,7 @@ func (s *OrganizationService) UpdateOrganization(id string, data map[string]inte
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "organization.updated", "Organization updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "organization.updated", "Organization updated", "", "", map[string]interface{}{
 		"organization_id": organization.ID,
 		"name":            organization.Name,
 	}, "low")
@@ -318,7 +321,7 @@ func (s *OrganizationService) DeleteOrganization(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "organization.deleted", "Organization deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "organization.deleted", "Organization deleted", "", "", map[string]interface{}{
 		"organization_id": organization.ID,
 		"name":            organization.Name,
 	}, "low")
@@ -461,7 +464,7 @@ func (s *OrganizationService) AddUserToOrganization(organizationID, userID strin
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "organization.user_added", "User added to organization", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "organization.user_added", "User added to organization", "", "", map[string]interface{}{
 		"organization_id": organizationID,
 		"user_id":         userID,
 		"role":            userOrg.Role,
@@ -486,7 +489,7 @@ func (s *OrganizationService) RemoveUserFromOrganization(organizationID, userID 
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "organization.user_removed", "User removed from organization", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "organization.user_removed", "User removed from organization", "", "", map[string]interface{}{
 		"organization_id": organizationID,
 		"user_id":         userID,
 	}, "low")
@@ -621,7 +624,7 @@ func (s *OrganizationService) VerifyOrganization(organizationID string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "organization.verified", "Organization verified", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "organization.verified", "Organization verified", "", "", map[string]interface{}{
 		"organization_id": organizationID,
 		"name":            organization.Name,
 	}, "low")
@@ -711,7 +714,7 @@ func (s *OrganizationService) CreateDepartment(data map[string]interface{}) (*mo
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "department.created", "Department created", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "department.created", "Department created", "", "", map[string]interface{}{
 		"department_id":   department.ID,
 		"name":            department.Name,
 		"organization_id": department.OrganizationID,
@@ -781,7 +784,7 @@ func (s *OrganizationService) UpdateDepartment(id string, data map[string]interf
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "department.updated", "Department updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "department.updated", "Department updated", "", "", map[string]interface{}{
 		"department_id":   department.ID,
 		"name":            department.Name,
 		"organization_id": department.OrganizationID,
@@ -819,7 +822,7 @@ func (s *OrganizationService) DeleteDepartment(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "department.deleted", "Department deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "department.deleted", "Department deleted", "", "", map[string]interface{}{
 		"department_id":   department.ID,
 		"name":            department.Name,
 		"organization_id": department.OrganizationID,
@@ -904,7 +907,7 @@ func (s *OrganizationService) AddUserToDepartment(departmentID, userID string, d
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "department.user_added", "User added to department", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "department.user_added", "User added to department", "", "", map[string]interface{}{
 		"department_id": departmentID,
 		"user_id":       userID,
 		"role":          userDept.Role,
@@ -929,7 +932,7 @@ func (s *OrganizationService) RemoveUserFromDepartment(departmentID, userID stri
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "department.user_removed", "User removed from department", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "department.user_removed", "User removed from department", "", "", map[string]interface{}{
 		"department_id": departmentID,
 		"user_id":       userID,
 	}, "low")
@@ -1047,7 +1050,7 @@ func (s *OrganizationService) CreateTeam(data map[string]interface{}) (*models.T
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "team.created", "Team created", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "team.created", "Team created", "", "", map[string]interface{}{
 		"team_id":         team.ID,
 		"name":            team.Name,
 		"organization_id": team.OrganizationID,
@@ -1120,7 +1123,7 @@ func (s *OrganizationService) UpdateTeam(id string, data map[string]interface{})
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "team.updated", "Team updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "team.updated", "Team updated", "", "", map[string]interface{}{
 		"team_id":         team.ID,
 		"name":            team.Name,
 		"organization_id": team.OrganizationID,
@@ -1158,7 +1161,7 @@ func (s *OrganizationService) DeleteTeam(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "team.deleted", "Team deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "team.deleted", "Team deleted", "", "", map[string]interface{}{
 		"team_id":         team.ID,
 		"name":            team.Name,
 		"organization_id": team.OrganizationID,
@@ -1255,7 +1258,7 @@ func (s *OrganizationService) AddUserToTeam(teamID, userID string, data map[stri
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "team.user_added", "User added to team", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "team.user_added", "User added to team", "", "", map[string]interface{}{
 		"team_id": teamID,
 		"user_id": userID,
 		"role":    userTeam.Role,
@@ -1286,7 +1289,7 @@ func (s *OrganizationService) RemoveUserFromTeam(teamID, userID string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "team.user_removed", "User removed from team", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "team.user_removed", "User removed from team", "", "", map[string]interface{}{
 		"team_id": teamID,
 		"user_id": userID,
 	}, "low")
@@ -1410,7 +1413,7 @@ func (s *OrganizationService) CreateProject(data map[string]interface{}) (*model
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "project.created", "Project created", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "project.created", "Project created", "", "", map[string]interface{}{
 		"project_id":      project.ID,
 		"name":            project.Name,
 		"organization_id": project.OrganizationID,
@@ -1495,7 +1498,7 @@ func (s *OrganizationService) UpdateProject(id string, data map[string]interface
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "project.updated", "Project updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "project.updated", "Project updated", "", "", map[string]interface{}{
 		"project_id":      project.ID,
 		"name":            project.Name,
 		"organization_id": project.OrganizationID,
@@ -1533,7 +1536,7 @@ func (s *OrganizationService) DeleteProject(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "project.deleted", "Project deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "project.deleted", "Project deleted", "", "", map[string]interface{}{
 		"project_id":      project.ID,
 		"name":            project.Name,
 		"organization_id": project.OrganizationID,
@@ -1625,7 +1628,7 @@ func (s *OrganizationService) AddUserToProject(projectID, userID string, data ma
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "project.user_added", "User added to project", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "project.user_added", "User added to project", "", "", map[string]interface{}{
 		"project_id": projectID,
 		"user_id":    userID,
 		"role":       userProject.Role,
@@ -1650,7 +1653,7 @@ func (s *OrganizationService) RemoveUserFromProject(projectID, userID string) er
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "project.user_removed", "User removed from project", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "project.user_removed", "User removed from project", "", "", map[string]interface{}{
 		"project_id": projectID,
 		"user_id":    userID,
 	}, "low")
@@ -1828,7 +1831,7 @@ func (s *OrganizationService) AddTeamToProject(projectID, teamID string, data ma
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "project.team_added", "Team added to project", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "project.team_added", "Team added to project", "", "", map[string]interface{}{
 		"project_id": projectID,
 		"team_id":    teamID,
 		"role":       teamProject.Role,
@@ -1853,7 +1856,7 @@ func (s *OrganizationService) RemoveTeamFromProject(projectID, teamID string) er
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "project.team_removed", "Team removed from project", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "project.team_removed", "Team removed from project", "", "", map[string]interface{}{
 		"project_id": projectID,
 		"team_id":    teamID,
 	}, "low")

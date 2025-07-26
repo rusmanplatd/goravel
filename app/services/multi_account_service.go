@@ -218,12 +218,16 @@ func (s *MultiAccountService) AddAccount(ctx http.Context, user *models.User, lo
 			multiSession.ActiveAccount = user.ID
 
 			// Log account update
-			s.auditService.LogMultiAccountActivity(ctx, "account_updated", map[string]interface{}{
-				"user_id":      user.ID,
-				"email":        user.Email,
-				"login_method": loginMethod,
-				"action":       "existing_account_updated",
-			})
+			s.auditService.LogSimpleEvent(
+				EventAccountRefreshed,
+				"Account updated in multi-account session",
+				map[string]interface{}{
+					"user_id":      user.ID,
+					"email":        user.Email,
+					"login_method": loginMethod,
+					"action":       "existing_account_updated",
+				},
+			)
 
 			return s.SaveMultiAccountSession(ctx, multiSession)
 		}
@@ -236,7 +240,7 @@ func (s *MultiAccountService) AddAccount(ctx http.Context, user *models.User, lo
 		multiSession.Accounts = multiSession.Accounts[1:]
 
 		// Log account removal due to limit
-		s.auditService.LogMultiAccountActivity(ctx, "account_removed", map[string]interface{}{
+		s.auditService.LogSimpleEvent(EventAccountAdded, "account_removed", map[string]interface{}{
 			"removed_user_id": removedAccount.UserID,
 			"removed_email":   removedAccount.Email,
 			"reason":          "account_limit_exceeded",
@@ -268,7 +272,7 @@ func (s *MultiAccountService) AddAccount(ctx http.Context, user *models.User, lo
 	multiSession.ActiveAccount = user.ID
 
 	// Log new account addition
-	s.auditService.LogMultiAccountActivity(ctx, "account_added", map[string]interface{}{
+	s.auditService.LogSimpleEvent(EventAccountAdded, "account_added", map[string]interface{}{
 		"user_id":         user.ID,
 		"email":           user.Email,
 		"name":            user.Name,
@@ -290,18 +294,23 @@ func (s *MultiAccountService) SwitchAccount(ctx http.Context, userID string) err
 	// Rate limiting check
 	if err := s.checkSwitchRateLimit(multiSession); err != nil {
 		// Log rate limit exceeded
-		s.auditService.LogMultiAccountActivity(ctx, "rate_limit_exceeded", map[string]interface{}{
+		s.auditService.LogSimpleEvent(EventAccountAdded, "rate_limit_exceeded", map[string]interface{}{
 			"target_user_id": userID,
 			"switch_count":   multiSession.SwitchCount,
 			"last_switch":    multiSession.LastSwitchAt,
 		})
 
 		// Log security event for rapid switching
-		s.auditService.LogMultiAccountSecurityEvent(ctx, "rapid_account_switching", "medium", map[string]interface{}{
-			"target_user_id": userID,
-			"switch_count":   multiSession.SwitchCount,
-			"time_window":    "1 hour",
-		})
+		s.auditService.LogSecurityEvent(
+			EventSuspiciousActivity,
+			"Rapid account switching detected",
+			ctx,
+			map[string]interface{}{
+				"target_user_id": userID,
+				"switch_count":   multiSession.SwitchCount,
+				"time_window":    "1 hour",
+			},
+		)
 
 		return err
 	}
@@ -317,7 +326,7 @@ func (s *MultiAccountService) SwitchAccount(ctx http.Context, userID string) err
 			// Check if account session is expired
 			if account.ExpiresAt.Before(time.Now()) {
 				// Log session expiration
-				s.auditService.LogMultiAccountActivity(ctx, "session_expired", map[string]interface{}{
+				s.auditService.LogSimpleEvent(EventAccountAdded, "session_expired", map[string]interface{}{
 					"expired_user_id": userID,
 					"expired_email":   account.Email,
 					"expired_at":      account.ExpiresAt,
@@ -330,7 +339,7 @@ func (s *MultiAccountService) SwitchAccount(ctx http.Context, userID string) err
 			err := facades.Orm().Query().Where("id", userID).First(&user)
 			if err != nil {
 				// Log user not found
-				s.auditService.LogMultiAccountActivity(ctx, "validation_failed", map[string]interface{}{
+				s.auditService.LogSimpleEvent(EventAccountAdded, "validation_failed", map[string]interface{}{
 					"target_user_id": userID,
 					"reason":         "user_not_found_in_database",
 				})
@@ -339,7 +348,7 @@ func (s *MultiAccountService) SwitchAccount(ctx http.Context, userID string) err
 
 			if !user.IsActive {
 				// Log inactive user attempt
-				s.auditService.LogMultiAccountActivity(ctx, "validation_failed", map[string]interface{}{
+				s.auditService.LogSimpleEvent(EventAccountAdded, "validation_failed", map[string]interface{}{
 					"target_user_id": userID,
 					"target_email":   user.Email,
 					"reason":         "user_account_deactivated",
@@ -361,7 +370,7 @@ func (s *MultiAccountService) SwitchAccount(ctx http.Context, userID string) err
 
 	if !accountFound {
 		// Log account not found
-		s.auditService.LogMultiAccountActivity(ctx, "validation_failed", map[string]interface{}{
+		s.auditService.LogSimpleEvent(EventAccountAdded, "validation_failed", map[string]interface{}{
 			"target_user_id": userID,
 			"reason":         "account_not_found_in_session",
 		})
@@ -372,15 +381,11 @@ func (s *MultiAccountService) SwitchAccount(ctx http.Context, userID string) err
 	multiSession.LastSwitchAt = time.Now()
 	multiSession.SwitchCount++
 
-	// Update legacy session values for backward compatibility
-	session := ctx.Request().Session()
-	if session != nil {
-		session.Put("user_id", userID)
-		session.Put("user_email", targetAccount.Email)
-	}
+	// Modern session handling - use structured multi-account session data
+	// Legacy session compatibility has been removed - use proper multi-account session APIs
 
 	// Log successful account switch
-	s.auditService.LogMultiAccountActivity(ctx, "account_switched", map[string]interface{}{
+	s.auditService.LogSimpleEvent(EventAccountAdded, "account_switched", map[string]interface{}{
 		"switched_from":     previousActiveAccount,
 		"switched_to":       userID,
 		"switched_to_email": targetAccount.Email,
@@ -430,7 +435,7 @@ func (s *MultiAccountService) RemoveAccount(ctx http.Context, userID string) err
 
 	if removedAccount == nil {
 		// Log account not found
-		s.auditService.LogMultiAccountActivity(ctx, "validation_failed", map[string]interface{}{
+		s.auditService.LogSimpleEvent(EventAccountAdded, "validation_failed", map[string]interface{}{
 			"target_user_id": userID,
 			"reason":         "account_not_found_for_removal",
 		})
@@ -451,12 +456,7 @@ func (s *MultiAccountService) RemoveAccount(ctx http.Context, userID string) err
 	if multiSession.ActiveAccount == userID {
 		if len(multiSession.Accounts) > 0 {
 			multiSession.ActiveAccount = multiSession.Accounts[0].UserID
-			// Update legacy session values
-			session := ctx.Request().Session()
-			if session != nil {
-				session.Put("user_id", multiSession.ActiveAccount)
-				session.Put("user_email", multiSession.Accounts[0].Email)
-			}
+			// Modern session handling - no legacy session updates needed
 		} else {
 			// No accounts left, clear session
 			multiSession.ActiveAccount = ""
@@ -469,7 +469,7 @@ func (s *MultiAccountService) RemoveAccount(ctx http.Context, userID string) err
 	}
 
 	// Log account removal
-	s.auditService.LogMultiAccountActivity(ctx, "account_removed", map[string]interface{}{
+	s.auditService.LogSimpleEvent(EventAccountAdded, "account_removed", map[string]interface{}{
 		"removed_user_id":    userID,
 		"removed_email":      removedAccount.Email,
 		"removed_name":       removedAccount.Name,
@@ -563,7 +563,7 @@ func (s *MultiAccountService) ClearAllAccounts(ctx http.Context) error {
 	}
 
 	// Log the clearing of all accounts
-	s.auditService.LogMultiAccountActivity(ctx, "all_accounts_cleared", map[string]interface{}{
+	s.auditService.LogSimpleEvent(EventAccountAdded, "all_accounts_cleared", map[string]interface{}{
 		"cleared_count":    len(multiSession.Accounts),
 		"session_duration": time.Since(multiSession.CreatedAt).Hours(),
 		"total_switches":   multiSession.SwitchCount,
@@ -657,7 +657,7 @@ func (s *MultiAccountService) RefreshAccountData(ctx http.Context, userID string
 
 	if accountIndex == -1 {
 		// Log account not found
-		s.auditService.LogMultiAccountActivity(ctx, "validation_failed", map[string]interface{}{
+		s.auditService.LogSimpleEvent(EventAccountAdded, "validation_failed", map[string]interface{}{
 			"target_user_id": userID,
 			"reason":         "account_not_found_for_refresh",
 		})
@@ -669,7 +669,7 @@ func (s *MultiAccountService) RefreshAccountData(ctx http.Context, userID string
 	err = facades.Orm().Query().Where("id", userID).First(&user)
 	if err != nil {
 		// Log refresh failure
-		s.auditService.LogMultiAccountActivity(ctx, "account_refresh_failed", map[string]interface{}{
+		s.auditService.LogSimpleEvent(EventAccountAdded, "account_refresh_failed", map[string]interface{}{
 			"user_id": userID,
 			"error":   err.Error(),
 		})
@@ -699,7 +699,7 @@ func (s *MultiAccountService) RefreshAccountData(ctx http.Context, userID string
 	multiSession.Accounts[accountIndex].LastAccessed = time.Now()
 
 	// Log account refresh
-	s.auditService.LogMultiAccountActivity(ctx, "account_refreshed", map[string]interface{}{
+	s.auditService.LogSimpleEvent(EventAccountAdded, "account_refreshed", map[string]interface{}{
 		"user_id":     userID,
 		"email":       user.Email,
 		"changes":     changes,
@@ -823,7 +823,7 @@ func (s *MultiAccountService) ExtendAccountSession(ctx http.Context, userID stri
 			multiSession.Accounts[i].LastAccessed = time.Now()
 
 			// Log session extension
-			s.auditService.LogMultiAccountActivity(ctx, "session_extended", map[string]interface{}{
+			s.auditService.LogSimpleEvent(EventAccountAdded, "session_extended", map[string]interface{}{
 				"user_id":         userID,
 				"email":           account.Email,
 				"old_expires_at":  oldExpiration,
@@ -836,7 +836,7 @@ func (s *MultiAccountService) ExtendAccountSession(ctx http.Context, userID stri
 	}
 
 	// Log account not found for extension
-	s.auditService.LogMultiAccountActivity(ctx, "validation_failed", map[string]interface{}{
+	s.auditService.LogSimpleEvent(EventAccountAdded, "validation_failed", map[string]interface{}{
 		"target_user_id": userID,
 		"reason":         "account_not_found_for_extension",
 	})

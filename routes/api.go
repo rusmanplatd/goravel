@@ -30,13 +30,13 @@ func Api() {
 	notificationController := v1.NewNotificationController()
 
 	// Public authentication routes with rate limiting
-	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/login", authController.Login)
-	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/register", authController.Register)
-	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/forgot-password", authController.ForgotPassword)
-	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/reset-password", authController.ResetPassword)
+	facades.Route().Middleware(middleware.AuthRateLimit()).Post("/api/v1/auth/login", authController.Login)
+	facades.Route().Middleware(middleware.AuthRateLimit()).Post("/api/v1/auth/register", authController.Register)
+	facades.Route().Middleware(middleware.AuthRateLimit()).Post("/api/v1/auth/forgot-password", authController.ForgotPassword)
+	facades.Route().Middleware(middleware.AuthRateLimit()).Post("/api/v1/auth/reset-password", authController.ResetPassword)
 
 	// WebAuthn public routes (for authentication) with rate limiting
-	facades.Route().Middleware(middleware.RateLimit()).Post("/api/v1/auth/webauthn/authenticate", authController.WebauthnAuthenticate)
+	facades.Route().Middleware(middleware.WebAuthnRateLimit()).Post("/api/v1/auth/webauthn/authenticate", authController.WebauthnAuthenticate)
 
 	// Protected routes (require authentication)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/refresh", authController.RefreshToken)
@@ -49,6 +49,7 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/mfa/enable", authController.EnableMfa)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/mfa/disable", authController.DisableMfa)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/mfa/verify", authController.VerifyMfa)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/mfa/backup-codes/regenerate", authController.GenerateNewBackupCodes)
 
 	// WebAuthn protected routes
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/auth/webauthn/register", authController.WebauthnRegister)
@@ -235,20 +236,21 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/districts/{id}", districtController.Delete)
 
 	// Chat system routes (protected)
+	// Chat routes with E2EE rate limiting
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/chat/rooms", chatController.GetChatRooms)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/chat/rooms", chatController.CreateChatRoom)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/chat/rooms/{id}", chatController.GetChatRoom)
 	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/chat/rooms/{id}", chatController.UpdateChatRoom)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/chat/rooms/{id}", chatController.DeleteChatRoom)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/chat/rooms/{id}/messages", chatController.GetMessages)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/chat/rooms/{id}/messages", chatController.SendMessage)
+	facades.Route().Middleware(middleware.Auth(), middleware.E2EERateLimit()).Post("/api/v1/chat/rooms/{id}/messages", chatController.SendMessage)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/chat/rooms/{id}/read", chatController.MarkRoomAsRead)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/chat/rooms/{id}/members", chatController.GetRoomMembers)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/chat/rooms/{id}/members", chatController.AddMember)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/chat/rooms/{id}/members/{user_id}", chatController.RemoveMember)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/chat/rooms/{id}/rotate-key", chatController.RotateRoomKey)
+	facades.Route().Middleware(middleware.Auth(), middleware.E2EERateLimit()).Post("/api/v1/chat/rooms/{id}/rotate-key", chatController.RotateRoomKey)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/chat/keys", chatController.GetUserKeys)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/chat/keys", chatController.GenerateKeyPair)
+	facades.Route().Middleware(middleware.Auth(), middleware.E2EERateLimit()).Post("/api/v1/chat/keys", chatController.GenerateKeyPair)
 
 	// Message reactions routes
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/chat/rooms/{id}/messages/{message_id}/reactions", chatController.AddMessageReaction)

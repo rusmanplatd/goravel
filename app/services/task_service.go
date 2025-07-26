@@ -102,7 +102,7 @@ func (s *TaskService) CreateTask(data map[string]interface{}) (*models.Task, err
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task.created", "Task created", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task.created", "Task created", "", "", map[string]interface{}{
 		"task_id":    task.ID,
 		"title":      task.Title,
 		"project_id": task.ProjectID,
@@ -227,7 +227,7 @@ func (s *TaskService) UpdateTask(id string, data map[string]interface{}) (*model
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task.updated", "Task updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task.updated", "Task updated", "", "", map[string]interface{}{
 		"task_id":    task.ID,
 		"title":      task.Title,
 		"project_id": task.ProjectID,
@@ -265,7 +265,7 @@ func (s *TaskService) DeleteTask(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task.deleted", "Task deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task.deleted", "Task deleted", "", "", map[string]interface{}{
 		"task_id":    task.ID,
 		"title":      task.Title,
 		"project_id": task.ProjectID,
@@ -366,7 +366,7 @@ func (s *TaskService) CreateTaskLabel(data map[string]interface{}) (*models.Task
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task_label.created", "Task label created", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task_label.created", "Task label created", "", "", map[string]interface{}{
 		"label_id":   label.ID,
 		"name":       label.Name,
 		"project_id": label.ProjectID,
@@ -417,7 +417,7 @@ func (s *TaskService) UpdateTaskLabel(id string, data map[string]interface{}) (*
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task_label.updated", "Task label updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task_label.updated", "Task label updated", "", "", map[string]interface{}{
 		"label_id":   label.ID,
 		"name":       label.Name,
 		"project_id": label.ProjectID,
@@ -448,7 +448,7 @@ func (s *TaskService) DeleteTaskLabel(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task_label.deleted", "Task label deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task_label.deleted", "Task label deleted", "", "", map[string]interface{}{
 		"label_id":   label.ID,
 		"name":       label.Name,
 		"project_id": label.ProjectID,
@@ -501,7 +501,7 @@ func (s *TaskService) AddLabelToTask(taskID, labelID, userID string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task.label_added", "Label added to task", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task.label_added", "Label added to task", "", "", map[string]interface{}{
 		"task_id":  taskID,
 		"label_id": labelID,
 	}, "low")
@@ -518,7 +518,7 @@ func (s *TaskService) RemoveLabelFromTask(taskID, labelID string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task.label_removed", "Label removed from task", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task.label_removed", "Label removed from task", "", "", map[string]interface{}{
 		"task_id":  taskID,
 		"label_id": labelID,
 	}, "low")
@@ -561,7 +561,7 @@ func (s *TaskService) CreateMilestone(data map[string]interface{}) (*models.Mile
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "milestone.created", "Milestone created", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "milestone.created", "Milestone created", "", "", map[string]interface{}{
 		"milestone_id": milestone.ID,
 		"title":        milestone.Title,
 		"project_id":   milestone.ProjectID,
@@ -629,7 +629,7 @@ func (s *TaskService) UpdateMilestone(id string, data map[string]interface{}) (*
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "milestone.updated", "Milestone updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "milestone.updated", "Milestone updated", "", "", map[string]interface{}{
 		"milestone_id": milestone.ID,
 		"title":        milestone.Title,
 		"project_id":   milestone.ProjectID,
@@ -660,7 +660,7 @@ func (s *TaskService) DeleteMilestone(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "milestone.deleted", "Milestone deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "milestone.deleted", "Milestone deleted", "", "", map[string]interface{}{
 		"milestone_id": milestone.ID,
 		"title":        milestone.Title,
 		"project_id":   milestone.ProjectID,
@@ -738,7 +738,7 @@ func (s *TaskService) CreateTaskBoard(data map[string]interface{}) (*models.Task
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task_board.created", "Task board created", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task_board.created", "Task board created", "", "", map[string]interface{}{
 		"board_id":   board.ID,
 		"name":       board.Name,
 		"project_id": board.ProjectID,
@@ -798,7 +798,7 @@ func (s *TaskService) UpdateTaskBoard(id string, data map[string]interface{}) (*
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task_board.updated", "Task board updated", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task_board.updated", "Task board updated", "", "", map[string]interface{}{
 		"board_id":   board.ID,
 		"name":       board.Name,
 		"project_id": board.ProjectID,
@@ -829,7 +829,7 @@ func (s *TaskService) DeleteTaskBoard(id string) error {
 	}
 
 	// Log activity
-	s.auditService.LogEvent(nil, "task_board.deleted", "Task board deleted", "", "", map[string]interface{}{
+	s.auditService.LogEventCompat(nil, "task_board.deleted", "Task board deleted", "", "", map[string]interface{}{
 		"board_id":   board.ID,
 		"name":       board.Name,
 		"project_id": board.ProjectID,

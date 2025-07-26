@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -21,14 +22,28 @@ import (
 
 	"github.com/goravel/framework/facades"
 	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 // E2EEService handles end-to-end encryption for chat messages
-type E2EEService struct{}
+type E2EEService struct {
+	keyStorage *SecureKeyStorage
+}
 
 // NewE2EEService creates a new E2EE service instance
 func NewE2EEService() *E2EEService {
-	return &E2EEService{}
+	keyStorage, err := NewSecureKeyStorage()
+	if err != nil {
+		facades.Log().Error("Failed to initialize secure key storage", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// Fallback to basic service without secure storage
+		return &E2EEService{keyStorage: nil}
+	}
+
+	return &E2EEService{
+		keyStorage: keyStorage,
+	}
 }
 
 // KeyPair represents a public/private key pair
@@ -97,11 +112,115 @@ type SearchableMessage struct {
 	MatchScore  float64   `json:"match_score,omitempty"` // Relevance score for search results
 }
 
+// SecureKeyStorage provides secure storage for encryption keys
+type SecureKeyStorage struct {
+	masterKey []byte
+}
+
+// NewSecureKeyStorage creates a new secure key storage instance
+func NewSecureKeyStorage() (*SecureKeyStorage, error) {
+	// Get master key from environment or generate one
+	masterKeyEnv := facades.Config().GetString("app.master_key", "")
+	var masterKey []byte
+
+	if masterKeyEnv != "" {
+		// Use provided master key
+		var err error
+		masterKey, err = base64.StdEncoding.DecodeString(masterKeyEnv)
+		if err != nil {
+			return nil, fmt.Errorf("invalid master key format: %v", err)
+		}
+		if len(masterKey) != 32 {
+			return nil, fmt.Errorf("master key must be 32 bytes (256 bits)")
+		}
+	} else {
+		// Generate a new master key (for development only)
+		facades.Log().Warning("No master key found in environment, generating temporary key", nil)
+		masterKey = make([]byte, 32)
+		if _, err := rand.Read(masterKey); err != nil {
+			return nil, fmt.Errorf("failed to generate master key: %v", err)
+		}
+
+		// Log the generated key for development (remove in production)
+		encodedKey := base64.StdEncoding.EncodeToString(masterKey)
+		facades.Log().Info("Generated master key (store this in APP_MASTER_KEY environment variable)", map[string]interface{}{
+			"master_key": encodedKey,
+		})
+	}
+
+	return &SecureKeyStorage{
+		masterKey: masterKey,
+	}, nil
+}
+
+// EncryptForStorage encrypts data for secure storage
+func (s *SecureKeyStorage) EncryptForStorage(data []byte) (string, error) {
+	// Generate a random nonce
+	nonce := make([]byte, 12)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", fmt.Errorf("failed to generate nonce: %v", err)
+	}
+
+	// Encrypt with AES-256-GCM
+	block, err := aes.NewCipher(s.masterKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %v", err)
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %v", err)
+	}
+
+	ciphertext := aesGCM.Seal(nil, nonce, data, nil)
+
+	// Combine nonce and ciphertext
+	encryptedData := append(nonce, ciphertext...)
+	return base64.StdEncoding.EncodeToString(encryptedData), nil
+}
+
+// DecryptFromStorage decrypts data from secure storage
+func (s *SecureKeyStorage) DecryptFromStorage(encryptedData string) ([]byte, error) {
+	// Decode base64
+	data, err := base64.StdEncoding.DecodeString(encryptedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode encrypted data: %v", err)
+	}
+
+	// Extract nonce and ciphertext
+	if len(data) < 12 {
+		return nil, fmt.Errorf("invalid encrypted data: too short")
+	}
+	nonce := data[:12]
+	ciphertext := data[12:]
+
+	// Decrypt with AES-256-GCM
+	block, err := aes.NewCipher(s.masterKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %v", err)
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %v", err)
+	}
+
+	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt data: %v", err)
+	}
+
+	return plaintext, nil
+}
+
 // GenerateKeyPair generates a new RSA key pair for a user
 func (s *E2EEService) GenerateKeyPair() (*KeyPair, error) {
+	s.recordKeyGeneration()
+
 	// Generate RSA key pair
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
+		s.recordError()
 		return nil, fmt.Errorf("failed to generate RSA key pair: %v", err)
 	}
 
@@ -127,6 +246,67 @@ func (s *E2EEService) GenerateKeyPair() (*KeyPair, error) {
 
 // EncryptMessage encrypts a message using AES-256-GCM with a random key
 func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []string) (*EncryptedMessage, error) {
+	startTime := time.Now()
+	defer func() {
+		duration := time.Since(startTime)
+		s.recordEncryption(duration)
+	}()
+
+	// Security audit log
+	facades.Log().Info("E2EE message encryption initiated", map[string]interface{}{
+		"recipients_count": len(recipientPublicKeys),
+		"message_size":     len(message),
+		"timestamp":        time.Now().Unix(),
+	})
+
+	// Input validation
+	if len(message) == 0 {
+		s.recordError()
+		facades.Log().Warning("E2EE encryption failed: empty message", map[string]interface{}{
+			"error": "message cannot be empty",
+		})
+		return nil, fmt.Errorf("message cannot be empty")
+	}
+	if len(message) > 64*1024 { // 64KB limit
+		s.recordError()
+		facades.Log().Warning("E2EE encryption failed: message too large", map[string]interface{}{
+			"message_size": len(message),
+			"max_size":     64 * 1024,
+		})
+		return nil, fmt.Errorf("message too large: maximum size is 64KB")
+	}
+	if len(recipientPublicKeys) == 0 {
+		facades.Log().Warning("E2EE encryption failed: no recipients", map[string]interface{}{
+			"error": "no recipients provided",
+		})
+		return nil, fmt.Errorf("at least one recipient public key is required")
+	}
+	if len(recipientPublicKeys) > 100 { // Reasonable limit
+		facades.Log().Warning("E2EE encryption failed: too many recipients", map[string]interface{}{
+			"recipients_count": len(recipientPublicKeys),
+			"max_recipients":   100,
+		})
+		return nil, fmt.Errorf("too many recipients: maximum is 100")
+	}
+
+	// Validate all public keys before proceeding
+	for i, publicKeyStr := range recipientPublicKeys {
+		if len(strings.TrimSpace(publicKeyStr)) == 0 {
+			facades.Log().Warning("E2EE encryption failed: empty public key", map[string]interface{}{
+				"recipient_index": i,
+			})
+			return nil, fmt.Errorf("recipient public key %d is empty", i)
+		}
+		// Validate key format
+		if err := s.ValidatePublicKey(publicKeyStr); err != nil {
+			facades.Log().Warning("E2EE encryption failed: invalid public key", map[string]interface{}{
+				"recipient_index": i,
+				"error":           err.Error(),
+			})
+			return nil, fmt.Errorf("invalid public key for recipient %d: %v", i, err)
+		}
+	}
+
 	// Generate a random AES key
 	aesKey := make([]byte, 32)
 	if _, err := rand.Read(aesKey); err != nil {
@@ -158,6 +338,8 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 
 	// Encrypt the AES key for each recipient
 	encryptedKeys := make(map[string]string)
+	successfulEncryptions := 0
+
 	for i, publicKeyStr := range recipientPublicKeys {
 		encryptedKey, err := s.encryptAESKeyWithRSA(aesKey, publicKeyStr)
 		if err != nil {
@@ -168,6 +350,14 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 			continue
 		}
 		encryptedKeys[fmt.Sprintf("recipient_%d", i)] = encryptedKey
+		successfulEncryptions++
+	}
+
+	if successfulEncryptions == 0 {
+		facades.Log().Error("E2EE encryption failed: no successful recipient encryptions", map[string]interface{}{
+			"total_recipients": len(recipientPublicKeys),
+		})
+		return nil, fmt.Errorf("failed to encrypt message for any recipient")
 	}
 
 	// Create encrypted message
@@ -179,39 +369,94 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 		Timestamp: time.Now(),
 	}
 
+	// Add message authentication (HMAC signature)
+	signature, err := s.generateMessageSignature(encryptedMsg, aesKey)
+	if err != nil {
+		facades.Log().Error("E2EE signature generation failed", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, fmt.Errorf("failed to generate message signature: %v", err)
+	}
+	encryptedMsg.Signature = signature
+
+	// Security audit log for successful encryption
+	facades.Log().Info("E2EE message encryption completed successfully", map[string]interface{}{
+		"successful_recipients": successfulEncryptions,
+		"total_recipients":      len(recipientPublicKeys),
+		"has_signature":         encryptedMsg.Signature != "",
+		"algorithm":             encryptedMsg.Algorithm,
+		"version":               encryptedMsg.Version,
+	})
+
 	return encryptedMsg, nil
 }
 
 // DecryptMessage decrypts a message using the user's private key
 func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivateKey string) (string, error) {
+	startTime := time.Now()
+	defer func() {
+		duration := time.Since(startTime)
+		s.recordDecryption(duration)
+	}()
+
+	// Security audit log
+	facades.Log().Info("E2EE message decryption initiated", map[string]interface{}{
+		"algorithm":     encryptedMsg.Algorithm,
+		"version":       encryptedMsg.Version,
+		"has_signature": encryptedMsg.Signature != "",
+		"timestamp":     time.Now().Unix(),
+	})
+
 	// Decode the encrypted content
 	encryptedData, err := base64.StdEncoding.DecodeString(encryptedMsg.Content)
 	if err != nil {
+		facades.Log().Warning("E2EE decryption failed: invalid base64 content", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return "", fmt.Errorf("failed to decode encrypted content: %v", err)
 	}
 
 	// Extract nonce and ciphertext
 	if len(encryptedData) < 12 {
+		facades.Log().Warning("E2EE decryption failed: invalid data length", map[string]interface{}{
+			"data_length": len(encryptedData),
+			"min_length":  12,
+		})
 		return "", fmt.Errorf("invalid encrypted data length")
 	}
 	nonce := encryptedData[:12]
 	ciphertext := encryptedData[12:]
 
 	// Find the encrypted AES key for this user
-	var encryptedAESKey string
+	// Try all encrypted keys until one works with this user's private key
+	var aesKey []byte
+	var decryptionError error
+
 	for _, encryptedKey := range encryptedMsg.Metadata {
-		encryptedAESKey = encryptedKey
-		break // For simplicity, we'll use the first key
+		aesKey, decryptionError = s.decryptAESKeyWithRSA(encryptedKey, userPrivateKey)
+		if decryptionError == nil {
+			// Successfully decrypted with this key
+			break
+		}
 	}
 
-	if encryptedAESKey == "" {
-		return "", fmt.Errorf("no encrypted AES key found")
+	if decryptionError != nil {
+		facades.Log().Warning("E2EE decryption failed: no valid encrypted key found", map[string]interface{}{
+			"available_keys": len(encryptedMsg.Metadata),
+			"error":          decryptionError.Error(),
+		})
+		return "", fmt.Errorf("failed to decrypt AES key with any available encrypted keys: %v", decryptionError)
 	}
 
-	// Decrypt the AES key using RSA
-	aesKey, err := s.decryptAESKeyWithRSA(encryptedAESKey, userPrivateKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt AES key: %v", err)
+	// Verify message signature if present
+	if encryptedMsg.Signature != "" {
+		if err := s.verifyMessageSignature(encryptedMsg, aesKey, encryptedMsg.Signature); err != nil {
+			facades.Log().Error("E2EE message integrity verification failed", map[string]interface{}{
+				"error": err.Error(),
+			})
+			return "", fmt.Errorf("message integrity verification failed: %v", err)
+		}
+		facades.Log().Info("E2EE message signature verified successfully", nil)
 	}
 
 	// Decrypt the message
@@ -227,8 +472,18 @@ func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivate
 
 	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
+		facades.Log().Error("E2EE decryption failed: GCM decryption error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return "", fmt.Errorf("failed to decrypt message: %v", err)
 	}
+
+	// Security audit log for successful decryption
+	facades.Log().Info("E2EE message decryption completed successfully", map[string]interface{}{
+		"message_length": len(plaintext),
+		"algorithm":      encryptedMsg.Algorithm,
+		"version":        encryptedMsg.Version,
+	})
 
 	return string(plaintext), nil
 }
@@ -293,6 +548,13 @@ func (s *E2EEService) EncryptFile(fileData []byte, fileName, mimeType string, re
 		Metadata:      encryptedKeys,
 		Timestamp:     time.Now(),
 	}
+
+	// Add message authentication (HMAC signature)
+	signature, err := s.generateMessageSignature(encryptedFile, aesKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate file signature: %v", err)
+	}
+	encryptedFile.Signature = signature
 
 	return encryptedFile, nil
 }
@@ -478,26 +740,10 @@ func (s *E2EEService) DecryptPrivateKey(encryptedPrivateKey string, passphrase s
 	return string(plaintext), nil
 }
 
-// deriveKeyFromPassphrase derives a key from a passphrase using PBKDF2-like approach
+// deriveKeyFromPassphrase derives a key from a passphrase using PBKDF2
 func (s *E2EEService) deriveKeyFromPassphrase(passphrase string, salt []byte, iterations int) []byte {
-	// Use HMAC-SHA256 for key derivation
-	key := make([]byte, 32) // 256-bit key
-
-	// Simple key stretching using HMAC
-	currentHash := []byte(passphrase)
-	currentHash = append(currentHash, salt...)
-
-	for i := 0; i < iterations; i++ {
-		h := hmac.New(sha256.New, currentHash)
-		h.Write(salt)
-		h.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
-		currentHash = h.Sum(nil)
-	}
-
-	// Use the final hash as the key (truncate to 32 bytes if needed)
-	copy(key, currentHash[:32])
-
-	return key
+	// Use proper PBKDF2 with SHA-256
+	return pbkdf2.Key([]byte(passphrase), salt, iterations, 32, sha256.New)
 }
 
 // GenerateRoomKey generates a new room key for group chats
@@ -653,127 +899,256 @@ func (s *E2EEService) SaveRoomKey(roomKey *models.ChatRoomKey) error {
 
 // RotateRoomKey rotates the encryption key for a chat room
 func (s *E2EEService) RotateRoomKey(roomID string) error {
+	s.recordKeyRotation()
+
+	// Start transaction for atomic key rotation
+	tx, err := facades.Orm().Query().Begin()
+	if err != nil {
+		s.recordError()
+		return fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Get current active key version
+	var currentKey models.ChatRoomKey
+	err = tx.Where("chat_room_id", roomID).
+		Where("is_active", true).
+		Where("key_type", "room_key").
+		First(&currentKey)
+
+	nextVersion := 1
+	if err == nil {
+		nextVersion = currentKey.Version + 1
+	}
+
 	// Generate new room key
 	newRoomKey, err := s.GenerateRoomKey()
 	if err != nil {
-		return err
+		tx.Rollback()
+		return fmt.Errorf("failed to generate new room key: %v", err)
 	}
 
-	// Get room members
+	// Get room members with their public keys
 	var members []models.ChatRoomMember
-	err = facades.Orm().Query().Where("chat_room_id", roomID).Where("is_active", true).Find(&members)
+	err = tx.Where("chat_room_id", roomID).
+		Where("is_active", true).
+		Find(&members)
 	if err != nil {
-		return err
+		tx.Rollback()
+		return fmt.Errorf("failed to get room members: %v", err)
 	}
 
-	// Deactivate old keys
-	_, err = facades.Orm().Query().Model(&models.ChatRoomKey{}).
+	if len(members) == 0 {
+		tx.Rollback()
+		return fmt.Errorf("no active members found for room")
+	}
+
+	// Deactivate old keys (keep them for decrypting old messages)
+	_, err = tx.Model(&models.ChatRoomKey{}).
 		Where("chat_room_id", roomID).
 		Where("is_active", true).
 		Update("is_active", false)
 	if err != nil {
-		return err
+		tx.Rollback()
+		return fmt.Errorf("failed to deactivate old keys: %v", err)
 	}
 
-	// Create new room key
+	// Encrypt new room key for each member
 	now := time.Now()
-	roomKey := &models.ChatRoomKey{
-		ChatRoomID:   roomID,
-		KeyType:      "room_key",
-		EncryptedKey: base64.StdEncoding.EncodeToString(newRoomKey),
-		Version:      1,
-		IsActive:     true,
-		RotatedAt:    &now,
+	successfulKeys := 0
+
+	for _, member := range members {
+		if member.PublicKey == "" {
+			facades.Log().Warning("Member has no public key, skipping", map[string]interface{}{
+				"member_id": member.UserID,
+				"room_id":   roomID,
+			})
+			continue
+		}
+
+		// Encrypt room key for this member
+		encryptedKey, err := s.EncryptRoomKey(newRoomKey, member.PublicKey)
+		if err != nil {
+			facades.Log().Error("Failed to encrypt room key for member", map[string]interface{}{
+				"member_id": member.UserID,
+				"room_id":   roomID,
+				"error":     err.Error(),
+			})
+			continue
+		}
+
+		// Create new room key record for this member
+		roomKey := &models.ChatRoomKey{
+			ChatRoomID:   roomID,
+			KeyType:      "room_key",
+			EncryptedKey: encryptedKey,
+			Version:      nextVersion,
+			IsActive:     true,
+			RotatedAt:    &now,
+		}
+
+		err = tx.Create(roomKey)
+		if err != nil {
+			facades.Log().Error("Failed to save room key for member", map[string]interface{}{
+				"member_id": member.UserID,
+				"room_id":   roomID,
+				"error":     err.Error(),
+			})
+			continue
+		}
+
+		successfulKeys++
 	}
 
-	return s.SaveRoomKey(roomKey)
+	if successfulKeys == 0 {
+		tx.Rollback()
+		return fmt.Errorf("failed to create new room key for any member")
+	}
+
+	// Commit transaction
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit key rotation transaction: %v", err)
+	}
+
+	facades.Log().Info("Room key rotated successfully", map[string]interface{}{
+		"room_id":         roomID,
+		"new_version":     nextVersion,
+		"members_updated": successfulKeys,
+	})
+
+	return nil
 }
 
 // GeneratePrekeyBundle generates a complete prekey bundle for PFS
 func (s *E2EEService) GeneratePrekeyBundle(userID string, deviceID int) (*PrekeyBundle, error) {
+	facades.Log().Info("Generating prekey bundle for PFS", map[string]interface{}{
+		"user_id":   userID,
+		"device_id": deviceID,
+	})
+
 	// Generate identity key
 	identityKeyPair, err := s.GenerateKeyPair()
 	if err != nil {
+		facades.Log().Error("Failed to generate identity key for prekey bundle", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, fmt.Errorf("failed to generate identity key: %v", err)
 	}
 
 	// Generate signed prekey
 	signedPrekey, err := s.GenerateSignedPrekey(identityKeyPair.PrivateKey)
 	if err != nil {
+		facades.Log().Error("Failed to generate signed prekey", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, fmt.Errorf("failed to generate signed prekey: %v", err)
 	}
 
-	// Generate one-time prekeys
+	// Generate one-time prekeys (100 keys for better forward secrecy)
 	oneTimePrekeys := make([]*OneTimePrekey, 0, 100)
 	for i := 0; i < 100; i++ {
 		prekey, err := s.GenerateOneTimePrekey()
 		if err != nil {
-			facades.Log().Error("Failed to generate one-time prekey", map[string]interface{}{
-				"index": i,
-				"error": err.Error(),
+			facades.Log().Warning("Failed to generate one-time prekey", map[string]interface{}{
+				"user_id": userID,
+				"index":   i,
+				"error":   err.Error(),
 			})
 			continue
 		}
 		oneTimePrekeys = append(oneTimePrekeys, prekey)
 	}
 
+	if len(oneTimePrekeys) < 50 {
+		facades.Log().Error("Insufficient one-time prekeys generated", map[string]interface{}{
+			"user_id":   userID,
+			"generated": len(oneTimePrekeys),
+			"minimum":   50,
+		})
+		return nil, fmt.Errorf("failed to generate sufficient one-time prekeys")
+	}
+
 	// Generate registration ID
 	registrationID := s.generateRegistrationID()
 
-	return &PrekeyBundle{
+	bundle := &PrekeyBundle{
 		IdentityKey:    identityKeyPair.PublicKey,
 		SignedPrekey:   signedPrekey,
 		OneTimePrekeys: oneTimePrekeys,
 		RegistrationID: registrationID,
 		DeviceID:       deviceID,
-	}, nil
-}
-
-// GenerateSignedPrekey generates a signed prekey
-func (s *E2EEService) GenerateSignedPrekey(identityPrivateKey string) (*SignedPrekey, error) {
-	// Generate ephemeral key pair
-	ephemeralKeyPair, err := s.GenerateKeyPair()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate ephemeral key: %v", err)
 	}
 
-	// Sign the ephemeral public key with identity key
-	signature, err := s.SignMessage(ephemeralKeyPair.PublicKey, identityPrivateKey)
+	// Store the prekey bundle in database
+	if err := s.StorePrekeyBundle(userID, bundle, identityKeyPair.PrivateKey); err != nil {
+		facades.Log().Error("Failed to store prekey bundle", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return nil, fmt.Errorf("failed to store prekey bundle: %v", err)
+	}
+
+	facades.Log().Info("Prekey bundle generated successfully", map[string]interface{}{
+		"user_id":          userID,
+		"device_id":        deviceID,
+		"registration_id":  registrationID,
+		"one_time_prekeys": len(oneTimePrekeys),
+	})
+
+	return bundle, nil
+}
+
+// GenerateSignedPrekey generates a signed prekey for PFS
+func (s *E2EEService) GenerateSignedPrekey(identityPrivateKey string) (*SignedPrekey, error) {
+	// Generate a new key pair for the signed prekey
+	prekeyPair, err := s.GenerateKeyPair()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate prekey pair: %v", err)
+	}
+
+	// Create signature data
+	timestamp := time.Now().Unix()
+	keyID := s.generateKeyID()
+	signatureData := fmt.Sprintf("%d|%s|%d", keyID, prekeyPair.PublicKey, timestamp)
+
+	// Sign with identity private key
+	signature, err := s.SignMessage(signatureData, identityPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign prekey: %v", err)
 	}
 
-	// Generate key ID
-	keyID := s.generateKeyID()
-
 	return &SignedPrekey{
 		KeyID:     keyID,
-		PublicKey: ephemeralKeyPair.PublicKey,
+		PublicKey: prekeyPair.PublicKey,
 		Signature: signature,
-		Timestamp: time.Now().Unix(),
+		Timestamp: timestamp,
 	}, nil
 }
 
-// GenerateOneTimePrekey generates a one-time prekey
+// GenerateOneTimePrekey generates a one-time prekey for PFS
 func (s *E2EEService) GenerateOneTimePrekey() (*OneTimePrekey, error) {
-	// Generate ephemeral key pair
-	keyPair, err := s.GenerateKeyPair()
+	// Generate a new key pair
+	prekeyPair, err := s.GenerateKeyPair()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate one-time prekey: %v", err)
+		return nil, fmt.Errorf("failed to generate one-time prekey pair: %v", err)
 	}
 
-	// Generate key ID
-	keyID := s.generateKeyID()
-
 	return &OneTimePrekey{
-		KeyID:     keyID,
-		PublicKey: keyPair.PublicKey,
+		KeyID:     s.generateKeyID(),
+		PublicKey: prekeyPair.PublicKey,
 	}, nil
 }
 
 // generateKeyID generates a unique key ID
 func (s *E2EEService) generateKeyID() int {
-	// Generate a random 32-bit integer
+	// Generate a random key ID (in production, use a proper ID generation strategy)
 	keyIDBytes := make([]byte, 4)
 	rand.Read(keyIDBytes)
 	return int(keyIDBytes[0])<<24 | int(keyIDBytes[1])<<16 | int(keyIDBytes[2])<<8 | int(keyIDBytes[3])
@@ -781,10 +1156,10 @@ func (s *E2EEService) generateKeyID() int {
 
 // generateRegistrationID generates a unique registration ID
 func (s *E2EEService) generateRegistrationID() int {
-	// Generate a random 16-bit integer
-	regIDBytes := make([]byte, 2)
+	// Generate a random registration ID
+	regIDBytes := make([]byte, 4)
 	rand.Read(regIDBytes)
-	return int(regIDBytes[0])<<8 | int(regIDBytes[1])
+	return int(regIDBytes[0])<<24 | int(regIDBytes[1])<<16 | int(regIDBytes[2])<<8 | int(regIDBytes[3])
 }
 
 // generateFileID generates a unique file ID
@@ -1203,12 +1578,9 @@ func (s *E2EEService) generateEncryptedToken(searchKey []byte, term string) (str
 }
 
 func (s *E2EEService) decryptMessageForSearch(message models.ChatMessage, userID string) (string, error) {
-	// This is a placeholder - in reality you'd decrypt the message content
-	// using the appropriate room key that the user has access to
-
-	// For now, return a simulated decrypted content for indexing
-	// In production, you'd use the actual E2EE decryption process
-	return fmt.Sprintf("decrypted_content_for_message_%s", message.ID), nil
+	// E2EE search requires proper implementation with room key management
+	// This should integrate with the actual E2EE decryption system
+	return "", fmt.Errorf("E2EE search not implemented - requires proper room key management and decryption integration")
 }
 
 func (s *E2EEService) extractKeywords(content string) []string {
@@ -1292,4 +1664,498 @@ func (s *E2EEService) deriveKey(masterKey []byte, info []byte, length int) []byt
 	}
 
 	return result
+}
+
+// ValidatePublicKey validates the format and structure of a public key
+func (s *E2EEService) ValidatePublicKey(publicKeyStr string) error {
+	// Decode PEM block
+	block, _ := pem.Decode([]byte(publicKeyStr))
+	if block == nil {
+		return fmt.Errorf("failed to decode PEM block")
+	}
+
+	// Check if it's an RSA public key
+	if block.Type != "RSA PUBLIC KEY" && block.Type != "PUBLIC KEY" {
+		return fmt.Errorf("invalid key type: expected RSA PUBLIC KEY or PUBLIC KEY, got %s", block.Type)
+	}
+
+	// Try to parse the public key
+	if block.Type == "RSA PUBLIC KEY" {
+		_, err := x509.ParsePKCS1PublicKey(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("failed to parse PKCS1 public key: %v", err)
+		}
+	} else {
+		pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("failed to parse PKIX public key: %v", err)
+		}
+		// Ensure it's an RSA key
+		if _, ok := pubKey.(*rsa.PublicKey); !ok {
+			return fmt.Errorf("public key is not an RSA key")
+		}
+	}
+
+	return nil
+}
+
+// generateMessageSignature generates an HMAC signature for message authentication
+func (s *E2EEService) generateMessageSignature(msg interface{}, key []byte) (string, error) {
+	// Create a canonical representation of the message for signing
+	var dataToSign string
+
+	switch v := msg.(type) {
+	case *EncryptedMessage:
+		dataToSign = fmt.Sprintf("%s|%s|%d|%d", v.Content, v.Algorithm, v.Version, v.Timestamp.Unix())
+	case *EncryptedFile:
+		dataToSign = fmt.Sprintf("%s|%s|%d|%d", v.EncryptedData, v.Algorithm, v.Version, v.Timestamp.Unix())
+	default:
+		return "", fmt.Errorf("unsupported message type for signing")
+	}
+
+	// Generate HMAC-SHA256 signature
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(dataToSign))
+	signature := h.Sum(nil)
+
+	return base64.StdEncoding.EncodeToString(signature), nil
+}
+
+// verifyMessageSignature verifies the HMAC signature of a message
+func (s *E2EEService) verifyMessageSignature(msg interface{}, key []byte, signature string) error {
+	expectedSignature, err := s.generateMessageSignature(msg, key)
+	if err != nil {
+		return fmt.Errorf("failed to generate expected signature: %v", err)
+	}
+
+	// Use constant-time comparison to prevent timing attacks
+	if !hmac.Equal([]byte(expectedSignature), []byte(signature)) {
+		return fmt.Errorf("message signature verification failed")
+	}
+
+	return nil
+}
+
+// StorePrekeyBundle stores a prekey bundle in the database
+func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, identityPrivateKey string) error {
+	// Encrypt the identity private key for storage
+	var encryptedPrivateKey string
+	if s.keyStorage != nil {
+		encrypted, err := s.keyStorage.EncryptForStorage([]byte(identityPrivateKey))
+		if err != nil {
+			return fmt.Errorf("failed to encrypt private key: %v", err)
+		}
+		encryptedPrivateKey = encrypted
+	} else {
+		// Fallback to passphrase-based encryption
+		passphrase := facades.Config().GetString("app.key", "default-passphrase")
+		encrypted, err := s.EncryptPrivateKey(identityPrivateKey, passphrase)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt private key with passphrase: %v", err)
+		}
+		encryptedPrivateKey = encrypted
+	}
+
+	// Store identity key
+	identityKey := &models.UserKey{
+		UserID:              userID,
+		KeyType:             "identity",
+		PublicKey:           bundle.IdentityKey,
+		EncryptedPrivateKey: encryptedPrivateKey,
+		Version:             1,
+		IsActive:            true,
+	}
+	if err := s.SaveUserKey(identityKey); err != nil {
+		return fmt.Errorf("failed to save identity key: %v", err)
+	}
+
+	// Store signed prekey
+	signedPrekeyData := fmt.Sprintf("%d|%s|%s|%d",
+		bundle.SignedPrekey.KeyID,
+		bundle.SignedPrekey.PublicKey,
+		bundle.SignedPrekey.Signature,
+		bundle.SignedPrekey.Timestamp)
+
+	signedKey := &models.UserKey{
+		UserID:    userID,
+		KeyType:   "signed_prekey",
+		PublicKey: signedPrekeyData,
+		Version:   1,
+		IsActive:  true,
+		ExpiresAt: timePtr(time.Now().Add(30 * 24 * time.Hour)), // 30 days
+	}
+	if err := s.SaveUserKey(signedKey); err != nil {
+		return fmt.Errorf("failed to save signed prekey: %v", err)
+	}
+
+	// Store one-time prekeys
+	for _, prekey := range bundle.OneTimePrekeys {
+		prekeyData := fmt.Sprintf("%d|%s", prekey.KeyID, prekey.PublicKey)
+		oneTimeKey := &models.UserKey{
+			UserID:    userID,
+			KeyType:   "one_time_prekey",
+			PublicKey: prekeyData,
+			Version:   1,
+			IsActive:  true,
+			ExpiresAt: timePtr(time.Now().Add(7 * 24 * time.Hour)), // 7 days
+		}
+		if err := s.SaveUserKey(oneTimeKey); err != nil {
+			facades.Log().Warning("Failed to save one-time prekey", map[string]interface{}{
+				"user_id": userID,
+				"key_id":  prekey.KeyID,
+				"error":   err.Error(),
+			})
+		}
+	}
+
+	return nil
+}
+
+// timePtr returns a pointer to the given time
+func timePtr(t time.Time) *time.Time {
+	return &t
+}
+
+// GetPrekeyBundle retrieves a prekey bundle for a user
+func (s *E2EEService) GetPrekeyBundle(userID string) (*PrekeyBundle, error) {
+	facades.Log().Info("Retrieving prekey bundle", map[string]interface{}{
+		"user_id": userID,
+	})
+
+	// Get identity key
+	var identityKey models.UserKey
+	err := facades.Orm().Query().
+		Where("user_id", userID).
+		Where("key_type", "identity").
+		Where("is_active", true).
+		First(&identityKey)
+	if err != nil {
+		return nil, fmt.Errorf("identity key not found for user %s", userID)
+	}
+
+	// Get signed prekey
+	var signedKey models.UserKey
+	err = facades.Orm().Query().
+		Where("user_id", userID).
+		Where("key_type", "signed_prekey").
+		Where("is_active", true).
+		Where("expires_at > ?", time.Now()).
+		First(&signedKey)
+	if err != nil {
+		return nil, fmt.Errorf("valid signed prekey not found for user %s", userID)
+	}
+
+	// Parse signed prekey data
+	signedPrekey, err := s.parseSignedPrekey(signedKey.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse signed prekey: %v", err)
+	}
+
+	// Get one-time prekeys (limit to 10 for performance)
+	var oneTimeKeys []models.UserKey
+	err = facades.Orm().Query().
+		Where("user_id", userID).
+		Where("key_type", "one_time_prekey").
+		Where("is_active", true).
+		Where("expires_at > ?", time.Now()).
+		Limit(10).
+		Find(&oneTimeKeys)
+	if err != nil {
+		facades.Log().Warning("Failed to retrieve one-time prekeys", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+	}
+
+	// Parse one-time prekeys
+	oneTimePrekeys := make([]*OneTimePrekey, 0, len(oneTimeKeys))
+	for _, key := range oneTimeKeys {
+		prekey, err := s.parseOneTimePrekey(key.PublicKey)
+		if err != nil {
+			facades.Log().Warning("Failed to parse one-time prekey", map[string]interface{}{
+				"user_id": userID,
+				"key_id":  key.ID,
+				"error":   err.Error(),
+			})
+			continue
+		}
+		oneTimePrekeys = append(oneTimePrekeys, prekey)
+	}
+
+	bundle := &PrekeyBundle{
+		IdentityKey:    identityKey.PublicKey,
+		SignedPrekey:   signedPrekey,
+		OneTimePrekeys: oneTimePrekeys,
+		RegistrationID: 0, // TODO: Store and retrieve registration ID
+		DeviceID:       0, // TODO: Store and retrieve device ID
+	}
+
+	facades.Log().Info("Prekey bundle retrieved successfully", map[string]interface{}{
+		"user_id":          userID,
+		"one_time_prekeys": len(oneTimePrekeys),
+	})
+
+	return bundle, nil
+}
+
+// parseSignedPrekey parses signed prekey data from string format
+func (s *E2EEService) parseSignedPrekey(data string) (*SignedPrekey, error) {
+	parts := strings.Split(data, "|")
+	if len(parts) != 4 {
+		return nil, fmt.Errorf("invalid signed prekey data format")
+	}
+
+	keyID := 0
+	fmt.Sscanf(parts[0], "%d", &keyID)
+
+	timestamp := int64(0)
+	fmt.Sscanf(parts[3], "%d", &timestamp)
+
+	return &SignedPrekey{
+		KeyID:     keyID,
+		PublicKey: parts[1],
+		Signature: parts[2],
+		Timestamp: timestamp,
+	}, nil
+}
+
+// parseOneTimePrekey parses one-time prekey data from string format
+func (s *E2EEService) parseOneTimePrekey(data string) (*OneTimePrekey, error) {
+	parts := strings.Split(data, "|")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid one-time prekey data format")
+	}
+
+	keyID := 0
+	fmt.Sscanf(parts[0], "%d", &keyID)
+
+	return &OneTimePrekey{
+		KeyID:     keyID,
+		PublicKey: parts[1],
+	}, nil
+}
+
+// SearchableEncryption provides secure search capabilities for encrypted messages
+type SearchableEncryption struct {
+	searchKey []byte
+}
+
+// NewSearchableEncryption creates a new searchable encryption instance
+func NewSearchableEncryption(masterKey []byte) *SearchableEncryption {
+	// Create a temporary E2EE service to access deriveKey method
+	tempService := &E2EEService{}
+	// Derive search key from master key
+	searchKey := tempService.deriveKey(masterKey, []byte("search"), 32)
+	return &SearchableEncryption{
+		searchKey: searchKey,
+	}
+}
+
+// CreateSearchableMessage creates a searchable encrypted message
+func (s *E2EEService) CreateSearchableMessage(messageID, roomID, senderID, content string) (*SearchableMessage, error) {
+	facades.Log().Info("Creating searchable encrypted message", map[string]interface{}{
+		"message_id": messageID,
+		"room_id":    roomID,
+		"sender_id":  senderID,
+	})
+
+	// Initialize searchable encryption if not already done
+	if s.keyStorage == nil {
+		return nil, fmt.Errorf("secure key storage not initialized")
+	}
+
+	searchEnc := NewSearchableEncryption(s.keyStorage.masterKey)
+
+	// Extract keywords from message content
+	keywords := s.extractKeywords(content)
+
+	// Create search hashes for each keyword
+	searchHashes := make([]string, 0, len(keywords))
+	for _, keyword := range keywords {
+		hash, err := searchEnc.CreateSearchHash(keyword, roomID)
+		if err != nil {
+			facades.Log().Warning("Failed to create search hash for keyword", map[string]interface{}{
+				"keyword": keyword,
+				"error":   err.Error(),
+			})
+			continue
+		}
+		searchHashes = append(searchHashes, hash)
+	}
+
+	// Create content hash for integrity verification
+	contentHash, err := searchEnc.CreateContentHash(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create content hash: %v", err)
+	}
+
+	// Combine search hashes
+	combinedSearchHash := strings.Join(searchHashes, "|")
+
+	searchableMsg := &SearchableMessage{
+		MessageID:   messageID,
+		RoomID:      roomID,
+		SenderID:    senderID,
+		SearchHash:  combinedSearchHash,
+		ContentHash: contentHash,
+		Timestamp:   time.Now(),
+	}
+
+	facades.Log().Info("Searchable message created successfully", map[string]interface{}{
+		"message_id":    messageID,
+		"keywords":      len(keywords),
+		"search_hashes": len(searchHashes),
+	})
+
+	return searchableMsg, nil
+}
+
+// CreateSearchHash creates a searchable hash for a keyword
+func (se *SearchableEncryption) CreateSearchHash(keyword, roomID string) (string, error) {
+	// Create deterministic hash for the keyword in this room context
+	h := hmac.New(sha256.New, se.searchKey)
+	h.Write([]byte(fmt.Sprintf("%s:%s", roomID, strings.ToLower(keyword))))
+	hash := h.Sum(nil)
+
+	return base64.StdEncoding.EncodeToString(hash), nil
+}
+
+// CreateContentHash creates a hash of the message content for integrity
+func (se *SearchableEncryption) CreateContentHash(content string) (string, error) {
+	h := hmac.New(sha256.New, se.searchKey)
+	h.Write([]byte(content))
+	hash := h.Sum(nil)
+
+	return base64.StdEncoding.EncodeToString(hash), nil
+}
+
+// VerifySearchResult verifies the integrity of a search result
+func (s *E2EEService) VerifySearchResult(searchResult *SearchableMessage, originalContent string) bool {
+	if s.keyStorage == nil {
+		return false
+	}
+
+	searchEnc := NewSearchableEncryption(s.keyStorage.masterKey)
+
+	// Verify content hash
+	expectedHash, err := searchEnc.CreateContentHash(originalContent)
+	if err != nil {
+		return false
+	}
+
+	return expectedHash == searchResult.ContentHash
+}
+
+// E2EEMetrics tracks performance metrics for E2EE operations
+type E2EEMetrics struct {
+	EncryptionCount    int64         `json:"encryption_count"`
+	DecryptionCount    int64         `json:"decryption_count"`
+	KeyGenerationCount int64         `json:"key_generation_count"`
+	KeyRotationCount   int64         `json:"key_rotation_count"`
+	AverageEncryptTime time.Duration `json:"average_encrypt_time"`
+	AverageDecryptTime time.Duration `json:"average_decrypt_time"`
+	ErrorCount         int64         `json:"error_count"`
+	LastUpdated        time.Time     `json:"last_updated"`
+	mu                 sync.RWMutex  `json:"-"`
+}
+
+// Global metrics instance
+var e2eeMetrics = &E2EEMetrics{
+	LastUpdated: time.Now(),
+}
+
+// GetE2EEMetrics returns the current E2EE metrics
+func GetE2EEMetrics() *E2EEMetrics {
+	e2eeMetrics.mu.RLock()
+	defer e2eeMetrics.mu.RUnlock()
+
+	// Return a copy to avoid race conditions
+	return &E2EEMetrics{
+		EncryptionCount:    e2eeMetrics.EncryptionCount,
+		DecryptionCount:    e2eeMetrics.DecryptionCount,
+		KeyGenerationCount: e2eeMetrics.KeyGenerationCount,
+		KeyRotationCount:   e2eeMetrics.KeyRotationCount,
+		AverageEncryptTime: e2eeMetrics.AverageEncryptTime,
+		AverageDecryptTime: e2eeMetrics.AverageDecryptTime,
+		ErrorCount:         e2eeMetrics.ErrorCount,
+		LastUpdated:        e2eeMetrics.LastUpdated,
+	}
+}
+
+// recordEncryption records an encryption operation metric
+func (s *E2EEService) recordEncryption(duration time.Duration) {
+	e2eeMetrics.mu.Lock()
+	defer e2eeMetrics.mu.Unlock()
+
+	e2eeMetrics.EncryptionCount++
+
+	// Calculate rolling average
+	if e2eeMetrics.AverageEncryptTime == 0 {
+		e2eeMetrics.AverageEncryptTime = duration
+	} else {
+		// Simple moving average
+		e2eeMetrics.AverageEncryptTime = (e2eeMetrics.AverageEncryptTime + duration) / 2
+	}
+
+	e2eeMetrics.LastUpdated = time.Now()
+}
+
+// recordDecryption records a decryption operation metric
+func (s *E2EEService) recordDecryption(duration time.Duration) {
+	e2eeMetrics.mu.Lock()
+	defer e2eeMetrics.mu.Unlock()
+
+	e2eeMetrics.DecryptionCount++
+
+	// Calculate rolling average
+	if e2eeMetrics.AverageDecryptTime == 0 {
+		e2eeMetrics.AverageDecryptTime = duration
+	} else {
+		// Simple moving average
+		e2eeMetrics.AverageDecryptTime = (e2eeMetrics.AverageDecryptTime + duration) / 2
+	}
+
+	e2eeMetrics.LastUpdated = time.Now()
+}
+
+// recordKeyGeneration records a key generation operation metric
+func (s *E2EEService) recordKeyGeneration() {
+	e2eeMetrics.mu.Lock()
+	defer e2eeMetrics.mu.Unlock()
+
+	e2eeMetrics.KeyGenerationCount++
+	e2eeMetrics.LastUpdated = time.Now()
+}
+
+// recordKeyRotation records a key rotation operation metric
+func (s *E2EEService) recordKeyRotation() {
+	e2eeMetrics.mu.Lock()
+	defer e2eeMetrics.mu.Unlock()
+
+	e2eeMetrics.KeyRotationCount++
+	e2eeMetrics.LastUpdated = time.Now()
+}
+
+// recordError records an error metric
+func (s *E2EEService) recordError() {
+	e2eeMetrics.mu.Lock()
+	defer e2eeMetrics.mu.Unlock()
+
+	e2eeMetrics.ErrorCount++
+	e2eeMetrics.LastUpdated = time.Now()
+}
+
+// ResetMetrics resets all metrics (for testing purposes)
+func ResetE2EEMetrics() {
+	e2eeMetrics.mu.Lock()
+	defer e2eeMetrics.mu.Unlock()
+
+	e2eeMetrics.EncryptionCount = 0
+	e2eeMetrics.DecryptionCount = 0
+	e2eeMetrics.KeyGenerationCount = 0
+	e2eeMetrics.KeyRotationCount = 0
+	e2eeMetrics.AverageEncryptTime = 0
+	e2eeMetrics.AverageDecryptTime = 0
+	e2eeMetrics.ErrorCount = 0
+	e2eeMetrics.LastUpdated = time.Now()
 }
