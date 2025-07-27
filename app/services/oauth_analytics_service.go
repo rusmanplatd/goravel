@@ -136,6 +136,19 @@ type HealthStatus struct {
 	LastChecked    time.Time         `json:"last_checked"`
 }
 
+type EndpointMetrics struct {
+	RequestCount        int64         `json:"request_count"`
+	SuccessCount        int64         `json:"success_count"`
+	ClientErrorCount    int64         `json:"client_error_count"`
+	ServerErrorCount    int64         `json:"server_error_count"`
+	TotalResponseTime   time.Duration `json:"total_response_time"`
+	MinResponseTime     time.Duration `json:"min_response_time"`
+	MaxResponseTime     time.Duration `json:"max_response_time"`
+	AverageResponseTime time.Duration `json:"average_response_time"`
+	SuccessRate         float64       `json:"success_rate"`
+	LastUpdated         time.Time     `json:"last_updated"`
+}
+
 func NewOAuthAnalyticsService() *OAuthAnalyticsService {
 	return &OAuthAnalyticsService{}
 }
@@ -1162,9 +1175,9 @@ func (s *OAuthAnalyticsService) createDeviceFingerprint(userAgent, ipAddress str
 	return fmt.Sprintf("device_%x", hash[:8]) // Use first 8 bytes of hash
 }
 
-func (s *OAuthAnalyticsService) parseUserAgent(userAgent string) DeviceInfo {
+func (s *OAuthAnalyticsService) parseUserAgent(userAgent string) DeviceMetric {
 	// Parse user agent to extract device information
-	deviceInfo := DeviceInfo{
+	deviceInfo := DeviceMetric{
 		DeviceType: "unknown",
 		OS:         "unknown",
 		Browser:    "unknown",
@@ -1269,11 +1282,8 @@ func (s *OAuthAnalyticsService) determineSeverityFromEvent(eventType string) str
 }
 
 func (s *OAuthAnalyticsService) getEndpointMetrics(metricKey string) *EndpointMetrics {
-	// Get endpoint metrics from cache
-	var metrics EndpointMetrics
-
 	// Try to get from cache first
-	if data, err := facades.Cache().Get(metricKey); err == nil {
+	if data := facades.Cache().Get(metricKey, nil); data != nil {
 		if metricsData, ok := data.(*EndpointMetrics); ok {
 			return metricsData
 		}

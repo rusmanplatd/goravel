@@ -2805,72 +2805,88 @@ func storeInGoogleKMS(masterKey []byte) error {
 
 func loadFromHashiCorpVault() ([]byte, error) {
 	// Production HashiCorp Vault integration
-	vaultAddr := facades.Config().GetString("e2ee.vault_addr", "")
-	vaultToken := facades.Config().GetString("e2ee.vault_token", "")
-	secretPath := facades.Config().GetString("e2ee.vault_secret_path", "secret/master-key")
-	namespace := facades.Config().GetString("e2ee.vault_namespace", "")
+	secretPath := facades.Config().GetString("vault.paths.app.master_key", "secret/app/master-key")
 
-	if vaultAddr == "" {
-		return nil, fmt.Errorf("HashiCorp Vault configuration incomplete: missing vault_addr")
+	// Get Vault service from application container
+	app := facades.App()
+	vaultService, err := app.MakeWith("vault", nil)
+	if err != nil || vaultService == nil {
+		return nil, fmt.Errorf("Vault service not available: %v", err)
 	}
 
-	if vaultToken == "" {
-		// Check for other authentication methods
-		roleID := facades.Config().GetString("e2ee.vault_role_id", "")
-		secretID := facades.Config().GetString("e2ee.vault_secret_id", "")
-
-		if roleID == "" || secretID == "" {
-			return nil, fmt.Errorf("HashiCorp Vault authentication not configured")
-		}
+	vs, ok := vaultService.(*VaultService)
+	if !ok {
+		return nil, fmt.Errorf("invalid Vault service type")
 	}
 
-	// In production, you would use HashiCorp Vault API:
-	// import "github.com/hashicorp/vault/api"
+	// Retrieve master key from Vault
+	secretData, err := vs.GetSecret(secretPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve master key from Vault: %v", err)
+	}
 
-	facades.Log().Info("HashiCorp Vault integration would load master key", map[string]interface{}{
-		"vault_addr":  vaultAddr,
+	// Extract master key from secret data
+	masterKeyStr, ok := secretData.Data["master_key"].(string)
+	if !ok {
+		return nil, fmt.Errorf("master key not found or not a string in Vault secret")
+	}
+
+	// Decode base64 master key
+	masterKey, err := base64.StdEncoding.DecodeString(masterKeyStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode master key from Vault: %v", err)
+	}
+
+	if len(masterKey) != 32 {
+		return nil, fmt.Errorf("invalid master key length from Vault: expected 32 bytes, got %d", len(masterKey))
+	}
+
+	facades.Log().Info("Master key loaded from HashiCorp Vault", map[string]interface{}{
 		"secret_path": secretPath,
-		"namespace":   namespace,
+		"key_length":  len(masterKey),
 	})
 
-	return nil, fmt.Errorf("HashiCorp Vault integration requires Vault API implementation")
+	return masterKey, nil
 }
 
 func storeInHashiCorpVault(masterKey []byte) error {
 	// Production HashiCorp Vault integration for storing secrets
-	vaultAddr := facades.Config().GetString("e2ee.vault_addr", "")
-	vaultToken := facades.Config().GetString("e2ee.vault_token", "")
-	secretPath := facades.Config().GetString("e2ee.vault_secret_path", "secret/master-key")
-	namespace := facades.Config().GetString("e2ee.vault_namespace", "")
+	secretPath := facades.Config().GetString("vault.paths.app.master_key", "secret/app/master-key")
 
-	if vaultAddr == "" {
-		return fmt.Errorf("HashiCorp Vault configuration incomplete: missing vault_addr")
+	// Get Vault service from application container
+	app := facades.App()
+	vaultService, err := app.MakeWith("vault", nil)
+	if err != nil || vaultService == nil {
+		return fmt.Errorf("Vault service not available: %v", err)
 	}
 
-	if vaultToken == "" {
-		// Check for other authentication methods
-		roleID := facades.Config().GetString("e2ee.vault_role_id", "")
-		secretID := facades.Config().GetString("e2ee.vault_secret_id", "")
-
-		if roleID == "" || secretID == "" {
-			return fmt.Errorf("HashiCorp Vault authentication not configured")
-		}
+	vs, ok := vaultService.(*VaultService)
+	if !ok {
+		return fmt.Errorf("invalid Vault service type")
 	}
 
-	// In production implementation:
-	// 1. Create Vault client with authentication
-	// 2. Write the master key to the specified secret path
-	// 3. Set appropriate policies and TTL
-	// 4. Enable audit logging for the operation
+	// Encode master key as base64
+	masterKeyStr := base64.StdEncoding.EncodeToString(masterKey)
 
-	facades.Log().Info("HashiCorp Vault integration would store master key", map[string]interface{}{
-		"vault_addr":  vaultAddr,
+	// Prepare secret data
+	secretData := map[string]interface{}{
+		"master_key": masterKeyStr,
+		"created_at": time.Now().UTC().Format(time.RFC3339),
+		"key_size":   len(masterKey),
+		"algorithm":  "AES-256-GCM",
+	}
+
+	// Store master key in Vault
+	if err := vs.PutSecret(secretPath, secretData); err != nil {
+		return fmt.Errorf("failed to store master key in Vault: %v", err)
+	}
+
+	facades.Log().Info("Master key stored in HashiCorp Vault", map[string]interface{}{
 		"secret_path": secretPath,
-		"namespace":   namespace,
 		"key_size":    len(masterKey),
 	})
 
-	return fmt.Errorf("HashiCorp Vault integration requires Vault API implementation")
+	return nil
 }
 
 // Helper functions for AES encryption/decryption
