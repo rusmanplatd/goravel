@@ -1,0 +1,974 @@
+package v1
+
+import (
+	"strconv"
+	"time"
+
+	"goravel/app/http/requests"
+	"goravel/app/http/responses"
+	"goravel/app/models"
+	"goravel/app/services"
+
+	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
+)
+
+// MeetingController handles meeting-related HTTP requests with enterprise-grade features
+type MeetingController struct {
+	meetingService     *services.MeetingService
+	recordingService   *services.MeetingRecordingService
+	securityService    *services.MeetingSecurityService
+	performanceService *services.MeetingPerformanceService
+	monitoringService  *services.MeetingMonitoringService
+	clusterService     *services.MeetingClusterService
+	liveKitService     *services.LiveKitService
+}
+
+// NewMeetingController creates a new meeting controller with all services
+func NewMeetingController() *MeetingController {
+	return &MeetingController{
+		meetingService:     services.NewMeetingService(),
+		recordingService:   services.NewMeetingRecordingService(),
+		securityService:    services.NewMeetingSecurityService(),
+		performanceService: services.NewMeetingPerformanceService(),
+		monitoringService:  services.NewMeetingMonitoringService(),
+		clusterService:     services.NewMeetingClusterService("api-node"),
+		liveKitService:     services.NewLiveKitService(),
+	}
+}
+
+// StartMeeting starts a meeting session
+// @Summary Start a meeting
+// @Description Start a meeting session and notify participants
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/start [post]
+func (mc *MeetingController) StartMeeting(ctx http.Context) http.Response {
+	// Get authenticated user and meeting from middleware
+	user, _ := ctx.Value("authenticated_user").(*models.User)
+	meeting, _ := ctx.Value("meeting").(*models.Meeting)
+	userRole, _ := ctx.Value("user_role").(string)
+
+	// Only hosts can start meetings
+	if userRole != "host" {
+		meetingErr := services.ErrInsufficientPermissionError("start meeting", "host")
+		return ctx.Response().Status(meetingErr.HTTPStatus).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   meetingErr.Message,
+			Code:      meetingErr.Code,
+			Details:   meetingErr.Details,
+			Timestamp: time.Now(),
+		})
+	}
+
+	err := mc.meetingService.StartMeeting(meeting.ID, user.ID)
+	if err != nil {
+		if meetingErr, ok := services.IsMeetingError(err); ok {
+			return ctx.Response().Status(meetingErr.HTTPStatus).Json(responses.ErrorResponse{
+				Status:    "error",
+				Message:   meetingErr.Message,
+				Code:      meetingErr.Code,
+				Details:   meetingErr.Details,
+				Timestamp: time.Now(),
+			})
+		}
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Internal server error",
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Meeting started successfully", map[string]interface{}{
+		"meeting_id": meeting.ID,
+		"started_by": user.ID,
+		"started_at": time.Now(),
+	})
+}
+
+// JoinMeeting allows a user to join a meeting
+// @Summary Join a meeting
+// @Description Join a meeting as a participant
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body JoinMeetingRequest true "Join meeting request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/join [post]
+func (mc *MeetingController) JoinMeeting(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	userID := ctx.Request().Input("user_id", "")
+	if userID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Get device information
+	deviceInfo := map[string]string{
+		"device_type":  ctx.Request().Input("device_type", "desktop"),
+		"browser_info": ctx.Request().Header("User-Agent", ""),
+		"ip_address":   ctx.Request().Ip(),
+	}
+
+	connectionID := ctx.Request().Input("connection_id", "")
+
+	participant, err := mc.meetingService.JoinMeeting(meetingID, userID, connectionID, deviceInfo)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Joined meeting successfully", participant)
+}
+
+// LeaveMeeting allows a user to leave a meeting
+// @Summary Leave a meeting
+// @Description Leave a meeting as a participant
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/leave [post]
+func (mc *MeetingController) LeaveMeeting(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	userID := ctx.Request().Input("user_id", "")
+	if userID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	err := mc.meetingService.LeaveMeeting(meetingID, userID)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Left meeting successfully", map[string]interface{}{"meeting_id": meetingID})
+}
+
+// EndMeeting ends a meeting session
+// @Summary End a meeting
+// @Description End a meeting session (host only)
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 403 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/end [post]
+func (mc *MeetingController) EndMeeting(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	userID := ctx.Request().Input("user_id", "")
+	if userID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// TODO: Verify user is host or has permission to end meeting
+
+	err := mc.meetingService.EndMeeting(meetingID, userID)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Meeting ended successfully", map[string]interface{}{"meeting_id": meetingID})
+}
+
+// UpdateParticipantStatus updates participant's real-time status
+// @Summary Update participant status
+// @Description Update participant's mute, video, screen sharing status
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body UpdateParticipantStatusRequest true "Status update request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/participants/status [put]
+func (mc *MeetingController) UpdateParticipantStatus(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	userID := ctx.Request().Input("user_id", "")
+	if userID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse status updates
+	updates := make(map[string]interface{})
+
+	if ctx.Request().Input("is_muted", "") != "" {
+		updates["is_muted"] = ctx.Request().InputBool("is_muted")
+	}
+	if ctx.Request().Input("is_video_enabled", "") != "" {
+		updates["is_video_enabled"] = ctx.Request().InputBool("is_video_enabled")
+	}
+	if ctx.Request().Input("is_screen_sharing", "") != "" {
+		updates["is_screen_sharing"] = ctx.Request().InputBool("is_screen_sharing")
+	}
+	if ctx.Request().Input("is_hand_raised", "") != "" {
+		updates["is_hand_raised"] = ctx.Request().InputBool("is_hand_raised")
+	}
+	if ctx.Request().Input("is_in_waiting_room", "") != "" {
+		updates["is_in_waiting_room"] = ctx.Request().InputBool("is_in_waiting_room")
+	}
+
+	err := mc.meetingService.UpdateParticipantStatus(meetingID, userID, updates)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Participant status updated successfully", updates)
+}
+
+// GetParticipants returns current meeting participants
+// @Summary Get meeting participants
+// @Description Get list of current meeting participants
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/participants [get]
+func (mc *MeetingController) GetParticipants(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	participants, err := mc.meetingService.GetActiveMeetingParticipants(meetingID)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Participants retrieved successfully", participants)
+}
+
+// SendChatMessage sends a chat message in a meeting
+// @Summary Send chat message
+// @Description Send a chat message in a meeting
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body SendChatMessageRequest true "Chat message request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/chat [post]
+func (mc *MeetingController) SendChatMessage(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	userID := ctx.Request().Input("user_id", "")
+	if userID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	content := ctx.Request().Input("content", "")
+	if content == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Message content is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	messageType := ctx.Request().Input("message_type", "text")
+	recipientID := ctx.Request().Input("recipient_id", "")
+
+	var recipientPtr *string
+	if recipientID != "" {
+		recipientPtr = &recipientID
+	}
+
+	message, err := mc.meetingService.SendChatMessage(meetingID, userID, content, messageType, recipientPtr)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Chat message sent successfully", message)
+}
+
+// GetChatHistory returns chat history for a meeting
+// @Summary Get chat history
+// @Description Get chat history for a meeting
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param limit query int false "Number of messages to retrieve" default(50)
+// @Param offset query int false "Offset for pagination" default(0)
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/chat [get]
+func (mc *MeetingController) GetChatHistory(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	userID := ctx.Request().Input("user_id", "")
+	if userID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	limit, _ := strconv.Atoi(ctx.Request().Query("limit", "50"))
+	offset, _ := strconv.Atoi(ctx.Request().Query("offset", "0"))
+
+	messages, err := mc.meetingService.GetMeetingChatHistory(meetingID, userID, limit, offset)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Chat history retrieved successfully", messages)
+}
+
+// CreateBreakoutRooms creates breakout rooms for a meeting
+// @Summary Create breakout rooms
+// @Description Create breakout rooms for a meeting (host only)
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body CreateBreakoutRoomsRequest true "Breakout rooms request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/breakout-rooms [post]
+func (mc *MeetingController) CreateBreakoutRooms(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	userID := ctx.Request().Input("user_id", "")
+	if userID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse rooms configuration
+	var rooms []map[string]interface{}
+	if err := ctx.Request().Bind(&rooms); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid rooms configuration",
+			Timestamp: time.Now(),
+		})
+	}
+
+	createdRooms, err := mc.meetingService.CreateBreakoutRooms(meetingID, userID, rooms)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Breakout rooms created successfully", createdRooms)
+}
+
+// AssignToBreakoutRoom assigns a participant to a breakout room
+// @Summary Assign to breakout room
+// @Description Assign a participant to a breakout room
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body AssignBreakoutRoomRequest true "Assignment request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/breakout-rooms/assign [post]
+func (mc *MeetingController) AssignToBreakoutRoom(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	assignedByUserID := ctx.Request().Input("user_id", "")
+	if assignedByUserID == "" {
+		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "User authentication required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	participantUserID := ctx.Request().Input("participant_user_id", "")
+	breakoutRoomID := ctx.Request().Input("breakout_room_id", "")
+
+	if participantUserID == "" || breakoutRoomID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Participant ID and breakout room ID are required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	err := mc.meetingService.AssignToBreakoutRoom(meetingID, participantUserID, breakoutRoomID, assignedByUserID)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Participant assigned to breakout room successfully", map[string]interface{}{
+		"participant_user_id": participantUserID,
+		"breakout_room_id":    breakoutRoomID,
+	})
+}
+
+// GetMeetingStatus retrieves current meeting status and information
+// @Summary Get meeting status
+// @Description Get current status and detailed information about a meeting
+// @Tags meetings
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/status [get]
+func (mc *MeetingController) GetMeetingStatus(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	if meetingID == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Get meeting from database
+	var meeting models.Meeting
+	err := facades.Orm().Query().
+		Where("id", meetingID).
+		With("Event").
+		With("Participants").
+		First(&meeting)
+	if err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting not found",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Get real-time metrics if meeting is active
+	var metrics *services.MeetingMetricsData
+	if meeting.Status == "in_progress" {
+		metrics, _ = mc.monitoringService.GetMeetingMetrics(meetingID)
+	}
+
+	// Get participant count
+	participantCount, _ := facades.Orm().Query().Model(&models.MeetingParticipant{}).
+		Where("meeting_id = ? AND status = ?", meetingID, "joined").
+		Count()
+
+	return responses.SuccessResponse(ctx, "Meeting status retrieved successfully", map[string]interface{}{
+		"meeting":           meeting,
+		"participant_count": participantCount,
+		"metrics":           metrics,
+		"health_status":     "healthy", // TODO: implement getHealthStatus
+	})
+}
+
+// StartRecording starts recording a meeting
+// @Summary Start meeting recording
+// @Description Start recording a meeting with specified configuration
+// @Tags meetings,recording
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body requests.StartRecordingRequest true "Recording configuration"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 403 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/recording/start [post]
+func (mc *MeetingController) StartRecording(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	user, _ := ctx.Value("authenticated_user").(*models.User)
+
+	var request requests.StartRecordingRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid request data",
+			Details:   map[string]interface{}{"validation_errors": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Validate recording permissions
+	// TODO: Validate recording permission
+	/*
+		if err := mc.validateRecordingPermission(meetingID, user.ID); err != nil {
+			return ctx.Response().Status(403).Json(responses.ErrorResponse{
+				Status:    "error",
+				Message:   "Insufficient permissions to start recording",
+				Details:   map[string]interface{}{"reason": err.Error()},
+				Timestamp: time.Now(),
+			})
+		}
+	*/
+
+	// Convert request to recording configuration with defaults
+	config := services.RecordingConfiguration{
+		Quality:             "high",
+		Format:              "mp4",
+		IncludeVideo:        true,
+		IncludeAudio:        true,
+		IncludeScreenShare:  true,
+		SeparateAudioTracks: false,
+		AutoTranscribe:      true,
+		GenerateSummary:     true,
+		LanguageCode:        "en",
+		RetentionDays:       30,
+		IsPublic:            false,
+		WatermarkEnabled:    true,
+		EncryptionEnabled:   true,
+	}
+
+	// Override with request values
+	if request.Quality != "" {
+		config.Quality = request.Quality
+	}
+	if request.Format != "" {
+		config.Format = request.Format
+	}
+	config.IncludeVideo = request.IncludeVideo
+	config.IncludeAudio = request.IncludeAudio
+	config.AutoTranscribe = request.AutoTranscribe
+	config.GenerateSummary = request.GenerateSummary
+
+	recording, err := mc.recordingService.StartRecording(meetingID, user.ID, config)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to start recording",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Recording started successfully", map[string]interface{}{
+		"recording": recording,
+		"config":    config,
+	})
+}
+
+// StopRecording stops meeting recording
+// @Summary Stop meeting recording
+// @Description Stop the current recording for a meeting
+// @Tags meetings,recording
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 403 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/recording/stop [post]
+func (mc *MeetingController) StopRecording(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	user, _ := ctx.Value("authenticated_user").(*models.User)
+
+	recording, err := mc.recordingService.StopRecording(meetingID, user.ID)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to stop recording",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Recording stopped successfully", map[string]interface{}{
+		"recording": recording,
+		"status":    "processing",
+	})
+}
+
+// GetRecordings retrieves all recordings for a meeting
+// @Summary Get meeting recordings
+// @Description Get all recordings associated with a meeting
+// @Tags meetings,recording
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/recordings [get]
+func (mc *MeetingController) GetRecordings(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+
+	recordings, err := mc.recordingService.ListRecordings(meetingID)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to retrieve recordings",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Recordings retrieved successfully", map[string]interface{}{
+		"recordings": recordings,
+		"count":      len(recordings),
+	})
+}
+
+// GetMeetingMetrics retrieves real-time meeting metrics
+// @Summary Get meeting metrics
+// @Description Get real-time performance and quality metrics for a meeting
+// @Tags meetings,monitoring
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/metrics [get]
+func (mc *MeetingController) GetMeetingMetrics(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+
+	metrics, err := mc.monitoringService.GetMeetingMetrics(meetingID)
+	if err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting metrics not found",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Get participant metrics
+	var participantMetrics map[string]*services.ParticipantMetrics
+	participants, _ := mc.getActiveParticipants(meetingID)
+	if len(participants) > 0 {
+		participantMetrics = make(map[string]*services.ParticipantMetrics)
+		for _, participant := range participants {
+			if pMetrics, err := mc.monitoringService.GetParticipantMetrics(meetingID, participant.UserID); err == nil {
+				participantMetrics[participant.UserID] = pMetrics
+			}
+		}
+	}
+
+	return responses.SuccessResponse(ctx, "Meeting metrics retrieved successfully", map[string]interface{}{
+		"meeting_metrics":     metrics,
+		"participant_metrics": participantMetrics,
+		"timestamp":           time.Now(),
+	})
+}
+
+// GetMeetingHealth retrieves meeting health status
+// @Summary Get meeting health
+// @Description Get health status and diagnostics for a meeting
+// @Tags meetings,monitoring
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/health [get]
+func (mc *MeetingController) GetMeetingHealth(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+
+	healthStatus, err := mc.monitoringService.GetHealthStatus(meetingID)
+	if err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting health status not available",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Get additional health information
+	healthDetails := map[string]interface{}{
+		"overall_status": healthStatus,
+		"checks":         mc.getHealthCheckResults(meetingID),
+		"alerts":         mc.getActiveAlerts(meetingID),
+		"timestamp":      time.Now(),
+	}
+
+	return responses.SuccessResponse(ctx, "Meeting health retrieved successfully", healthDetails)
+}
+
+// ValidateMeetingAccess validates user access to a meeting
+// @Summary Validate meeting access
+// @Description Validate if a user can access a meeting based on security policies
+// @Tags meetings,security
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body requests.ValidateAccessRequest true "Access validation request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 403 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/validate-access [post]
+func (mc *MeetingController) ValidateMeetingAccess(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	user, _ := ctx.Value("authenticated_user").(*models.User)
+
+	var request requests.ValidateAccessRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid request data",
+			Details:   map[string]interface{}{"validation_errors": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Collect device information
+	deviceInfo := map[string]interface{}{
+		"ip_address":   ctx.Request().Ip(),
+		"user_agent":   ctx.Request().Header("User-Agent", ""),
+		"device_type":  request.DeviceType,
+		"browser_info": request.BrowserInfo,
+		"location":     request.Location,
+	}
+
+	result, err := mc.securityService.ValidateAccess(meetingID, user.ID, deviceInfo)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to validate access",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	statusCode := 200
+	if !result.Allowed {
+		if result.Action == "waiting_room" {
+			statusCode = 202 // Accepted but requires approval
+		} else {
+			statusCode = 403 // Forbidden
+		}
+	}
+
+	return ctx.Response().Status(statusCode).Json(responses.SuccessResponse{
+		Status:  "success",
+		Message: "Access validation completed",
+		Data: map[string]interface{}{
+			"allowed":           result.Allowed,
+			"action":            result.Action,
+			"reason":            result.Reason,
+			"requires_approval": result.RequiresApproval,
+			"security_level":    result.SecurityLevel,
+		},
+		Timestamp: time.Now(),
+	})
+}
+
+// ApproveWaitingRoomParticipant approves a participant from waiting room
+// @Summary Approve waiting room participant
+// @Description Approve a participant waiting in the waiting room to join the meeting
+// @Tags meetings,security
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Param request body requests.ApproveParticipantRequest true "Approval request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 403 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/waiting-room/approve [post]
+func (mc *MeetingController) ApproveWaitingRoomParticipant(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+	user, _ := ctx.Value("authenticated_user").(*models.User)
+
+	var request requests.ApproveParticipantRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid request data",
+			Details:   map[string]interface{}{"validation_errors": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Validate host permissions
+	if !mc.isHostOrCoHost(meetingID, user.ID) {
+		return ctx.Response().Status(403).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Only hosts can approve waiting room participants",
+			Timestamp: time.Now(),
+		})
+	}
+
+	err := mc.securityService.ApproveWaitingRoomParticipant(meetingID, request.ParticipantID, user.ID)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to approve participant",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Participant approved successfully", map[string]interface{}{
+		"participant_id": request.ParticipantID,
+		"approved_by":    user.ID,
+		"approved_at":    time.Now(),
+	})
+}
+
+// GetMeetingAnalytics retrieves meeting analytics and insights
+// @Summary Get meeting analytics
+// @Description Get comprehensive analytics and insights for a meeting
+// @Tags meetings,analytics
+// @Accept json
+// @Produce json
+// @Param id path string true "Meeting ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /api/v1/meetings/{id}/analytics [get]
+func (mc *MeetingController) GetMeetingAnalytics(ctx http.Context) http.Response {
+	meetingID := ctx.Request().Route("id")
+
+	analytics, err := mc.performanceService.GetMeetingAnalytics(meetingID)
+	if err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Meeting analytics not found",
+			Details:   map[string]interface{}{"error": err.Error()},
+			Timestamp: time.Now(),
+		})
+	}
+
+	return responses.SuccessResponse(ctx, "Meeting analytics retrieved successfully", analytics)
+}

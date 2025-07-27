@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .meeting-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-container {
+            flex: 1;
+            background: #2d2d2d;
+            position: relative;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 10px;
+        }
+
+        .participant-video {
+            background: #1a1a1a;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .participant-video.speaking {
+            border-color: #00d4aa;
+        }
+
+        .participant-video.local {
+            border-color: #0084ff;
+        }
+
+        .participant-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+
+        .participant-info {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .participant-info .muted-icon {
+            color: #ff4757;
+        }
+
+        .controls {
+            background: #1a1a1a;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            border-top: 1px solid #333;
+        }
+
+        .control-btn {
+            background: #333;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background: #444;
+            transform: scale(1.05);
+        }
+
+        .control-btn.active {
+            background: #00d4aa;
+        }
+
+        .control-btn.danger {
+            background: #ff4757;
+        }
+
+        .control-btn.danger:hover {
+            background: #ff3742;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: #1a1a1a;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid #333;
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #999;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-tab.active {
+            color: #00d4aa;
+            background: #2d2d2d;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .chat-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .chat-message {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #2d2d2d;
+            border-radius: 8px;
+        }
+
+        .chat-message .sender {
+            font-weight: bold;
+            color: #00d4aa;
+            margin-bottom: 5px;
+        }
+
+        .chat-message .content {
+            color: #ffffff;
+        }
+
+        .chat-message .timestamp {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            border-top: 1px solid #333;
+        }
+
+        .chat-input {
+            width: 100%;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 10px;
+            color: white;
+            resize: none;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: #00d4aa;
+        }
+
+        .participants-list {
+            padding: 20px;
+        }
+
+        .participant-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #2d2d2d;
+            border-radius: 6px;
+        }
+
+        .participant-name {
+            color: #ffffff;
+        }
+
+        .participant-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-icon.online {
+            background: #00d4aa;
+        }
+
+        .status-icon.away {
+            background: #ffa502;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .connection-status.connected {
+            background: rgba(0, 212, 170, 0.8);
+        }
+
+        .connection-status.connecting {
+            background: rgba(255, 165, 2, 0.8);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(255, 71, 87, 0.8);
+        }
+
+        .screen-share-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+        }
+
+        .screen-share-overlay.active {
+            display: flex;
+        }
+
+        .screen-share-video {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screen-share-video video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .screen-share-controls {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .reactions-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 500;
+        }
+
+        .reaction {
+            position: absolute;
+            font-size: 32px;
+            animation: reactionFloat 3s ease-out forwards;
+        }
+
+        @keyframes reactionFloat {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-100px) scale(1.5);
+            }
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .meeting-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: 300px;
+            }
+
+            .participant-video {
+                min-width: 150px;
+                min-height: 100px;
+            }
+        }
+
+        /* Grid layouts for different participant counts */
+        .video-container[data-participants="1"] .participant-video {
+            width: 80%;
+            height: 80%;
+        }
+
+        .video-container[data-participants="2"] .participant-video {
+            width: 45%;
+            height: 80%;
+        }
+
+        .video-container[data-participants="3"],
+        .video-container[data-participants="4"] .participant-video {
+            width: 45%;
+            height: 45%;
+        }
+
+        .video-container[data-participants="5"],
+        .video-container[data-participants="6"] .participant-video {
+            width: 30%;
+            height: 45%;
+        }
+
+        .video-container .participant-video {
+            width: 23%;
+            height: 30%;
+            min-width: 200px;
+            min-height: 150px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="meeting-container">
+        <div class="main-content">
+            <div class="connection-status" id="connectionStatus">Connecting...</div>
+            
+            <div class="video-container" id="videoContainer" data-participants="0">
+                <!-- Participant videos will be dynamically added here -->
+            </div>
+
+            <div class="controls">
+                <button class="control-btn" id="micBtn" title="Toggle Microphone">
+                    🎤
+                </button>
+                <button class="control-btn" id="cameraBtn" title="Toggle Camera">
+                    📹
+                </button>
+                <button class="control-btn" id="screenShareBtn" title="Share Screen">
+                    🖥️
+                </button>
+                <button class="control-btn" id="handBtn" title="Raise Hand">
+                    ✋
+                </button>
+                <button class="control-btn" id="reactionsBtn" title="Reactions">
+                    😊
+                </button>
+                <button class="control-btn danger" id="leaveBtn" title="Leave Meeting">
+                    📞
+                </button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-tabs">
+                <button class="sidebar-tab active" data-tab="chat">Chat</button>
+                <button class="sidebar-tab" data-tab="participants">Participants</button>
+            </div>
+
+            <div class="sidebar-content">
+                <div class="chat-container" id="chatTab">
+                    <div class="chat-messages" id="chatMessages">
+                        <!-- Chat messages will be added here -->
+                    </div>
+                    <div class="chat-input-container">
+                        <textarea class="chat-input" id="chatInput" placeholder="Type a message..." rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="participants-list" id="participantsTab" style="display: none;">
+                    <!-- Participants will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen share overlay -->
+    <div class="screen-share-overlay" id="screenShareOverlay">
+        <div class="screen-share-video" id="screenShareVideo">
+            <!-- Screen share video will be added here -->
+        </div>
+        <div class="screen-share-controls">
+            <button class="control-btn" id="stopScreenShareBtn" title="Stop Sharing">
+                Stop Sharing
+            </button>
+        </div>
+    </div>
+
+    <!-- Reactions overlay -->
+    <div class="reactions-overlay" id="reactionsOverlay">
+        <!-- Animated reactions will appear here -->
+    </div>
+
+    <script>
+        // Meeting configuration
+        const MEETING_CONFIG = {
+            meetingId: '{{.meeting.ID}}',
+            userId: '{{.user.ID}}',
+            userName: '{{.user.Name}}',
+            isHost: {{.isHost}},
+            token: '{{.token}}',
+            livekitUrl: '{{.livekitUrl}}'
+        };
+
+        // LiveKit room and participant management
+        let room = null;
+        let localParticipant = null;
+        let participants = new Map();
+        let isConnected = false;
+        let isMicMuted = true;
+        let isCameraOff = true;
+        let isScreenSharing = false;
+        let isHandRaised = false;
+
+        // UI elements
+        const connectionStatus = document.getElementById('connectionStatus');
+        const videoContainer = document.getElementById('videoContainer');
+        const micBtn = document.getElementById('micBtn');
+        const cameraBtn = document.getElementById('cameraBtn');
+        const screenShareBtn = document.getElementById('screenShareBtn');
+        const handBtn = document.getElementById('handBtn');
+        const reactionsBtn = document.getElementById('reactionsBtn');
+        const leaveBtn = document.getElementById('leaveBtn');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const participantsTab = document.getElementById('participantsTab');
+        const screenShareOverlay = document.getElementById('screenShareOverlay');
+        const reactionsOverlay = document.getElementById('reactionsOverlay');
+
+        // Initialize LiveKit connection
+        async function initializeMeeting() {
+            try {
+                updateConnectionStatus('connecting');
+                
+                // Create LiveKit room with options
+                room = new LivekitClient.Room({
+                    adaptiveStream: true,
+                    dynacast: true,
+                    videoCaptureDefaults: {
+                        resolution: LivekitClient.VideoPresets.h720.resolution,
+                    },
+                });
+
+                // Set up event listeners
+                setupRoomEventListeners();
+
+                // Connect to the room
+                await room.connect(MEETING_CONFIG.livekitUrl, MEETING_CONFIG.token);
+                
+                localParticipant = room.localParticipant;
+                updateConnectionStatus('connected');
+                isConnected = true;
+
+                // Enable camera and microphone by default (muted)
+                await localParticipant.setCameraEnabled(false);
+                await localParticipant.setMicrophoneEnabled(false);
+
+                updateControlButtons();
+                console.log('Connected to meeting:', MEETING_CONFIG.meetingId);
+
+            } catch (error) {
+                console.error('Failed to connect to meeting:', error);
+                updateConnectionStatus('disconnected');
+                showError('Failed to connect to meeting: ' + error.message);
+            }
+        }
+
+        // Set up room event listeners
+        function setupRoomEventListeners() {
+            room.on(LivekitClient.RoomEvent.TrackSubscribed, handleTrackSubscribed);
+            room.on(LivekitClient.RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
+            room.on(LivekitClient.RoomEvent.ParticipantConnected, handleParticipantConnected);
+            room.on(LivekitClient.RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+            room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged);
+            room.on(LivekitClient.RoomEvent.DataReceived, handleDataReceived);
+            room.on(LivekitClient.RoomEvent.Disconnected, handleDisconnected);
+            room.on(LivekitClient.RoomEvent.LocalTrackPublished, handleLocalTrackPublished);
+            room.on(LivekitClient.RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
+        }
+
+        // Handle track subscription (remote participant video/audio)
+        function handleTrackSubscribed(track, publication, participant) {
+            console.log('Track subscribed:', track.kind, participant.identity);
+            
+            if (track.kind === LivekitClient.Track.Kind.Video || track.kind === LivekitClient.Track.Kind.Audio) {
+                const element = track.attach();
+                addParticipantVideo(participant, element, track.kind);
+            }
+        }
+
+        // Handle track unsubscription
+        function handleTrackUnsubscribed(track, publication, participant) {
+            console.log('Track unsubscribed:', track.kind, participant.identity);
+            track.detach();
+            updateParticipantVideo(participant);
+        }
+
+        // Handle participant connection
+        function handleParticipantConnected(participant) {
+            console.log('Participant connected:', participant.identity);
+            addChatMessage('System', `${participant.name || participant.identity} joined the meeting`, 'system');
+            updateParticipantsList();
+        }
+
+        // Handle participant disconnection
+        function handleParticipantDisconnected(participant) {
+            console.log('Participant disconnected:', participant.identity);
+            removeParticipantVideo(participant);
+            addChatMessage('System', `${participant.name || participant.identity} left the meeting`, 'system');
+            updateParticipantsList();
+        }
+
+        // Handle active speakers change
+        function handleActiveSpeakersChanged(speakers) {
+            // Update UI to highlight speaking participants
+            document.querySelectorAll('.participant-video').forEach(video => {
+                video.classList.remove('speaking');
+            });
+
+            speakers.forEach(speaker => {
+                const videoElement = document.querySelector(`[data-participant="${speaker.identity}"]`);
+                if (videoElement) {
+                    videoElement.classList.add('speaking');
+                }
+            });
+        }
+
+        // Handle data received (chat messages, reactions, etc.)
+        function handleDataReceived(payload, participant) {
+            try {
+                const data = JSON.parse(new TextDecoder().decode(payload));
+                
+                switch (data.type) {
+                    case 'chat':
+                        addChatMessage(participant.name || participant.identity, data.message);
+                        break;
+                    case 'reaction':
+                        showReaction(data.reaction, participant.identity);
+                        break;
+                    case 'hand_raised':
+                        updateParticipantHandStatus(participant.identity, data.raised);
+                        break;
+                }
+            } catch (error) {
+                console.error('Failed to parse data message:', error);
+            }
+        }
+
+        // Handle disconnection
+        function handleDisconnected() {
+            console.log('Disconnected from meeting');
+            updateConnectionStatus('disconnected');
+            isConnected = false;
+            // Optionally redirect or show reconnection UI
+        }
+
+        // Handle local track published
+        function handleLocalTrackPublished(publication, participant) {
+            console.log('Local track published:', publication.kind);
+        }
+
+        // Handle local track unpublished
+        function handleLocalTrackUnpublished(publication, participant) {
+            console.log('Local track unpublished:', publication.kind);
+        }
+
+        // Add participant video to grid
+        function addParticipantVideo(participant, element, trackKind) {
+            let videoDiv = document.querySelector(`[data-participant="${participant.identity}"]`);
+            
+            if (!videoDiv) {
+                videoDiv = document.createElement('div');
+                videoDiv.className = 'participant-video';
+                videoDiv.setAttribute('data-participant', participant.identity);
+                
+                if (participant === localParticipant) {
+                    videoDiv.classList.add('local');
+                }
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'participant-info';
+                infoDiv.innerHTML = `
+                    <span class="participant-name">${participant.name || participant.identity}</span>
+                    <span class="muted-icon" style="display: none;">🔇</span>
+                `;
+                
+                videoDiv.appendChild(infoDiv);
+                videoContainer.appendChild(videoDiv);
+            }
+
+            if (trackKind === LivekitClient.Track.Kind.Video) {
+                // Remove existing video element
+                const existingVideo = videoDiv.querySelector('video');
+                if (existingVideo) {
+                    existingVideo.remove();
+                }
+                videoDiv.insertBefore(element, videoDiv.firstChild);
+            }
+
+            updateVideoGrid();
+        }
+
+        // Update participant video
+        function updateParticipantVideo(participant) {
+            const videoDiv = document.querySelector(`[data-participant="${participant.identity}"]`);
+            if (videoDiv) {
+                const video = videoDiv.querySelector('video');
+                if (!video) {
+                    // Show placeholder or avatar when no video
+                    videoDiv.style.background = '#333';
+                }
+            }
+        }
+
+        // Remove participant video
+        function removeParticipantVideo(participant) {
+            const videoDiv = document.querySelector(`[data-participant="${participant.identity}"]`);
+            if (videoDiv) {
+                videoDiv.remove();
+                updateVideoGrid();
+            }
+        }
+
+        // Update video grid layout
+        function updateVideoGrid() {
+            const participantCount = videoContainer.children.length;
+            videoContainer.setAttribute('data-participants', participantCount);
+        }
+
+        // Control button handlers
+        micBtn.addEventListener('click', async () => {
+            if (!localParticipant) return;
+            
+            try {
+                isMicMuted = !isMicMuted;
+                await localParticipant.setMicrophoneEnabled(!isMicMuted);
+                updateControlButtons();
+            } catch (error) {
+                console.error('Failed to toggle microphone:', error);
+            }
+        });
+
+        cameraBtn.addEventListener('click', async () => {
+            if (!localParticipant) return;
+            
+            try {
+                isCameraOff = !isCameraOff;
+                await localParticipant.setCameraEnabled(!isCameraOff);
+                updateControlButtons();
+            } catch (error) {
+                console.error('Failed to toggle camera:', error);
+            }
+        });
+
+        screenShareBtn.addEventListener('click', async () => {
+            if (!localParticipant) return;
+            
+            try {
+                isScreenSharing = !isScreenSharing;
+                await localParticipant.setScreenShareEnabled(isScreenSharing);
+                updateControlButtons();
+                
+                if (isScreenSharing) {
+                    screenShareOverlay.classList.add('active');
+                } else {
+                    screenShareOverlay.classList.remove('active');
+                }
+            } catch (error) {
+                console.error('Failed to toggle screen share:', error);
+            }
+        });
+
+        handBtn.addEventListener('click', () => {
+            isHandRaised = !isHandRaised;
+            updateControlButtons();
+            
+            // Send hand raise status via data channel
+            if (room && localParticipant) {
+                const data = JSON.stringify({
+                    type: 'hand_raised',
+                    raised: isHandRaised
+                });
+                localParticipant.publishData(new TextEncoder().encode(data), LivekitClient.DataPacket_Kind.RELIABLE);
+            }
+        });
+
+        reactionsBtn.addEventListener('click', () => {
+            showReactionPicker();
+        });
+
+        leaveBtn.addEventListener('click', async () => {
+            if (confirm('Are you sure you want to leave the meeting?')) {
+                await leaveMeeting();
+            }
+        });
+
+        // Chat functionality
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+
+        function sendChatMessage() {
+            const message = chatInput.value.trim();
+            if (!message || !room || !localParticipant) return;
+
+            try {
+                const data = JSON.stringify({
+                    type: 'chat',
+                    message: message
+                });
+                localParticipant.publishData(new TextEncoder().encode(data), LivekitClient.DataPacket_Kind.RELIABLE);
+                
+                addChatMessage('You', message);
+                chatInput.value = '';
+            } catch (error) {
+                console.error('Failed to send chat message:', error);
+            }
+        }
+
+        function addChatMessage(sender, message, type = 'user') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${type}`;
+            messageDiv.innerHTML = `
+                <div class="sender">${sender}</div>
+                <div class="content">${message}</div>
+                <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Sidebar tab switching
+        document.querySelectorAll('.sidebar-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.getAttribute('data-tab');
+                
+                // Update active tab
+                document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Show corresponding content
+                document.getElementById('chatTab').style.display = tabName === 'chat' ? 'flex' : 'none';
+                document.getElementById('participantsTab').style.display = tabName === 'participants' ? 'block' : 'none';
+                
+                if (tabName === 'participants') {
+                    updateParticipantsList();
+                }
+            });
+        });
+
+        // Update participants list
+        function updateParticipantsList() {
+            if (!room) return;
+            
+            participantsTab.innerHTML = '';
+            
+            // Add local participant
+            addParticipantToList(localParticipant, true);
+            
+            // Add remote participants
+            room.participants.forEach(participant => {
+                addParticipantToList(participant, false);
+            });
+        }
+
+        function addParticipantToList(participant, isLocal) {
+            const participantDiv = document.createElement('div');
+            participantDiv.className = 'participant-item';
+            participantDiv.innerHTML = `
+                <div class="participant-name">${participant.name || participant.identity} ${isLocal ? '(You)' : ''}</div>
+                <div class="participant-status">
+                    <div class="status-icon online"></div>
+                    ${participant.isMicrophoneEnabled ? '🎤' : '🔇'}
+                    ${participant.isCameraEnabled ? '📹' : '📷'}
+                </div>
+            `;
+            participantsTab.appendChild(participantDiv);
+        }
+
+        // Utility functions
+        function updateConnectionStatus(status) {
+            connectionStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            connectionStatus.className = `connection-status ${status}`;
+        }
+
+        function updateControlButtons() {
+            micBtn.classList.toggle('active', !isMicMuted);
+            micBtn.textContent = isMicMuted ? '🔇' : '🎤';
+            
+            cameraBtn.classList.toggle('active', !isCameraOff);
+            cameraBtn.textContent = isCameraOff ? '📷' : '📹';
+            
+            screenShareBtn.classList.toggle('active', isScreenSharing);
+            handBtn.classList.toggle('active', isHandRaised);
+        }
+
+        function showReactionPicker() {
+            const reactions = ['👍', '👎', '😊', '😂', '❤️', '🎉', '👏', '🤔'];
+            const reaction = reactions[Math.floor(Math.random() * reactions.length)];
+            
+            // Send reaction
+            if (room && localParticipant) {
+                const data = JSON.stringify({
+                    type: 'reaction',
+                    reaction: reaction
+                });
+                localParticipant.publishData(new TextEncoder().encode(data), LivekitClient.DataPacket_Kind.RELIABLE);
+            }
+            
+            showReaction(reaction, 'local');
+        }
+
+        function showReaction(reaction, participantId) {
+            const reactionElement = document.createElement('div');
+            reactionElement.className = 'reaction';
+            reactionElement.textContent = reaction;
+            reactionElement.style.left = Math.random() * 80 + 10 + '%';
+            reactionElement.style.bottom = '20%';
+            
+            reactionsOverlay.appendChild(reactionElement);
+            
+            setTimeout(() => {
+                reactionElement.remove();
+            }, 3000);
+        }
+
+        function showError(message) {
+            alert(message); // Replace with better error UI
+        }
+
+        async function leaveMeeting() {
+            try {
+                if (room) {
+                    room.disconnect();
+                }
+                window.location.href = '/dashboard';
+            } catch (error) {
+                console.error('Error leaving meeting:', error);
+                window.location.href = '/dashboard';
+            }
+        }
+
+        // Initialize the meeting when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeMeeting();
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (room) {
+                room.disconnect();
+            }
+        });
+    </script>
+</body>
+
+</html> 

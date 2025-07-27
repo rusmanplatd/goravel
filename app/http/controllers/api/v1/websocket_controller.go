@@ -19,10 +19,10 @@ import (
 
 // WebSocketController handles WebSocket connections with enhanced features
 type WebSocketController struct {
-	hub           *services.WebSocketHub
-	circuitBreaker *CircuitBreaker
+	hub              *services.WebSocketHub
+	circuitBreaker   *CircuitBreaker
 	messageValidator *MessageValidator
-	metrics       *ControllerMetrics
+	metrics          *ControllerMetrics
 }
 
 // CircuitBreaker provides circuit breaker functionality
@@ -342,7 +342,7 @@ func (c *WebSocketController) handleWrite(wsConn *services.WebSocketConnection, 
 				c.metrics.recordError()
 				return
 			}
-			
+
 			if _, err := w.Write(message); err != nil {
 				facades.Log().Error("Failed to write WebSocket message", map[string]interface{}{
 					"error":         err.Error(),
@@ -462,7 +462,7 @@ func (c *WebSocketController) handlePing(wsConn *services.WebSocketConnection, m
 // handleHeartbeat handles heartbeat messages
 func (c *WebSocketController) handleHeartbeat(wsConn *services.WebSocketConnection, msg *WebSocketMessage) error {
 	wsConn.UpdateLastPong()
-	
+
 	response := &WebSocketMessage{
 		Type:      "heartbeat_ack",
 		Timestamp: time.Now().Unix(),
@@ -527,7 +527,7 @@ func (c *WebSocketController) handleSubscribe(wsConn *services.WebSocketConnecti
 		ID:        msg.ID,
 		Data: map[string]interface{}{
 			"subscription_types": validTypes,
-			"status":            "success",
+			"status":             "success",
 		},
 	}
 
@@ -638,7 +638,7 @@ func (c *WebSocketController) sendErrorToConnection(wsConn *services.WebSocketCo
 // cleanupConnection performs cleanup when a connection is closed
 func (c *WebSocketController) cleanupConnection(wsConn *services.WebSocketConnection) {
 	c.metrics.recordDisconnection()
-	
+
 	facades.Log().Info("WebSocket connection cleanup completed", map[string]interface{}{
 		"connection_id": wsConn.ID,
 		"user_id":       wsConn.UserID,
@@ -648,7 +648,7 @@ func (c *WebSocketController) cleanupConnection(wsConn *services.WebSocketConnec
 // errorResponse returns a standardized error response
 func (c *WebSocketController) errorResponse(ctx goravelhttp.Context, status int, code, message string) goravelhttp.Response {
 	c.metrics.recordError()
-	
+
 	return ctx.Response().Status(status).Json(map[string]interface{}{
 		"error": map[string]interface{}{
 			"code":      code,
@@ -706,15 +706,15 @@ func (c *WebSocketController) GetConnectionStats(ctx goravelhttp.Context) gorave
 // Health check endpoint
 func (c *WebSocketController) HealthCheck(ctx goravelhttp.Context) goravelhttp.Response {
 	health := map[string]interface{}{
-		"status": "healthy",
+		"status":    "healthy",
 		"timestamp": time.Now().Unix(),
 		"checks": map[string]interface{}{
 			"hub": map[string]interface{}{
-				"status": "healthy",
+				"status":             "healthy",
 				"active_connections": c.hub.GetTotalConnections(),
 			},
 			"circuit_breaker": map[string]interface{}{
-				"status": c.circuitBreaker.getStateString(),
+				"status":   c.circuitBreaker.getStateString(),
 				"failures": atomic.LoadInt64(&c.circuitBreaker.failures),
 			},
 		},
@@ -736,7 +736,7 @@ func (cb *CircuitBreaker) Allow() bool {
 	defer cb.mu.RUnlock()
 
 	state := atomic.LoadInt32(&cb.state)
-	
+
 	switch state {
 	case CircuitClosed:
 		return true

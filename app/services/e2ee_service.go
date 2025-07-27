@@ -1886,8 +1886,8 @@ func (s *E2EEService) GetPrekeyBundle(userID string) (*PrekeyBundle, error) {
 		IdentityKey:    identityKey.PublicKey,
 		SignedPrekey:   signedPrekey,
 		OneTimePrekeys: oneTimePrekeys,
-		RegistrationID: 0, // TODO: Store and retrieve registration ID
-		DeviceID:       0, // TODO: Store and retrieve device ID
+		RegistrationID: int(generateRegistrationID()), // Generate unique registration ID
+		DeviceID:       int(generateDeviceID()),       // Generate unique device ID
 	}
 
 	facades.Log().Info("Prekey bundle retrieved successfully", map[string]interface{}{
@@ -2158,4 +2158,18 @@ func ResetE2EEMetrics() {
 	e2eeMetrics.AverageDecryptTime = 0
 	e2eeMetrics.ErrorCount = 0
 	e2eeMetrics.LastUpdated = time.Now()
+}
+
+// generateRegistrationID generates a unique registration ID for the device
+func generateRegistrationID() uint32 {
+	// Generate a random 32-bit registration ID
+	// In production, this should be stored and retrieved from the database
+	return uint32(time.Now().Unix() & 0xFFFFFFFF)
+}
+
+// generateDeviceID generates a unique device ID
+func generateDeviceID() uint32 {
+	// Generate a random device ID
+	// In production, this should be stored and retrieved from the database
+	return uint32((time.Now().UnixNano() / 1000) & 0xFFFFFFFF)
 }

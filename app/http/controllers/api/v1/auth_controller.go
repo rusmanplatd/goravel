@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
 
 	"goravel/app/http/requests"
 	"goravel/app/http/responses"
@@ -1134,8 +1135,11 @@ func (c *AuthController) checkSecurityAlerts(user *models.User, deviceInfo *Devi
 	}
 
 	// Check for multiple concurrent sessions (placeholder implementation)
-	// TODO: Implement proper session counting
-	activeSessions := 1 // Placeholder
+	// Count active sessions for the user
+	activeSessions, _ := facades.Orm().Query().Table("sessions").
+		Where("user_id", user.ID).
+		Where("expires_at > ?", time.Now()).
+		Count()
 	if activeSessions > 3 {
 		alerts = append(alerts, "Multiple active sessions detected")
 	}

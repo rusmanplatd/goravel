@@ -132,6 +132,12 @@ func Web() {
 		facades.Route().Middleware(middleware.WebAuth()).Put("/oauth/clients/{id}", oauthClientController.Update)
 		facades.Route().Middleware(middleware.WebAuth()).Delete("/oauth/clients/{id}", oauthClientController.Delete)
 
+		// Meeting web routes
+		meetingWebController := &web.MeetingController{}
+		facades.Route().Get("/meetings/{id}/join", meetingWebController.PreJoin)
+		facades.Route().Post("/meetings/{id}/join", meetingWebController.Join)
+		facades.Route().Get("/meetings/{id}/room", meetingWebController.Room)
+
 		// Security Settings
 		facades.Route().Middleware(middleware.WebAuth()).Get("/security", securityController.Index)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/security/change-password", securityController.ShowChangePassword)

@@ -590,7 +590,7 @@ func (s *OAuthRichAuthorizationService) applyValidationRule(detail Authorization
 	switch rule.Type {
 	case "required":
 		if fieldValue == nil {
-			return fmt.Errorf(rule.Message)
+			return fmt.Errorf("%s", rule.Message)
 		}
 	case "enum":
 		if enumValues, ok := rule.Value.([]string); ok {
@@ -607,7 +607,7 @@ func (s *OAuthRichAuthorizationService) applyValidationRule(detail Authorization
 			if strValue, ok := fieldValue.(string); ok {
 				// Simplified format validation - in production use regex
 				if len(strValue) == 0 {
-					return fmt.Errorf(rule.Message)
+					return fmt.Errorf("%s", rule.Message)
 				}
 			}
 		}

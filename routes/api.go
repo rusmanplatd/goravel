@@ -314,8 +314,58 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/{id}/reminders", calendarEventController.CreateReminder)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-events/{id}/reminders", calendarEventController.GetReminders)
 
-	// Meeting management routes
-	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/calendar-events/{id}/meeting/status", calendarEventController.UpdateMeetingStatus)
+	// Meeting API routes
+	meetingController := v1.NewMeetingController()
+
+	// Meeting management
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/start", meetingController.StartMeeting)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/end", meetingController.EndMeeting)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{id}/status", meetingController.GetMeetingStatus)
+
+	// Participant management
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/join", meetingController.JoinMeeting)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/leave", meetingController.LeaveMeeting)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{id}/participants", meetingController.GetParticipants)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/meetings/{id}/participants/status", meetingController.UpdateParticipantStatus)
+
+	// Meeting chat
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/chat", meetingController.SendChatMessage)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{id}/chat", meetingController.GetChatHistory)
+
+	// LiveKit integration
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/token", meetingController.GenerateLiveKitToken)
+
+	// Breakout rooms
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/breakout-rooms", meetingController.CreateBreakoutRooms)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/breakout-rooms/assign", meetingController.AssignToBreakoutRoom)
+
+	// Meeting WebSocket for real-time features
+	meetingWSController := v1.NewMeetingWebSocketController()
+	facades.Route().Get("/api/v1/meetings/{id}/ws", meetingWSController.ConnectToMeeting)
+
+	// Meeting analytics routes
+	meetingAnalyticsController := v1.NewMeetingAnalyticsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/analytics/stats", meetingAnalyticsController.GetMeetingStats)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/analytics/participation", meetingAnalyticsController.GetParticipationReport)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/analytics/engagement", meetingAnalyticsController.GetEngagementMetrics)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/analytics/attendance", meetingAnalyticsController.GetAttendanceReport)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/analytics/organizational", meetingAnalyticsController.GetOrganizationalAnalytics)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/analytics/export", meetingAnalyticsController.ExportMeetingReport)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/analytics/realtime", meetingAnalyticsController.GetRealTimeMetrics)
+
+	// Meeting security routes
+	meetingSecurityController := v1.NewMeetingSecurityController()
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/policy", meetingSecurityController.ApplySecurityPolicy)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/validate-access", meetingSecurityController.ValidateAccess)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/security/waiting-room", meetingSecurityController.GetWaitingRoomParticipants)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/waiting-room/approve", meetingSecurityController.ApproveWaitingRoomParticipant)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/waiting-room/deny", meetingSecurityController.DenyWaitingRoomParticipant)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/remove-participant", meetingSecurityController.RemoveParticipant)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/mute-participant", meetingSecurityController.MuteParticipant)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/disable-camera", meetingSecurityController.DisableParticipantCamera)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{meeting_id}/security/lock", meetingSecurityController.LockMeeting)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/security/events", meetingSecurityController.GetSecurityEvents)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/security/monitor", meetingSecurityController.MonitorMeetingSecurity)
 
 	// Calendar utility routes
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/check-conflicts", calendarEventController.CheckConflicts)
