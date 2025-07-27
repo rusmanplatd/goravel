@@ -133,6 +133,12 @@ type Task struct {
 
 	// @Description Task time entries
 	TimeEntries []TaskTimeEntry `gorm:"foreignKey:TaskID" json:"time_entries,omitempty"`
+
+	// @Description Task attachments
+	Attachments []TaskAttachment `gorm:"foreignKey:TaskID" json:"attachments,omitempty"`
+
+	// @Description Task custom field values
+	CustomFieldValues []TaskFieldValue `gorm:"foreignKey:TaskID" json:"custom_field_values,omitempty"`
 }
 
 // TaskLabel represents a label for categorizing tasks
@@ -287,6 +293,76 @@ type TaskComment struct {
 
 	// @Description Reply comments
 	Replies []TaskComment `gorm:"foreignKey:ParentCommentID" json:"replies,omitempty"`
+}
+
+// TaskFieldValue represents custom field values for tasks
+// @Description Task field value model for custom metadata
+type TaskFieldValue struct {
+	BaseModel
+
+	// Task ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TaskID string `gorm:"not null;index;type:char(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Field ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	FieldID string `gorm:"not null;index;type:char(26)" json:"field_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Field value as string (all values stored as string and parsed based on field type)
+	// @example High
+	Value string `json:"value" example:"High"`
+
+	// Field value as JSON for complex types
+	// @example {"selected":["option1","option2"]}
+	ValueJSON string `gorm:"type:json" json:"value_json,omitempty" example:"{\"selected\":[\"option1\",\"option2\"]}"`
+
+	// Relationships
+	// @Description Task this value belongs to
+	Task *Task `gorm:"foreignKey:TaskID" json:"task,omitempty"`
+
+	// @Description Custom field definition
+	Field *ProjectCustomField `gorm:"foreignKey:FieldID" json:"field,omitempty"`
+}
+
+// TaskAttachment represents file attachments for tasks
+// @Description Task attachment model for file uploads
+type TaskAttachment struct {
+	BaseModel
+
+	// Attachment filename
+	// @example screenshot.png
+	Filename string `gorm:"not null" json:"filename" example:"screenshot.png"`
+
+	// Original filename
+	// @example My Screenshot.png
+	OriginalFilename string `gorm:"not null" json:"original_filename" example:"My Screenshot.png"`
+
+	// File path/URL
+	// @example /uploads/tasks/01HXYZ123456789ABCDEFGHIJK/screenshot.png
+	FilePath string `gorm:"not null" json:"file_path" example:"/uploads/tasks/01HXYZ123456789ABCDEFGHIJK/screenshot.png"`
+
+	// File size in bytes
+	// @example 1024768
+	FileSize int64 `json:"file_size" example:"1024768"`
+
+	// MIME type
+	// @example image/png
+	MimeType string `json:"mime_type" example:"image/png"`
+
+	// Task ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TaskID string `gorm:"not null;index;type:char(26)" json:"task_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Uploaded by user ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	UploadedBy string `gorm:"not null;index;type:char(26)" json:"uploaded_by" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Task this attachment belongs to
+	Task *Task `gorm:"foreignKey:TaskID" json:"task,omitempty"`
+
+	// @Description User who uploaded the attachment
+	Uploader *User `gorm:"foreignKey:UploadedBy" json:"uploader,omitempty"`
 }
 
 // TaskActivity represents an activity log for a task

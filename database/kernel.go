@@ -88,6 +88,15 @@ func (kernel Kernel) Migrations() []schema.Migration {
 		&migrations.M20250115000081CreateOauthCaeEventsTable{},
 		&migrations.M20250115000082CreateOauthStepUpChallengesTable{},
 		&migrations.M20250115000083CreateUserProfilesTable{},
+
+		// Project management improvements
+		&migrations.M20250115000100CreateProjectViewsTable{},
+		&migrations.M20250115000101CreateProjectCustomFieldsTable{},
+		&migrations.M20250115000102CreateProjectWorkflowsTable{},
+		&migrations.M20250115000103CreateTaskFieldValuesTable{},
+		&migrations.M20250115000104CreateTaskAttachmentsTable{},
+		&migrations.M20250115000105CreateProjectTemplatesTable{},
+		&migrations.M20250115000106CreateProjectInsightsTable{},
 	}
 }
 
@@ -129,6 +138,7 @@ func (kernel Kernel) Seeders() []seeder.Seeder {
 		&seeders.UserTeamSeeder{},
 		&seeders.UserProjectSeeder{},
 		&seeders.TeamProjectSeeder{},
+		&seeders.ProjectTemplateSeeder{},
 		&seeders.TaskLabelSeeder{},
 		&seeders.MilestoneSeeder{},
 		&seeders.TaskBoardSeeder{},

@@ -380,6 +380,239 @@ type Project struct {
 
 	// @Description Project task labels
 	TaskLabels []TaskLabel `gorm:"foreignKey:ProjectID" json:"task_labels,omitempty"`
+
+	// @Description Project views
+	Views []ProjectView `gorm:"foreignKey:ProjectID" json:"views,omitempty"`
+
+	// @Description Project custom fields
+	CustomFields []ProjectCustomField `gorm:"foreignKey:ProjectID" json:"custom_fields,omitempty"`
+
+	// @Description Project workflows
+	Workflows []ProjectWorkflow `gorm:"foreignKey:ProjectID" json:"workflows,omitempty"`
+
+	// @Description Project insights and analytics
+	Insights []ProjectInsight `gorm:"foreignKey:ProjectID" json:"insights,omitempty"`
+}
+
+// ProjectView represents different views of a project (table, board, roadmap, timeline)
+// @Description Project view model for different project perspectives
+type ProjectView struct {
+	BaseModel
+
+	// View name
+	// @example Sprint Board
+	Name string `gorm:"not null" json:"name" example:"Sprint Board"`
+
+	// View description
+	// @example Current sprint tasks and progress
+	Description string `json:"description" example:"Current sprint tasks and progress"`
+
+	// View type (table, board, roadmap, timeline)
+	// @example board
+	Type string `gorm:"not null" json:"type" example:"board"`
+
+	// View layout settings as JSON
+	// @example {"columns":["todo","in_progress","done"],"groupBy":"status","sortBy":"priority"}
+	Layout string `gorm:"type:json" json:"layout" example:"{\"columns\":[\"todo\",\"in_progress\",\"done\"],\"groupBy\":\"status\",\"sortBy\":\"priority\"}"`
+
+	// View filters as JSON
+	// @example {"assignee":["user1","user2"],"priority":["high","medium"]}
+	Filters string `gorm:"type:json" json:"filters" example:"{\"assignee\":[\"user1\",\"user2\"],\"priority\":[\"high\",\"medium\"]}"`
+
+	// View sorting configuration as JSON
+	// @example {"field":"created_at","direction":"desc"}
+	Sorting string `gorm:"type:json" json:"sorting" example:"{\"field\":\"created_at\",\"direction\":\"desc\"}"`
+
+	// View grouping configuration as JSON
+	// @example {"field":"status","showCount":true}
+	Grouping string `gorm:"type:json" json:"grouping" example:"{\"field\":\"status\",\"showCount\":true}"`
+
+	// Whether the view is default for the project
+	// @example true
+	IsDefault bool `gorm:"default:false" json:"is_default" example:"true"`
+
+	// Whether the view is public
+	// @example true
+	IsPublic bool `gorm:"default:true" json:"is_public" example:"true"`
+
+	// View position/order
+	// @example 1
+	Position int `gorm:"default:0" json:"position" example:"1"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this view belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+}
+
+// ProjectCustomField represents custom fields for projects
+// @Description Project custom field model for flexible metadata
+type ProjectCustomField struct {
+	BaseModel
+
+	// Field name
+	// @example Priority
+	Name string `gorm:"not null" json:"name" example:"Priority"`
+
+	// Field description
+	// @example Task priority level
+	Description string `json:"description" example:"Task priority level"`
+
+	// Field type (text, number, date, select, multi_select, checkbox, url, email)
+	// @example select
+	Type string `gorm:"not null" json:"type" example:"select"`
+
+	// Field options as JSON (for select/multi_select fields)
+	// @example {"options":["Low","Medium","High","Critical"],"colors":{"Low":"#10B981","Medium":"#F59E0B","High":"#EF4444","Critical":"#7C3AED"}}
+	Options string `gorm:"type:json" json:"options" example:"{\"options\":[\"Low\",\"Medium\",\"High\",\"Critical\"],\"colors\":{\"Low\":\"#10B981\",\"Medium\":\"#F59E0B\",\"High\":\"#EF4444\",\"Critical\":\"#7C3AED\"}}"`
+
+	// Whether the field is required
+	// @example false
+	IsRequired bool `gorm:"default:false" json:"is_required" example:"false"`
+
+	// Field position/order
+	// @example 1
+	Position int `gorm:"default:0" json:"position" example:"1"`
+
+	// Whether the field is active
+	// @example true
+	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this field belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+
+	// @Description Task field values
+	TaskFieldValues []TaskFieldValue `gorm:"foreignKey:FieldID" json:"task_field_values,omitempty"`
+}
+
+// ProjectWorkflow represents automated workflows for projects
+// @Description Project workflow model for automation
+type ProjectWorkflow struct {
+	BaseModel
+
+	// Workflow name
+	// @example Auto-assign to Sprint
+	Name string `gorm:"not null" json:"name" example:"Auto-assign to Sprint"`
+
+	// Workflow description
+	// @example Automatically assign new tasks to current sprint
+	Description string `json:"description" example:"Automatically assign new tasks to current sprint"`
+
+	// Workflow trigger (item_added, item_updated, field_changed, status_changed)
+	// @example item_added
+	Trigger string `gorm:"not null" json:"trigger" example:"item_added"`
+
+	// Workflow conditions as JSON
+	// @example {"field":"type","operator":"equals","value":"task"}
+	Conditions string `gorm:"type:json" json:"conditions" example:"{\"field\":\"type\",\"operator\":\"equals\",\"value\":\"task\"}"`
+
+	// Workflow actions as JSON
+	// @example {"action":"set_field","field":"status","value":"todo"}
+	Actions string `gorm:"type:json" json:"actions" example:"{\"action\":\"set_field\",\"field\":\"status\",\"value\":\"todo\"}"`
+
+	// Whether the workflow is active
+	// @example true
+	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
+
+	// Workflow position/order
+	// @example 1
+	Position int `gorm:"default:0" json:"position" example:"1"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this workflow belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+}
+
+// ProjectTemplate represents reusable project templates
+// @Description Project template model for quick project setup
+type ProjectTemplate struct {
+	BaseModel
+
+	// Template name
+	// @example Software Development Template
+	Name string `gorm:"not null" json:"name" example:"Software Development Template"`
+
+	// Template description
+	// @example Template for software development projects with standard workflow
+	Description string `json:"description" example:"Template for software development projects with standard workflow"`
+
+	// Template category (development, marketing, design, general)
+	// @example development
+	Category string `gorm:"default:'general'" json:"category" example:"development"`
+
+	// Template icon
+	// @example code
+	Icon string `json:"icon" example:"code"`
+
+	// Template color
+	// @example #3B82F6
+	Color string `json:"color" example:"#3B82F6"`
+
+	// Whether the template is public
+	// @example true
+	IsPublic bool `gorm:"default:false" json:"is_public" example:"true"`
+
+	// Whether the template is featured
+	// @example false
+	IsFeatured bool `gorm:"default:false" json:"is_featured" example:"false"`
+
+	// Template configuration as JSON
+	// @example {"default_views":[{"name":"Board","type":"board"}],"custom_fields":[{"name":"Priority","type":"select"}]}
+	Configuration string `gorm:"type:json" json:"configuration" example:"{\"default_views\":[{\"name\":\"Board\",\"type\":\"board\"}],\"custom_fields\":[{\"name\":\"Priority\",\"type\":\"select\"}]}"`
+
+	// Organization ID (null for system templates)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	OrganizationID *string `gorm:"index;type:char(26)" json:"organization_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Usage count
+	// @example 42
+	UsageCount int `gorm:"default:0" json:"usage_count" example:"42"`
+
+	// Relationships
+	// @Description Organization this template belongs to (null for system templates)
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
+}
+
+// ProjectInsight represents project analytics and insights
+// @Description Project insight model for analytics
+type ProjectInsight struct {
+	BaseModel
+
+	// Insight type (velocity, burndown, completion_rate, task_distribution)
+	// @example velocity
+	Type string `gorm:"not null" json:"type" example:"velocity"`
+
+	// Insight period (daily, weekly, monthly, quarterly)
+	// @example weekly
+	Period string `gorm:"not null" json:"period" example:"weekly"`
+
+	// Insight date
+	// @example 2024-01-15T00:00:00Z
+	Date time.Time `gorm:"not null" json:"date" example:"2024-01-15T00:00:00Z"`
+
+	// Insight data as JSON
+	// @example {"completed_tasks":15,"total_tasks":20,"velocity":3.5}
+	Data string `gorm:"type:json" json:"data" example:"{\"completed_tasks\":15,\"total_tasks\":20,\"velocity\":3.5}"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this insight belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
 }
 
 // UserOrganization represents the pivot table for user-organization relationship
