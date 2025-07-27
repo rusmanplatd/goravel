@@ -14,11 +14,16 @@ import (
 
 type NotificationController struct {
 	notificationService *services.NotificationService
+	auditService        *services.AuditService
+	auditHelper         *services.AuditHelper
 }
 
 func NewNotificationController() *NotificationController {
+	auditService := services.GetAuditService()
 	return &NotificationController{
 		notificationService: services.NewNotificationService(),
+		auditService:        auditService,
+		auditHelper:         services.NewAuditHelper(auditService),
 	}
 }
 
@@ -61,10 +66,25 @@ func (c *NotificationController) SendWelcomeNotification(ctx http.Context) http.
 			"error":   err.Error(),
 		})
 
+		// Log failed notification send
+		c.auditHelper.LogDataOperation(user.ID, "create", "notification", "", map[string]interface{}{
+			"type":      "welcome",
+			"recipient": user.Email,
+			"status":    "failed",
+			"error":     err.Error(),
+		})
+
 		return ctx.Response().Status(500).Json(map[string]interface{}{
 			"error": "Failed to send notification",
 		})
 	}
+
+	// Log successful notification send
+	c.auditHelper.LogDataOperation(user.ID, "create", "notification", "", map[string]interface{}{
+		"type":      "welcome",
+		"recipient": user.Email,
+		"status":    "success",
+	})
 
 	return ctx.Response().Success().Json(map[string]interface{}{
 		"message": "Welcome notification sent successfully",

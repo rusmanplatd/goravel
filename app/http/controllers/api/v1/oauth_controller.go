@@ -23,6 +23,8 @@ type OAuthController struct {
 	attestationService        *services.OAuthClientAttestationService
 	tokenBindingService       *services.OAuthTokenBindingService
 	resourceIndicatorsService *services.OAuthResourceIndicatorsService
+	auditService              *services.AuditService
+	auditHelper               *services.AuditHelper
 }
 
 // NewOAuthController creates a new OAuth2 controller
@@ -51,6 +53,8 @@ func NewOAuthController() *OAuthController {
 		return nil
 	}
 
+	auditService := services.GetAuditService()
+
 	return &OAuthController{
 		oauthService:              oauthService,
 		authService:               authService,
@@ -60,6 +64,8 @@ func NewOAuthController() *OAuthController {
 		attestationService:        attestationService,
 		tokenBindingService:       services.NewOAuthTokenBindingService(),
 		resourceIndicatorsService: services.NewOAuthResourceIndicatorsService(),
+		auditService:              auditService,
+		auditHelper:               services.NewAuditHelper(auditService),
 	}
 }
 
@@ -287,6 +293,13 @@ func (c *OAuthController) Token(ctx http.Context) http.Response {
 	}
 
 	if err != nil {
+		// Log failed token generation
+		c.auditHelper.LogDataOperation("", "create", "oauth_token", "", map[string]interface{}{
+			"grant_type": req.GrantType,
+			"client_id":  req.ClientID,
+			"status":     "failed",
+			"error":      err.Error(),
+		})
 		return responses.CreateErrorResponse(ctx, "Token generation failed", err.Error(), 401)
 	}
 
@@ -318,6 +331,19 @@ func (c *OAuthController) Token(ctx http.Context) http.Response {
 			response["id_token"] = idToken
 		}
 	}
+
+	// Log successful token generation
+	userID := ""
+	if accessToken.UserID != nil {
+		userID = *accessToken.UserID
+	}
+	c.auditHelper.LogDataOperation(userID, "create", "oauth_token", accessToken.ID, map[string]interface{}{
+		"grant_type":   req.GrantType,
+		"client_id":    req.ClientID,
+		"scopes":       scopes,
+		"has_id_token": c.oauthService.HasScope(scopes, "openid"),
+		"status":       "success",
+	})
 
 	return responses.SuccessResponse(ctx, "Token generated successfully", response)
 }

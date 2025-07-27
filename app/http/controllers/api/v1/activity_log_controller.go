@@ -2,6 +2,8 @@ package v1
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
@@ -11,15 +13,18 @@ import (
 	"goravel/app/http/responses"
 	"goravel/app/models"
 	"goravel/app/querybuilder"
+	"goravel/app/services"
 )
 
 type ActivityLogController struct {
-	activityLogger *models.ActivityLogger
+	activityLogger   *models.ActivityLogger
+	analyticsService *services.AuditAnalyticsService
 }
 
 func NewActivityLogController() *ActivityLogController {
 	return &ActivityLogController{
-		activityLogger: models.NewActivityLogger(),
+		activityLogger:   models.NewActivityLogger(),
+		analyticsService: services.NewAuditAnalyticsService(),
 	}
 }
 
@@ -33,12 +38,22 @@ func NewActivityLogController() *ActivityLogController {
 // @Param page query int false "Page number for offset pagination" default(1)
 // @Param cursor query string false "Cursor for cursor pagination"
 // @Param limit query int false "Items per page" minimum(1) maximum(100) default(15)
-// @Param filter[action] query string false "Filter by action (partial match)"
+// @Param filter[log_name] query string false "Filter by log name (partial match)"
+// @Param filter[category] query string false "Filter by category"
+// @Param filter[severity] query string false "Filter by severity level"
+// @Param filter[status] query string false "Filter by status"
 // @Param filter[subject_type] query string false "Filter by subject type"
+// @Param filter[subject_id] query string false "Filter by subject ID"
 // @Param filter[causer_type] query string false "Filter by causer type"
 // @Param filter[causer_id] query string false "Filter by causer ID"
-// @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
-// @Param include query string false "Include relationships (comma-separated): causer,subject,tenant"
+// @Param filter[ip_address] query string false "Filter by IP address"
+// @Param filter[risk_score_min] query int false "Minimum risk score"
+// @Param filter[risk_score_max] query int false "Maximum risk score"
+// @Param filter[date_from] query string false "Start date (YYYY-MM-DD)"
+// @Param filter[date_to] query string false "End date (YYYY-MM-DD)"
+// @Param search query string false "Search in description and properties"
+// @Param sort query string false "Sort by field (prefix with - for desc)" default("-event_timestamp")
+// @Param include query string false "Include relationships (comma-separated): causer_user,subject_user,tenant"
 // @Success 200 {object} responses.QueryBuilderResponse{data=[]models.ActivityLog}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
@@ -59,18 +74,28 @@ func (alc *ActivityLogController) Index(ctx http.Context) http.Response {
 	qb := querybuilder.For(&models.ActivityLog{}).
 		WithRequest(ctx).
 		AllowedFilters(
-			querybuilder.Partial("action"),
+			querybuilder.Partial("log_name"),
+			querybuilder.Exact("category"),
+			querybuilder.Exact("severity"),
+			querybuilder.Exact("status"),
 			querybuilder.Exact("subject_type"),
+			querybuilder.Exact("subject_id"),
 			querybuilder.Exact("causer_type"),
 			querybuilder.Exact("causer_id"),
+			querybuilder.Exact("ip_address"),
 			querybuilder.Exact("tenant_id"),
 		).
-		AllowedSorts("action", "subject_type", "causer_type", "created_at", "updated_at").
-		AllowedIncludes("causer", "subject", "tenant").
-		DefaultSort("-created_at")
+		AllowedSorts("log_name", "category", "severity", "status", "subject_type", "causer_type", "event_timestamp", "created_at", "risk_score").
+		AllowedIncludes("causer_user", "subject_user", "tenant").
+		DefaultSort("-event_timestamp")
 
 	// Apply tenant constraint to the base query
 	query := qb.Build().Where("tenant_id = ?", tenantID)
+
+	// Apply search if provided
+	if searchTerm := ctx.Request().Query("search", ""); searchTerm != "" {
+		query = query.Where("description LIKE ? OR properties LIKE ?", "%"+searchTerm+"%", "%"+searchTerm+"%")
+	}
 
 	// Create a new query builder with the constrained query
 	constrainedQB := querybuilder.For(query).WithRequest(ctx)
@@ -105,6 +130,9 @@ func (alc *ActivityLogController) Show(ctx http.Context) http.Response {
 	var activity models.ActivityLog
 	err := facades.Orm().Query().
 		Where("id = ? AND tenant_id = ?", id, tenantID).
+		With("CauserUser").
+		With("SubjectUser").
+		With("Tenant").
 		First(&activity)
 
 	if err != nil {
@@ -115,6 +143,411 @@ func (alc *ActivityLogController) Show(ctx http.Context) http.Response {
 
 	return ctx.Response().Success().Json(http.Json{
 		"data": activity,
+	})
+}
+
+// Dashboard returns dashboard metrics for activity logs
+// @Summary Get activity log dashboard metrics
+// @Description Retrieve comprehensive dashboard metrics for activity logs
+// @Tags activity-logs
+// @Accept json
+// @Produce json
+// @Param time_range query string false "Time range: 1h, 24h, 7d, 30d" default("24h")
+// @Success 200 {object} http.Json{data=services.DashboardMetrics}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /activity-logs/dashboard [get]
+func (alc *ActivityLogController) Dashboard(ctx http.Context) http.Response {
+	tenantID := ctx.Value("tenant_id")
+	if tenantID == nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Tenant context required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse time range
+	timeRangeStr := ctx.Request().Query("time_range", "24h")
+	timeRange, err := alc.parseTimeRange(timeRangeStr)
+	if err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid time range: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Get dashboard metrics
+	metrics, err := alc.analyticsService.GetDashboardMetrics(tenantID.(string), timeRange)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to retrieve dashboard metrics: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return ctx.Response().Success().Json(http.Json{
+		"data":         metrics,
+		"time_range":   timeRangeStr,
+		"generated_at": time.Now(),
+	})
+}
+
+// Analytics returns advanced analytics for activity logs
+// @Summary Get activity log analytics
+// @Description Retrieve advanced analytics and insights for activity logs
+// @Tags activity-logs
+// @Accept json
+// @Produce json
+// @Param time_range query string false "Time range: 1h, 24h, 7d, 30d" default("7d")
+// @Param analysis_type query string false "Analysis type: trends, patterns, anomalies, threats" default("trends")
+// @Success 200 {object} http.Json{data=interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /activity-logs/analytics [get]
+func (alc *ActivityLogController) Analytics(ctx http.Context) http.Response {
+	tenantID := ctx.Value("tenant_id")
+	if tenantID == nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Tenant context required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse parameters
+	timeRangeStr := ctx.Request().Query("time_range", "7d")
+	analysisType := ctx.Request().Query("analysis_type", "trends")
+
+	timeRange, err := alc.parseTimeRange(timeRangeStr)
+	if err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid time range: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	var data interface{}
+	var analysisName string
+
+	switch analysisType {
+	case "anomalies":
+		anomalies, err := alc.analyticsService.DetectAnomalies(tenantID.(string), timeRange)
+		if err != nil {
+			return ctx.Response().Status(500).Json(responses.ErrorResponse{
+				Status:    "error",
+				Message:   "Failed to detect anomalies: " + err.Error(),
+				Timestamp: time.Now(),
+			})
+		}
+		data = anomalies
+		analysisName = "Anomaly Detection Results"
+
+	case "threats":
+		report, err := alc.analyticsService.GenerateThreatIntelligenceReport(tenantID.(string), timeRange)
+		if err != nil {
+			return ctx.Response().Status(500).Json(responses.ErrorResponse{
+				Status:    "error",
+				Message:   "Failed to generate threat report: " + err.Error(),
+				Timestamp: time.Now(),
+			})
+		}
+		data = report
+		analysisName = "Threat Intelligence Report"
+
+	case "patterns":
+		patterns, err := alc.getActivityPatterns(tenantID.(string), timeRange)
+		if err != nil {
+			return ctx.Response().Status(500).Json(responses.ErrorResponse{
+				Status:    "error",
+				Message:   "Failed to analyze patterns: " + err.Error(),
+				Timestamp: time.Now(),
+			})
+		}
+		data = patterns
+		analysisName = "Activity Pattern Analysis"
+
+	case "trends":
+		fallthrough
+	default:
+		trends, err := alc.getActivityTrends(tenantID.(string), timeRange)
+		if err != nil {
+			return ctx.Response().Status(500).Json(responses.ErrorResponse{
+				Status:    "error",
+				Message:   "Failed to analyze trends: " + err.Error(),
+				Timestamp: time.Now(),
+			})
+		}
+		data = trends
+		analysisName = "Activity Trend Analysis"
+	}
+
+	return ctx.Response().Success().Json(http.Json{
+		"data":          data,
+		"analysis_type": analysisType,
+		"analysis_name": analysisName,
+		"time_range":    timeRangeStr,
+		"generated_at":  time.Now(),
+	})
+}
+
+// SecurityAlerts returns security-related alerts and incidents
+// @Summary Get security alerts
+// @Description Retrieve security alerts and incidents from activity logs
+// @Tags activity-logs
+// @Accept json
+// @Produce json
+// @Param severity query string false "Filter by severity: low, medium, high, critical"
+// @Param status query string false "Filter by status: open, investigating, resolved"
+// @Param limit query int false "Number of alerts to return" default(50)
+// @Success 200 {object} http.Json{data=[]services.SecurityAlert}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /activity-logs/security-alerts [get]
+func (alc *ActivityLogController) SecurityAlerts(ctx http.Context) http.Response {
+	tenantID := ctx.Value("tenant_id")
+	if tenantID == nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Tenant context required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse parameters
+	severity := ctx.Request().Query("severity", "")
+	status := ctx.Request().Query("status", "")
+	limit := ctx.Request().QueryInt("limit", 50)
+
+	// Build query for security alerts
+	query := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Where("tenant_id = ? AND (risk_score > 70 OR severity IN (?, ?) OR category = ?)",
+			tenantID, models.SeverityHigh, models.SeverityCritical, models.CategorySecurity)
+
+	// Apply filters
+	if severity != "" {
+		query = query.Where("severity = ?", severity)
+	}
+
+	// Get activities
+	var activities []models.ActivityLog
+	err := query.OrderBy("event_timestamp DESC").Limit(limit).Find(&activities)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to retrieve security alerts: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Convert to security alerts format
+	var alerts []map[string]interface{}
+	for _, activity := range activities {
+		alert := map[string]interface{}{
+			"id":           activity.ID,
+			"event_type":   activity.LogName,
+			"description":  activity.Description,
+			"severity":     activity.Severity,
+			"risk_score":   activity.RiskScore,
+			"user_id":      activity.SubjectID,
+			"ip_address":   activity.IPAddress,
+			"timestamp":    activity.EventTimestamp,
+			"status":       status, // Default or filtered status
+			"category":     activity.Category,
+			"threat_level": activity.ThreatLevel,
+		}
+
+		// Parse properties for additional context
+		if activity.Properties != nil {
+			var properties map[string]interface{}
+			if err := json.Unmarshal(activity.Properties, &properties); err == nil {
+				alert["properties"] = properties
+			}
+		}
+
+		alerts = append(alerts, alert)
+	}
+
+	return ctx.Response().Success().Json(http.Json{
+		"data":  alerts,
+		"count": len(alerts),
+		"filters": map[string]string{
+			"severity": severity,
+			"status":   status,
+		},
+		"generated_at": time.Now(),
+	})
+}
+
+// Stats returns statistical summary of activity logs
+// @Summary Get activity log statistics
+// @Description Retrieve statistical summary and metrics for activity logs
+// @Tags activity-logs
+// @Accept json
+// @Produce json
+// @Param time_range query string false "Time range: 1h, 24h, 7d, 30d" default("24h")
+// @Success 200 {object} http.Json{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /activity-logs/stats [get]
+func (alc *ActivityLogController) Stats(ctx http.Context) http.Response {
+	tenantID := ctx.Value("tenant_id")
+	if tenantID == nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Tenant context required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse time range
+	timeRangeStr := ctx.Request().Query("time_range", "24h")
+	timeRange, err := alc.parseTimeRange(timeRangeStr)
+	if err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid time range: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Get statistics from activity logger
+	stats, err := alc.activityLogger.GetActivityStats(tenantID.(string), timeRange.StartTime)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to retrieve statistics: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Add additional computed statistics
+	additionalStats, err := alc.getAdditionalStats(tenantID.(string), timeRange)
+	if err == nil {
+		for key, value := range additionalStats {
+			stats[key] = value
+		}
+	}
+
+	return ctx.Response().Success().Json(http.Json{
+		"data":       stats,
+		"time_range": timeRangeStr,
+		"period": map[string]interface{}{
+			"start": timeRange.StartTime,
+			"end":   timeRange.EndTime,
+		},
+		"generated_at": time.Now(),
+	})
+}
+
+// Export exports activity logs in various formats
+// @Summary Export activity logs
+// @Description Export activity logs in CSV, JSON, or XML format
+// @Tags activity-logs
+// @Accept json
+// @Produce json
+// @Param format query string false "Export format: csv, json, xml" default("csv")
+// @Param time_range query string false "Time range: 1h, 24h, 7d, 30d" default("24h")
+// @Param filter[category] query string false "Filter by category"
+// @Param filter[severity] query string false "Filter by severity level"
+// @Success 200 {object} http.Json{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /activity-logs/export [get]
+func (alc *ActivityLogController) Export(ctx http.Context) http.Response {
+	tenantID := ctx.Value("tenant_id")
+	if tenantID == nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Tenant context required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse parameters
+	format := ctx.Request().Query("format", "csv")
+	timeRangeStr := ctx.Request().Query("time_range", "24h")
+	category := ctx.Request().Query("filter[category]", "")
+	severity := ctx.Request().Query("filter[severity]", "")
+
+	// Validate format
+	if format != "csv" && format != "json" && format != "xml" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid export format. Supported formats: csv, json, xml",
+			Timestamp: time.Now(),
+		})
+	}
+
+	timeRange, err := alc.parseTimeRange(timeRangeStr)
+	if err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid time range: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Build query
+	query := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
+			tenantID, timeRange.StartTime, timeRange.EndTime)
+
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+	if severity != "" {
+		query = query.Where("severity = ?", severity)
+	}
+
+	// Get activities
+	var activities []models.ActivityLog
+	err = query.OrderBy("event_timestamp DESC").Limit(10000).Find(&activities) // Limit for performance
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to retrieve activities for export: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Generate export data
+	exportData, contentType, err := alc.generateExportData(activities, format)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to generate export data: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// For API response, return metadata about the export
+	exportInfo := map[string]interface{}{
+		"format":       format,
+		"count":        len(activities),
+		"time_range":   timeRangeStr,
+		"content_type": contentType,
+		"size_bytes":   len(exportData),
+		"generated_at": time.Now(),
+		"filters": map[string]string{
+			"category": category,
+			"severity": severity,
+		},
+	}
+
+	// In a real implementation, you might want to:
+	// 1. Save the export to a file and return a download URL
+	// 2. Stream the data directly as a file download
+	// 3. Queue the export as a background job for large datasets
+
+	return ctx.Response().Success().Json(http.Json{
+		"data":    exportInfo,
+		"message": "Export generated successfully",
 	})
 }
 
@@ -404,7 +837,7 @@ func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) htt
 
 	// Build query
 	query := facades.Orm().Query().
-		Where("created_at BETWEEN ? AND ? AND tenant_id = ?", startDate, endDate, tenantID)
+		Where("event_timestamp BETWEEN ? AND ? AND tenant_id = ?", startDate, endDate, tenantID)
 
 	// Apply cursor-based pagination
 	query, err = helpers.ApplyCursorPagination(query, cursor, limit, false)
@@ -472,11 +905,16 @@ func (alc *ActivityLogController) Store(ctx http.Context) http.Response {
 	var request struct {
 		LogName     string                 `json:"log_name"`
 		Description string                 `json:"description"`
+		Category    string                 `json:"category"`
+		Severity    string                 `json:"severity"`
+		Status      string                 `json:"status"`
 		SubjectType string                 `json:"subject_type"`
 		SubjectID   string                 `json:"subject_id"`
 		CauserType  string                 `json:"causer_type"`
 		CauserID    string                 `json:"causer_id"`
 		Properties  map[string]interface{} `json:"properties"`
+		Tags        []string               `json:"tags"`
+		RiskScore   int                    `json:"risk_score"`
 	}
 
 	if err := ctx.Request().Bind(&request); err != nil {
@@ -486,27 +924,39 @@ func (alc *ActivityLogController) Store(ctx http.Context) http.Response {
 	}
 
 	activity := &models.ActivityLog{
-		LogName:     request.LogName,
-		Description: request.Description,
-		SubjectType: request.SubjectType,
-		SubjectID:   request.SubjectID,
-		CauserType:  request.CauserType,
-		CauserID:    request.CauserID,
-		TenantID:    tenantID.(string),
+		LogName:        request.LogName,
+		Description:    request.Description,
+		Category:       models.ActivityLogCategory(request.Category),
+		Severity:       models.ActivityLogSeverity(request.Severity),
+		Status:         models.ActivityLogStatus(request.Status),
+		SubjectType:    request.SubjectType,
+		SubjectID:      request.SubjectID,
+		CauserType:     request.CauserType,
+		CauserID:       request.CauserID,
+		RiskScore:      request.RiskScore,
+		EventTimestamp: time.Now(),
+		TenantID:       tenantID.(string),
 	}
 
 	// Set properties if provided
 	if request.Properties != nil {
-		propsJSON, err := json.Marshal(request.Properties)
-		if err != nil {
+		if err := activity.SetPropertiesMap(request.Properties); err != nil {
 			return ctx.Response().Status(500).Json(http.Json{
-				"error": "Failed to marshal properties",
+				"error": "Failed to set properties",
 			})
 		}
-		activity.Properties = propsJSON
 	}
 
-	err := facades.Orm().Query().Create(activity)
+	// Set tags if provided
+	if request.Tags != nil {
+		if err := activity.SetTagsSlice(request.Tags); err != nil {
+			return ctx.Response().Status(500).Json(http.Json{
+				"error": "Failed to set tags",
+			})
+		}
+	}
+
+	err := alc.activityLogger.LogActivity(activity)
 	if err != nil {
 		return ctx.Response().Status(500).Json(http.Json{
 			"error": "Failed to create activity log",
@@ -518,3 +968,180 @@ func (alc *ActivityLogController) Store(ctx http.Context) http.Response {
 		"message": "Activity log created successfully",
 	})
 }
+
+// Helper methods
+
+func (alc *ActivityLogController) parseTimeRange(timeRangeStr string) (services.TimeRange, error) {
+	now := time.Now()
+	var startTime time.Time
+
+	switch timeRangeStr {
+	case "1h":
+		startTime = now.Add(-1 * time.Hour)
+	case "24h":
+		startTime = now.Add(-24 * time.Hour)
+	case "7d":
+		startTime = now.Add(-7 * 24 * time.Hour)
+	case "30d":
+		startTime = now.Add(-30 * 24 * time.Hour)
+	default:
+		return services.TimeRange{}, fmt.Errorf("unsupported time range: %s", timeRangeStr)
+	}
+
+	return services.TimeRange{
+		StartTime: startTime,
+		EndTime:   now,
+	}, nil
+}
+
+func (alc *ActivityLogController) getActivityTrends(tenantID string, timeRange services.TimeRange) (map[string]interface{}, error) {
+	// This would implement trend analysis
+	// For now, return basic trend data
+	var results []struct {
+		Hour  int   `json:"hour"`
+		Count int64 `json:"count"`
+	}
+
+	err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("HOUR(event_timestamp) as hour, COUNT(*) as count").
+		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
+			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Group("HOUR(event_timestamp)").
+		OrderBy("hour ASC").
+		Find(&results)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"hourly_distribution": results,
+		"analysis_type":       "hourly_trends",
+		"period":              "hourly",
+	}, nil
+}
+
+func (alc *ActivityLogController) getActivityPatterns(tenantID string, timeRange services.TimeRange) (map[string]interface{}, error) {
+	// This would implement pattern analysis
+	// For now, return basic pattern data
+	var userPatterns []struct {
+		SubjectID string `json:"subject_id"`
+		Count     int64  `json:"count"`
+		Pattern   string `json:"pattern"`
+	}
+
+	err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("subject_id, COUNT(*) as count, 'frequent_user' as pattern").
+		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
+			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Group("subject_id").
+		Having("count > 100").
+		OrderBy("count DESC").
+		Limit(20).
+		Find(&userPatterns)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"user_patterns": userPatterns,
+		"analysis_type": "behavioral_patterns",
+		"pattern_types": []string{"frequent_user", "unusual_access", "bulk_operations"},
+	}, nil
+}
+
+func (alc *ActivityLogController) getAdditionalStats(tenantID string, timeRange services.TimeRange) (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	// Unique users count
+	var uniqueUsers int64
+	facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("COUNT(DISTINCT subject_id)").
+		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
+			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Pluck("unique_users", &uniqueUsers)
+	stats["unique_users"] = uniqueUsers
+
+	// Unique IPs count
+	var uniqueIPs int64
+	facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("COUNT(DISTINCT ip_address)").
+		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND ip_address IS NOT NULL",
+			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Pluck("unique_ips", &uniqueIPs)
+	stats["unique_ips"] = uniqueIPs
+
+	// Average risk score
+	var avgRiskScore float64
+	facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("AVG(risk_score)").
+		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
+			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Pluck("avg_risk_score", &avgRiskScore)
+	stats["average_risk_score"] = avgRiskScore
+
+	return stats, nil
+}
+
+func (alc *ActivityLogController) generateExportData(activities []models.ActivityLog, format string) ([]byte, string, error) {
+	switch format {
+	case "json":
+		data, err := json.MarshalIndent(activities, "", "  ")
+		return data, "application/json", err
+
+	case "csv":
+		// Implement CSV generation
+		var csvData strings.Builder
+		csvData.WriteString("ID,LogName,Description,Category,Severity,Status,SubjectID,CauserID,IPAddress,EventTimestamp,RiskScore\n")
+
+		for _, activity := range activities {
+			csvData.WriteString(fmt.Sprintf(`"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s",%d`,
+				activity.ID,
+				activity.LogName,
+				strings.ReplaceAll(activity.Description, `"`, `""`),
+				activity.Category,
+				activity.Severity,
+				activity.Status,
+				activity.SubjectID,
+				activity.CauserID,
+				activity.IPAddress,
+				activity.EventTimestamp.Format("2006-01-02 15:04:05"),
+				activity.RiskScore,
+			))
+			csvData.WriteString("\n")
+		}
+
+		return []byte(csvData.String()), "text/csv", nil
+
+	case "xml":
+		// Implement basic XML generation
+		var xmlData strings.Builder
+		xmlData.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
+		xmlData.WriteString("\n<activities>\n")
+
+		for _, activity := range activities {
+			xmlData.WriteString("  <activity>\n")
+			xmlData.WriteString(fmt.Sprintf("    <id>%s</id>\n", activity.ID))
+			xmlData.WriteString(fmt.Sprintf("    <log_name>%s</log_name>\n", activity.LogName))
+			xmlData.WriteString(fmt.Sprintf("    <description><![CDATA[%s]]></description>\n", activity.Description))
+			xmlData.WriteString(fmt.Sprintf("    <category>%s</category>\n", activity.Category))
+			xmlData.WriteString(fmt.Sprintf("    <severity>%s</severity>\n", activity.Severity))
+			xmlData.WriteString(fmt.Sprintf("    <event_timestamp>%s</event_timestamp>\n", activity.EventTimestamp.Format("2006-01-02T15:04:05Z")))
+			xmlData.WriteString("  </activity>\n")
+		}
+
+		xmlData.WriteString("</activities>")
+		return []byte(xmlData.String()), "application/xml", nil
+
+	default:
+		return nil, "", fmt.Errorf("unsupported format: %s", format)
+	}
+}
+
+// Utility functions for pagination helpers (these functions are already defined elsewhere)

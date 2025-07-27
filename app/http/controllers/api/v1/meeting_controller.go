@@ -22,10 +22,13 @@ type MeetingController struct {
 	monitoringService  *services.MeetingMonitoringService
 	clusterService     *services.MeetingClusterService
 	liveKitService     *services.LiveKitService
+	auditService       *services.AuditService
+	auditHelper        *services.AuditHelper
 }
 
 // NewMeetingController creates a new meeting controller
 func NewMeetingController() *MeetingController {
+	auditService := services.GetAuditService()
 	return &MeetingController{
 		meetingService:     services.NewMeetingService(),
 		recordingService:   services.NewMeetingRecordingService(),
@@ -34,6 +37,8 @@ func NewMeetingController() *MeetingController {
 		monitoringService:  services.NewMeetingMonitoringService(),
 		clusterService:     services.NewMeetingClusterService("api-node"),
 		liveKitService:     services.NewLiveKitService(),
+		auditService:       auditService,
+		auditHelper:        services.NewAuditHelper(auditService),
 	}
 }
 
@@ -51,6 +56,12 @@ func (mc *MeetingController) StartMeeting(ctx http.Context) http.Response {
 
 	err := mc.meetingService.StartMeeting(meetingID, user.ID)
 	if err != nil {
+		// Log failed meeting start
+		mc.auditHelper.LogDataOperation(user.ID, "update", "meeting", meetingID, map[string]interface{}{
+			"action": "start",
+			"status": "failed",
+			"error":  err.Error(),
+		})
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
 			Message:   "Failed to start meeting",
@@ -58,6 +69,12 @@ func (mc *MeetingController) StartMeeting(ctx http.Context) http.Response {
 			Timestamp: time.Now(),
 		})
 	}
+
+	// Log successful meeting start
+	mc.auditHelper.LogDataOperation(user.ID, "update", "meeting", meetingID, map[string]interface{}{
+		"action": "start",
+		"status": "success",
+	})
 
 	return ctx.Response().Success().Json(responses.APIResponse{
 		Status:    "success",

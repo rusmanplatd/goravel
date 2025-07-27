@@ -1,9 +1,11 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
@@ -12,10 +14,47 @@ import (
 	"goravel/app/models"
 )
 
-type AuditService struct{}
+type AuditService struct {
+	batchBuffer        []*models.ActivityLog
+	batchMutex         sync.RWMutex
+	batchSize          int
+	flushInterval      time.Duration
+	stopChan           chan struct{}
+	geoIPService       *GeoIPService
+	activityLogger     *models.ActivityLogger
+	streamingService   *AuditStreamingService
+	correlationService *AuditCorrelationService
+}
 
 func NewAuditService() *AuditService {
-	return &AuditService{}
+	service := &AuditService{
+		batchBuffer:        make([]*models.ActivityLog, 0),
+		batchSize:          100,
+		flushInterval:      5 * time.Second,
+		stopChan:           make(chan struct{}),
+		geoIPService:       NewGeoIPService(),
+		activityLogger:     models.NewActivityLogger(),
+		streamingService:   NewAuditStreamingService(),
+		correlationService: NewAuditCorrelationService(),
+	}
+
+	// Start batch processing goroutine
+	go service.startBatchProcessor()
+
+	return service
+}
+
+// Close gracefully shuts down the audit service
+func (s *AuditService) Close() error {
+	close(s.stopChan)
+	s.flushBatch() // Flush remaining items
+	if s.geoIPService != nil {
+		s.geoIPService.Close()
+	}
+	if s.streamingService != nil {
+		s.streamingService.Close()
+	}
+	return nil
 }
 
 // AuditEvent represents different types of audit events
@@ -61,6 +100,8 @@ const (
 	EventUnauthorizedAccess  AuditEvent = "security.unauthorized_access"
 	EventPrivilegeEscalation AuditEvent = "security.privilege_escalation"
 	EventDataBreach          AuditEvent = "security.data_breach"
+	EventThreatDetected      AuditEvent = "security.threat_detected"
+	EventAnomalyDetected     AuditEvent = "security.anomaly_detected"
 
 	// Permission Events
 	EventPermissionGranted AuditEvent = "permission.granted"
@@ -73,6 +114,7 @@ const (
 	EventDataModified AuditEvent = "data.modified"
 	EventDataDeleted  AuditEvent = "data.deleted"
 	EventDataExported AuditEvent = "data.exported"
+	EventDataImported AuditEvent = "data.imported"
 
 	// Multi-account Events
 	EventAccountAdded       AuditEvent = "multi_account.account_added"
@@ -88,37 +130,98 @@ const (
 	EventOrganizationDeleted AuditEvent = "organization.deleted"
 	EventUserInvited         AuditEvent = "organization.user_invited"
 	EventUserRemoved         AuditEvent = "organization.user_removed"
+
+	// Compliance Events
+	EventComplianceViolation AuditEvent = "compliance.violation"
+	EventDataRetention       AuditEvent = "compliance.data_retention"
+	EventAuditExport         AuditEvent = "compliance.audit_export"
+
+	// Performance Events
+	EventPerformanceAlert AuditEvent = "performance.alert"
+	EventSlowQuery        AuditEvent = "performance.slow_query"
+	EventHighMemoryUsage  AuditEvent = "performance.high_memory"
+	EventHighCPUUsage     AuditEvent = "performance.high_cpu"
 )
 
 // AuditContext contains context information for audit events
 type AuditContext struct {
-	UserID      string                 `json:"user_id,omitempty"`
-	SessionID   string                 `json:"session_id,omitempty"`
-	IPAddress   string                 `json:"ip_address,omitempty"`
-	UserAgent   string                 `json:"user_agent,omitempty"`
-	RequestID   string                 `json:"request_id,omitempty"`
-	Path        string                 `json:"path,omitempty"`
-	Method      string                 `json:"method,omitempty"`
-	StatusCode  int                    `json:"status_code,omitempty"`
-	Duration    time.Duration          `json:"duration,omitempty"`
-	Resource    string                 `json:"resource,omitempty"`
-	Action      string                 `json:"action,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	ThreatLevel string                 `json:"threat_level,omitempty"`
-	GeoLocation *models.GeoLocation    `json:"geo_location,omitempty"`
+	UserID        string                 `json:"user_id,omitempty"`
+	SessionID     string                 `json:"session_id,omitempty"`
+	IPAddress     string                 `json:"ip_address,omitempty"`
+	UserAgent     string                 `json:"user_agent,omitempty"`
+	RequestID     string                 `json:"request_id,omitempty"`
+	Path          string                 `json:"path,omitempty"`
+	Method        string                 `json:"method,omitempty"`
+	StatusCode    int                    `json:"status_code,omitempty"`
+	Duration      time.Duration          `json:"duration,omitempty"`
+	Resource      string                 `json:"resource,omitempty"`
+	Action        string                 `json:"action,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	ThreatLevel   string                 `json:"threat_level,omitempty"`
+	GeoLocation   *models.GeoLocation    `json:"geo_location,omitempty"`
+	DeviceInfo    map[string]interface{} `json:"device_info,omitempty"`
+	Tags          []string               `json:"tags,omitempty"`
+	TenantID      string                 `json:"tenant_id,omitempty"`
+	RiskScore     int                    `json:"risk_score,omitempty"`
+	BatchID       string                 `json:"batch_id,omitempty"`
+	CorrelationID string                 `json:"correlation_id,omitempty"`
 }
 
-// LogEvent logs an audit event with context
+// LogEvent logs an audit event with context (now uses batch processing)
 func (s *AuditService) LogEvent(event AuditEvent, message string, context *AuditContext) {
+	if context == nil {
+		context = &AuditContext{}
+	}
+
+	// Determine category based on event
+	category := s.determineCategory(event)
+
+	// Determine severity level
+	severity := s.determineSeverity(event)
+
+	// Determine status based on event and context
+	status := s.determineStatus(event, context)
+
+	// Calculate risk score if not provided
+	if context.RiskScore == 0 {
+		context.RiskScore = s.calculateRiskScore(event, context)
+	}
+
+	// Prepare geo location
+	var geoLocationJSON json.RawMessage
+	if context.GeoLocation != nil {
+		if data, err := json.Marshal(context.GeoLocation); err == nil {
+			geoLocationJSON = data
+		}
+	} else if context.IPAddress != "" {
+		if geoLoc := s.getGeoLocation(context.IPAddress); geoLoc != nil {
+			if data, err := json.Marshal(geoLoc); err == nil {
+				geoLocationJSON = data
+			}
+		}
+	}
+
+	// Prepare device info
+	var deviceInfoJSON json.RawMessage
+	if context.DeviceInfo != nil {
+		if data, err := json.Marshal(context.DeviceInfo); err == nil {
+			deviceInfoJSON = data
+		}
+	}
+
+	// Prepare tags
+	var tagsJSON json.RawMessage
+	if context.Tags != nil {
+		if data, err := json.Marshal(context.Tags); err == nil {
+			tagsJSON = data
+		}
+	}
+
 	// Prepare properties with all context information
 	properties := map[string]interface{}{
-		"event":        string(event),
-		"ip_address":   context.IPAddress,
-		"user_agent":   context.UserAgent,
-		"path":         context.Path,
-		"method":       context.Method,
-		"session_id":   context.SessionID,
-		"threat_level": context.ThreatLevel,
+		"event":          string(event),
+		"correlation_id": context.CorrelationID,
+		"batch_id":       context.BatchID,
 	}
 
 	// Add metadata if available
@@ -127,15 +230,6 @@ func (s *AuditService) LogEvent(event AuditEvent, message string, context *Audit
 			properties[k] = v
 		}
 	}
-
-	// Add geo location if available
-	if context.GeoLocation != nil {
-		properties["geo_location"] = context.GeoLocation
-	}
-
-	// Determine severity level
-	severity := s.determineSeverity(event)
-	properties["severity"] = severity
 
 	// Convert properties to JSON
 	propsJSON, err := json.Marshal(properties)
@@ -146,33 +240,85 @@ func (s *AuditService) LogEvent(event AuditEvent, message string, context *Audit
 		propsJSON = []byte("{}")
 	}
 
+	// Prepare compliance flags
+	complianceFlags := s.determineComplianceFlags(event, context)
+	var complianceFlagsJSON json.RawMessage
+	if complianceFlags != nil {
+		if data, err := json.Marshal(complianceFlags); err == nil {
+			complianceFlagsJSON = data
+		}
+	}
+
 	// Create activity log entry
 	activityLog := &models.ActivityLog{
-		LogName:     "audit",
-		Description: message,
-		SubjectType: "User",
-		SubjectID:   context.UserID,
-		CauserType:  "System",
-		CauserID:    "audit_system",
-		Properties:  propsJSON,
+		LogName:         string(event),
+		Description:     message,
+		Category:        category,
+		Severity:        severity,
+		Status:          status,
+		SubjectType:     "User",
+		SubjectID:       context.UserID,
+		CauserType:      "System",
+		CauserID:        "audit_system",
+		IPAddress:       context.IPAddress,
+		UserAgent:       context.UserAgent,
+		RequestPath:     context.Path,
+		RequestMethod:   context.Method,
+		StatusCode:      context.StatusCode,
+		Duration:        int64(context.Duration.Milliseconds()),
+		SessionID:       context.SessionID,
+		RequestID:       context.RequestID,
+		GeoLocation:     geoLocationJSON,
+		DeviceInfo:      deviceInfoJSON,
+		RiskScore:       context.RiskScore,
+		ThreatLevel:     context.ThreatLevel,
+		Tags:            tagsJSON,
+		Properties:      propsJSON,
+		ComplianceFlags: complianceFlagsJSON,
+		EventTimestamp:  time.Now(),
+		TenantID:        context.TenantID,
 	}
 
-	// Save to database
-	if err := facades.Orm().Query().Create(activityLog); err != nil {
-		facades.Log().Error("Failed to save audit log", map[string]interface{}{
-			"error":   err.Error(),
-			"event":   event,
-			"message": message,
-		})
+	// Add to batch for processing
+	s.addToBatch(activityLog)
+
+	// Stream event for real-time monitoring
+	if s.streamingService != nil {
+		s.streamingService.StreamEvent(activityLog)
 	}
 
-	// Log to application log as well
+	// Correlate event with other events
+	if s.correlationService != nil {
+		correlationResults, err := s.correlationService.CorrelateEvent(activityLog)
+		if err != nil {
+			facades.Log().Error("Failed to correlate audit event", map[string]interface{}{
+				"error":    err.Error(),
+				"event_id": activityLog.ID,
+			})
+		} else if len(correlationResults) > 0 {
+			// Log correlation results
+			for _, result := range correlationResults {
+				facades.Log().Info("Event correlation detected", map[string]interface{}{
+					"correlation_id": result.CorrelationID,
+					"rule_name":      result.RuleName,
+					"score":          result.Score,
+					"event_count":    result.EventCount,
+					"severity":       result.Severity,
+				})
+			}
+		}
+	}
+
+	// Log to application log as well for immediate visibility
 	logLevel := s.getLogLevel(severity)
 	logData := map[string]interface{}{
 		"audit_event": event,
 		"message":     message,
 		"context":     context,
 		"timestamp":   time.Now(),
+		"risk_score":  context.RiskScore,
+		"category":    category,
+		"severity":    severity,
 	}
 
 	switch logLevel {
@@ -186,13 +332,85 @@ func (s *AuditService) LogEvent(event AuditEvent, message string, context *Audit
 		facades.Log().Debug("AUDIT: "+message, logData)
 	}
 
-	// Check for security threats
+	// Real-time security analysis
 	s.analyzeSecurityThreat(event, context)
 
 	// Send alerts for critical events
-	if s.isCriticalEvent(event) {
+	if s.isCriticalEvent(event) || context.RiskScore > 80 {
 		s.sendSecurityAlert(event, message, context)
 	}
+
+	// Real-time notifications for high-risk activities
+	if context.RiskScore > 70 || severity == models.SeverityHigh || severity == models.SeverityCritical {
+		s.sendRealTimeNotification(event, message, context)
+	}
+}
+
+// Batch processing methods
+func (s *AuditService) addToBatch(activity *models.ActivityLog) {
+	s.batchMutex.Lock()
+	defer s.batchMutex.Unlock()
+
+	s.batchBuffer = append(s.batchBuffer, activity)
+
+	// Flush if batch is full
+	if len(s.batchBuffer) >= s.batchSize {
+		go s.flushBatch()
+	}
+}
+
+func (s *AuditService) startBatchProcessor() {
+	ticker := time.NewTicker(s.flushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.flushBatch()
+		case <-s.stopChan:
+			return
+		}
+	}
+}
+
+func (s *AuditService) flushBatch() {
+	s.batchMutex.Lock()
+	if len(s.batchBuffer) == 0 {
+		s.batchMutex.Unlock()
+		return
+	}
+
+	batch := make([]*models.ActivityLog, len(s.batchBuffer))
+	copy(batch, s.batchBuffer)
+	s.batchBuffer = s.batchBuffer[:0] // Clear the buffer
+	s.batchMutex.Unlock()
+
+	// Bulk insert
+	if err := s.bulkInsertActivities(batch); err != nil {
+		facades.Log().Error("Failed to bulk insert audit logs", map[string]interface{}{
+			"error": err.Error(),
+			"count": len(batch),
+		})
+
+		// Fallback: try to insert individually
+		for _, activity := range batch {
+			if err := s.activityLogger.LogActivity(activity); err != nil {
+				facades.Log().Error("Failed to save individual audit log", map[string]interface{}{
+					"error":   err.Error(),
+					"event":   activity.LogName,
+					"message": activity.Description,
+				})
+			}
+		}
+	}
+}
+
+func (s *AuditService) bulkInsertActivities(activities []*models.ActivityLog) error {
+	if len(activities) == 0 {
+		return nil
+	}
+
+	return facades.Orm().Query().Create(&activities)
 }
 
 // LogEventCompat provides compatibility with the old LogEvent signature
@@ -209,6 +427,88 @@ func (s *AuditService) LogEventCompat(userID *string, event, description, ipAddr
 
 	s.LogEvent(AuditEvent(event), description, context)
 	return nil
+}
+
+// LogUserActionSimple logs a user action with simplified parameters
+func (s *AuditService) LogUserActionSimple(userID string, action string, message string, metadata map[string]interface{}) {
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithAction(action).
+		WithMetadataMap(metadata).
+		Build()
+
+	s.LogEvent(EventDataAccessed, message, context)
+}
+
+// LogSecurityEventWithSeverity logs a security event with specific severity
+func (s *AuditService) LogSecurityEventWithSeverity(event AuditEvent, message string, severity models.ActivityLogSeverity, context *AuditContext) {
+	if context == nil {
+		context = &AuditContext{}
+	}
+
+	// Override calculated severity with provided severity
+	if context.Metadata == nil {
+		context.Metadata = make(map[string]interface{})
+	}
+	context.Metadata["override_severity"] = string(severity)
+
+	s.LogEvent(event, message, context)
+}
+
+// LogDataAccessSimple logs data access events with simplified parameters
+func (s *AuditService) LogDataAccessSimple(userID, resource, action string, metadata map[string]interface{}) {
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithResource(resource).
+		WithAction(action).
+		WithMetadataMap(metadata).
+		WithTags("data_access").
+		Build()
+
+	s.LogEvent(EventDataAccessed, fmt.Sprintf("Data access: %s %s", action, resource), context)
+}
+
+// LogAuthEventSimple logs authentication-related events with simplified parameters
+func (s *AuditService) LogAuthEventSimple(userID string, event AuditEvent, success bool, metadata map[string]interface{}) {
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithMetadata("success", success).
+		WithMetadataMap(metadata).
+		WithTags("authentication").
+		Build()
+
+	message := "Authentication event"
+	if success {
+		message = "Authentication successful"
+	} else {
+		message = "Authentication failed"
+	}
+
+	s.LogEvent(event, message, context)
+}
+
+// LogBatchEvents logs multiple events with a correlation ID
+func (s *AuditService) LogBatchEvents(events []AuditEventData, correlationID string) {
+	for _, eventData := range events {
+		if eventData.Context == nil {
+			eventData.Context = &AuditContext{}
+		}
+
+		// Set correlation ID
+		eventData.Context.CorrelationID = correlationID
+
+		// Merge metadata from event data into context
+		if eventData.Metadata != nil {
+			if eventData.Context.Metadata == nil {
+				eventData.Context.Metadata = make(map[string]interface{})
+			}
+			for k, v := range eventData.Metadata {
+				eventData.Context.Metadata[k] = v
+			}
+		}
+
+		s.LogEvent(eventData.Event, eventData.Message, eventData.Context)
+	}
 }
 
 // LogAuthenticationEvent logs authentication-related events
@@ -283,6 +583,24 @@ func (s *AuditService) LogPermissionChange(event AuditEvent, targetUserID, chang
 	s.LogEvent(event, message, context)
 }
 
+// LogPerformanceEvent logs performance-related events
+func (s *AuditService) LogPerformanceEvent(event AuditEvent, message string, metrics map[string]interface{}, ctx http.Context) {
+	context := s.buildContextFromHTTP(ctx)
+	context.Metadata = metrics
+
+	s.LogEvent(event, message, context)
+}
+
+// LogComplianceEvent logs compliance-related events
+func (s *AuditService) LogComplianceEvent(event AuditEvent, message string, complianceType string, details map[string]interface{}) {
+	context := &AuditContext{
+		Metadata: details,
+		Tags:     []string{"compliance", complianceType},
+	}
+
+	s.LogEvent(event, message, context)
+}
+
 // GetUserActivityHistory retrieves activity history for a user
 func (s *AuditService) GetUserActivityHistory(userID string, limit int, offset int) ([]models.ActivityLog, error) {
 	var activities []models.ActivityLog
@@ -295,7 +613,7 @@ func (s *AuditService) GetUserActivityHistory(userID string, limit int, offset i
 		query = query.Offset(offset)
 	}
 
-	err := query.OrderBy("created_at", "desc").Find(&activities)
+	err := query.OrderBy("event_timestamp", "desc").Find(&activities)
 	return activities, err
 }
 
@@ -303,26 +621,25 @@ func (s *AuditService) GetUserActivityHistory(userID string, limit int, offset i
 func (s *AuditService) GetSecurityEvents(since time.Time, limit int) ([]models.ActivityLog, error) {
 	var activities []models.ActivityLog
 
-	securityEvents := []interface{}{
-		string(EventRateLimitExceeded),
-		string(EventSuspiciousActivity),
-		string(EventIPBlocked),
-		string(EventUnauthorizedAccess),
-		string(EventPrivilegeEscalation),
-		string(EventDataBreach),
-	}
-
 	query := facades.Orm().Query().
-		Where("log_name", "audit").
-		Where("JSON_EXTRACT(properties, '$.event') IN (?)", securityEvents).
-		Where("created_at", ">=", since)
+		Where("category IN (?)", []string{
+			string(models.CategorySecurity),
+			string(models.CategoryAuthentication),
+			string(models.CategoryAuthorization),
+		}).
+		Where("event_timestamp >= ?", since)
 
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
 
-	err := query.OrderBy("created_at", "desc").Find(&activities)
+	err := query.OrderBy("event_timestamp", "desc").Find(&activities)
 	return activities, err
+}
+
+// GetHighRiskActivities retrieves high-risk activities
+func (s *AuditService) GetHighRiskActivities(tenantID string, since time.Time, limit int) ([]models.ActivityLog, error) {
+	return s.activityLogger.GetHighRiskActivities(tenantID, limit)
 }
 
 // DetectAnomalousActivity detects anomalous user activity patterns
@@ -349,7 +666,17 @@ func (s *AuditService) DetectAnomalousActivity(userID string) ([]string, error) 
 		anomalies = append(anomalies, "Privilege escalation attempts detected")
 	}
 
+	// Check for unusual resource access patterns
+	if s.hasUnusualResourceAccess(userID) {
+		anomalies = append(anomalies, "Unusual resource access patterns detected")
+	}
+
 	return anomalies, nil
+}
+
+// GetAuditStatistics returns comprehensive audit statistics
+func (s *AuditService) GetAuditStatistics(tenantID string, since time.Time) (map[string]interface{}, error) {
+	return s.activityLogger.GetActivityStats(tenantID, since)
 }
 
 // Helper methods
@@ -364,12 +691,20 @@ func (s *AuditService) buildContextFromHTTP(ctx http.Context) *AuditContext {
 		UserAgent: ctx.Request().Header("User-Agent", ""),
 		Path:      ctx.Request().Path(),
 		Method:    ctx.Request().Method(),
+		RequestID: s.getRequestID(ctx),
 	}
 
 	// Try to get user ID from context
 	if userID := ctx.Value("user_id"); userID != nil {
 		if id, ok := userID.(string); ok {
 			context.UserID = id
+		}
+	}
+
+	// Try to get tenant ID from context
+	if tenantID := ctx.Value("tenant_id"); tenantID != nil {
+		if id, ok := tenantID.(string); ok {
+			context.TenantID = id
 		}
 	}
 
@@ -380,10 +715,67 @@ func (s *AuditService) buildContextFromHTTP(ctx http.Context) *AuditContext {
 		}
 	}
 
-	// Add geo location if available
-	context.GeoLocation = s.getGeoLocation(context.IPAddress)
+	// Parse device information from user agent
+	context.DeviceInfo = s.parseDeviceInfo(context.UserAgent)
 
 	return context
+}
+
+func (s *AuditService) getRequestID(ctx http.Context) string {
+	// Try to get request ID from various headers
+	requestID := ctx.Request().Header("X-Request-ID", "")
+	if requestID == "" {
+		requestID = ctx.Request().Header("X-Correlation-ID", "")
+	}
+	if requestID == "" {
+		requestID = ctx.Request().Header("X-Trace-ID", "")
+	}
+	return requestID
+}
+
+func (s *AuditService) parseDeviceInfo(userAgent string) map[string]interface{} {
+	deviceInfo := make(map[string]interface{})
+
+	if userAgent == "" {
+		return deviceInfo
+	}
+
+	// Basic device type detection
+	userAgentLower := strings.ToLower(userAgent)
+
+	if strings.Contains(userAgentLower, "mobile") || strings.Contains(userAgentLower, "android") || strings.Contains(userAgentLower, "iphone") {
+		deviceInfo["type"] = "mobile"
+	} else if strings.Contains(userAgentLower, "tablet") || strings.Contains(userAgentLower, "ipad") {
+		deviceInfo["type"] = "tablet"
+	} else {
+		deviceInfo["type"] = "desktop"
+	}
+
+	// OS detection
+	if strings.Contains(userAgentLower, "windows") {
+		deviceInfo["os"] = "Windows"
+	} else if strings.Contains(userAgentLower, "mac") || strings.Contains(userAgentLower, "darwin") {
+		deviceInfo["os"] = "macOS"
+	} else if strings.Contains(userAgentLower, "linux") {
+		deviceInfo["os"] = "Linux"
+	} else if strings.Contains(userAgentLower, "android") {
+		deviceInfo["os"] = "Android"
+	} else if strings.Contains(userAgentLower, "ios") || strings.Contains(userAgentLower, "iphone") || strings.Contains(userAgentLower, "ipad") {
+		deviceInfo["os"] = "iOS"
+	}
+
+	// Browser detection
+	if strings.Contains(userAgentLower, "chrome") {
+		deviceInfo["browser"] = "Chrome"
+	} else if strings.Contains(userAgentLower, "firefox") {
+		deviceInfo["browser"] = "Firefox"
+	} else if strings.Contains(userAgentLower, "safari") {
+		deviceInfo["browser"] = "Safari"
+	} else if strings.Contains(userAgentLower, "edge") {
+		deviceInfo["browser"] = "Edge"
+	}
+
+	return deviceInfo
 }
 
 func (s *AuditService) getClientIP(ctx http.Context) string {
@@ -405,35 +797,161 @@ func (s *AuditService) getClientIP(ctx http.Context) string {
 }
 
 func (s *AuditService) getGeoLocation(ip string) *models.GeoLocation {
-	// Use production GeoIP service
-	geoIPService := NewGeoIPService()
-	defer geoIPService.Close()
-
-	return geoIPService.GetLocation(ip)
+	if s.geoIPService != nil {
+		return s.geoIPService.GetLocation(ip)
+	}
+	return nil
 }
 
-func (s *AuditService) determineSeverity(event AuditEvent) string {
+func (s *AuditService) determineCategory(event AuditEvent) models.ActivityLogCategory {
+	eventStr := string(event)
+
+	if strings.HasPrefix(eventStr, "auth.") {
+		return models.CategoryAuthentication
+	} else if strings.HasPrefix(eventStr, "permission.") || strings.HasPrefix(eventStr, "role.") {
+		return models.CategoryAuthorization
+	} else if strings.HasPrefix(eventStr, "security.") {
+		return models.CategorySecurity
+	} else if strings.HasPrefix(eventStr, "data.") {
+		if strings.Contains(eventStr, "accessed") {
+			return models.CategoryDataAccess
+		}
+		return models.CategoryDataModify
+	} else if strings.HasPrefix(eventStr, "compliance.") {
+		return models.CategoryCompliance
+	} else if strings.HasPrefix(eventStr, "performance.") {
+		return models.CategoryPerformance
+	} else if strings.HasPrefix(eventStr, "organization.") {
+		return models.CategoryAdmin
+	}
+
+	return models.CategorySystem
+}
+
+func (s *AuditService) determineSeverity(event AuditEvent) models.ActivityLogSeverity {
 	switch event {
 	case EventDataBreach, EventPrivilegeEscalation, EventUnauthorizedAccess:
-		return "critical"
-	case EventLoginFailed, EventMFAFailed, EventWebAuthnFailed, EventSuspiciousActivity, EventIPBlocked:
-		return "high"
-	case EventRateLimitExceeded, EventLoginLocked, EventSessionExpired:
-		return "medium"
-	case EventLoginSuccess, EventLogout, EventMFASuccess, EventWebAuthnSuccess:
-		return "low"
+		return models.SeverityCritical
+	case EventLoginFailed, EventMFAFailed, EventWebAuthnFailed, EventSuspiciousActivity, EventIPBlocked, EventThreatDetected, EventAnomalyDetected:
+		return models.SeverityHigh
+	case EventRateLimitExceeded, EventLoginLocked, EventSessionExpired, EventComplianceViolation:
+		return models.SeverityMedium
+	case EventLoginSuccess, EventLogout, EventMFASuccess, EventWebAuthnSuccess, EventDataAccessed:
+		return models.SeverityLow
 	default:
-		return "info"
+		return models.SeverityInfo
 	}
 }
 
-func (s *AuditService) getLogLevel(severity string) string {
+func (s *AuditService) determineStatus(event AuditEvent, context *AuditContext) models.ActivityLogStatus {
+	if context != nil && context.StatusCode >= 400 {
+		if context.StatusCode >= 500 {
+			return models.StatusError
+		}
+		return models.StatusFailed
+	}
+
+	switch event {
+	case EventLoginFailed, EventMFAFailed, EventWebAuthnFailed, EventUnauthorizedAccess:
+		return models.StatusFailed
+	case EventSuspiciousActivity, EventThreatDetected, EventAnomalyDetected, EventComplianceViolation:
+		return models.StatusWarning
+	default:
+		return models.StatusSuccess
+	}
+}
+
+func (s *AuditService) calculateRiskScore(event AuditEvent, context *AuditContext) int {
+	baseScore := 0
+
+	// Base score by event type
+	switch event {
+	case EventDataBreach, EventPrivilegeEscalation:
+		baseScore = 95
+	case EventUnauthorizedAccess, EventSuspiciousActivity:
+		baseScore = 80
+	case EventThreatDetected, EventAnomalyDetected:
+		baseScore = 70
+	case EventLoginFailed, EventMFAFailed:
+		baseScore = 40
+	case EventRateLimitExceeded:
+		baseScore = 30
+	default:
+		baseScore = 10
+	}
+
+	// Adjust based on context
+	if context != nil {
+		// Multiple failed attempts increase risk
+		if failCount, ok := context.Metadata["fail_count"].(int); ok && failCount > 3 {
+			baseScore += 20
+		}
+
+		// Unknown IP increases risk
+		if isNewIP, ok := context.Metadata["is_new_ip"].(bool); ok && isNewIP {
+			baseScore += 15
+		}
+
+		// Unusual time increases risk
+		if isUnusualTime, ok := context.Metadata["is_unusual_time"].(bool); ok && isUnusualTime {
+			baseScore += 10
+		}
+
+		// High status codes increase risk
+		if context.StatusCode >= 500 {
+			baseScore += 15
+		} else if context.StatusCode >= 400 {
+			baseScore += 10
+		}
+	}
+
+	// Cap at 100
+	if baseScore > 100 {
+		baseScore = 100
+	}
+
+	return baseScore
+}
+
+func (s *AuditService) determineComplianceFlags(event AuditEvent, context *AuditContext) map[string]interface{} {
+	flags := make(map[string]interface{})
+
+	// GDPR compliance
+	if event == EventDataAccessed || event == EventDataModified || event == EventDataDeleted || event == EventDataExported {
+		flags["gdpr"] = true
+	}
+
+	// SOX compliance for financial data
+	if context != nil && context.Resource != "" {
+		if strings.Contains(strings.ToLower(context.Resource), "financial") {
+			flags["sox"] = true
+		}
+	}
+
+	// HIPAA compliance for health data
+	if context != nil && context.Resource != "" {
+		if strings.Contains(strings.ToLower(context.Resource), "health") || strings.Contains(strings.ToLower(context.Resource), "medical") {
+			flags["hipaa"] = true
+		}
+	}
+
+	// PCI DSS compliance for payment data
+	if context != nil && context.Resource != "" {
+		if strings.Contains(strings.ToLower(context.Resource), "payment") || strings.Contains(strings.ToLower(context.Resource), "card") {
+			flags["pci_dss"] = true
+		}
+	}
+
+	return flags
+}
+
+func (s *AuditService) getLogLevel(severity models.ActivityLogSeverity) string {
 	switch severity {
-	case "critical":
+	case models.SeverityCritical:
 		return "error"
-	case "high":
+	case models.SeverityHigh:
 		return "warning"
-	case "medium", "low":
+	case models.SeverityMedium, models.SeverityLow:
 		return "info"
 	default:
 		return "debug"
@@ -459,6 +977,8 @@ func (s *AuditService) isCriticalEvent(event AuditEvent) bool {
 		EventPrivilegeEscalation,
 		EventUnauthorizedAccess,
 		EventSuspiciousActivity,
+		EventThreatDetected,
+		EventAnomalyDetected,
 	}
 
 	for _, critical := range criticalEvents {
@@ -471,9 +991,6 @@ func (s *AuditService) isCriticalEvent(event AuditEvent) bool {
 }
 
 func (s *AuditService) analyzeSecurityThreat(event AuditEvent, context *AuditContext) {
-	// Implement threat analysis logic
-	// This could include machine learning models, pattern recognition, etc.
-
 	if context.UserID != "" {
 		// Check for brute force attacks
 		if event == EventLoginFailed {
@@ -484,80 +1001,239 @@ func (s *AuditService) analyzeSecurityThreat(event AuditEvent, context *AuditCon
 		if event == EventLoginSuccess {
 			s.checkAccountTakeoverIndicators(context.UserID, context)
 		}
+
+		// Check for suspicious activity patterns
+		if s.isSuspiciousActivity(event, context) {
+			s.LogEvent(EventSuspiciousActivity, "Suspicious activity pattern detected", context)
+		}
 	}
 }
 
-func (s *AuditService) sendSecurityAlert(event AuditEvent, message string, context *AuditContext) {
-	// Send alerts to security team
-	alertData := map[string]interface{}{
-		"event":     event,
-		"message":   message,
-		"context":   context,
-		"timestamp": time.Now(),
-		"severity":  s.determineSeverity(event),
+func (s *AuditService) isSuspiciousActivity(event AuditEvent, context *AuditContext) bool {
+	// Check for rapid successive login attempts
+	if event == EventLoginFailed && context.UserID != "" {
+		return s.hasRapidLoginAttempts(context.UserID, context.IPAddress)
 	}
 
-	// This would typically send to:
+	// Check for unusual access patterns
+	if event == EventDataAccessed && context.UserID != "" {
+		return s.hasUnusualAccessPattern(context.UserID, context.Resource)
+	}
+
+	return false
+}
+
+func (s *AuditService) hasRapidLoginAttempts(userID, ipAddress string) bool {
+	since := time.Now().Add(-5 * time.Minute)
+
+	count, err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Where("subject_id = ? AND ip_address = ? AND log_name = ? AND event_timestamp >= ?",
+			userID, ipAddress, string(EventLoginFailed), since).
+		Count()
+
+	return err == nil && count > 5
+}
+
+func (s *AuditService) hasUnusualAccessPattern(userID, resource string) bool {
+	// Check if user typically accesses this resource
+	since := time.Now().Add(-30 * 24 * time.Hour) // 30 days
+
+	count, err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Where("subject_id = ? AND log_name = ? AND properties LIKE ? AND event_timestamp >= ?",
+			userID, string(EventDataAccessed), "%"+resource+"%", since).
+		Count()
+
+	return err == nil && count < 5 // Less than 5 accesses in 30 days is unusual
+}
+
+func (s *AuditService) sendSecurityAlert(event AuditEvent, message string, context *AuditContext) {
+	alertData := map[string]interface{}{
+		"event":      event,
+		"message":    message,
+		"context":    context,
+		"timestamp":  time.Now(),
+		"severity":   s.determineSeverity(event),
+		"risk_score": context.RiskScore,
+	}
+
+	// Log critical security alert
+	facades.Log().Error("SECURITY ALERT", alertData)
+
+	// Send real-time notification
+	s.sendRealTimeNotification(event, message, context)
+
+	// TODO: Integrate with external alerting systems
 	// - Email alerts
 	// - Slack/Discord webhooks
 	// - SIEM systems
 	// - Security monitoring tools
+}
 
-	facades.Log().Error("SECURITY ALERT", alertData)
+func (s *AuditService) sendRealTimeNotification(event AuditEvent, message string, context *AuditContext) {
+	notification := map[string]interface{}{
+		"type":       "security_alert",
+		"event":      event,
+		"message":    message,
+		"context":    context,
+		"timestamp":  time.Now(),
+		"risk_score": context.RiskScore,
+	}
+
+	// TODO: Implement WebSocket notification to security dashboard
+	// For now, log as high priority
+	facades.Log().Warning("REAL-TIME SECURITY NOTIFICATION", notification)
 }
 
 func (s *AuditService) checkBruteForceAttack(userID, ipAddress string) {
-	// Check for multiple failed login attempts
 	var activities []models.ActivityLog
 	since := time.Now().Add(-15 * time.Minute)
 
 	err := facades.Orm().Query().
-		Where("subject_id", userID).
-		Where("log_name", "audit").
-		Where("JSON_EXTRACT(properties, '$.event') = ?", string(EventLoginFailed)).
-		Where("created_at", ">=", since).
+		Where("subject_id = ? AND ip_address = ? AND log_name = ? AND event_timestamp >= ?",
+			userID, ipAddress, string(EventLoginFailed), since).
 		Find(&activities)
 
 	if err == nil && len(activities) > 5 {
-		s.LogSecurityEvent(EventSuspiciousActivity,
-			"Potential brute force attack detected",
-			nil,
-			map[string]interface{}{
-				"user_id":    userID,
-				"ip_address": ipAddress,
+		context := &AuditContext{
+			UserID:    userID,
+			IPAddress: ipAddress,
+			Metadata: map[string]interface{}{
 				"attempts":   len(activities),
-			})
+				"time_frame": "15 minutes",
+			},
+			RiskScore: 85,
+		}
+
+		s.LogEvent(EventSuspiciousActivity,
+			"Potential brute force attack detected",
+			context)
 	}
 }
 
 func (s *AuditService) checkAccountTakeoverIndicators(userID string, context *AuditContext) {
-	// Check for indicators of account takeover:
-	// - Login from new location
-	// - Login from new device
-	// - Unusual time of access
-	// - Multiple concurrent sessions
+	// Check for login from new location
+	if s.isNewLocation(userID, context.IPAddress) {
+		context.Metadata["indicator"] = "new_location"
+		context.RiskScore += 20
 
-	// This would implement sophisticated detection logic
+		s.LogEvent(EventAnomalyDetected,
+			"Login from new geographic location detected",
+			context)
+	}
+
+	// Check for unusual time of access
+	if s.isUnusualTime(userID) {
+		context.Metadata["indicator"] = "unusual_time"
+		context.RiskScore += 15
+
+		s.LogEvent(EventAnomalyDetected,
+			"Login at unusual time detected",
+			context)
+	}
+}
+
+func (s *AuditService) isNewLocation(userID, ipAddress string) bool {
+	since := time.Now().Add(-30 * 24 * time.Hour) // 30 days
+
+	count, err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Where("subject_id = ? AND ip_address = ? AND log_name = ? AND event_timestamp >= ?",
+			userID, ipAddress, string(EventLoginSuccess), since).
+		Count()
+
+	return err == nil && count == 0
+}
+
+func (s *AuditService) isUnusualTime(userID string) bool {
+	// Check if current time is unusual for this user
+	currentHour := time.Now().Hour()
+
+	// Consider 11 PM to 5 AM as unusual for most business applications
+	return currentHour >= 23 || currentHour <= 5
 }
 
 func (s *AuditService) hasUnusualLoginTimes(userID string) bool {
 	// Analyze user's typical login patterns and detect anomalies
+	// This would implement more sophisticated time-based analysis
 	return false
 }
 
 func (s *AuditService) hasMultipleIPs(userID string) bool {
-	// Check if user has logged in from multiple IPs recently
-	return false
+	var ips []string
+	since := time.Now().Add(-24 * time.Hour)
+
+	err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("DISTINCT ip_address").
+		Where("subject_id = ? AND log_name = ? AND event_timestamp >= ?",
+			userID, string(EventLoginSuccess), since).
+		Pluck("ip_address", &ips)
+
+	return err == nil && len(ips) > 3
 }
 
 func (s *AuditService) hasRapidActions(userID string) bool {
-	// Check for unusually rapid successive actions
-	return false
+	since := time.Now().Add(-5 * time.Minute)
+
+	count, err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Where("subject_id = ? AND event_timestamp >= ?", userID, since).
+		Count()
+
+	return err == nil && count > 50 // More than 50 actions in 5 minutes
 }
 
 func (s *AuditService) hasPrivilegeEscalationAttempts(userID string) bool {
-	// Check for attempts to access resources beyond user's permissions
-	return false
+	since := time.Now().Add(-24 * time.Hour)
+
+	count, err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Where("subject_id = ? AND category = ? AND status = ? AND event_timestamp >= ?",
+			userID, models.CategoryAuthorization, models.StatusFailed, since).
+		Count()
+
+	return err == nil && count > 10
+}
+
+func (s *AuditService) hasUnusualResourceAccess(userID string) bool {
+	// Check for access to resources the user doesn't typically access
+	var recentResources []string
+	var typicalResources []string
+
+	// Get resources accessed in last 24 hours
+	since := time.Now().Add(-24 * time.Hour)
+	facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("DISTINCT JSON_EXTRACT(properties, '$.resource')").
+		Where("subject_id = ? AND log_name = ? AND event_timestamp >= ?",
+			userID, string(EventDataAccessed), since).
+		Pluck("resource", &recentResources)
+
+	// Get typical resources accessed in last 30 days
+	typicalSince := time.Now().Add(-30 * 24 * time.Hour)
+	facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("DISTINCT JSON_EXTRACT(properties, '$.resource')").
+		Where("subject_id = ? AND log_name = ? AND event_timestamp >= ? AND event_timestamp < ?",
+			userID, string(EventDataAccessed), typicalSince, since).
+		Pluck("resource", &typicalResources)
+
+	// Check if recent resources are unusual
+	typicalMap := make(map[string]bool)
+	for _, resource := range typicalResources {
+		typicalMap[resource] = true
+	}
+
+	unusualCount := 0
+	for _, resource := range recentResources {
+		if !typicalMap[resource] {
+			unusualCount++
+		}
+	}
+
+	return unusualCount > len(recentResources)/2 // More than half are unusual
 }
 
 // LogSimpleEvent provides a simplified way to log events for other services
@@ -575,4 +1251,640 @@ func (s *AuditService) LogUserEvent(userID string, event AuditEvent, message str
 		Metadata: metadata,
 	}
 	s.LogEvent(event, message, context)
+}
+
+// LogBatchEvent logs multiple events in a batch with correlation ID
+func (s *AuditService) LogBatchEvent(events []struct {
+	Event   AuditEvent
+	Message string
+	Context *AuditContext
+}) {
+	correlationID := fmt.Sprintf("batch_%d", time.Now().UnixNano())
+	batchID := fmt.Sprintf("batch_%d", time.Now().Unix())
+
+	for _, eventData := range events {
+		if eventData.Context == nil {
+			eventData.Context = &AuditContext{}
+		}
+		eventData.Context.CorrelationID = correlationID
+		eventData.Context.BatchID = batchID
+
+		s.LogEvent(eventData.Event, eventData.Message, eventData.Context)
+	}
+}
+
+// StartPerformanceMonitoring starts monitoring system performance
+func (s *AuditService) StartPerformanceMonitoring(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				// System performance monitoring would go here
+			}
+		}
+	}()
+}
+
+// AuditInterface defines the contract for audit logging
+type AuditInterface interface {
+	LogEvent(event AuditEvent, message string, context *AuditContext)
+	LogUserActionSimple(userID string, action string, message string, metadata map[string]interface{})
+	LogSecurityEventWithSeverity(event AuditEvent, message string, severity models.ActivityLogSeverity, context *AuditContext)
+	LogDataAccessSimple(userID, resource, action string, metadata map[string]interface{})
+	LogAuthEventSimple(userID string, event AuditEvent, success bool, metadata map[string]interface{})
+	LogComplianceEvent(event AuditEvent, message string, complianceType string, details map[string]interface{})
+	LogPerformanceEvent(event AuditEvent, message string, metrics map[string]interface{}, ctx http.Context)
+	LogBatchEvents(events []AuditEventData, correlationID string)
+	Close() error
+}
+
+// AuditEventData represents a single audit event for batch logging
+type AuditEventData struct {
+	Event    AuditEvent             `json:"event"`
+	Message  string                 `json:"message"`
+	Context  *AuditContext          `json:"context"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// AuditContextBuilder helps build audit contexts with a fluent interface
+type AuditContextBuilder struct {
+	context *AuditContext
+}
+
+// NewAuditContextBuilder creates a new audit context builder
+func NewAuditContextBuilder() *AuditContextBuilder {
+	return &AuditContextBuilder{
+		context: &AuditContext{
+			Metadata: make(map[string]interface{}),
+		},
+	}
+}
+
+// WithUser sets the user ID
+func (b *AuditContextBuilder) WithUser(userID string) *AuditContextBuilder {
+	b.context.UserID = userID
+	return b
+}
+
+// WithSession sets the session ID
+func (b *AuditContextBuilder) WithSession(sessionID string) *AuditContextBuilder {
+	b.context.SessionID = sessionID
+	return b
+}
+
+// WithIP sets the IP address
+func (b *AuditContextBuilder) WithIP(ipAddress string) *AuditContextBuilder {
+	b.context.IPAddress = ipAddress
+	return b
+}
+
+// WithUserAgent sets the user agent
+func (b *AuditContextBuilder) WithUserAgent(userAgent string) *AuditContextBuilder {
+	b.context.UserAgent = userAgent
+	return b
+}
+
+// WithRequest sets request information
+func (b *AuditContextBuilder) WithRequest(path, method string, statusCode int) *AuditContextBuilder {
+	b.context.Path = path
+	b.context.Method = method
+	b.context.StatusCode = statusCode
+	return b
+}
+
+// WithResource sets the resource being accessed
+func (b *AuditContextBuilder) WithResource(resource string) *AuditContextBuilder {
+	b.context.Resource = resource
+	return b
+}
+
+// WithAction sets the action being performed
+func (b *AuditContextBuilder) WithAction(action string) *AuditContextBuilder {
+	b.context.Action = action
+	return b
+}
+
+// WithMetadata adds metadata
+func (b *AuditContextBuilder) WithMetadata(key string, value interface{}) *AuditContextBuilder {
+	if b.context.Metadata == nil {
+		b.context.Metadata = make(map[string]interface{})
+	}
+	b.context.Metadata[key] = value
+	return b
+}
+
+// WithMetadataMap adds multiple metadata entries
+func (b *AuditContextBuilder) WithMetadataMap(metadata map[string]interface{}) *AuditContextBuilder {
+	if b.context.Metadata == nil {
+		b.context.Metadata = make(map[string]interface{})
+	}
+	for k, v := range metadata {
+		b.context.Metadata[k] = v
+	}
+	return b
+}
+
+// WithTenant sets the tenant ID
+func (b *AuditContextBuilder) WithTenant(tenantID string) *AuditContextBuilder {
+	b.context.TenantID = tenantID
+	return b
+}
+
+// WithRiskScore sets the risk score
+func (b *AuditContextBuilder) WithRiskScore(score int) *AuditContextBuilder {
+	b.context.RiskScore = score
+	return b
+}
+
+// WithTags adds tags
+func (b *AuditContextBuilder) WithTags(tags ...string) *AuditContextBuilder {
+	if b.context.Tags == nil {
+		b.context.Tags = make([]string, 0)
+	}
+	b.context.Tags = append(b.context.Tags, tags...)
+	return b
+}
+
+// WithDuration sets the duration
+func (b *AuditContextBuilder) WithDuration(duration time.Duration) *AuditContextBuilder {
+	b.context.Duration = duration
+	return b
+}
+
+// WithHTTPContext extracts context from HTTP request
+func (b *AuditContextBuilder) WithHTTPContext(ctx http.Context) *AuditContextBuilder {
+	if ctx != nil {
+		b.context.Path = ctx.Request().Path()
+		b.context.Method = ctx.Request().Method()
+		b.context.IPAddress = ctx.Request().Ip()
+		b.context.UserAgent = ctx.Request().Header("User-Agent", "")
+
+		// Extract user ID from context if available
+		if userID := ctx.Value("user_id"); userID != nil {
+			if uid, ok := userID.(string); ok {
+				b.context.UserID = uid
+			}
+		}
+
+		// Extract tenant ID from context if available
+		if tenantID := ctx.Value("tenant_id"); tenantID != nil {
+			if tid, ok := tenantID.(string); ok {
+				b.context.TenantID = tid
+			}
+		}
+
+		// Extract session ID if available
+		if sessionID := ctx.Value("session_id"); sessionID != nil {
+			if sid, ok := sessionID.(string); ok {
+				b.context.SessionID = sid
+			}
+		}
+	}
+	return b
+}
+
+// Build returns the built audit context
+func (b *AuditContextBuilder) Build() *AuditContext {
+	return b.context
+}
+
+// AuditHelper provides convenient methods for common audit patterns
+type AuditHelper struct {
+	service AuditInterface
+}
+
+// NewAuditHelper creates a new audit helper
+func NewAuditHelper(service AuditInterface) *AuditHelper {
+	return &AuditHelper{service: service}
+}
+
+// LogUserLogin logs a user login attempt
+func (h *AuditHelper) LogUserLogin(userID, ipAddress, userAgent string, success bool, metadata map[string]interface{}) {
+	event := EventLoginSuccess
+	message := "User logged in successfully"
+
+	if !success {
+		event = EventLoginFailed
+		message = "User login failed"
+	}
+
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithIP(ipAddress).
+		WithUserAgent(userAgent).
+		WithMetadataMap(metadata).
+		Build()
+
+	h.service.LogEvent(event, message, context)
+}
+
+// LogDataOperation logs a data operation (create, read, update, delete)
+func (h *AuditHelper) LogDataOperation(userID, operation, resource string, resourceID string, metadata map[string]interface{}) {
+	var event AuditEvent
+	var message string
+
+	switch strings.ToLower(operation) {
+	case "create":
+		event = EventDataModified
+		message = fmt.Sprintf("Created %s", resource)
+	case "read", "view", "access":
+		event = EventDataAccessed
+		message = fmt.Sprintf("Accessed %s", resource)
+	case "update", "edit":
+		event = EventDataModified
+		message = fmt.Sprintf("Updated %s", resource)
+	case "delete", "remove":
+		event = EventDataDeleted
+		message = fmt.Sprintf("Deleted %s", resource)
+	default:
+		event = EventDataAccessed
+		message = fmt.Sprintf("Performed %s on %s", operation, resource)
+	}
+
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithResource(resource).
+		WithAction(operation).
+		WithMetadata("resource_id", resourceID).
+		WithMetadataMap(metadata).
+		Build()
+
+	h.service.LogEvent(event, message, context)
+}
+
+// LogPermissionChange logs permission or role changes
+func (h *AuditHelper) LogPermissionChange(adminUserID, targetUserID, operation string, permissions []string, metadata map[string]interface{}) {
+	var event AuditEvent
+	var message string
+
+	switch strings.ToLower(operation) {
+	case "grant", "add":
+		event = EventPermissionGranted
+		message = "Permissions granted to user"
+	case "revoke", "remove":
+		event = EventPermissionRevoked
+		message = "Permissions revoked from user"
+	case "assign_role":
+		event = EventRoleAssigned
+		message = "Role assigned to user"
+	case "remove_role":
+		event = EventRoleRemoved
+		message = "Role removed from user"
+	default:
+		event = EventPermissionGranted
+		message = fmt.Sprintf("Permission change: %s", operation)
+	}
+
+	context := NewAuditContextBuilder().
+		WithUser(adminUserID).
+		WithMetadata("target_user_id", targetUserID).
+		WithMetadata("operation", operation).
+		WithMetadata("permissions", permissions).
+		WithMetadataMap(metadata).
+		Build()
+
+	h.service.LogEvent(event, message, context)
+}
+
+// LogSecurityIncident logs security-related incidents
+func (h *AuditHelper) LogSecurityIncident(userID, incidentType, description string, severity models.ActivityLogSeverity, metadata map[string]interface{}) {
+	var event AuditEvent
+
+	switch strings.ToLower(incidentType) {
+	case "suspicious_activity":
+		event = EventSuspiciousActivity
+	case "unauthorized_access":
+		event = EventUnauthorizedAccess
+	case "rate_limit":
+		event = EventRateLimitExceeded
+	case "privilege_escalation":
+		event = EventPrivilegeEscalation
+	case "data_breach":
+		event = EventDataBreach
+	case "threat_detected":
+		event = EventThreatDetected
+	case "anomaly_detected":
+		event = EventAnomalyDetected
+	default:
+		event = EventSuspiciousActivity
+	}
+
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithMetadata("incident_type", incidentType).
+		WithMetadataMap(metadata).
+		WithTags("security", "incident", incidentType).
+		Build()
+
+	h.service.LogSecurityEventWithSeverity(event, description, severity, context)
+}
+
+// LogAPIAccess logs API access with performance metrics
+func (h *AuditHelper) LogAPIAccess(userID, endpoint, method string, statusCode int, duration time.Duration, metadata map[string]interface{}) {
+	message := fmt.Sprintf("API %s %s - %d", method, endpoint, statusCode)
+
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithRequest(endpoint, method, statusCode).
+		WithDuration(duration).
+		WithMetadata("response_time_ms", duration.Milliseconds()).
+		WithMetadataMap(metadata).
+		WithTags("api", "access").
+		Build()
+
+	event := EventDataAccessed
+	if statusCode >= 400 {
+		event = EventUnauthorizedAccess
+		context.Tags = append(context.Tags, "error")
+	}
+
+	h.service.LogEvent(event, message, context)
+}
+
+// AuditServiceFactory creates and configures audit service instances
+type AuditServiceFactory struct {
+	config AuditServiceConfig
+}
+
+// AuditServiceConfig holds configuration for audit service
+type AuditServiceConfig struct {
+	BatchSize         int           `json:"batch_size"`
+	FlushInterval     time.Duration `json:"flush_interval"`
+	EnableStreaming   bool          `json:"enable_streaming"`
+	EnableCorrelation bool          `json:"enable_correlation"`
+	EnableEncryption  bool          `json:"enable_encryption"`
+	EnableRetention   bool          `json:"enable_retention"`
+	GeoIPEnabled      bool          `json:"geoip_enabled"`
+}
+
+// DefaultAuditServiceConfig returns default configuration
+func DefaultAuditServiceConfig() AuditServiceConfig {
+	return AuditServiceConfig{
+		BatchSize:         100,
+		FlushInterval:     5 * time.Second,
+		EnableStreaming:   true,
+		EnableCorrelation: true,
+		EnableEncryption:  false, // Disabled by default for performance
+		EnableRetention:   true,
+		GeoIPEnabled:      true,
+	}
+}
+
+// NewAuditServiceFactory creates a new audit service factory
+func NewAuditServiceFactory() *AuditServiceFactory {
+	return &AuditServiceFactory{
+		config: DefaultAuditServiceConfig(),
+	}
+}
+
+// WithConfig sets custom configuration
+func (f *AuditServiceFactory) WithConfig(config AuditServiceConfig) *AuditServiceFactory {
+	f.config = config
+	return f
+}
+
+// WithBatchSize sets batch size
+func (f *AuditServiceFactory) WithBatchSize(size int) *AuditServiceFactory {
+	f.config.BatchSize = size
+	return f
+}
+
+// WithFlushInterval sets flush interval
+func (f *AuditServiceFactory) WithFlushInterval(interval time.Duration) *AuditServiceFactory {
+	f.config.FlushInterval = interval
+	return f
+}
+
+// EnableStreaming enables streaming service
+func (f *AuditServiceFactory) EnableStreaming() *AuditServiceFactory {
+	f.config.EnableStreaming = true
+	return f
+}
+
+// DisableStreaming disables streaming service
+func (f *AuditServiceFactory) DisableStreaming() *AuditServiceFactory {
+	f.config.EnableStreaming = false
+	return f
+}
+
+// EnableCorrelation enables correlation service
+func (f *AuditServiceFactory) EnableCorrelation() *AuditServiceFactory {
+	f.config.EnableCorrelation = true
+	return f
+}
+
+// DisableCorrelation disables correlation service
+func (f *AuditServiceFactory) DisableCorrelation() *AuditServiceFactory {
+	f.config.EnableCorrelation = false
+	return f
+}
+
+// EnableEncryption enables encryption service
+func (f *AuditServiceFactory) EnableEncryption() *AuditServiceFactory {
+	f.config.EnableEncryption = true
+	return f
+}
+
+// DisableEncryption disables encryption service
+func (f *AuditServiceFactory) DisableEncryption() *AuditServiceFactory {
+	f.config.EnableEncryption = false
+	return f
+}
+
+// EnableRetention enables retention service
+func (f *AuditServiceFactory) EnableRetention() *AuditServiceFactory {
+	f.config.EnableRetention = true
+	return f
+}
+
+// DisableRetention disables retention service
+func (f *AuditServiceFactory) DisableRetention() *AuditServiceFactory {
+	f.config.EnableRetention = false
+	return f
+}
+
+// EnableGeoIP enables GeoIP service
+func (f *AuditServiceFactory) EnableGeoIP() *AuditServiceFactory {
+	f.config.GeoIPEnabled = true
+	return f
+}
+
+// DisableGeoIP disables GeoIP service
+func (f *AuditServiceFactory) DisableGeoIP() *AuditServiceFactory {
+	f.config.GeoIPEnabled = false
+	return f
+}
+
+// Create creates a configured audit service instance
+func (f *AuditServiceFactory) Create() *AuditService {
+	service := &AuditService{
+		batchBuffer:    make([]*models.ActivityLog, 0),
+		batchSize:      f.config.BatchSize,
+		flushInterval:  f.config.FlushInterval,
+		stopChan:       make(chan struct{}),
+		activityLogger: models.NewActivityLogger(),
+	}
+
+	// Configure optional services based on config
+	if f.config.GeoIPEnabled {
+		service.geoIPService = NewGeoIPService()
+	}
+
+	if f.config.EnableStreaming {
+		service.streamingService = NewAuditStreamingService()
+	}
+
+	if f.config.EnableCorrelation {
+		service.correlationService = NewAuditCorrelationService()
+	}
+
+	// Start batch processing goroutine
+	go service.startBatchProcessor()
+
+	return service
+}
+
+// CreateWithDefaults creates an audit service with default configuration
+func CreateAuditServiceWithDefaults() *AuditService {
+	return NewAuditServiceFactory().Create()
+}
+
+// CreateMinimalAuditService creates a minimal audit service for testing or lightweight usage
+func CreateMinimalAuditService() *AuditService {
+	return NewAuditServiceFactory().
+		WithBatchSize(10).
+		WithFlushInterval(1 * time.Second).
+		DisableStreaming().
+		DisableCorrelation().
+		DisableEncryption().
+		DisableRetention().
+		DisableGeoIP().
+		Create()
+}
+
+// CreateHighPerformanceAuditService creates a high-performance audit service
+func CreateHighPerformanceAuditService() *AuditService {
+	return NewAuditServiceFactory().
+		WithBatchSize(1000).
+		WithFlushInterval(10 * time.Second).
+		EnableStreaming().
+		EnableCorrelation().
+		DisableEncryption(). // Encryption can slow down performance
+		EnableRetention().
+		EnableGeoIP().
+		Create()
+}
+
+// CreateSecureAuditService creates a security-focused audit service
+func CreateSecureAuditService() *AuditService {
+	return NewAuditServiceFactory().
+		WithBatchSize(50).
+		WithFlushInterval(2 * time.Second).
+		EnableStreaming().
+		EnableCorrelation().
+		EnableEncryption().
+		EnableRetention().
+		EnableGeoIP().
+		Create()
+}
+
+// AuditServiceProvider provides dependency injection for audit services
+type AuditServiceProvider struct {
+	instances map[string]*AuditService
+	factory   *AuditServiceFactory
+}
+
+// NewAuditServiceProvider creates a new audit service provider
+func NewAuditServiceProvider() *AuditServiceProvider {
+	return &AuditServiceProvider{
+		instances: make(map[string]*AuditService),
+		factory:   NewAuditServiceFactory(),
+	}
+}
+
+// GetDefault returns the default audit service instance
+func (p *AuditServiceProvider) GetDefault() *AuditService {
+	if service, exists := p.instances["default"]; exists {
+		return service
+	}
+
+	service := p.factory.Create()
+	p.instances["default"] = service
+	return service
+}
+
+// GetMinimal returns a minimal audit service instance
+func (p *AuditServiceProvider) GetMinimal() *AuditService {
+	if service, exists := p.instances["minimal"]; exists {
+		return service
+	}
+
+	service := CreateMinimalAuditService()
+	p.instances["minimal"] = service
+	return service
+}
+
+// GetHighPerformance returns a high-performance audit service instance
+func (p *AuditServiceProvider) GetHighPerformance() *AuditService {
+	if service, exists := p.instances["high_performance"]; exists {
+		return service
+	}
+
+	service := CreateHighPerformanceAuditService()
+	p.instances["high_performance"] = service
+	return service
+}
+
+// GetSecure returns a security-focused audit service instance
+func (p *AuditServiceProvider) GetSecure() *AuditService {
+	if service, exists := p.instances["secure"]; exists {
+		return service
+	}
+
+	service := CreateSecureAuditService()
+	p.instances["secure"] = service
+	return service
+}
+
+// GetCustom returns a custom configured audit service instance
+func (p *AuditServiceProvider) GetCustom(name string, config AuditServiceConfig) *AuditService {
+	if service, exists := p.instances[name]; exists {
+		return service
+	}
+
+	service := p.factory.WithConfig(config).Create()
+	p.instances[name] = service
+	return service
+}
+
+// CloseAll closes all managed audit service instances
+func (p *AuditServiceProvider) CloseAll() error {
+	var lastErr error
+	for _, service := range p.instances {
+		if err := service.Close(); err != nil {
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
+// Global audit service provider instance
+var globalAuditProvider *AuditServiceProvider
+
+// GetGlobalAuditProvider returns the global audit service provider
+func GetGlobalAuditProvider() *AuditServiceProvider {
+	if globalAuditProvider == nil {
+		globalAuditProvider = NewAuditServiceProvider()
+	}
+	return globalAuditProvider
+}
+
+// GetAuditService returns the default audit service from global provider
+func GetAuditService() *AuditService {
+	return GetGlobalAuditProvider().GetDefault()
 }

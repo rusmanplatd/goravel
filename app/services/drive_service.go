@@ -28,6 +28,8 @@ import (
 // DriveService handles Google Drive-like file operations
 type DriveService struct {
 	storageService *StorageService
+	auditService   *AuditService
+	auditHelper    *AuditHelper
 }
 
 // PreviewConfig holds configuration for file previews
@@ -41,8 +43,11 @@ type PreviewConfig struct {
 
 // NewDriveService creates a new drive service
 func NewDriveService() *DriveService {
+	auditService := GetAuditService()
 	return &DriveService{
 		storageService: NewStorageService(),
+		auditService:   auditService,
+		auditHelper:    NewAuditHelper(auditService),
 	}
 }
 

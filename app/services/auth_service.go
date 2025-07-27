@@ -22,6 +22,8 @@ type AuthService struct {
 	totpService     *TOTPService
 	webauthnService *WebAuthnService
 	emailService    *EmailService
+	auditService    *AuditService
+	auditHelper     *AuditHelper
 }
 
 // NewAuthService creates a new authentication service
@@ -36,6 +38,8 @@ func NewAuthService() (*AuthService, error) {
 		totpService:     NewTOTPService(),
 		webauthnService: NewWebAuthnService(),
 		emailService:    NewEmailService(),
+		auditService:    GetAuditService(),
+		auditHelper:     NewAuditHelper(GetAuditService()),
 	}, nil
 }
 
@@ -113,6 +117,21 @@ func (s *AuthService) Login(ctx http.Context, req *requests.LoginRequest) (*mode
 	if err != nil {
 		return nil, "", err
 	}
+
+	// Use audit helper for login logging
+	loginMethod := "password"
+	if req.WebauthnAssertion != nil {
+		loginMethod = "webauthn"
+	} else if req.MfaCode != "" {
+		loginMethod = "mfa"
+	}
+
+	s.auditHelper.LogUserLogin(user.ID, ctx.Request().Ip(), ctx.Request().Header("User-Agent", ""), true, map[string]interface{}{
+		"login_method": loginMethod,
+		"email":        req.Email,
+		"mfa_required": user.MfaEnabled,
+		"remember":     req.Remember,
+	})
 
 	return &user, accessToken, nil
 }
@@ -346,6 +365,13 @@ func (s *AuthService) ChangePassword(ctx http.Context, user *models.User, req *r
 	}
 	user.Password = hashedPassword
 
+	// Log password change with security context
+	s.auditHelper.LogSecurityIncident(user.ID, "password_change", "User password changed successfully", models.SeverityMedium, map[string]interface{}{
+		"changed_by": user.ID,
+		"method":     "user_initiated",
+		"ip_address": ctx.Request().Ip(),
+	})
+
 	return facades.Orm().Query().Save(user)
 }
 
@@ -454,4 +480,13 @@ func (s *AuthService) GetEmailService() *EmailService {
 // VerifyPassword verifies a user's password
 func (s *AuthService) VerifyPassword(user *models.User, password string) bool {
 	return facades.Hash().Check(password, user.Password)
+}
+
+// LoginFailed logs failed login attempts
+func (s *AuthService) LoginFailed(email, reason string, ctx http.Context) {
+	s.auditHelper.LogUserLogin("", ctx.Request().Ip(), ctx.Request().Header("User-Agent", ""), false, map[string]interface{}{
+		"email":          email,
+		"failure_reason": reason,
+		"attempt_time":   time.Now(),
+	})
 }

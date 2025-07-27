@@ -14,14 +14,19 @@ import (
 )
 
 type ChatController struct {
-	chatService *services.ChatService
-	e2eeService *services.E2EEService
+	chatService  *services.ChatService
+	e2eeService  *services.E2EEService
+	auditService *services.AuditService
+	auditHelper  *services.AuditHelper
 }
 
 func NewChatController() *ChatController {
+	auditService := services.GetAuditService()
 	return &ChatController{
-		chatService: services.NewChatService(),
-		e2eeService: services.NewE2EEService(),
+		chatService:  services.NewChatService(),
+		e2eeService:  services.NewE2EEService(),
+		auditService: auditService,
+		auditHelper:  services.NewAuditHelper(auditService),
 	}
 }
 
@@ -60,12 +65,28 @@ func (cc *ChatController) CreateChatRoom(ctx http.Context) http.Response {
 		req.MemberIDs,
 	)
 	if err != nil {
+		// Log failed chat room creation
+		cc.auditHelper.LogDataOperation(user.ID, "create", "chat_room", "", map[string]interface{}{
+			"name":         req.Name,
+			"type":         req.Type,
+			"member_count": len(req.MemberIDs),
+			"status":       "failed",
+			"error":        err.Error(),
+		})
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
 			Message:   "Failed to create chat room: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
+
+	// Log successful chat room creation
+	cc.auditHelper.LogDataOperation(user.ID, "create", "chat_room", chatRoom.ID, map[string]interface{}{
+		"name":         chatRoom.Name,
+		"type":         chatRoom.Type,
+		"member_count": len(req.MemberIDs),
+		"status":       "success",
+	})
 
 	return ctx.Response().Status(201).Json(responses.APIResponse{
 		Status:    "success",
@@ -266,12 +287,28 @@ func (cc *ChatController) SendMessage(ctx http.Context) http.Response {
 		replyToID,
 	)
 	if err != nil {
+		// Log failed message send
+		cc.auditHelper.LogDataOperation(user.ID, "create", "chat_message", "", map[string]interface{}{
+			"room_id":      roomID,
+			"message_type": req.Type,
+			"has_reply":    replyToID != nil,
+			"status":       "failed",
+			"error":        err.Error(),
+		})
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
 			Message:   "Failed to send message: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
+
+	// Log successful message send
+	cc.auditHelper.LogDataOperation(user.ID, "create", "chat_message", message.ID, map[string]interface{}{
+		"room_id":      roomID,
+		"message_type": message.Type,
+		"has_reply":    replyToID != nil,
+		"status":       "success",
+	})
 
 	return ctx.Response().Status(201).Json(responses.APIResponse{
 		Status:    "success",

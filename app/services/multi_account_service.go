@@ -22,6 +22,7 @@ func min(a, b int) int {
 type MultiAccountService struct {
 	jwtService   *JWTService
 	auditService *AuditService
+	auditHelper  *AuditHelper
 }
 
 type AccountSession struct {
@@ -65,9 +66,11 @@ func NewMultiAccountService() (*MultiAccountService, error) {
 		return nil, fmt.Errorf("failed to initialize JWT service: %w", err)
 	}
 
+	auditService := GetAuditService()
 	return &MultiAccountService{
 		jwtService:   jwtService,
-		auditService: NewAuditService(),
+		auditService: auditService,
+		auditHelper:  NewAuditHelper(auditService),
 	}, nil
 }
 

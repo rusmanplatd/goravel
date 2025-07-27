@@ -19,11 +19,16 @@ import (
 
 type DriveController struct {
 	driveService *services.DriveService
+	auditService *services.AuditService
+	auditHelper  *services.AuditHelper
 }
 
 func NewDriveController() *DriveController {
+	auditService := services.GetAuditService()
 	return &DriveController{
 		driveService: services.NewDriveService(),
+		auditService: auditService,
+		auditHelper:  services.NewAuditHelper(auditService),
 	}
 }
 
@@ -83,8 +88,25 @@ func (dc *DriveController) UploadFile(ctx http.Context) http.Response {
 		tenantID,
 	)
 	if err != nil {
+		// Log failed upload attempt
+		dc.auditHelper.LogDataOperation(userID, "create", "file", "", map[string]interface{}{
+			"filename":  file.GetClientOriginalName(),
+			"file_size": fileSize,
+			"folder_id": uploadRequest.FolderID,
+			"status":    "failed",
+			"error":     err.Error(),
+		})
 		return responses.InternalServerError(ctx, "Failed to upload file", err.Error())
 	}
+
+	// Log successful file upload
+	dc.auditHelper.LogDataOperation(userID, "create", "file", uploadedFile.ID, map[string]interface{}{
+		"filename":  uploadedFile.Name,
+		"file_size": uploadedFile.Size,
+		"folder_id": uploadedFile.FolderID,
+		"mime_type": uploadedFile.MimeType,
+		"status":    "success",
+	})
 
 	return responses.Created(ctx, "File uploaded successfully", uploadedFile)
 }
@@ -223,12 +245,29 @@ func (dc *DriveController) DownloadFile(ctx http.Context) http.Response {
 	// Download file
 	file, content, err := dc.driveService.DownloadFile(context.Background(), fileID, userID)
 	if err != nil {
+		// Log failed download attempt
+		if userID != nil {
+			dc.auditHelper.LogDataOperation(*userID, "access", "file", fileID, map[string]interface{}{
+				"status": "failed",
+				"error":  err.Error(),
+			})
+		}
 		if err.Error() == "access denied" {
 			return responses.Forbidden(ctx, "Access denied", "You don't have permission to download this file")
 		}
 		return responses.NotFound(ctx, "File not found", err.Error())
 	}
 	defer content.Close()
+
+	// Log successful file download
+	if userID != nil {
+		dc.auditHelper.LogDataOperation(*userID, "access", "file", file.ID, map[string]interface{}{
+			"filename":  file.OriginalName,
+			"file_size": file.Size,
+			"mime_type": file.MimeType,
+			"status":    "success",
+		})
+	}
 
 	// Set headers for file download
 	ctx.Response().Header("Content-Disposition", "attachment; filename=\""+file.OriginalName+"\"")
@@ -293,8 +332,27 @@ func (dc *DriveController) ShareFile(ctx http.Context) http.Response {
 		options,
 	)
 	if err != nil {
+		// Log failed share attempt
+		dc.auditHelper.LogDataOperation(userID, "update", "file", fileID, map[string]interface{}{
+			"action":     "share",
+			"share_type": shareRequest.ShareType,
+			"permission": shareRequest.Permission,
+			"email":      shareRequest.Email,
+			"status":     "failed",
+			"error":      err.Error(),
+		})
 		return responses.BadRequest(ctx, "Failed to share file", err.Error())
 	}
+
+	// Log successful file share
+	dc.auditHelper.LogDataOperation(userID, "update", "file", fileID, map[string]interface{}{
+		"action":     "share",
+		"share_id":   share.ID,
+		"share_type": shareRequest.ShareType,
+		"permission": shareRequest.Permission,
+		"email":      shareRequest.Email,
+		"status":     "success",
+	})
 
 	return responses.Created(ctx, "File shared successfully", share)
 }
@@ -353,8 +411,20 @@ func (dc *DriveController) TrashFile(ctx http.Context) http.Response {
 	// Trash file
 	err := dc.driveService.TrashFile(context.Background(), fileID, userID)
 	if err != nil {
+		// Log failed trash attempt
+		dc.auditHelper.LogDataOperation(userID, "delete", "file", fileID, map[string]interface{}{
+			"action": "trash",
+			"status": "failed",
+			"error":  err.Error(),
+		})
 		return responses.BadRequest(ctx, "Failed to trash file", err.Error())
 	}
+
+	// Log successful file trash
+	dc.auditHelper.LogDataOperation(userID, "delete", "file", fileID, map[string]interface{}{
+		"action": "trash",
+		"status": "success",
+	})
 
 	return responses.Success(ctx, "File moved to trash successfully", nil)
 }

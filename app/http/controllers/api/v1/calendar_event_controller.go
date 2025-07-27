@@ -17,12 +17,17 @@ import (
 )
 
 type CalendarEventController struct {
-	// Dependent services
+	calendarService *services.CalendarService
+	auditService    *services.AuditService
+	auditHelper     *services.AuditHelper
 }
 
 func NewCalendarEventController() *CalendarEventController {
+	auditService := services.GetAuditService()
 	return &CalendarEventController{
-		// Inject services
+		calendarService: services.NewCalendarService(),
+		auditService:    auditService,
+		auditHelper:     services.NewAuditHelper(auditService),
 	}
 }
 
@@ -179,6 +184,15 @@ func (cec *CalendarEventController) Store(ctx http.Context) http.Response {
 	// Save event
 	if err := tx.Create(&event); err != nil {
 		tx.Rollback()
+		// Log failed event creation
+		cec.auditHelper.LogDataOperation(userID, "create", "calendar_event", "", map[string]interface{}{
+			"title":      request.Title,
+			"start_time": request.StartTime,
+			"end_time":   request.EndTime,
+			"type":       request.Type,
+			"status":     "failed",
+			"error":      err.Error(),
+		})
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
 			Message:   "Failed to create calendar event",
@@ -235,6 +249,18 @@ func (cec *CalendarEventController) Store(ctx http.Context) http.Response {
 
 	// Commit transaction
 	tx.Commit()
+
+	// Log successful event creation
+	cec.auditHelper.LogDataOperation(userID, "create", "calendar_event", event.ID, map[string]interface{}{
+		"title":             event.Title,
+		"start_time":        event.StartTime,
+		"end_time":          event.EndTime,
+		"type":              event.Type,
+		"is_recurring":      event.IsRecurring,
+		"participant_count": len(request.ParticipantIDs),
+		"has_meeting":       request.Meeting != nil,
+		"status":            "success",
+	})
 
 	// Reload event with relationships
 	facades.Orm().Query().With("Creator").With("Tenant").

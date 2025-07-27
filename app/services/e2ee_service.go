@@ -1705,14 +1705,14 @@ func (s *E2EEService) getRoomKeyForUser(roomID, userID string) (*RoomKey, error)
 	}
 
 	// Decrypt the user's copy of the room key
-	userPrivateKey, err := s.getUserPrivateKey(userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user private key: %w", err)
+	userPrivateKey, keyErr := s.getUserPrivateKey(userID)
+	if keyErr != nil {
+		return nil, fmt.Errorf("failed to get user private key: %w", keyErr)
 	}
 
-	decryptedRoomKey, err := s.decryptWithPrivateKey(roomKey.EncryptedKey, userPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt room key: %w", err)
+	decryptedRoomKey, decryptErr := s.decryptWithPrivateKey(roomKey.EncryptedKey, userPrivateKey)
+	if decryptErr != nil {
+		return nil, fmt.Errorf("failed to decrypt room key: %w", decryptErr)
 	}
 
 	// Create RoomKey object
