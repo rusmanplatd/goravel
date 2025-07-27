@@ -28,17 +28,7 @@ func NewJWTService() (*JWTService, error) {
 }
 
 // MustNewJWTService creates a new JWT service and panics on error (for backward compatibility)
-// Deprecated: Use NewJWTService() instead for proper error handling
-func MustNewJWTService() *JWTService {
-	service, err := NewJWTService()
-	if err != nil {
-		facades.Log().Error("Critical JWT service initialization failure", map[string]interface{}{
-			"error": err.Error(),
-		})
-		panic(fmt.Sprintf("JWT service initialization failed: %v", err))
-	}
-	return service
-}
+// Deprecated: This function has been removed. Use NewJWTService() instead for proper error handling.
 
 // JWTClaims represents the claims in a JWT token
 type JWTClaims struct {

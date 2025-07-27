@@ -428,47 +428,28 @@ func (s *OAuthSessionService) setUserSessionIDs(userID string, sessionIDs []stri
 }
 
 func (s *OAuthSessionService) parseDeviceInfo(userAgent string) map[string]interface{} {
+	// Use production-ready user agent parser
+	parsed := ParseUserAgent(userAgent)
+
 	deviceInfo := map[string]interface{}{
-		"user_agent": userAgent,
-		"type":       "unknown",
-		"browser":    "unknown",
-		"os":         "unknown",
-	}
-
-	// Simple user agent parsing (TODO: In production, use a proper library)
-	userAgentLower := strings.ToLower(userAgent)
-
-	// Device type detection
-	if strings.Contains(userAgentLower, "mobile") || strings.Contains(userAgentLower, "android") || strings.Contains(userAgentLower, "iphone") {
-		deviceInfo["type"] = "mobile"
-	} else if strings.Contains(userAgentLower, "tablet") || strings.Contains(userAgentLower, "ipad") {
-		deviceInfo["type"] = "tablet"
-	} else {
-		deviceInfo["type"] = "desktop"
-	}
-
-	// Browser detection
-	if strings.Contains(userAgentLower, "chrome") {
-		deviceInfo["browser"] = "chrome"
-	} else if strings.Contains(userAgentLower, "firefox") {
-		deviceInfo["browser"] = "firefox"
-	} else if strings.Contains(userAgentLower, "safari") {
-		deviceInfo["browser"] = "safari"
-	} else if strings.Contains(userAgentLower, "edge") {
-		deviceInfo["browser"] = "edge"
-	}
-
-	// OS detection
-	if strings.Contains(userAgentLower, "windows") {
-		deviceInfo["os"] = "windows"
-	} else if strings.Contains(userAgentLower, "mac") {
-		deviceInfo["os"] = "macos"
-	} else if strings.Contains(userAgentLower, "linux") {
-		deviceInfo["os"] = "linux"
-	} else if strings.Contains(userAgentLower, "android") {
-		deviceInfo["os"] = "android"
-	} else if strings.Contains(userAgentLower, "ios") {
-		deviceInfo["os"] = "ios"
+		"user_agent":      userAgent,
+		"type":            parsed.Device.Type,
+		"browser":         parsed.Browser.Name,
+		"browser_version": parsed.Browser.Version,
+		"browser_major":   parsed.Browser.Major,
+		"os":              parsed.OS.Name,
+		"os_version":      parsed.OS.Version,
+		"os_family":       parsed.OS.Family,
+		"device_brand":    parsed.Device.Brand,
+		"device_model":    parsed.Device.Model,
+		"device_family":   parsed.Device.Family,
+		"is_mobile":       parsed.IsMobile,
+		"is_tablet":       parsed.IsTablet,
+		"is_desktop":      parsed.IsDesktop,
+		"is_bot":          parsed.IsBot,
+		"is_secure":       parsed.IsSecure(),
+		"risk_score":      parsed.GetRiskScore(),
+		"fingerprint":     parsed.GetDeviceFingerprint(),
 	}
 
 	return deviceInfo

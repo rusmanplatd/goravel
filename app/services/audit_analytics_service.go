@@ -535,12 +535,15 @@ func (aas *AuditAnalyticsService) getCategoryBreakdown(tenantID string, timeRang
 	var categories []CategorySummary
 	for _, result := range results {
 		percentage := float64(result.Count) / float64(total) * 100
+		// Calculate trend change compared to previous period
+		trendChange := aas.calculateCategoryTrendChange(tenantID, result.Category, timeRange)
+
 		categories = append(categories, CategorySummary{
 			Category:     result.Category,
 			Count:        result.Count,
 			Percentage:   percentage,
 			AvgRiskScore: result.AvgRiskScore,
-			TrendChange:  0, // TODO: Calculate trend change
+			TrendChange:  trendChange,
 		})
 	}
 
@@ -575,11 +578,14 @@ func (aas *AuditAnalyticsService) getSeverityBreakdown(tenantID string, timeRang
 	var severities []SeveritySummary
 	for _, result := range results {
 		percentage := float64(result.Count) / float64(total) * 100
+		// Calculate trend change compared to previous period
+		trendChange := aas.calculateSeverityTrendChange(tenantID, result.Severity, timeRange)
+
 		severities = append(severities, SeveritySummary{
 			Severity:    result.Severity,
 			Count:       result.Count,
 			Percentage:  percentage,
-			TrendChange: 0, // TODO: Calculate trend change
+			TrendChange: trendChange,
 		})
 	}
 
@@ -888,4 +894,142 @@ func calculateComplianceScore(logged, required int64) float64 {
 		score = 100
 	}
 	return math.Round(score*100) / 100
+}
+
+// calculateCategoryTrendChange calculates the trend change for a category compared to the previous period
+func (aas *AuditAnalyticsService) calculateCategoryTrendChange(tenantID, category string, timeRange TimeRange) float64 {
+	facades.Log().Info("Calculating category trend change", map[string]interface{}{
+		"tenant_id":  tenantID,
+		"category":   category,
+		"start_time": timeRange.StartTime,
+		"end_time":   timeRange.EndTime,
+	})
+
+	// Calculate previous period dates
+	duration := timeRange.EndTime.Sub(timeRange.StartTime)
+	prevStartTime := timeRange.StartTime.Add(-duration)
+	prevEndTime := timeRange.StartTime
+
+	// Get current period count
+	currentCount, err := facades.Orm().Query().
+		Table("activity_logs").
+		Where("tenant_id = ?", tenantID).
+		Where("category = ?", category).
+		Where("created_at BETWEEN ? AND ?", timeRange.StartTime, timeRange.EndTime).
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Failed to get current period count", map[string]interface{}{
+			"tenant_id": tenantID,
+			"category":  category,
+			"error":     err.Error(),
+		})
+		return 0
+	}
+
+	// Get previous period count
+	prevCount, err := facades.Orm().Query().
+		Table("activity_logs").
+		Where("tenant_id = ?", tenantID).
+		Where("category = ?", category).
+		Where("created_at BETWEEN ? AND ?", prevStartTime, prevEndTime).
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Failed to get previous period count", map[string]interface{}{
+			"tenant_id": tenantID,
+			"category":  category,
+			"error":     err.Error(),
+		})
+		return 0
+	}
+
+	// Calculate percentage change
+	if prevCount == 0 {
+		if currentCount > 0 {
+			return 100.0 // 100% increase from zero
+		}
+		return 0.0
+	}
+
+	trendChange := float64(currentCount-prevCount) / float64(prevCount) * 100
+
+	facades.Log().Info("Category trend change calculated", map[string]interface{}{
+		"tenant_id":     tenantID,
+		"category":      category,
+		"current_count": currentCount,
+		"prev_count":    prevCount,
+		"trend_change":  trendChange,
+	})
+
+	return math.Round(trendChange*100) / 100
+}
+
+// calculateSeverityTrendChange calculates the trend change for a severity level compared to the previous period
+func (aas *AuditAnalyticsService) calculateSeverityTrendChange(tenantID, severity string, timeRange TimeRange) float64 {
+	facades.Log().Info("Calculating severity trend change", map[string]interface{}{
+		"tenant_id":  tenantID,
+		"severity":   severity,
+		"start_time": timeRange.StartTime,
+		"end_time":   timeRange.EndTime,
+	})
+
+	// Calculate previous period dates
+	duration := timeRange.EndTime.Sub(timeRange.StartTime)
+	prevStartTime := timeRange.StartTime.Add(-duration)
+	prevEndTime := timeRange.StartTime
+
+	// Get current period count
+	currentCount, err := facades.Orm().Query().
+		Table("activity_logs").
+		Where("tenant_id = ?", tenantID).
+		Where("severity = ?", severity).
+		Where("created_at BETWEEN ? AND ?", timeRange.StartTime, timeRange.EndTime).
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Failed to get current period severity count", map[string]interface{}{
+			"tenant_id": tenantID,
+			"severity":  severity,
+			"error":     err.Error(),
+		})
+		return 0
+	}
+
+	// Get previous period count
+	prevCount, err := facades.Orm().Query().
+		Table("activity_logs").
+		Where("tenant_id = ?", tenantID).
+		Where("severity = ?", severity).
+		Where("created_at BETWEEN ? AND ?", prevStartTime, prevEndTime).
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Failed to get previous period severity count", map[string]interface{}{
+			"tenant_id": tenantID,
+			"severity":  severity,
+			"error":     err.Error(),
+		})
+		return 0
+	}
+
+	// Calculate percentage change
+	if prevCount == 0 {
+		if currentCount > 0 {
+			return 100.0 // 100% increase from zero
+		}
+		return 0.0
+	}
+
+	trendChange := float64(currentCount-prevCount) / float64(prevCount) * 100
+
+	facades.Log().Info("Severity trend change calculated", map[string]interface{}{
+		"tenant_id":     tenantID,
+		"severity":      severity,
+		"current_count": currentCount,
+		"prev_count":    prevCount,
+		"trend_change":  trendChange,
+	})
+
+	return math.Round(trendChange*100) / 100
 }

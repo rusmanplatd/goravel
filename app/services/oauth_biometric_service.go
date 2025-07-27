@@ -690,35 +690,248 @@ func (s *OAuthBiometricService) extractBiometricMetadata(data map[string]interfa
 // Quality assessment methods
 
 func (s *OAuthBiometricService) assessFaceQuality(data map[string]interface{}) (float64, error) {
-	// Simplified face quality assessment
-	score := 0.8
+	// Advanced face quality assessment using multiple factors
+	facades.Log().Info("Performing advanced face quality assessment", map[string]interface{}{
+		"data_keys": s.getMapKeys(data),
+	})
 
+	var qualityFactors []float64
+	var weights []float64
+
+	// Brightness assessment (weight: 0.2)
 	if brightness, exists := data["brightness"]; exists {
-		if b, ok := brightness.(float64); ok && (b < 0.3 || b > 0.9) {
-			score -= 0.2
+		if b, ok := brightness.(float64); ok {
+			var brightnessScore float64
+			if b >= 0.4 && b <= 0.8 {
+				brightnessScore = 1.0 // Optimal brightness
+			} else if b >= 0.2 && b <= 0.9 {
+				brightnessScore = 0.8 // Acceptable brightness
+			} else {
+				brightnessScore = 0.3 // Poor brightness
+			}
+			qualityFactors = append(qualityFactors, brightnessScore)
+			weights = append(weights, 0.2)
 		}
 	}
 
+	// Sharpness assessment (weight: 0.25)
 	if sharpness, exists := data["sharpness"]; exists {
-		if s, ok := sharpness.(float64); ok && s < 0.7 {
-			score -= 0.3
+		if s, ok := sharpness.(float64); ok {
+			var sharpnessScore float64
+			if s >= 0.8 {
+				sharpnessScore = 1.0 // Very sharp
+			} else if s >= 0.6 {
+				sharpnessScore = 0.8 // Acceptable sharpness
+			} else if s >= 0.4 {
+				sharpnessScore = 0.5 // Poor sharpness
+			} else {
+				sharpnessScore = 0.2 // Very poor sharpness
+			}
+			qualityFactors = append(qualityFactors, sharpnessScore)
+			weights = append(weights, 0.25)
 		}
 	}
 
-	return math.Max(score, 0.0), nil
+	// Contrast assessment (weight: 0.15)
+	if contrast, exists := data["contrast"]; exists {
+		if c, ok := contrast.(float64); ok {
+			var contrastScore float64
+			if c >= 0.7 {
+				contrastScore = 1.0 // High contrast
+			} else if c >= 0.5 {
+				contrastScore = 0.8 // Good contrast
+			} else if c >= 0.3 {
+				contrastScore = 0.6 // Acceptable contrast
+			} else {
+				contrastScore = 0.3 // Poor contrast
+			}
+			qualityFactors = append(qualityFactors, contrastScore)
+			weights = append(weights, 0.15)
+		}
+	}
+
+	// Face detection confidence (weight: 0.2)
+	if faceConfidence, exists := data["face_confidence"]; exists {
+		if fc, ok := faceConfidence.(float64); ok {
+			var confidenceScore float64
+			if fc >= 0.95 {
+				confidenceScore = 1.0 // Very high confidence
+			} else if fc >= 0.85 {
+				confidenceScore = 0.9 // High confidence
+			} else if fc >= 0.7 {
+				confidenceScore = 0.7 // Acceptable confidence
+			} else {
+				confidenceScore = 0.3 // Low confidence
+			}
+			qualityFactors = append(qualityFactors, confidenceScore)
+			weights = append(weights, 0.2)
+		}
+	}
+
+	// Eye detection and openness (weight: 0.1)
+	if eyesOpen, exists := data["eyes_open"]; exists {
+		if eo, ok := eyesOpen.(bool); ok {
+			eyeScore := 0.3 // Eyes closed
+			if eo {
+				eyeScore = 1.0 // Eyes open
+			}
+			qualityFactors = append(qualityFactors, eyeScore)
+			weights = append(weights, 0.1)
+		}
+	}
+
+	// Pose assessment (weight: 0.1)
+	if pose, exists := data["pose"]; exists {
+		if p, ok := pose.(map[string]interface{}); ok {
+			poseScore := s.assessFacePose(p)
+			qualityFactors = append(qualityFactors, poseScore)
+			weights = append(weights, 0.1)
+		}
+	}
+
+	// Calculate weighted average
+	if len(qualityFactors) == 0 {
+		facades.Log().Warning("No quality factors found for face assessment")
+		return 0.5, nil // Default medium quality
+	}
+
+	weightedSum := 0.0
+	totalWeight := 0.0
+	for i, factor := range qualityFactors {
+		weightedSum += factor * weights[i]
+		totalWeight += weights[i]
+	}
+
+	finalScore := weightedSum / totalWeight
+
+	facades.Log().Info("Face quality assessment completed", map[string]interface{}{
+		"factors_count": len(qualityFactors),
+		"final_score":   finalScore,
+		"total_weight":  totalWeight,
+	})
+
+	return math.Max(finalScore, 0.0), nil
 }
 
 func (s *OAuthBiometricService) assessFingerprintQuality(data map[string]interface{}) (float64, error) {
-	// Simplified fingerprint quality assessment
-	score := 0.85
+	// Advanced fingerprint quality assessment using multiple factors
+	facades.Log().Info("Performing advanced fingerprint quality assessment", map[string]interface{}{
+		"data_keys": s.getMapKeys(data),
+	})
 
+	var qualityFactors []float64
+	var weights []float64
+
+	// Ridge clarity assessment (weight: 0.3)
 	if ridgeClarity, exists := data["ridge_clarity"]; exists {
 		if r, ok := ridgeClarity.(float64); ok {
-			score = (score + r) / 2
+			var clarityScore float64
+			if r >= 0.9 {
+				clarityScore = 1.0 // Excellent clarity
+			} else if r >= 0.7 {
+				clarityScore = 0.8 // Good clarity
+			} else if r >= 0.5 {
+				clarityScore = 0.6 // Acceptable clarity
+			} else {
+				clarityScore = 0.3 // Poor clarity
+			}
+			qualityFactors = append(qualityFactors, clarityScore)
+			weights = append(weights, 0.3)
 		}
 	}
 
-	return math.Max(score, 0.0), nil
+	// Minutiae count assessment (weight: 0.25)
+	if minutiaeCount, exists := data["minutiae_count"]; exists {
+		if mc, ok := minutiaeCount.(float64); ok {
+			var minutiaeScore float64
+			if mc >= 40 {
+				minutiaeScore = 1.0 // Excellent minutiae count
+			} else if mc >= 25 {
+				minutiaeScore = 0.8 // Good minutiae count
+			} else if mc >= 15 {
+				minutiaeScore = 0.6 // Acceptable minutiae count
+			} else {
+				minutiaeScore = 0.3 // Poor minutiae count
+			}
+			qualityFactors = append(qualityFactors, minutiaeScore)
+			weights = append(weights, 0.25)
+		}
+	}
+
+	// Image quality assessment (weight: 0.2)
+	if imageQuality, exists := data["image_quality"]; exists {
+		if iq, ok := imageQuality.(float64); ok {
+			var imageScore float64
+			if iq >= 0.8 {
+				imageScore = 1.0 // High quality image
+			} else if iq >= 0.6 {
+				imageScore = 0.8 // Good quality image
+			} else if iq >= 0.4 {
+				imageScore = 0.5 // Acceptable quality
+			} else {
+				imageScore = 0.2 // Poor quality
+			}
+			qualityFactors = append(qualityFactors, imageScore)
+			weights = append(weights, 0.2)
+		}
+	}
+
+	// Ridge flow consistency (weight: 0.15)
+	if ridgeFlow, exists := data["ridge_flow_consistency"]; exists {
+		if rf, ok := ridgeFlow.(float64); ok {
+			var flowScore float64
+			if rf >= 0.85 {
+				flowScore = 1.0 // Excellent flow consistency
+			} else if rf >= 0.7 {
+				flowScore = 0.8 // Good flow consistency
+			} else if rf >= 0.5 {
+				flowScore = 0.6 // Acceptable flow
+			} else {
+				flowScore = 0.3 // Poor flow
+			}
+			qualityFactors = append(qualityFactors, flowScore)
+			weights = append(weights, 0.15)
+		}
+	}
+
+	// Pressure assessment (weight: 0.1)
+	if pressure, exists := data["pressure"]; exists {
+		if p, ok := pressure.(float64); ok {
+			var pressureScore float64
+			if p >= 0.6 && p <= 0.9 {
+				pressureScore = 1.0 // Optimal pressure
+			} else if p >= 0.4 && p <= 0.95 {
+				pressureScore = 0.8 // Good pressure
+			} else {
+				pressureScore = 0.4 // Poor pressure
+			}
+			qualityFactors = append(qualityFactors, pressureScore)
+			weights = append(weights, 0.1)
+		}
+	}
+
+	// Calculate weighted average
+	if len(qualityFactors) == 0 {
+		facades.Log().Warning("No quality factors found for fingerprint assessment")
+		return 0.6, nil // Default medium-high quality for fingerprints
+	}
+
+	weightedSum := 0.0
+	totalWeight := 0.0
+	for i, factor := range qualityFactors {
+		weightedSum += factor * weights[i]
+		totalWeight += weights[i]
+	}
+
+	finalScore := weightedSum / totalWeight
+
+	facades.Log().Info("Fingerprint quality assessment completed", map[string]interface{}{
+		"factors_count": len(qualityFactors),
+		"final_score":   finalScore,
+		"total_weight":  totalWeight,
+	})
+
+	return math.Max(finalScore, 0.0), nil
 }
 
 func (s *OAuthBiometricService) assessVoiceQuality(data map[string]interface{}) (float64, error) {
@@ -916,4 +1129,80 @@ func (s *OAuthBiometricService) saveContinuousBiometric(continuous *ContinuousBi
 		"user_id":    continuous.UserID,
 	})
 	return nil
+}
+
+// Helper methods for quality assessment
+
+// getMapKeys returns the keys of a map for logging purposes
+func (s *OAuthBiometricService) getMapKeys(data map[string]interface{}) []string {
+	keys := make([]string, 0, len(data))
+	for key := range data {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// assessFacePose evaluates face pose quality based on rotation angles
+func (s *OAuthBiometricService) assessFacePose(pose map[string]interface{}) float64 {
+	// Default good pose score
+	poseScore := 1.0
+
+	// Check yaw (left-right rotation)
+	if yaw, exists := pose["yaw"]; exists {
+		if y, ok := yaw.(float64); ok {
+			yawAbs := math.Abs(y)
+			if yawAbs <= 15 {
+				// Good frontal pose
+				poseScore *= 1.0
+			} else if yawAbs <= 30 {
+				// Acceptable pose
+				poseScore *= 0.8
+			} else if yawAbs <= 45 {
+				// Poor pose
+				poseScore *= 0.5
+			} else {
+				// Very poor pose
+				poseScore *= 0.2
+			}
+		}
+	}
+
+	// Check pitch (up-down rotation)
+	if pitch, exists := pose["pitch"]; exists {
+		if p, ok := pitch.(float64); ok {
+			pitchAbs := math.Abs(p)
+			if pitchAbs <= 10 {
+				// Good frontal pose
+				poseScore *= 1.0
+			} else if pitchAbs <= 20 {
+				// Acceptable pose
+				poseScore *= 0.9
+			} else if pitchAbs <= 35 {
+				// Poor pose
+				poseScore *= 0.6
+			} else {
+				// Very poor pose
+				poseScore *= 0.3
+			}
+		}
+	}
+
+	// Check roll (tilt rotation)
+	if roll, exists := pose["roll"]; exists {
+		if r, ok := roll.(float64); ok {
+			rollAbs := math.Abs(r)
+			if rollAbs <= 10 {
+				// Good pose
+				poseScore *= 1.0
+			} else if rollAbs <= 25 {
+				// Acceptable pose
+				poseScore *= 0.8
+			} else {
+				// Poor pose
+				poseScore *= 0.4
+			}
+		}
+	}
+
+	return math.Max(poseScore, 0.1)
 }

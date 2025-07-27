@@ -54,17 +54,7 @@ func NewAuthController() (*AuthController, error) {
 }
 
 // MustNewAuthController creates a new auth controller and panics on error (for backward compatibility)
-// Deprecated: Use NewAuthController() instead for proper error handling
-func MustNewAuthController() *AuthController {
-	controller, err := NewAuthController()
-	if err != nil {
-		facades.Log().Error("Critical AuthController initialization failure", map[string]interface{}{
-			"error": err.Error(),
-		})
-		panic(fmt.Sprintf("AuthController initialization failed: %v", err))
-	}
-	return controller
-}
+// Deprecated: This function has been removed. Use NewAuthController() instead for proper error handling.
 
 // DeviceInfo represents device information for security tracking
 type DeviceInfo struct {

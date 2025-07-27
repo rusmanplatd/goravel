@@ -201,8 +201,88 @@ func (s *ChatSeeder) Run() error {
 			// Use production-grade encryption for seeding
 			e2eeService := services.NewE2EEService()
 
-			// Get recipient public keys (simplified for seeding - in production this would be from user profiles)
-			recipientKeys := []string{"seeding_public_key_placeholder"}
+			// Get recipient public keys from users for production-ready seeding
+			var recipientKeys []string
+
+			// For seeding purposes, generate or retrieve actual public keys
+			// In production, these would come from user profiles/key storage
+			senderID := users[msg.userIdx].ID
+
+			// Get all users in the room as potential recipients
+			var roomMembers []models.ChatRoomMember
+			err := facades.Orm().Query().
+				Where("chat_room_id = ?", chatRooms[0].ID). // Use first room for simplicity
+				Find(&roomMembers)
+
+			if err != nil {
+				facades.Log().Warning("Failed to get room members for key generation", map[string]interface{}{
+					"error": err.Error(),
+				})
+				// Use a fallback approach with current users
+				for _, user := range users {
+					recipientKeys = append(recipientKeys, fmt.Sprintf("test_public_key_%s", user.ID))
+				}
+			} else {
+				// Generate keys for each room member
+				for _, member := range roomMembers {
+					// Try to get existing public key for user
+					var existingKey string
+					keyErr := facades.Orm().Query().
+						Table("user_public_keys").
+						Where("user_id = ?", member.UserID).
+						Where("key_type = ?", "chat_encryption").
+						Where("is_active = ?", true).
+						Pluck("public_key", &existingKey)
+
+					if keyErr != nil || existingKey == "" {
+						// Generate a new key pair for seeding if none exists
+						keyPair, keyGenErr := e2eeService.GenerateKeyPair()
+						if keyGenErr != nil {
+							facades.Log().Warning("Failed to generate key pair for seeding", map[string]interface{}{
+								"user_id": member.UserID,
+								"error":   keyGenErr.Error(),
+							})
+							// Use a deterministic test key for consistent seeding
+							existingKey = fmt.Sprintf("test_public_key_%s", member.UserID)
+						} else {
+							existingKey = keyPair.PublicKey
+
+							// Store the generated key for consistency in seeding
+							storeErr := facades.Orm().Query().
+								Table("user_public_keys").
+								Create(map[string]interface{}{
+									"user_id":               member.UserID,
+									"key_type":              "chat_encryption",
+									"public_key":            keyPair.PublicKey,
+									"private_key_encrypted": keyPair.PrivateKey, // In production, this would be encrypted
+									"is_active":             true,
+									"created_at":            time.Now(),
+									"updated_at":            time.Now(),
+								})
+
+							if storeErr != nil {
+								facades.Log().Warning("Failed to store generated key", map[string]interface{}{
+									"user_id": member.UserID,
+									"error":   storeErr.Error(),
+								})
+							}
+						}
+					}
+
+					if existingKey != "" {
+						recipientKeys = append(recipientKeys, existingKey)
+					}
+				}
+			}
+
+			// Ensure we have at least one key for encryption
+			if len(recipientKeys) == 0 {
+				facades.Log().Warning("No recipient keys available for message encryption", map[string]interface{}{
+					"sender_id": senderID,
+				})
+				// Use a fallback key for seeding consistency
+				recipientKeys = []string{fmt.Sprintf("fallback_key_%d", time.Now().Unix())}
+			}
 
 			encryptedMsg, err := e2eeService.EncryptMessage(msg.content, recipientKeys)
 			var encryptedContent string

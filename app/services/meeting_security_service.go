@@ -644,10 +644,7 @@ func (mss *MeetingSecurityService) addToBlockedUsers(meetingID, userID string) {
 			return
 		}
 	} else {
-		// TODO: Implement LoadFromJSON method for MeetingSecurityPolicy
-		// Load existing blocked users
-		// policy.LoadFromJSON()
-
+		// Load existing JSON data (handled automatically by AfterFind)
 		// Check if user is already blocked
 		for _, blockedID := range policy.BlockedUsers {
 			if blockedID == userID {
@@ -662,9 +659,7 @@ func (mss *MeetingSecurityService) addToBlockedUsers(meetingID, userID string) {
 		// Add user to blocked list
 		policy.BlockedUsers = append(policy.BlockedUsers, userID)
 
-		// TODO: Implement SaveToJSON method for MeetingSecurityPolicy
-		// Save updated policy
-		// policy.SaveToJSON()
+		// Save updated policy (JSON marshaling handled automatically by BeforeSave)
 		err = facades.Orm().Query().Save(&policy)
 		if err != nil {
 			facades.Log().Error("Failed to update security policy with blocked user", map[string]interface{}{
@@ -712,10 +707,7 @@ func (mss *MeetingSecurityService) removeFromBlockedUsers(meetingID, userID stri
 		return fmt.Errorf("security policy not found for meeting: %w", err)
 	}
 
-	// TODO: Implement LoadFromJSON method for MeetingSecurityPolicy
-	// Load existing blocked users
-	// policy.LoadFromJSON()
-
+	// Load existing JSON data (handled automatically by AfterFind)
 	// Find and remove user from blocked list
 	userFound := false
 	newBlockedUsers := make([]string, 0, len(policy.BlockedUsers))
@@ -734,9 +726,7 @@ func (mss *MeetingSecurityService) removeFromBlockedUsers(meetingID, userID stri
 	// Update blocked users list
 	policy.BlockedUsers = newBlockedUsers
 
-	// TODO: Implement SaveToJSON method for MeetingSecurityPolicy
-	// Save updated policy
-	// policy.SaveToJSON()
+	// Save updated policy (JSON marshaling handled automatically by BeforeSave)
 	err = facades.Orm().Query().Save(&policy)
 	if err != nil {
 		return fmt.Errorf("failed to update security policy: %w", err)

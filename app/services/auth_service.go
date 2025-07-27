@@ -44,17 +44,7 @@ func NewAuthService() (*AuthService, error) {
 }
 
 // MustNewAuthService creates a new authentication service and panics on error (for backward compatibility)
-// Deprecated: Use NewAuthService() instead for proper error handling
-func MustNewAuthService() *AuthService {
-	service, err := NewAuthService()
-	if err != nil {
-		facades.Log().Error("Critical AuthService initialization failure", map[string]interface{}{
-			"error": err.Error(),
-		})
-		panic(fmt.Sprintf("AuthService initialization failed: %v", err))
-	}
-	return service
-}
+// Deprecated: This function has been removed. Use NewAuthService() instead for proper error handling.
 
 // Login handles user authentication
 func (s *AuthService) Login(ctx http.Context, req *requests.LoginRequest) (*models.User, string, error) {

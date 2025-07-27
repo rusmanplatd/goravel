@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/facades"
@@ -732,8 +733,56 @@ func (s *OAuthHierarchicalScopeService) contains(slice []string, item string) bo
 }
 
 func (s *OAuthHierarchicalScopeService) isUserAdmin(userID string) bool {
-	// Simplified admin check - TODO: In production, check user roles
-	return false // Default to false for safety
+	// Implement proper role-based authorization
+	facades.Log().Info("Checking admin status for user", map[string]interface{}{
+		"user_id": userID,
+	})
+
+	// Query user roles from database
+	var userRoles []models.Role
+	err := facades.Orm().Query().
+		Raw("SELECT r.* FROM roles r INNER JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = ? AND r.is_active = ?", userID, true).
+		Scan(&userRoles)
+
+	if err != nil {
+		facades.Log().Error("Failed to query user roles", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return false // Default to false for safety
+	}
+
+	// Check for admin roles
+	adminRoleNames := []string{"admin", "super_admin", "system_admin", "oauth_admin"}
+	for _, role := range userRoles {
+		roleName := strings.ToLower(role.Name)
+		for _, adminRole := range adminRoleNames {
+			if roleName == adminRole {
+				facades.Log().Info("User has admin role", map[string]interface{}{
+					"user_id":   userID,
+					"role_name": role.Name,
+				})
+				return true
+			}
+		}
+
+		// Check for specific permissions that indicate admin access
+		if s.roleHasAdminPermissions(role.ID) {
+			facades.Log().Info("User has admin permissions through role", map[string]interface{}{
+				"user_id":   userID,
+				"role_name": role.Name,
+				"role_id":   role.ID,
+			})
+			return true
+		}
+	}
+
+	facades.Log().Info("User does not have admin privileges", map[string]interface{}{
+		"user_id":    userID,
+		"role_count": len(userRoles),
+	})
+
+	return false
 }
 
 func (s *OAuthHierarchicalScopeService) userHasMFA(userID string) bool {
@@ -919,4 +968,59 @@ func (s *OAuthHierarchicalScopeService) mapPermissionToScope(permissionName stri
 		return "admin"
 	}
 	return ""
+}
+
+// roleHasAdminPermissions checks if a role has admin permissions
+func (s *OAuthHierarchicalScopeService) roleHasAdminPermissions(roleID string) bool {
+	facades.Log().Info("Checking admin permissions for role", map[string]interface{}{
+		"role_id": roleID,
+	})
+
+	// Query role permissions
+	var permissions []models.Permission
+	err := facades.Orm().Query().
+		Raw("SELECT p.* FROM permissions p INNER JOIN role_permissions rp ON p.id = rp.permission_id WHERE rp.role_id = ? AND p.is_active = ?", roleID, true).
+		Scan(&permissions)
+
+	if err != nil {
+		facades.Log().Error("Failed to query role permissions", map[string]interface{}{
+			"role_id": roleID,
+			"error":   err.Error(),
+		})
+		return false
+	}
+
+	// Check for admin permissions
+	adminPermissions := []string{
+		"admin",
+		"super_admin",
+		"system_admin",
+		"oauth_admin",
+		"manage_users",
+		"manage_roles",
+		"manage_permissions",
+		"manage_oauth_clients",
+		"admin_access",
+		"system_management",
+	}
+
+	for _, permission := range permissions {
+		permissionName := strings.ToLower(permission.Name)
+		for _, adminPerm := range adminPermissions {
+			if permissionName == adminPerm || strings.Contains(permissionName, adminPerm) {
+				facades.Log().Info("Role has admin permission", map[string]interface{}{
+					"role_id":         roleID,
+					"permission_name": permission.Name,
+				})
+				return true
+			}
+		}
+	}
+
+	facades.Log().Info("Role does not have admin permissions", map[string]interface{}{
+		"role_id":          roleID,
+		"permission_count": len(permissions),
+	})
+
+	return false
 }

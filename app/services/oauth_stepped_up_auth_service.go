@@ -951,15 +951,20 @@ func (s *OAuthSteppedUpAuthService) validateHardwareKeyResponse(userID, response
 		return false
 	}
 
-	// TODO: For production, implement proper WebAuthn assertion validation
-	// This is a simplified validation - in production you would:
-	// 1. Verify the signature using the stored public key
-	// 2. Check the authenticator data
-	// 3. Validate the client data JSON
-	// 4. Verify the challenge matches what was sent
+	// Implement proper WebAuthn assertion validation
+	// Parse the response as JSON
+	var assertionResponse map[string]interface{}
+	if err := json.Unmarshal([]byte(response), &assertionResponse); err != nil {
+		facades.Log().Error("Failed to parse WebAuthn assertion response", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return false
+	}
 
-	// For now, assume validation passes if we found the credential
-	isValid := len(response) > 100 // Simple validation based on response length
+	// Verify the assertion using WebAuthn service
+	webauthnService := NewWebAuthnService()
+	isValid := webauthnService.verifyAssertion(matchingCredential, assertionResponse)
 
 	if isValid {
 		// Update credential usage

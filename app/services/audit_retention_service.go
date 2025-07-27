@@ -1,11 +1,16 @@
 package services
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/facades"
@@ -72,6 +77,7 @@ type ArchiveMetadata struct {
 	ComplianceFlags  []string               `json:"compliance_flags"`
 	Status           string                 `json:"status"`
 	Metadata         map[string]interface{} `json:"metadata"`
+	CompressionType  string                 `json:"compression_type"` // Added for restoration
 }
 
 // RetentionReport provides information about retention activities
@@ -391,27 +397,135 @@ func (ars *AuditRetentionService) ArchiveAuditLogs(tenantID string, policy *Rete
 
 // RestoreFromArchive restores audit logs from an archive
 func (ars *AuditRetentionService) RestoreFromArchive(archiveID string) error {
-	// This would implement archive restoration logic
-	// For now, return a basic implementation
-	facades.Log().Info("Archive restoration requested", map[string]interface{}{
+	// Production-ready archive restoration implementation
+	facades.Log().Info("Starting archive restoration", map[string]interface{}{
 		"archive_id": archiveID,
 	})
 
-	return fmt.Errorf("archive restoration not yet implemented")
+	// Get archive metadata first
+	metadata, err := ars.GetArchiveMetadata(archiveID)
+	if err != nil {
+		return fmt.Errorf("failed to get archive metadata: %w", err)
+	}
+
+	// Check if archive file exists
+	if _, err := os.Stat(metadata.ArchivePath); os.IsNotExist(err) {
+		return fmt.Errorf("archive file not found: %s", metadata.ArchivePath)
+	}
+
+	// Create a temporary directory for extraction
+	tempDir, err := os.MkdirTemp("", "audit_restore_"+archiveID)
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir) // Clean up
+
+	// Extract archive based on compression type
+	extractedPath, err := ars.extractArchive(metadata.ArchivePath, tempDir, metadata.CompressionType)
+	if err != nil {
+		return fmt.Errorf("failed to extract archive: %w", err)
+	}
+
+	// Read and parse the extracted data
+	logs, err := ars.parseExtractedLogs(extractedPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse extracted logs: %w", err)
+	}
+
+	// Validate the logs before restoration
+	if err := ars.validateLogsForRestore(logs, metadata); err != nil {
+		return fmt.Errorf("log validation failed: %w", err)
+	}
+
+	// Restore logs to database in batches
+	batchSize := 1000
+	totalRestored := 0
+
+	for i := 0; i < len(logs); i += batchSize {
+		end := i + batchSize
+		if end > len(logs) {
+			end = len(logs)
+		}
+
+		batch := logs[i:end]
+		if err := ars.restoreLogBatch(batch); err != nil {
+			facades.Log().Error("Failed to restore log batch", map[string]interface{}{
+				"archive_id":  archiveID,
+				"batch_start": i,
+				"batch_size":  len(batch),
+				"error":       err.Error(),
+			})
+			return fmt.Errorf("failed to restore batch starting at %d: %w", i, err)
+		}
+
+		totalRestored += len(batch)
+		facades.Log().Info("Restored log batch", map[string]interface{}{
+			"archive_id":     archiveID,
+			"batch_size":     len(batch),
+			"total_restored": totalRestored,
+			"progress":       fmt.Sprintf("%.1f%%", float64(totalRestored)/float64(len(logs))*100),
+		})
+	}
+
+	// Update archive metadata to mark as restored
+	if err := ars.markArchiveAsRestored(archiveID, totalRestored); err != nil {
+		facades.Log().Warning("Failed to update archive status", map[string]interface{}{
+			"archive_id": archiveID,
+			"error":      err.Error(),
+		})
+	}
+
+	facades.Log().Info("Archive restoration completed", map[string]interface{}{
+		"archive_id":     archiveID,
+		"total_restored": totalRestored,
+		"expected_count": metadata.RecordCount,
+	})
+
+	return nil
 }
 
 // GetArchiveMetadata returns metadata for an archive
 func (ars *AuditRetentionService) GetArchiveMetadata(archiveID string) (*ArchiveMetadata, error) {
-	// This would retrieve archive metadata from storage
-	// For now, return a basic implementation
-	return nil, fmt.Errorf("archive metadata retrieval not yet implemented")
+	// Production implementation that retrieves archive metadata from storage
+	var metadata ArchiveMetadata
+
+	// Try to load from database first
+	err := facades.Orm().Query().
+		Table("audit_archives").
+		Where("archive_id = ?", archiveID).
+		First(&metadata)
+
+	if err != nil {
+		// Try to load from file system metadata
+		return ars.loadArchiveMetadataFromFile(archiveID)
+	}
+
+	return &metadata, nil
 }
 
 // ListArchives returns a list of all archives for a tenant
 func (ars *AuditRetentionService) ListArchives(tenantID string) ([]*ArchiveMetadata, error) {
-	// This would list all archives for a tenant
-	// For now, return empty list
-	return []*ArchiveMetadata{}, nil
+	// Production implementation that lists all archives for a tenant
+	var archives []*ArchiveMetadata
+
+	// Query from database
+	err := facades.Orm().Query().
+		Table("audit_archives").
+		Where("tenant_id = ?", tenantID).
+		OrderBy("created_at DESC").
+		Find(&archives)
+
+	if err != nil {
+		facades.Log().Error("Failed to list archives from database", map[string]interface{}{
+			"tenant_id": tenantID,
+			"error":     err.Error(),
+		})
+
+		// Fallback to file system scan
+		return ars.scanArchiveDirectory(tenantID)
+	}
+
+	return archives, nil
 }
 
 // DeleteExpiredLogs deletes logs that have exceeded their retention period
@@ -625,4 +739,259 @@ func (as *ArchivalService) CreateArchive(archiveID string, logs []models.Activit
 	}
 
 	return archiveFilePath, nil
+}
+
+// Helper methods for archive restoration
+
+func (ars *AuditRetentionService) extractArchive(archivePath, tempDir, compressionType string) (string, error) {
+	switch compressionType {
+	case "gzip":
+		return ars.extractGzipArchive(archivePath, tempDir)
+	case "zip":
+		return ars.extractZipArchive(archivePath, tempDir)
+	case "tar.gz":
+		return ars.extractTarGzArchive(archivePath, tempDir)
+	default:
+		return "", fmt.Errorf("unsupported compression type: %s", compressionType)
+	}
+}
+
+func (ars *AuditRetentionService) extractGzipArchive(archivePath, tempDir string) (string, error) {
+	// Open the gzip file
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open archive: %w", err)
+	}
+	defer file.Close()
+
+	// Create gzip reader
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Create output file
+	outputPath := filepath.Join(tempDir, "logs.json")
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outputFile.Close()
+
+	// Copy decompressed data
+	_, err = io.Copy(outputFile, gzReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to decompress archive: %w", err)
+	}
+
+	return outputPath, nil
+}
+
+func (ars *AuditRetentionService) extractZipArchive(archivePath, tempDir string) (string, error) {
+	// Open zip file
+	reader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open zip archive: %w", err)
+	}
+	defer reader.Close()
+
+	// Extract first file (assuming single file archive)
+	if len(reader.File) == 0 {
+		return "", fmt.Errorf("empty zip archive")
+	}
+
+	file := reader.File[0]
+	rc, err := file.Open()
+	if err != nil {
+		return "", fmt.Errorf("failed to open file in zip: %w", err)
+	}
+	defer rc.Close()
+
+	// Create output file
+	outputPath := filepath.Join(tempDir, file.Name)
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outputFile.Close()
+
+	// Copy file contents
+	_, err = io.Copy(outputFile, rc)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract file: %w", err)
+	}
+
+	return outputPath, nil
+}
+
+func (ars *AuditRetentionService) extractTarGzArchive(archivePath, tempDir string) (string, error) {
+	// Open the tar.gz file
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open archive: %w", err)
+	}
+	defer file.Close()
+
+	// Create gzip reader
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Create tar reader
+	tarReader := tar.NewReader(gzReader)
+
+	// Extract first file
+	header, err := tarReader.Next()
+	if err != nil {
+		return "", fmt.Errorf("failed to read tar header: %w", err)
+	}
+
+	// Create output file
+	outputPath := filepath.Join(tempDir, header.Name)
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outputFile.Close()
+
+	// Copy file contents
+	_, err = io.Copy(outputFile, tarReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract tar file: %w", err)
+	}
+
+	return outputPath, nil
+}
+
+func (ars *AuditRetentionService) parseExtractedLogs(filePath string) ([]models.ActivityLog, error) {
+	// Read the extracted file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read extracted file: %w", err)
+	}
+
+	// Parse JSON data
+	var logs []models.ActivityLog
+	if err := json.Unmarshal(data, &logs); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON logs: %w", err)
+	}
+
+	return logs, nil
+}
+
+func (ars *AuditRetentionService) validateLogsForRestore(logs []models.ActivityLog, metadata *ArchiveMetadata) error {
+	// Validate log count matches metadata
+	if len(logs) != int(metadata.RecordCount) {
+		return fmt.Errorf("log count mismatch: expected %d, got %d", metadata.RecordCount, len(logs))
+	}
+
+	// Validate tenant ID consistency
+	for i, log := range logs {
+		if log.TenantID != metadata.TenantID {
+			return fmt.Errorf("tenant ID mismatch at log %d: expected %s, got %s", i, metadata.TenantID, log.TenantID)
+		}
+	}
+
+	// Validate date range
+	for i, log := range logs {
+		if log.EventTimestamp.Before(metadata.StartDate) || log.EventTimestamp.After(metadata.EndDate) {
+			return fmt.Errorf("log %d timestamp %v outside archive date range %v - %v",
+				i, log.EventTimestamp, metadata.StartDate, metadata.EndDate)
+		}
+	}
+
+	return nil
+}
+
+func (ars *AuditRetentionService) restoreLogBatch(logs []models.ActivityLog) error {
+	// Restore logs using simple batch insert
+	for _, log := range logs {
+		// Check if log already exists (prevent duplicates)
+		var existingLog models.ActivityLog
+		err := facades.Orm().Query().Where("id = ?", log.ID).First(&existingLog)
+
+		if err == nil {
+			// Log already exists, skip it
+			facades.Log().Debug("Skipping duplicate log", map[string]interface{}{
+				"log_id": log.ID,
+			})
+			continue
+		}
+
+		// Insert the log
+		if err := facades.Orm().Query().Create(&log); err != nil {
+			return fmt.Errorf("failed to restore log %s: %w", log.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func (ars *AuditRetentionService) markArchiveAsRestored(archiveID string, restoredCount int) error {
+	// Update archive metadata to mark as restored
+	now := time.Now()
+
+	_, err := facades.Orm().Query().
+		Table("audit_archives").
+		Where("archive_id = ?", archiveID).
+		Update(map[string]interface{}{
+			"status":         "restored",
+			"restored_at":    now,
+			"restored_count": restoredCount,
+			"updated_at":     now,
+		})
+
+	return err
+}
+
+func (ars *AuditRetentionService) loadArchiveMetadataFromFile(archiveID string) (*ArchiveMetadata, error) {
+	// Try to load metadata from a .meta file alongside the archive
+	archiveDir := facades.Config().GetString("audit.archive_directory", "/var/lib/goravel/archives")
+	metadataPath := filepath.Join(archiveDir, archiveID+".meta")
+
+	data, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return nil, fmt.Errorf("metadata file not found: %w", err)
+	}
+
+	var metadata ArchiveMetadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return nil, fmt.Errorf("failed to parse metadata: %w", err)
+	}
+
+	return &metadata, nil
+}
+
+func (ars *AuditRetentionService) scanArchiveDirectory(tenantID string) ([]*ArchiveMetadata, error) {
+	// Scan file system for archives when database is unavailable
+	archiveDir := facades.Config().GetString("audit.archive_directory", "/var/lib/goravel/archives")
+
+	files, err := os.ReadDir(archiveDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read archive directory: %w", err)
+	}
+
+	var archives []*ArchiveMetadata
+
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".meta") {
+			metadata, err := ars.loadArchiveMetadataFromFile(strings.TrimSuffix(file.Name(), ".meta"))
+			if err != nil {
+				facades.Log().Warning("Failed to load metadata file", map[string]interface{}{
+					"file":  file.Name(),
+					"error": err.Error(),
+				})
+				continue
+			}
+
+			if metadata.TenantID == tenantID {
+				archives = append(archives, metadata)
+			}
+		}
+	}
+
+	return archives, nil
 }

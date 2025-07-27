@@ -75,17 +75,7 @@ func NewMultiAccountService() (*MultiAccountService, error) {
 }
 
 // MustNewMultiAccountService creates a new multi-account service and panics on error (for backward compatibility)
-// Deprecated: Use NewMultiAccountService() instead for proper error handling
-func MustNewMultiAccountService() *MultiAccountService {
-	service, err := NewMultiAccountService()
-	if err != nil {
-		facades.Log().Error("Critical MultiAccountService initialization failure", map[string]interface{}{
-			"error": err.Error(),
-		})
-		panic(fmt.Sprintf("MultiAccountService initialization failed: %v", err))
-	}
-	return service
-}
+// Deprecated: This function has been removed. Use NewMultiAccountService() instead for proper error handling.
 
 // GetMultiAccountSession retrieves the multi-account session from the session storage
 func (s *MultiAccountService) GetMultiAccountSession(ctx http.Context) (*MultiAccountSession, error) {

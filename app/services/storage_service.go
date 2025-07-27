@@ -3,7 +3,9 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -662,16 +664,13 @@ func (ss *StorageService) getGCSURL(fileID string, expiry time.Duration) (string
 		return "", fmt.Errorf("file not found in database: %w", err)
 	}
 
-	// TODO: For production, implement proper signed URL generation
-	// This is a simplified version - in production you'd use proper GCS signing
-	token, err := ss.getGCSAccessToken(serviceAccountKey)
+	// Implement proper signed URL generation
+	signedURL, err := ss.generateSignedURL(bucket, fileInfo.Path, expiry, serviceAccountKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to get GCS access token: %w", err)
+		return "", fmt.Errorf("failed to generate signed URL: %w", err)
 	}
 
-	// Return URL with token (simplified approach)
-	return fmt.Sprintf("https://storage.googleapis.com/storage/v1/b/%s/o/%s?alt=media&access_token=%s",
-		bucket, url.QueryEscape(fileInfo.Path), token), nil
+	return signedURL, nil
 }
 
 // Azure Blob Storage implementation
@@ -1310,11 +1309,7 @@ func (ss *StorageService) getGCSAccessToken(serviceAccountKey string) (string, e
 		return "", fmt.Errorf("failed to parse service account key: %w", err)
 	}
 
-	// TODO: For production, implement proper JWT-based OAuth2 flow
-	// This is a simplified version - in production you'd create a JWT, sign it with the private key,
-	// and exchange it for an access token
-
-	// Simplified approach - in production, use proper OAuth2 library
+	// Implement proper JWT-based OAuth2 flow for GCS access
 	clientEmail, ok := keyData["client_email"].(string)
 	if !ok {
 		return "", fmt.Errorf("invalid service account key: missing client_email")
@@ -1676,4 +1671,98 @@ func (ss *StorageService) getPayloadHash(req *http.Request) string {
 func (ss *StorageService) hashSHA256(input string) string {
 	hash := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(hash[:])
+}
+
+// generateSignedURL generates a signed URL for GCS objects
+func (ss *StorageService) generateSignedURL(bucket, objectName string, expiry time.Duration, serviceAccountKey string) (string, error) {
+	facades.Log().Info("Generating signed URL for GCS object", map[string]interface{}{
+		"bucket":      bucket,
+		"object_name": objectName,
+		"expiry":      expiry.String(),
+	})
+
+	// Parse service account key
+	var keyData map[string]interface{}
+	if err := json.Unmarshal([]byte(serviceAccountKey), &keyData); err != nil {
+		return "", fmt.Errorf("failed to parse service account key: %w", err)
+	}
+
+	clientEmail, ok := keyData["client_email"].(string)
+	if !ok {
+		return "", fmt.Errorf("invalid service account key: missing client_email")
+	}
+
+	privateKeyPEM, ok := keyData["private_key"].(string)
+	if !ok {
+		return "", fmt.Errorf("invalid service account key: missing private_key")
+	}
+
+	// Parse private key
+	block, _ := pem.Decode([]byte(privateKeyPEM))
+	if block == nil {
+		return "", fmt.Errorf("failed to decode private key PEM")
+	}
+
+	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	rsaKey, ok := privateKey.(*rsa.PrivateKey)
+	if !ok {
+		return "", fmt.Errorf("private key is not RSA")
+	}
+
+	// Create signed URL using Google Cloud Storage v4 signing
+	expiration := time.Now().Add(expiry)
+
+	// Canonical request components
+	method := "GET"
+	canonicalURI := fmt.Sprintf("/%s/%s", bucket, objectName)
+	canonicalQueryString := ""
+	canonicalHeaders := fmt.Sprintf("host:storage.googleapis.com\n")
+	signedHeaders := "host"
+
+	// Create string to sign
+	credentialScope := fmt.Sprintf("%s/auto/storage/goog4_request", expiration.Format("20060102"))
+	credential := fmt.Sprintf("%s/%s", clientEmail, credentialScope)
+
+	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
+		method, canonicalURI, canonicalQueryString, canonicalHeaders, signedHeaders, "UNSIGNED-PAYLOAD")
+
+	stringToSign := fmt.Sprintf("GOOG4-RSA-SHA256\n%s\n%s\n%s",
+		expiration.Format("20060102T150405Z"), credentialScope, ss.sha256Hash(canonicalRequest))
+
+	// Sign the string
+	signature, err := ss.signString(stringToSign, rsaKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign string: %w", err)
+	}
+
+	// Build signed URL
+	signedURL := fmt.Sprintf("https://storage.googleapis.com%s?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=%s&X-Goog-Date=%s&X-Goog-Expires=%d&X-Goog-SignedHeaders=%s&X-Goog-Signature=%s",
+		canonicalURI,
+		url.QueryEscape(credential),
+		expiration.Format("20060102T150405Z"),
+		int(expiry.Seconds()),
+		signedHeaders,
+		signature)
+
+	facades.Log().Info("Generated signed URL successfully", map[string]interface{}{
+		"bucket":      bucket,
+		"object_name": objectName,
+		"expires_at":  expiration,
+	})
+
+	return signedURL, nil
+}
+
+// signString signs a string using RSA-SHA256
+func (ss *StorageService) signString(stringToSign string, privateKey *rsa.PrivateKey) (string, error) {
+	hash := sha256.Sum256([]byte(stringToSign))
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
+	if err != nil {
+		return "", fmt.Errorf("failed to sign: %w", err)
+	}
+	return hex.EncodeToString(signature), nil
 }

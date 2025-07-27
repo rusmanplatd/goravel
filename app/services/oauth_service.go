@@ -58,17 +58,7 @@ func NewOAuthService() (*OAuthService, error) {
 }
 
 // MustNewOAuthService creates a new OAuth service and panics on error (for backward compatibility)
-// Deprecated: Use NewOAuthService() instead for proper error handling
-func MustNewOAuthService() *OAuthService {
-	service, err := NewOAuthService()
-	if err != nil {
-		facades.Log().Error("Critical OAuthService initialization failure", map[string]interface{}{
-			"error": err.Error(),
-		})
-		panic(fmt.Sprintf("OAuthService initialization failed: %v", err))
-	}
-	return service
-}
+// Deprecated: This function has been removed. Use NewOAuthService() instead for proper error handling.
 
 // initializeRSAKeys initializes RSA key pair for JWT signing
 func (s *OAuthService) initializeRSAKeys() error {
