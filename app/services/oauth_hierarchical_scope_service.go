@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"github.com/goravel/framework/facades"
+
+	"goravel/app/models"
 )
 
+// OAuthHierarchicalScopeService handles hierarchical OAuth2 scopes
 type OAuthHierarchicalScopeService struct {
-	oauthService *OAuthService
+	// No dependencies to avoid circular imports
 }
 
 // ScopeDefinition represents a hierarchical scope with permissions
@@ -60,10 +65,9 @@ type TokenScopeInfo struct {
 	Metadata         map[string]interface{} `json:"metadata"`
 }
 
+// NewOAuthHierarchicalScopeService creates a new hierarchical scope service
 func NewOAuthHierarchicalScopeService() *OAuthHierarchicalScopeService {
-	return &OAuthHierarchicalScopeService{
-		oauthService: NewOAuthService(),
-	}
+	return &OAuthHierarchicalScopeService{}
 }
 
 // GetScopeHierarchy returns the complete scope hierarchy (Google-like)
@@ -538,14 +542,46 @@ func (s *OAuthHierarchicalScopeService) CreateTokenScopeInfo(scopes []string) (*
 // Helper functions
 
 func (s *OAuthHierarchicalScopeService) getClientAllowedScopes(clientID string) ([]string, error) {
-	// In production, this would query the database for client-specific scopes
-	// For now, return default allowed scopes based on client type
-	client, err := s.oauthService.GetClient(clientID)
+	// Get client from database directly
+	var client models.OAuthClient
+	err := facades.Orm().Query().Where("id = ?", clientID).First(&client)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get client: %w", err)
 	}
 
-	// Default scopes for different client types
+	// Query client-specific scopes from OAuth consents and access tokens
+	var consents []models.OAuthConsent
+	err = facades.Orm().Query().
+		Where("client_id = ? AND granted = ? AND revoked = ?", clientID, true, false).
+		Find(&consents)
+	if err != nil {
+		facades.Log().Warning("Failed to query OAuth consents for client scopes", map[string]interface{}{
+			"client_id": clientID,
+			"error":     err.Error(),
+		})
+	}
+
+	// Collect unique scopes from consents
+	scopeSet := make(map[string]bool)
+	for _, consent := range consents {
+		if consent.IsActive() {
+			scopes := consent.GetScopes()
+			for _, scope := range scopes {
+				scopeSet[scope] = true
+			}
+		}
+	}
+
+	// If client has granted scopes, use them
+	if len(scopeSet) > 0 {
+		result := make([]string, 0, len(scopeSet))
+		for scope := range scopeSet {
+			result = append(result, scope)
+		}
+		return result, nil
+	}
+
+	// Fallback to default scopes based on client type
 	if client.IsPublic() {
 		return []string{
 			"openid", "profile", "email",
@@ -563,29 +599,80 @@ func (s *OAuthHierarchicalScopeService) getClientAllowedScopes(clientID string) 
 }
 
 func (s *OAuthHierarchicalScopeService) getUserAllowedScopes(userID string) ([]string, error) {
-	// In production, this would query user roles and permissions
-	// For now, return scopes based on user role simulation
-
-	// Check if user is admin (simplified check)
-	if s.isUserAdmin(userID) {
-		return []string{
-			"openid", "profile", "email",
-			"user", "user.read", "user.write", "user.admin",
-			"organization", "organization.read", "organization.manage",
-			"calendar", "calendar.readonly", "calendar.events",
-			"drive", "drive.readonly", "drive.file", "drive.metadata",
-			"admin", "admin.directory", "admin.security",
-		}, nil
+	// Query user roles and permissions from database
+	var user models.User
+	err := facades.Orm().Query().
+		With("Roles.Permissions").
+		Where("id = ?", userID).
+		First(&user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Regular user scopes
-	return []string{
-		"openid", "profile", "email",
-		"user.read", "user.write",
-		"organization.read",
-		"calendar.readonly", "calendar.events",
-		"drive.readonly", "drive.file",
-	}, nil
+	// Collect unique scopes from user roles and permissions
+	scopeSet := make(map[string]bool)
+
+	// Add basic scopes for authenticated users
+	scopeSet["openid"] = true
+	scopeSet["profile"] = true
+	scopeSet["email"] = true
+	scopeSet["user.read"] = true
+
+	// Process user roles and their permissions
+	for _, role := range user.Roles {
+		// Add role-based scopes
+		switch role.Name {
+		case "admin", "super_admin":
+			// Admin users get all scopes
+			adminScopes := []string{
+				"user", "user.read", "user.write", "user.admin",
+				"organization", "organization.read", "organization.manage",
+				"calendar", "calendar.readonly", "calendar.events", "calendar.admin",
+				"drive", "drive.readonly", "drive.file", "drive.metadata", "drive.admin",
+				"admin", "admin.directory", "admin.security",
+			}
+			for _, scope := range adminScopes {
+				scopeSet[scope] = true
+			}
+		case "manager":
+			// Manager users get management scopes
+			managerScopes := []string{
+				"user.read", "user.write",
+				"organization.read", "organization.manage",
+				"calendar", "calendar.readonly", "calendar.events",
+				"drive", "drive.readonly", "drive.file", "drive.metadata",
+			}
+			for _, scope := range managerScopes {
+				scopeSet[scope] = true
+			}
+		case "user":
+			// Regular users get basic scopes
+			userScopes := []string{
+				"calendar.readonly", "calendar.events",
+				"drive.readonly", "drive.file",
+			}
+			for _, scope := range userScopes {
+				scopeSet[scope] = true
+			}
+		}
+
+		// Process individual permissions
+		for _, permission := range role.Permissions {
+			// Map permission names to OAuth scopes
+			scope := s.mapPermissionToScope(permission.Name)
+			if scope != "" {
+				scopeSet[scope] = true
+			}
+		}
+	}
+
+	// Convert set to slice
+	result := make([]string, 0, len(scopeSet))
+	for scope := range scopeSet {
+		result = append(result, scope)
+	}
+
+	return result, nil
 }
 
 func (s *OAuthHierarchicalScopeService) checkScopeConditions(scope *ScopeDefinition, clientID, userID string) bool {
@@ -645,7 +732,7 @@ func (s *OAuthHierarchicalScopeService) contains(slice []string, item string) bo
 }
 
 func (s *OAuthHierarchicalScopeService) isUserAdmin(userID string) bool {
-	// Simplified admin check - in production, check user roles
+	// Simplified admin check - TODO: In production, check user roles
 	return false // Default to false for safety
 }
 
@@ -746,4 +833,90 @@ func (s *OAuthHierarchicalScopeService) OptimizeScopes(scopes []string) ([]strin
 
 	sort.Strings(result)
 	return result, nil
+}
+
+func (s *OAuthHierarchicalScopeService) mapPermissionToScope(permissionName string) string {
+	switch permissionName {
+	case "read_profile":
+		return "profile"
+	case "get_name":
+		return "profile"
+	case "get_picture":
+		return "profile"
+	case "read_email":
+		return "email"
+	case "verify_email":
+		return "email"
+	case "access_user_data":
+		return "user"
+	case "read_user_basic":
+		return "user.read"
+	case "read_user_profile":
+		return "user.read"
+	case "write_user_profile":
+		return "user.write"
+	case "update_user_settings":
+		return "user.write"
+	case "admin_user_data":
+		return "user.admin"
+	case "delete_user":
+		return "user.admin"
+	case "impersonate_user":
+		return "user.admin"
+	case "access_organization":
+		return "organization"
+	case "read_org_info":
+		return "organization.read"
+	case "list_org_members":
+		return "organization.read"
+	case "manage_org_settings":
+		return "organization.manage"
+	case "invite_members":
+		return "organization.manage"
+	case "remove_members":
+		return "organization.manage"
+	case "access_calendar":
+		return "calendar"
+	case "read_calendar_events":
+		return "calendar.readonly"
+	case "list_calendars":
+		return "calendar.readonly"
+	case "create_events":
+		return "calendar.events"
+	case "update_events":
+		return "calendar.events"
+	case "delete_events":
+		return "calendar.events"
+	case "read_files":
+		return "drive.readonly"
+	case "list_files":
+		return "drive.readonly"
+	case "download_files":
+		return "drive.readonly"
+	case "upload_files":
+		return "drive.file"
+	case "update_files":
+		return "drive.file"
+	case "delete_files":
+		return "drive.file"
+	case "read_file_metadata":
+		return "drive.metadata"
+	case "list_file_metadata":
+		return "drive.metadata"
+	case "manage_users":
+		return "admin.directory"
+	case "manage_groups":
+		return "admin.directory"
+	case "manage_org_units":
+		return "admin.directory"
+	case "manage_security_settings":
+		return "admin.security"
+	case "view_audit_logs":
+		return "admin.security"
+	case "manage_oauth_clients":
+		return "admin.security"
+	case "admin_access":
+		return "admin"
+	}
+	return ""
 }

@@ -2,6 +2,7 @@ package web
 
 import (
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
 
 	"goravel/app/models"
 	"goravel/app/services"
@@ -13,8 +14,16 @@ type OAuthSecurityController struct {
 
 // NewOAuthSecurityController creates a new OAuth security controller
 func NewOAuthSecurityController() *OAuthSecurityController {
+	oauthService, err := services.NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthSecurityController{
-		oauthService: services.NewOAuthService(),
+		oauthService: oauthService,
 	}
 }
 

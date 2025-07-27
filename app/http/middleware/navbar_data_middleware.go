@@ -20,7 +20,14 @@ func NavbarData() http.Middleware {
 		}
 
 		// Get multi-account session info
-		multiAccountService := services.NewMultiAccountService()
+		multiAccountService, err := services.NewMultiAccountService()
+		if err != nil {
+			facades.Log().Error("Failed to create multi-account service", map[string]interface{}{
+				"error": err.Error(),
+			})
+			ctx.Request().Next()
+			return
+		}
 		accounts, _ := multiAccountService.GetAllAccounts(ctx)
 		activeAccount, _ := multiAccountService.GetActiveAccount(ctx)
 		hasMultipleAccounts := len(accounts) > 1

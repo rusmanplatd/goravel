@@ -119,9 +119,9 @@ go run artisan.go db:seed --class=UserSeeder
 ## Security Notes
 
 - Default passwords are set to `password123` for development purposes
-- In production, ensure all users change their passwords
-- The super-admin user has full system access
-- Consider removing or securing sensitive seed data in production
+- **PRODUCTION SECURITY**: In production environments, ensure all seeded users change their default passwords immediately after deployment
+- The super-admin user has full system access and should be secured with strong authentication
+- **PRODUCTION DEPLOYMENT**: Remove or secure sensitive seed data before production deployment. Consider using environment-specific seeders that exclude default accounts in production
 
 ## Multi-Tenant Structure
 

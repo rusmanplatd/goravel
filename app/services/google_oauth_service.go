@@ -49,9 +49,17 @@ func NewGoogleOAuthService() *GoogleOAuthService {
 		Endpoint:     google.Endpoint,
 	}
 
+	authService, err := NewAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create auth service for Google OAuth", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &GoogleOAuthService{
 		config:      config,
-		authService: NewAuthService(),
+		authService: authService,
 	}
 }
 

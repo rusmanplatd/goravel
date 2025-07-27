@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"goravel/app/services"
@@ -13,11 +15,103 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// checkWebSocketOrigin validates the origin of WebSocket connections
+func checkMeetingWebSocketOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		// Allow connections without Origin header for non-browser clients
+		// but log for security monitoring
+		facades.Log().Warning("WebSocket connection without Origin header", map[string]interface{}{
+			"remote_addr": r.RemoteAddr,
+			"user_agent":  r.Header.Get("User-Agent"),
+		})
+		return facades.Config().GetBool("websocket.allow_no_origin", false)
+	}
+
+	// Parse the origin URL
+	originURL, err := url.Parse(origin)
+	if err != nil {
+		facades.Log().Warning("Invalid Origin header in WebSocket request", map[string]interface{}{
+			"origin":      origin,
+			"remote_addr": r.RemoteAddr,
+			"error":       err.Error(),
+		})
+		return false
+	}
+
+	// Get allowed origins from configuration
+	allowedOrigins := facades.Config().Get("websocket.allowed_origins", []string{}).([]string)
+
+	// Check if origin is in allowed list
+	for _, allowedOrigin := range allowedOrigins {
+		if matchOrigin(originURL, allowedOrigin) {
+			facades.Log().Info("WebSocket connection allowed", map[string]interface{}{
+				"origin":      origin,
+				"remote_addr": r.RemoteAddr,
+			})
+			return true
+		}
+	}
+
+	// Check if it's a same-origin request (for development)
+	if facades.Config().GetBool("websocket.allow_same_origin", true) {
+		host := r.Header.Get("Host")
+		if host != "" && (originURL.Host == host || originURL.Host == "localhost:"+strings.Split(host, ":")[1]) {
+			facades.Log().Info("WebSocket same-origin connection allowed", map[string]interface{}{
+				"origin":      origin,
+				"host":        host,
+				"remote_addr": r.RemoteAddr,
+			})
+			return true
+		}
+	}
+
+	// Log rejected connection for security monitoring
+	facades.Log().Warning("WebSocket connection rejected - origin not allowed", map[string]interface{}{
+		"origin":          origin,
+		"remote_addr":     r.RemoteAddr,
+		"user_agent":      r.Header.Get("User-Agent"),
+		"allowed_origins": allowedOrigins,
+	})
+
+	return false
+}
+
+// matchOrigin checks if an origin URL matches an allowed origin pattern
+func matchMeetingOrigin(originURL *url.URL, allowedPattern string) bool {
+	// Handle wildcard patterns
+	if allowedPattern == "*" {
+		return true
+	}
+
+	// Handle subdomain wildcards (e.g., "*.example.com")
+	if strings.HasPrefix(allowedPattern, "*.") {
+		domain := strings.TrimPrefix(allowedPattern, "*.")
+		return strings.HasSuffix(originURL.Host, "."+domain) || originURL.Host == domain
+	}
+
+	// Handle protocol wildcards (e.g., "*://example.com")
+	if strings.HasPrefix(allowedPattern, "*://") {
+		expectedHost := strings.TrimPrefix(allowedPattern, "*://")
+		return originURL.Host == expectedHost
+	}
+
+	// Parse allowed origin for exact matching
+	allowedURL, err := url.Parse(allowedPattern)
+	if err != nil {
+		// If parsing fails, try simple string matching
+		return originURL.String() == allowedPattern
+	}
+
+	// Check scheme and host match
+	return originURL.Scheme == allowedURL.Scheme && originURL.Host == allowedURL.Host
+}
+
 // MeetingWebSocketController handles WebSocket connections for meetings
 type MeetingWebSocketController struct {
 	hub            *services.WebSocketHub
 	meetingService *services.MeetingService
-	upgrader       websocket.Upgrader
+	upgrader       *websocket.Upgrader
 }
 
 // WebRTCSignalMessage represents WebRTC signaling message
@@ -56,12 +150,11 @@ func NewMeetingWebSocketController() *MeetingWebSocketController {
 	return &MeetingWebSocketController{
 		hub:            services.GetWebSocketHub(),
 		meetingService: services.NewMeetingService(),
-		upgrader: websocket.Upgrader{
+		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
-				// In production, implement proper origin checking
-				return true
+				return checkWebSocketOrigin(r)
 			},
 			EnableCompression: true,
 		},

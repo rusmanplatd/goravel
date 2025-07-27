@@ -17,8 +17,16 @@ type OAuthClientController struct {
 
 // NewOAuthClientController creates a new OAuth client controller
 func NewOAuthClientController() *OAuthClientController {
+	oauthService, err := services.NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthClientController{
-		oauthService: services.NewOAuthService(),
+		oauthService: oauthService,
 	}
 }
 

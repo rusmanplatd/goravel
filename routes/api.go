@@ -11,7 +11,13 @@ import (
 
 func Api() {
 	// Initialize controllers
-	authController := v1.NewAuthController()
+	authController, err := v1.NewAuthController()
+	if err != nil {
+		facades.Log().Error("Failed to create API auth controller", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
 	oauthController := v1.NewOAuthController()
 	userController := v1.NewUserController()
 	tenantController := v1.NewTenantController()

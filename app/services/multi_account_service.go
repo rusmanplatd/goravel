@@ -58,11 +58,30 @@ const (
 	MaxSwitchesPerHour    = 20                 // Rate limit for account switching
 )
 
-func NewMultiAccountService() *MultiAccountService {
-	return &MultiAccountService{
-		jwtService:   NewJWTService(),
-		auditService: NewAuditService(),
+// NewMultiAccountService creates a new multi-account service
+func NewMultiAccountService() (*MultiAccountService, error) {
+	jwtService, err := NewJWTService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize JWT service: %w", err)
 	}
+
+	return &MultiAccountService{
+		jwtService:   jwtService,
+		auditService: NewAuditService(),
+	}, nil
+}
+
+// MustNewMultiAccountService creates a new multi-account service and panics on error (for backward compatibility)
+// Deprecated: Use NewMultiAccountService() instead for proper error handling
+func MustNewMultiAccountService() *MultiAccountService {
+	service, err := NewMultiAccountService()
+	if err != nil {
+		facades.Log().Error("Critical MultiAccountService initialization failure", map[string]interface{}{
+			"error": err.Error(),
+		})
+		panic(fmt.Sprintf("MultiAccountService initialization failed: %v", err))
+	}
+	return service
 }
 
 // GetMultiAccountSession retrieves the multi-account session from the session storage

@@ -221,8 +221,8 @@ func (s *NotificationPreferenceService) IsNotificationAllowed(userID, notificati
 		return false
 	}
 
-	// Check if should send now (includes rate limiting when implemented)
-	return preference.ShouldSendNow()
+	// Check if should send now (includes rate limiting)
+	return preference.ShouldSendNow(notificationType)
 }
 
 // GetEnabledChannelsForType returns enabled channels for a notification type

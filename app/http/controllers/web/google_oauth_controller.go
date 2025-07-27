@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 
 	"github.com/goravel/framework/contracts/http"
@@ -19,13 +20,28 @@ type GoogleOAuthController struct {
 }
 
 // NewGoogleOAuthController creates a new Google OAuth controller
-func NewGoogleOAuthController() *GoogleOAuthController {
+func NewGoogleOAuthController() (*GoogleOAuthController, error) {
+	authService, err := services.NewAuthService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize auth service: %w", err)
+	}
+
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize JWT service: %w", err)
+	}
+
+	multiAccountService, err := services.NewMultiAccountService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize multi-account service: %w", err)
+	}
+
 	return &GoogleOAuthController{
 		googleOAuthService:  services.NewGoogleOAuthService(),
-		authService:         services.NewAuthService(),
-		jwtService:          services.NewJWTService(),
-		multiAccountService: services.NewMultiAccountService(),
-	}
+		authService:         authService,
+		jwtService:          jwtService,
+		multiAccountService: multiAccountService,
+	}, nil
 }
 
 // Redirect redirects the user to Google's OAuth consent screen

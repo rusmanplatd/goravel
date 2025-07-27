@@ -340,7 +340,7 @@ func (s *TOTPService) getUserBackupCodes(userID string) ([]BackupCode, error) {
 	}
 
 	// For now, store backup codes in user's MFA secret field as JSON
-	// In production, you might want a separate table
+	// TODO: In production, you might want a separate table
 	if user.MfaBackupCodes == "" {
 		return []BackupCode{}, nil
 	}
@@ -360,7 +360,7 @@ func (s *TOTPService) saveUserBackupCodes(userID string, codes []BackupCode) err
 	}
 
 	// For now, store backup codes in user's MFA backup codes field as JSON
-	// In production, you might want a separate table
+	// TODO: In production, you might want a separate table
 	// This would need proper JSON marshaling
 	// Simplified for this example
 
@@ -407,7 +407,7 @@ func (s *TOTPService) SetupMFAWithBackupCodes(user *models.User, verificationCod
 	// Generate backup codes
 	backupCodes := s.GenerateBackupCodes(10)
 
-	// Store backup codes in user model (in production, store securely)
+	// Store backup codes in user model (TODO: In production, store securely)
 	backupCodesJSON, _ := json.Marshal(backupCodes)
 	user.MfaBackupCodes = string(backupCodesJSON)
 	user.MfaEnabled = true

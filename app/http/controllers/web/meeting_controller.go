@@ -54,7 +54,7 @@ func (mc *MeetingController) Room(ctx http.Context) http.Response {
 		isHost = participant.Role == "host" || participant.Role == "co-host"
 	} else {
 		// If not a participant, check if they can join
-		// For now, allow anyone to join (in production, add proper access control)
+		// For now, allow anyone to join (TODO: In production, add proper access control)
 	}
 
 	// Generate LiveKit access token

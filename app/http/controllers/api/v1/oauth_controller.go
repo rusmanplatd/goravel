@@ -27,13 +27,37 @@ type OAuthController struct {
 
 // NewOAuthController creates a new OAuth2 controller
 func NewOAuthController() *OAuthController {
+	oauthService, err := services.NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	authService, err := services.NewAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create auth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	attestationService, err := services.NewOAuthClientAttestationService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth client attestation service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthController{
-		oauthService:              services.NewOAuthService(),
-		authService:               services.NewAuthService(),
+		oauthService:              oauthService,
+		authService:               authService,
 		consentService:            services.NewOAuthConsentService(),
 		analyticsService:          services.NewOAuthAnalyticsService(),
 		riskService:               services.NewOAuthRiskService(),
-		attestationService:        services.NewOAuthClientAttestationService(),
+		attestationService:        attestationService,
 		tokenBindingService:       services.NewOAuthTokenBindingService(),
 		resourceIndicatorsService: services.NewOAuthResourceIndicatorsService(),
 	}

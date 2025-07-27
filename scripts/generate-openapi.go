@@ -6,6 +6,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -646,7 +648,7 @@ func parseParameterExtras(param *Parameter, extras string) {
 }
 
 func main() {
-	fmt.Println("Generating OpenAPI 3.0 specification...")
+	log.Println("Generating OpenAPI 3.0 specification...")
 
 	// Build the handler map once
 	globalHandlerMap = BuildHandlerMethodMap("app/http/controllers/api/v1")
@@ -689,23 +691,23 @@ func main() {
 	}
 
 	// Parse routes from API routes file
-	fmt.Println("Parsing routes...")
+	log.Println("Parsing routes...")
 	routes := parseRoutesFromFile("routes/api.go")
 
 	// Parse models from model files
-	fmt.Println("Parsing models...")
+	log.Println("Parsing models...")
 	models := parseModelsFromDirectory("app/models")
 
 	// Parse request schemas
-	fmt.Println("Parsing request schemas...")
+	log.Println("Parsing request schemas...")
 	requests := parseRequestSchemas("app/http/requests")
 
 	// Parse response schemas
-	fmt.Println("Parsing response schemas...")
+	log.Println("Parsing response schemas...")
 	responses := parseResponseSchemas("app/http/responses")
 
 	// Build OpenAPI paths from routes
-	fmt.Println("Building OpenAPI paths...")
+	log.Println("Building OpenAPI paths...")
 	buildPaths(openAPI, routes)
 
 	// Ensure all used tags are present in openAPI.Tags
@@ -730,7 +732,7 @@ func main() {
 	}
 
 	// Add schemas to components
-	fmt.Println("Adding schemas...")
+	log.Println("Adding schemas...")
 	addSchemas(openAPI, models, requests, responses)
 
 	// Add security schemes
@@ -742,9 +744,9 @@ func main() {
 	// Generate JSON file
 	generateJSON(openAPI, "docs/openapi.json")
 
-	fmt.Println("OpenAPI 3.0 specification generated successfully!")
-	fmt.Println("- YAML: docs/openapi.yaml")
-	fmt.Println("- JSON: docs/openapi.json")
+	log.Println("OpenAPI 3.0 specification generated successfully!")
+	log.Printf("- YAML: docs/openapi.yaml\n")
+	log.Printf("- JSON: docs/openapi.json\n")
 }
 
 func parseRoutesFromFile(filename string) []RouteInfo {
@@ -753,7 +755,7 @@ func parseRoutesFromFile(filename string) []RouteInfo {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
-		fmt.Printf("Error parsing routes file: %v\n", err)
+		log.Printf("Error parsing routes file: %v\n", err)
 		return routes
 	}
 
@@ -885,11 +887,69 @@ func extractRouteFromCall(call *ast.CallExpr, fset *token.FileSet) RouteInfo {
 }
 
 func extractDescriptionFromComments(node ast.Node, fset *token.FileSet) string {
-	// Look for comments in the AST
-	if node.Pos() > 0 {
-		// This is a simplified approach - in practice you'd need more sophisticated comment parsing
+	// Production-grade comment parsing for OpenAPI documentation
+
+	// Get the position of the node
+	pos := fset.Position(node.Pos())
+
+	// Read the source file to extract comments
+	sourceFile, err := ioutil.ReadFile(pos.Filename)
+	if err != nil {
 		return "API endpoint"
 	}
+
+	lines := strings.Split(string(sourceFile), "\n")
+	if pos.Line <= 0 || pos.Line > len(lines) {
+		return "API endpoint"
+	}
+
+	// Look for comments above the function
+	var comments []string
+	for i := pos.Line - 2; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(line, "//") {
+			comment := strings.TrimPrefix(line, "//")
+			comment = strings.TrimSpace(comment)
+
+			// Skip common non-documentation comments
+			if strings.HasPrefix(comment, "@") ||
+				strings.HasPrefix(comment, "TODO") ||
+				strings.HasPrefix(comment, "FIXME") ||
+				strings.HasPrefix(comment, "nolint") {
+				continue
+			}
+
+			// Check for OpenAPI/Swagger annotations
+			if strings.HasPrefix(comment, "Summary:") {
+				return strings.TrimSpace(strings.TrimPrefix(comment, "Summary:"))
+			}
+			if strings.HasPrefix(comment, "Description:") {
+				return strings.TrimSpace(strings.TrimPrefix(comment, "Description:"))
+			}
+
+			// Collect regular comments
+			if comment != "" {
+				comments = append([]string{comment}, comments...)
+			}
+		} else if line != "" {
+			// Stop at non-comment, non-empty line
+			break
+		}
+	}
+
+	// Join comments into description
+	if len(comments) > 0 {
+		description := strings.Join(comments, " ")
+		// Clean up the description
+		description = strings.ReplaceAll(description, "\n", " ")
+		description = strings.ReplaceAll(description, "\t", " ")
+		// Remove multiple spaces
+		for strings.Contains(description, "  ") {
+			description = strings.ReplaceAll(description, "  ", " ")
+		}
+		return strings.TrimSpace(description)
+	}
+
 	return "API endpoint"
 }
 
@@ -1029,7 +1089,7 @@ func parseModelsFromDirectory(dir string) map[string]StructInfo {
 	})
 
 	if err != nil {
-		fmt.Printf("Error walking models directory: %v\n", err)
+		log.Printf("Error walking models directory: %v\n", err)
 	}
 
 	return models
@@ -1041,7 +1101,7 @@ func parseModelsFromFile(filename string) map[string]StructInfo {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
-		fmt.Printf("Error parsing model file %s: %v\n", filename, err)
+		log.Printf("Error parsing model file %s: %v\n", filename, err)
 		return models
 	}
 
@@ -1273,7 +1333,7 @@ func parseRequestSchemas(dir string) map[string]Schema {
 	})
 
 	if err != nil {
-		fmt.Printf("Error walking requests directory: %v\n", err)
+		log.Printf("Error walking requests directory: %v\n", err)
 	}
 
 	return schemas
@@ -1285,7 +1345,7 @@ func parseRequestSchemasFromFile(filename string) map[string]Schema {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
-		fmt.Printf("Error parsing request file %s: %v\n", filename, err)
+		log.Printf("Error parsing request file %s: %v\n", filename, err)
 		return schemas
 	}
 
@@ -1322,7 +1382,7 @@ func parseResponseSchemas(dir string) map[string]Schema {
 	})
 
 	if err != nil {
-		fmt.Printf("Error walking responses directory: %v\n", err)
+		log.Printf("Error walking responses directory: %v\n", err)
 	}
 
 	return schemas
@@ -1334,7 +1394,7 @@ func parseResponseSchemasFromFile(filename string) map[string]Schema {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
-		fmt.Printf("Error parsing response file %s: %v\n", filename, err)
+		log.Printf("Error parsing response file %s: %v\n", filename, err)
 		return schemas
 	}
 
@@ -1782,7 +1842,7 @@ func generateOperationID(method, path string) string {
 func generateYAML(openAPI *OpenAPI, filename string) {
 	data, err := yaml.Marshal(openAPI)
 	if err != nil {
-		fmt.Printf("Error marshaling YAML: %v\n", err)
+		log.Printf("Error marshaling YAML: %v\n", err)
 		return
 	}
 
@@ -1792,7 +1852,7 @@ func generateYAML(openAPI *OpenAPI, filename string) {
 
 	err = os.WriteFile(filename, []byte(yamlString), 0644)
 	if err != nil {
-		fmt.Printf("Error writing YAML file: %v\n", err)
+		log.Printf("Error writing YAML file: %v\n", err)
 		return
 	}
 }
@@ -1815,13 +1875,13 @@ func fixYAMLOperatorQuoting(yamlContent string) string {
 func generateJSON(openAPI *OpenAPI, filename string) {
 	data, err := json.MarshalIndent(openAPI, "", "  ")
 	if err != nil {
-		fmt.Printf("Error marshaling JSON: %v\n", err)
+		log.Printf("Error marshaling JSON: %v\n", err)
 		return
 	}
 
 	err = os.WriteFile(filename, data, 0644)
 	if err != nil {
-		fmt.Printf("Error writing JSON file: %v\n", err)
+		log.Printf("Error writing JSON file: %v\n", err)
 		return
 	}
 }

@@ -25,13 +25,31 @@ type AuthService struct {
 }
 
 // NewAuthService creates a new authentication service
-func NewAuthService() *AuthService {
+func NewAuthService() (*AuthService, error) {
+	jwtService, err := NewJWTService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize JWT service: %w", err)
+	}
+
 	return &AuthService{
-		jwtService:      NewJWTService(),
+		jwtService:      jwtService,
 		totpService:     NewTOTPService(),
 		webauthnService: NewWebAuthnService(),
 		emailService:    NewEmailService(),
+	}, nil
+}
+
+// MustNewAuthService creates a new authentication service and panics on error (for backward compatibility)
+// Deprecated: Use NewAuthService() instead for proper error handling
+func MustNewAuthService() *AuthService {
+	service, err := NewAuthService()
+	if err != nil {
+		facades.Log().Error("Critical AuthService initialization failure", map[string]interface{}{
+			"error": err.Error(),
+		})
+		panic(fmt.Sprintf("AuthService initialization failed: %v", err))
 	}
+	return service
 }
 
 // Login handles user authentication
@@ -208,7 +226,7 @@ func (s *AuthService) EnableMfa(ctx http.Context, user *models.User, req *reques
 	// Generate backup codes
 	backupCodes := s.totpService.GenerateBackupCodes(10)
 
-	// Store backup codes (simplified - in production you'd store them securely)
+	// Store backup codes (simplified - TODO: In production you'd store them securely)
 	backupCodesJSON, _ := json.Marshal(backupCodes)
 	user.MfaBackupCodes = string(backupCodesJSON)
 
@@ -294,7 +312,7 @@ func (s *AuthService) WebauthnRegister(ctx http.Context, user *models.User, req 
 		Response: attestationResponse["response"].(map[string]interface{}),
 	}
 
-	return s.webauthnService.FinishRegistration(user.ID, credentialCreation)
+	return s.webauthnService.CompleteRegistration(user.ID, credentialCreation)
 }
 
 // WebauthnAuthenticate authenticates using WebAuthn
@@ -310,8 +328,8 @@ func (s *AuthService) WebauthnAuthenticate(ctx http.Context, user *models.User, 
 		Response: assertionResponse["response"].(map[string]interface{}),
 	}
 
-	success, err := s.webauthnService.FinishLogin(user.ID, assertion)
-	return err == nil && success
+	result, err := s.webauthnService.CompleteLogin(assertion)
+	return err == nil && result != nil && result.Success
 }
 
 // ChangePassword changes user password

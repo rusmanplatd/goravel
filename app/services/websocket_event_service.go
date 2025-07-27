@@ -374,12 +374,12 @@ func (s *WebSocketEventService) incrementFailedEvents() {
 }
 
 // GetStats returns event statistics
-func (s *WebSocketEventService) GetStats() EventStats {
+func (s *WebSocketEventService) GetStats() *EventStats {
 	s.stats.mu.RLock()
 	defer s.stats.mu.RUnlock()
 
 	// Create a copy to avoid race conditions
-	stats := EventStats{
+	stats := &EventStats{
 		TotalEvents:     s.stats.TotalEvents,
 		EventsByType:    make(map[string]int64),
 		EventsByChannel: make(map[string]int64),

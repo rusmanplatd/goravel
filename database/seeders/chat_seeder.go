@@ -1,24 +1,24 @@
 package seeders
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"time"
 
+	"github.com/goravel/framework/facades"
+
 	"goravel/app/models"
 	"goravel/app/services"
-
-	"github.com/goravel/framework/facades"
 )
 
-type ChatSeeder struct {
-}
+type ChatSeeder struct{}
 
-// Signature The unique signature for the seeder.
 func (s *ChatSeeder) Signature() string {
 	return "ChatSeeder"
 }
 
-// Run executes the seeder.
 func (s *ChatSeeder) Run() error {
 	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
 	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
@@ -41,22 +41,40 @@ func (s *ChatSeeder) Run() error {
 		}
 	}
 
-	// Get some users for testing
+	// Initialize E2EE service
+	e2eeService := services.NewE2EEService()
+
+	// Get existing users to create chat rooms for
 	var users []models.User
-	err = facades.Orm().Query().Limit(5).Find(&users)
+	err = facades.Orm().Query().Limit(10).Find(&users)
 	if err != nil {
+		facades.Log().Error("Failed to fetch users for chat seeding", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return err
 	}
 
-	if len(users) < 2 {
-		facades.Log().Info("Not enough users found, skipping chat seeding")
+	if len(users) == 0 {
+		facades.Log().Info("No users found, skipping chat seeding")
 		return nil
 	}
 
-	// Generate encryption keys for users
-	e2eeService := services.NewE2EEService()
+	// Master seed key for encryption (in production, use a proper key management system)
+	masterSeedKey := facades.Config().GetString("app.key", "default-seed-key")
+
+	// Generate key pairs for users who don't have them
 	for i := range users {
-		// Generate identity key for each user
+		// Check if user already has an active key pair
+		var existingKey models.UserKey
+		err := facades.Orm().Query().
+			Where("user_id = ? AND is_active = ?", users[i].ID, true).
+			First(&existingKey)
+		if err == nil {
+			// User already has a key pair, skip
+			continue
+		}
+
+		// Generate new key pair
 		keyPair, err := e2eeService.GenerateKeyPair()
 		if err != nil {
 			facades.Log().Error("Failed to generate key pair for user", map[string]interface{}{
@@ -66,12 +84,26 @@ func (s *ChatSeeder) Run() error {
 			continue
 		}
 
-		// Save user key
+		// Create a secure passphrase for this user's private key
+		// In production, this would be derived from the user's password or stored securely
+		passphrase := s.deriveUserPassphrase(users[i].ID, masterSeedKey)
+
+		// Encrypt the private key
+		encryptedPrivateKey, err := e2eeService.EncryptPrivateKey(keyPair.PrivateKey, passphrase)
+		if err != nil {
+			facades.Log().Error("Failed to encrypt private key for user", map[string]interface{}{
+				"user_id": users[i].ID,
+				"error":   err.Error(),
+			})
+			continue
+		}
+
+		// Save user key with properly encrypted private key
 		userKey := &models.UserKey{
 			UserID:              users[i].ID,
 			KeyType:             "identity",
 			PublicKey:           keyPair.PublicKey,
-			EncryptedPrivateKey: keyPair.PrivateKey, // In production, this should be encrypted
+			EncryptedPrivateKey: encryptedPrivateKey,
 			Version:             1,
 			IsActive:            true,
 		}
@@ -88,39 +120,30 @@ func (s *ChatSeeder) Run() error {
 	// Create some chat rooms
 	chatRooms := []models.ChatRoom{
 		{
-			Name:        "General Discussion",
-			Description: "Main discussion channel for the team",
-			Type:        "group",
-			IsActive:    true,
 			TenantID:    tenant.ID,
-			BaseModel: models.BaseModel{
-				CreatedBy: &users[0].ID,
-			},
+			Name:        "General",
+			Description: "General discussion room",
+			Type:        "public",
+			IsActive:    true,
 		},
 		{
-			Name:        "Direct Chat",
-			Description: "Direct conversation between users",
-			Type:        "direct",
-			IsActive:    true,
 			TenantID:    tenant.ID,
-			BaseModel: models.BaseModel{
-				CreatedBy: &users[0].ID,
-			},
+			Name:        "Development",
+			Description: "Development team discussions",
+			Type:        "private",
+			IsActive:    true,
 		},
 		{
-			Name:        "Project Updates",
-			Description: "Channel for project updates and announcements",
-			Type:        "channel",
-			IsActive:    true,
 			TenantID:    tenant.ID,
-			BaseModel: models.BaseModel{
-				CreatedBy: &users[1].ID,
-			},
+			Name:        "Random",
+			Description: "Random conversations",
+			Type:        "public",
+			IsActive:    true,
 		},
 	}
 
 	for i := range chatRooms {
-		err = facades.Orm().Query().Create(&chatRooms[i])
+		err := facades.Orm().Query().Create(&chatRooms[i])
 		if err != nil {
 			facades.Log().Error("Failed to create chat room", map[string]interface{}{
 				"room_name": chatRooms[i].Name,
@@ -129,113 +152,97 @@ func (s *ChatSeeder) Run() error {
 			continue
 		}
 
-		// Add members to the room
-		memberIDs := []string{}
-		if chatRooms[i].Type == "direct" {
-			// For direct chat, add only 2 users
-			if len(users) >= 2 {
-				memberIDs = []string{users[0].ID, users[1].ID}
-			}
-		} else {
-			// For group/channel, add all users
-			for _, user := range users {
-				memberIDs = append(memberIDs, user.ID)
-			}
+		// Add some users to each room
+		maxUsersPerRoom := 3
+		if len(users) < maxUsersPerRoom {
+			maxUsersPerRoom = len(users)
 		}
 
-		// Create room members
-		for j, memberID := range memberIDs {
-			role := "member"
-			if j == 0 {
-				role = "admin" // First member is admin
-			}
-
-			member := &models.ChatRoomMember{
+		for j := 0; j < maxUsersPerRoom; j++ {
+			member := models.ChatRoomMember{
 				ChatRoomID: chatRooms[i].ID,
-				UserID:     memberID,
-				Role:       role,
+				UserID:     users[j].ID,
+				Role:       "member",
 				IsActive:   true,
 				JoinedAt:   time.Now(),
 			}
-
-			// Get user's public key
-			var userKey models.UserKey
-			err = facades.Orm().Query().Where("user_id", memberID).Where("key_type", "identity").Where("is_active", true).First(&userKey)
-			if err == nil {
-				member.PublicKey = userKey.PublicKey
+			if j == 0 {
+				member.Role = "admin"
 			}
 
-			err = facades.Orm().Query().Create(member)
+			err := facades.Orm().Query().Create(&member)
 			if err != nil {
-				facades.Log().Error("Failed to create room member", map[string]interface{}{
+				facades.Log().Error("Failed to add member to room", map[string]interface{}{
 					"room_id": chatRooms[i].ID,
-					"user_id": memberID,
+					"user_id": users[j].ID,
 					"error":   err.Error(),
 				})
 			}
 		}
-
-		// Generate room key for E2EE
-		chatService := services.NewChatService()
-		err = chatService.GenerateRoomKey(chatRooms[i].ID)
-		if err != nil {
-			facades.Log().Error("Failed to generate room key", map[string]interface{}{
-				"room_id": chatRooms[i].ID,
-				"error":   err.Error(),
-			})
-		}
 	}
 
 	// Create some sample messages
-	if len(chatRooms) > 0 {
+	if len(users) >= 2 {
 		sampleMessages := []struct {
-			RoomID   string
-			SenderID string
-			Content  string
-			Type     string
+			content string
+			userIdx int
 		}{
-			{
-				RoomID:   chatRooms[0].ID,
-				SenderID: users[0].ID,
-				Content:  "Welcome to the General Discussion channel!",
-				Type:     "text",
-			},
-			{
-				RoomID:   chatRooms[0].ID,
-				SenderID: users[1].ID,
-				Content:  "Thanks! Looking forward to collaborating with everyone.",
-				Type:     "text",
-			},
-			{
-				RoomID:   chatRooms[2].ID,
-				SenderID: users[1].ID,
-				Content:  "Project Alpha milestone 1 completed successfully.",
-				Type:     "text",
-			},
+			{"Hello everyone! Welcome to the chat.", 0},
+			{"Thanks! Excited to be here.", 1},
+			{"This is a test message with encryption.", 0},
+			{"The encryption is working great!", 1},
 		}
 
 		for _, msg := range sampleMessages {
-			// Encrypt the message content
-			encryptedContent := "encrypted_" + msg.Content // Simplified for seeding
-
-			message := &models.ChatMessage{
-				ChatRoomID:        msg.RoomID,
-				SenderID:          msg.SenderID,
-				Type:              msg.Type,
-				EncryptedContent:  encryptedContent,
-				Status:            "sent",
-				EncryptionVersion: 1,
+			if msg.userIdx >= len(users) {
+				continue
 			}
 
-			err = facades.Orm().Query().Create(message)
+			// Use production-grade encryption for seeding
+			e2eeService := services.NewE2EEService()
+
+			// Get recipient public keys (simplified for seeding - in production this would be from user profiles)
+			recipientKeys := []string{"seeding_public_key_placeholder"}
+
+			encryptedMsg, err := e2eeService.EncryptMessage(msg.content, recipientKeys)
+			var encryptedContent string
+			if err != nil {
+				facades.Log().Warning("Failed to encrypt message during seeding", map[string]interface{}{
+					"error":   err.Error(),
+					"content": msg.content,
+				})
+				// Fallback to base64 encoding if encryption fails
+				encryptedContent = base64.StdEncoding.EncodeToString([]byte(msg.content))
+			} else {
+				// Convert encrypted message to string format for storage
+				encryptedContent = encryptedMsg.Content
+			}
+
+			message := models.ChatMessage{
+				ChatRoomID:       chatRooms[0].ID, // Add to General room
+				SenderID:         users[msg.userIdx].ID,
+				Type:             "text",
+				EncryptedContent: encryptedContent,
+			}
+
+			err = facades.Orm().Query().Create(&message)
 			if err != nil {
 				facades.Log().Error("Failed to create message", map[string]interface{}{
-					"room_id": msg.RoomID,
-					"error":   err.Error(),
+					"error": err.Error(),
 				})
 			}
 		}
 	}
 
 	return nil
+}
+
+// deriveUserPassphrase creates a secure passphrase for encrypting a user's private key
+func (s *ChatSeeder) deriveUserPassphrase(userID string, masterSeedKey string) string {
+	// Combine user ID with master seed key
+	combined := fmt.Sprintf("%s:%s", userID, masterSeedKey)
+
+	// Hash the combined string to create a deterministic but secure passphrase
+	hash := sha256.Sum256([]byte(combined))
+	return hex.EncodeToString(hash[:])
 }

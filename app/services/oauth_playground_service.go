@@ -76,8 +76,16 @@ type PlaygroundSession struct {
 }
 
 func NewOAuthPlaygroundService() *OAuthPlaygroundService {
+	oauthService, err := NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service for playground", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthPlaygroundService{
-		oauthService: NewOAuthService(),
+		oauthService: oauthService,
 	}
 }
 

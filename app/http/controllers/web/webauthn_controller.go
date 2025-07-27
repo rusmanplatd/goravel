@@ -15,10 +15,26 @@ type WebAuthnController struct {
 }
 
 func NewWebAuthnController() *WebAuthnController {
+	authService, err := services.NewAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create auth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	multiAccountService, err := services.NewMultiAccountService()
+	if err != nil {
+		facades.Log().Error("Failed to create multi-account service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &WebAuthnController{
-		authService:         services.NewAuthService(),
+		authService:         authService,
 		webauthnService:     services.NewWebAuthnService(),
-		multiAccountService: services.NewMultiAccountService(),
+		multiAccountService: multiAccountService,
 	}
 }
 
@@ -131,7 +147,7 @@ func (c *WebAuthnController) FinishRegistration(ctx http.Context) http.Response 
 	}
 
 	// Finish registration
-	credential, err := c.webauthnService.FinishRegistration(user.ID, credentialCreation)
+	credential, err := c.webauthnService.CompleteRegistration(user.ID, credentialCreation)
 	if err != nil {
 		return ctx.Response().Json(400, map[string]interface{}{
 			"error": err.Error(),
@@ -201,7 +217,7 @@ func (c *WebAuthnController) FinishAuthentication(ctx http.Context) http.Respons
 	}
 
 	// Finish login
-	_, err = c.webauthnService.FinishLogin(user.ID, assertion)
+	_, err = c.webauthnService.CompleteLogin(assertion)
 	if err != nil {
 		return ctx.Response().Json(400, map[string]interface{}{
 			"success": false,

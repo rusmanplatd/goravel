@@ -18,9 +18,25 @@ type JWTService struct {
 	publicKey  *rsa.PublicKey
 }
 
-func NewJWTService() *JWTService {
+func NewJWTService() (*JWTService, error) {
 	service := &JWTService{}
-	service.initializeKeys()
+	err := service.initializeKeys()
+	if err != nil {
+		return nil, err
+	}
+	return service, nil
+}
+
+// MustNewJWTService creates a new JWT service and panics on error (for backward compatibility)
+// Deprecated: Use NewJWTService() instead for proper error handling
+func MustNewJWTService() *JWTService {
+	service, err := NewJWTService()
+	if err != nil {
+		facades.Log().Error("Critical JWT service initialization failure", map[string]interface{}{
+			"error": err.Error(),
+		})
+		panic(fmt.Sprintf("JWT service initialization failed: %v", err))
+	}
 	return service
 }
 
@@ -42,10 +58,10 @@ type TokenBlacklistEntry struct {
 }
 
 // initializeKeys initializes RSA key pair for JWT signing
-func (s *JWTService) initializeKeys() {
+func (s *JWTService) initializeKeys() error {
 	// Try to load existing keys from config/cache
 	if s.loadExistingKeys() {
-		return
+		return nil
 	}
 
 	// Generate new RSA key pair
@@ -54,8 +70,8 @@ func (s *JWTService) initializeKeys() {
 		facades.Log().Error("Failed to generate RSA key pair", map[string]interface{}{
 			"error": err.Error(),
 		})
-		// Fail gracefully without insecure fallbacks
-		panic("JWT service initialization failed: unable to generate secure RSA keys")
+		// Return error instead of panicking
+		return fmt.Errorf("JWT service initialization failed: unable to generate secure RSA keys: %w", err)
 	}
 
 	s.privateKey = privateKey
@@ -63,6 +79,8 @@ func (s *JWTService) initializeKeys() {
 
 	// Store keys for future use
 	s.storeKeys()
+
+	return nil
 }
 
 // loadExistingKeys attempts to load existing RSA keys

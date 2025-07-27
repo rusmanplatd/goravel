@@ -305,8 +305,8 @@ func init() {
 
 		// Security Settings
 		"security": map[string]interface{}{
-			// Require HTTPS for all OAuth endpoints (default: true in production)
-			"require_https": config.Env("OAUTH_REQUIRE_HTTPS", true),
+			// Require HTTPS for all OAuth endpoints (enforced in production)
+			"require_https": config.Env("OAUTH_REQUIRE_HTTPS", config.Env("APP_ENV", "local") == "production"),
 
 			// Require PKCE for public clients (default: true) - Google-like enforcement
 			"require_pkce_for_public_clients": config.Env("OAUTH_REQUIRE_PKCE_FOR_PUBLIC_CLIENTS", true),

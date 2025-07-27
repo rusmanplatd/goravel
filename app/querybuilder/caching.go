@@ -4,6 +4,8 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -580,7 +582,7 @@ func (m *MemoryCacheBackend) Keys(pattern string) ([]string, error) {
 
 	keys := make([]string, 0)
 	for key := range m.data {
-		// Simple pattern matching - in production, use proper regex
+		// Simple pattern matching - TODO: In production, use proper regex
 		if strings.Contains(key, strings.Replace(pattern, "*", "", -1)) {
 			keys = append(keys, key)
 		}
@@ -615,98 +617,350 @@ func (m *MemoryCacheBackend) Close() error {
 
 // Get retrieves an entry from Redis cache
 func (r *RedisCacheBackend) Get(key string) (*CacheEntry, error) {
-	facades.Log().Warning("Redis cache backend not fully implemented")
-	return nil, nil
+	// Use Goravel's cache facade which supports Redis
+	prefixedKey := r.getPrefixedKey(key)
+
+	// Try to get from cache
+	var entry CacheEntry
+	err := facades.Cache().Get(prefixedKey, &entry)
+	if err != nil {
+		// Cache miss or error
+		return nil, nil
+	}
+
+	// Check if entry has expired
+	if !entry.ExpiresAt.IsZero() && time.Now().After(entry.ExpiresAt) {
+		// Entry expired, remove it and return nil
+		facades.Cache().Forget(prefixedKey)
+		return nil, nil
+	}
+
+	// Update access time for LRU/LFU strategies
+	entry.LastAccess = time.Now()
+	entry.AccessCount++
+
+	// Update the entry in cache with new access info
+	r.Set(key, &entry)
+
+	return &entry, nil
 }
 
 // Set stores an entry in Redis cache
 func (r *RedisCacheBackend) Set(key string, entry *CacheEntry) error {
-	facades.Log().Warning("Redis cache backend not fully implemented")
-	return nil
+	prefixedKey := r.getPrefixedKey(key)
+
+	// Calculate TTL
+	var ttl time.Duration
+	if !entry.ExpiresAt.IsZero() {
+		ttl = time.Until(entry.ExpiresAt)
+		if ttl <= 0 {
+			// Entry is already expired, don't store it
+			return nil
+		}
+	} else {
+		// Use default TTL from config
+		ttl = r.config.DefaultTTL
+		if ttl > 0 {
+			entry.ExpiresAt = time.Now().Add(ttl)
+		}
+	}
+
+	// Store in cache
+	if ttl > 0 {
+		err := facades.Cache().Put(prefixedKey, entry, ttl)
+		return err
+	} else {
+		// Store forever if no TTL
+		facades.Cache().Forever(prefixedKey, entry)
+		return nil
+	}
 }
 
 // Delete removes an entry from Redis cache
 func (r *RedisCacheBackend) Delete(key string) error {
-	facades.Log().Warning("Redis cache backend not fully implemented")
+	prefixedKey := r.getPrefixedKey(key)
+	facades.Cache().Forget(prefixedKey)
 	return nil
 }
 
 // Exists checks if a key exists in Redis cache
 func (r *RedisCacheBackend) Exists(key string) bool {
-	facades.Log().Warning("Redis cache backend not fully implemented")
-	return false
+	prefixedKey := r.getPrefixedKey(key)
+	return facades.Cache().Has(prefixedKey)
 }
 
 // Keys returns all keys matching a pattern from Redis
 func (r *RedisCacheBackend) Keys(pattern string) ([]string, error) {
-	facades.Log().Warning("Redis cache backend not fully implemented")
+	// This is a limitation of Goravel's cache facade - it doesn't expose key listing
+	// In a production Redis implementation, you would use Redis SCAN command
+	// For now, we'll return empty slice and log a warning
+	facades.Log().Warning("Redis key pattern matching not supported through cache facade", map[string]interface{}{
+		"pattern": pattern,
+		"note":    "Consider using direct Redis client for key pattern operations",
+	})
 	return make([]string, 0), nil
 }
 
 // Size returns the number of entries in Redis cache
 func (r *RedisCacheBackend) Size() int64 {
-	facades.Log().Warning("Redis cache backend not fully implemented")
+	// This is also a limitation of Goravel's cache facade
+	// TODO: In production, you would use Redis DBSIZE command
+	facades.Log().Warning("Redis cache size not available through cache facade")
 	return 0
 }
 
 // Clear removes all entries from Redis cache
 func (r *RedisCacheBackend) Clear() error {
-	facades.Log().Warning("Redis cache backend not fully implemented")
+	// Use Goravel's cache facade flush method
+	facades.Cache().Flush()
 	return nil
 }
 
 // Close closes the Redis cache backend
 func (r *RedisCacheBackend) Close() error {
+	// Goravel's cache facade handles connection management
 	return nil
 }
 
-// File backend methods (placeholder implementations)
+// getPrefixedKey returns the key with configured prefix
+func (r *RedisCacheBackend) getPrefixedKey(key string) string {
+	if r.config.KeyPrefix != "" {
+		return r.config.KeyPrefix + ":" + key
+	}
+	return key
+}
+
+// File backend methods
 
 // Get retrieves an entry from file cache
 func (f *FileCacheBackend) Get(key string) (*CacheEntry, error) {
-	facades.Log().Warning("File cache backend not fully implemented")
-	return nil, nil
+	filePath := f.getFilePath(key)
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, nil // Cache miss
+	}
+
+	// Read file content
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		facades.Log().Error("Failed to read cache file", map[string]interface{}{
+			"file":  filePath,
+			"error": err.Error(),
+		})
+		return nil, err
+	}
+
+	// Unmarshal JSON data
+	var entry CacheEntry
+	err = json.Unmarshal(data, &entry)
+	if err != nil {
+		facades.Log().Error("Failed to unmarshal cache entry", map[string]interface{}{
+			"file":  filePath,
+			"error": err.Error(),
+		})
+		return nil, err
+	}
+
+	// Check if entry has expired
+	if !entry.ExpiresAt.IsZero() && time.Now().After(entry.ExpiresAt) {
+		// Entry expired, remove file and return nil
+		os.Remove(filePath)
+		return nil, nil
+	}
+
+	// Update access time
+	entry.LastAccess = time.Now()
+	entry.AccessCount++
+
+	// Write back the updated entry
+	f.Set(key, &entry)
+
+	return &entry, nil
 }
 
 // Set stores an entry in file cache
 func (f *FileCacheBackend) Set(key string, entry *CacheEntry) error {
-	facades.Log().Warning("File cache backend not fully implemented")
+	filePath := f.getFilePath(key)
+
+	// Ensure directory exists
+	dir := filepath.Dir(filePath)
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		facades.Log().Error("Failed to create cache directory", map[string]interface{}{
+			"dir":   dir,
+			"error": err.Error(),
+		})
+		return err
+	}
+
+	// Set expiration if not set and default TTL is configured
+	if entry.ExpiresAt.IsZero() && f.config.DefaultTTL > 0 {
+		entry.ExpiresAt = time.Now().Add(f.config.DefaultTTL)
+	}
+
+	// Marshal entry to JSON
+	data, err := json.Marshal(entry)
+	if err != nil {
+		facades.Log().Error("Failed to marshal cache entry", map[string]interface{}{
+			"key":   key,
+			"error": err.Error(),
+		})
+		return err
+	}
+
+	// Write to temporary file first, then rename for atomic operation
+	tempPath := filePath + ".tmp"
+	err = os.WriteFile(tempPath, data, 0644)
+	if err != nil {
+		facades.Log().Error("Failed to write cache file", map[string]interface{}{
+			"file":  tempPath,
+			"error": err.Error(),
+		})
+		return err
+	}
+
+	// Atomic rename
+	err = os.Rename(tempPath, filePath)
+	if err != nil {
+		os.Remove(tempPath) // Clean up temp file
+		facades.Log().Error("Failed to rename cache file", map[string]interface{}{
+			"from":  tempPath,
+			"to":    filePath,
+			"error": err.Error(),
+		})
+		return err
+	}
+
 	return nil
 }
 
 // Delete removes an entry from file cache
 func (f *FileCacheBackend) Delete(key string) error {
-	facades.Log().Warning("File cache backend not fully implemented")
+	filePath := f.getFilePath(key)
+	err := os.Remove(filePath)
+	if err != nil && !os.IsNotExist(err) {
+		facades.Log().Error("Failed to delete cache file", map[string]interface{}{
+			"file":  filePath,
+			"error": err.Error(),
+		})
+		return err
+	}
 	return nil
 }
 
 // Exists checks if a key exists in file cache
 func (f *FileCacheBackend) Exists(key string) bool {
-	facades.Log().Warning("File cache backend not fully implemented")
-	return false
+	filePath := f.getFilePath(key)
+	_, err := os.Stat(filePath)
+	return err == nil
 }
 
 // Keys returns all keys matching a pattern from file cache
 func (f *FileCacheBackend) Keys(pattern string) ([]string, error) {
-	facades.Log().Warning("File cache backend not fully implemented")
-	return make([]string, 0), nil
+	cacheDir := f.getCacheDir()
+	var keys []string
+
+	err := filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && strings.HasSuffix(path, ".cache") {
+			// Extract key from file path
+			relPath, err := filepath.Rel(cacheDir, path)
+			if err != nil {
+				return err
+			}
+
+			// Remove .cache extension and convert path separators to key format
+			key := strings.TrimSuffix(relPath, ".cache")
+			key = strings.ReplaceAll(key, string(os.PathSeparator), ":")
+
+			// Simple pattern matching (contains)
+			if pattern == "" || strings.Contains(key, strings.Replace(pattern, "*", "", -1)) {
+				keys = append(keys, key)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		facades.Log().Error("Failed to walk cache directory", map[string]interface{}{
+			"dir":   cacheDir,
+			"error": err.Error(),
+		})
+		return nil, err
+	}
+
+	return keys, nil
 }
 
 // Size returns the number of entries in file cache
 func (f *FileCacheBackend) Size() int64 {
-	facades.Log().Warning("File cache backend not fully implemented")
-	return 0
+	keys, err := f.Keys("")
+	if err != nil {
+		return 0
+	}
+	return int64(len(keys))
 }
 
 // Clear removes all entries from file cache
 func (f *FileCacheBackend) Clear() error {
-	facades.Log().Warning("File cache backend not fully implemented")
+	cacheDir := f.getCacheDir()
+
+	// Remove all .cache files
+	err := filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && strings.HasSuffix(path, ".cache") {
+			return os.Remove(path)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		facades.Log().Error("Failed to clear file cache", map[string]interface{}{
+			"dir":   cacheDir,
+			"error": err.Error(),
+		})
+		return err
+	}
+
 	return nil
 }
 
 // Close closes the file cache backend
 func (f *FileCacheBackend) Close() error {
+	// File cache doesn't need explicit closing
 	return nil
+}
+
+// getFilePath returns the file path for a cache key
+func (f *FileCacheBackend) getFilePath(key string) string {
+	// Hash the key to create a safe filename
+	hasher := md5.New()
+	hasher.Write([]byte(key))
+	hash := fmt.Sprintf("%x", hasher.Sum(nil))
+
+	// Create subdirectories based on first two characters of hash for better distribution
+	subDir := hash[:2]
+	fileName := hash + ".cache"
+
+	return filepath.Join(f.getCacheDir(), subDir, fileName)
+}
+
+// getCacheDir returns the cache directory path
+func (f *FileCacheBackend) getCacheDir() string {
+	baseDir := "storage/cache/querybuilder"
+	if f.config.KeyPrefix != "" {
+		baseDir = filepath.Join(baseDir, f.config.KeyPrefix)
+	}
+	return baseDir
 }
 
 // Constructor functions

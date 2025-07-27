@@ -75,8 +75,16 @@ type TokenBindingValidationResult struct {
 }
 
 func NewOAuthTokenBindingService() *OAuthTokenBindingService {
+	oauthService, err := NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service for token binding", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthTokenBindingService{
-		oauthService: NewOAuthService(),
+		oauthService: oauthService,
 	}
 }
 
@@ -402,7 +410,7 @@ func (s *OAuthTokenBindingService) validateMTLSBinding(boundToken *BoundToken, b
 }
 
 func (s *OAuthTokenBindingService) validateDPoPBinding(boundToken *BoundToken, bindingInfo *TokenBindingInfo, result *TokenBindingValidationResult) error {
-	// DPoP validation would be more complex in production
+	// DPoP validation would be more complex TODO: In production
 	if boundToken.TokenBindingKeyHash != bindingInfo.TokenBindingKeyHash {
 		result.ValidationErrors = append(result.ValidationErrors, "DPoP key thumbprint mismatch")
 		return fmt.Errorf("DPoP key thumbprint mismatch")
@@ -434,7 +442,7 @@ func (s *OAuthTokenBindingService) performSecurityChecks(boundToken *BoundToken,
 }
 
 func (s *OAuthTokenBindingService) storeBoundToken(boundToken *BoundToken) error {
-	// In production, this would store in database
+	// TODO: In production, this would store in database
 	// For now, use cache with TTL
 	key := fmt.Sprintf("bound_token_%s", boundToken.TokenID)
 	ttl := time.Until(boundToken.ExpiresAt)
@@ -515,7 +523,7 @@ func (s *OAuthTokenBindingService) GetTokenBindingCapabilities() map[string]inte
 
 // CleanupExpiredBoundTokens removes expired bound tokens
 func (s *OAuthTokenBindingService) CleanupExpiredBoundTokens() error {
-	// In production, this would clean up database records
+	// TODO: In production, this would clean up database records
 	// For cache-based storage, expired entries are automatically cleaned up
 	facades.Log().Info("Token binding cleanup completed")
 	return nil

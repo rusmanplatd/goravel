@@ -550,15 +550,21 @@
             modal.show();
 
             try {
-                // Simulate loading backup codes
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Fetch real backup codes from server
+                const response = await fetch('/api/v1/mfa/backup-codes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
 
-                // Mock backup codes for demonstration
-                backupCodes = [
-                    'ABCD-EFGH', 'IJKL-MNOP', 'QRST-UVWX', 'YZAB-CDEF',
-                    'GHIJ-KLMN', 'OPQR-STUV', 'WXYZ-ABCD', 'EFGH-IJKL',
-                    'MNOP-QRST', 'UVWX-YZAB'
-                ];
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                backupCodes = data.backup_codes || [];
 
                 displayBackupCodes();
             } catch (error) {
@@ -663,15 +669,21 @@
             try {
                 showAlert('🔄 Generating new backup codes...', 'info');
                 
-                // Simulate API call
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                // Generate new mock codes
-                backupCodes = [
-                    'WXYZ-ABCD', 'EFGH-IJKL', 'MNOP-QRST', 'UVWX-YZAB',
-                    'CDEF-GHIJ', 'KLMN-OPQR', 'STUV-WXYZ', 'ABCD-EFGH',
-                    'IJKL-MNOP', 'QRST-UVWX'
-                ];
+                // Generate new backup codes via API
+                const response = await fetch('/api/v1/mfa/backup-codes/regenerate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                backupCodes = data.backup_codes || [];
                 
                 displayBackupCodes();
                 document.getElementById('backup-codes-count').textContent = backupCodes.length;

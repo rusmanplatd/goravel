@@ -503,8 +503,8 @@ func (cc *ChatController) GenerateKeyPair(ctx http.Context) http.Response {
 		})
 	}
 
-	// Generate a passphrase for encrypting the private key (in production, this could be derived from user password)
-	passphrase := user.ID + "_key_passphrase" // Simple approach - in production use proper key derivation
+	// Generate a passphrase for encrypting the private key (TODO: In production, this could be derived from user password)
+	passphrase := user.ID + "_key_passphrase" // Simple approach - TODO: In production use proper key derivation
 
 	// Encrypt the private key before storage
 	e2eeService := services.NewE2EEService()

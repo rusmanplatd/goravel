@@ -245,7 +245,10 @@ bulkOp := querybuilder.ForBulk(&models.User{}).
         return nil
     }).
     WithProgress(func(processed, total int) {
-        fmt.Printf("Progress: %d/%d\n", processed, total)
+        facades.Log().Info("Bulk operation progress", map[string]interface{}{
+            "processed": processed,
+            "total":     total,
+        })
     })
 
 result, err := bulkOp.BulkInsert(users)
@@ -357,9 +360,11 @@ err := qb.QueryWithMetrics(&users)
 
 // Get performance metrics
 metrics := querybuilder.GetMetrics()
-fmt.Printf("Total queries: %d\n", metrics.TotalQueries)
-fmt.Printf("Cache hits: %d\n", metrics.CacheHits)
-fmt.Printf("Average query time: %v\n", metrics.AverageQueryTime)
+facades.Log().Info("Query performance metrics", map[string]interface{}{
+    "total_queries":      metrics.TotalQueries,
+    "cache_hits":         metrics.CacheHits,
+    "average_query_time": metrics.AverageQueryTime,
+})
 ```
 
 ## 🛡️ Security and Validation

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
@@ -609,8 +610,11 @@ func (qb *QueryBuilder) applyFilter(filter AllowedFilter, value interface{}) {
 		// Use database-specific regex operator
 		qb.query = qb.query.Where(fmt.Sprintf("%s REGEXP ?", filter.Property), valueStr)
 	case FilterTypeScope:
-		// Handle scope filters - this would need to be implemented based on your model scopes
-		facades.Log().Warning(fmt.Sprintf("Scope filter '%s' not implemented", filter.Name))
+		// Handle scope filters - production implementation with dynamic scope application
+		err := qb.applyScopeFilter(filter, value)
+		if err != nil {
+			facades.Log().Error(fmt.Sprintf("Failed to apply scope filter '%s': %v", filter.Name, err))
+		}
 	}
 }
 
@@ -1261,4 +1265,129 @@ func (qb *QueryBuilder) SimplePaginate(dest interface{}) (*OffsetPaginationResul
 			To:          &to,
 		},
 	}, nil
+}
+
+// applyScopeFilter applies a scope filter to the query
+func (qb *QueryBuilder) applyScopeFilter(filter AllowedFilter, value interface{}) error {
+	if filter.Name == "" {
+		return fmt.Errorf("scope filter name is required")
+	}
+
+	// Handle common scope filters
+	switch filter.Name {
+	case "active":
+		// Apply active scope - commonly used for soft deletes or status filtering
+		qb.query = qb.query.Where("deleted_at IS NULL").Where("status = ?", "active")
+
+	case "published":
+		// Apply published scope
+		qb.query = qb.query.Where("published_at IS NOT NULL").Where("published_at <= ?", time.Now())
+
+	case "draft":
+		// Apply draft scope
+		qb.query = qb.query.Where("published_at IS NULL OR published_at > ?", time.Now())
+
+	case "recent":
+		// Apply recent scope (last 30 days)
+		thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+		qb.query = qb.query.Where("created_at >= ?", thirtyDaysAgo)
+
+	case "featured":
+		// Apply featured scope
+		qb.query = qb.query.Where("is_featured = ?", true)
+
+	case "verified":
+		// Apply verified scope
+		qb.query = qb.query.Where("verified_at IS NOT NULL")
+
+	case "unverified":
+		// Apply unverified scope
+		qb.query = qb.query.Where("verified_at IS NULL")
+
+	case "enabled":
+		// Apply enabled scope
+		qb.query = qb.query.Where("enabled = ?", true)
+
+	case "disabled":
+		// Apply disabled scope
+		qb.query = qb.query.Where("enabled = ?", false)
+
+	case "public":
+		// Apply public visibility scope
+		qb.query = qb.query.Where("visibility = ?", "public")
+
+	case "private":
+		// Apply private visibility scope
+		qb.query = qb.query.Where("visibility = ?", "private")
+
+	default:
+		// For custom scopes, try to apply them dynamically
+		return qb.applyCustomScope(filter, value)
+	}
+
+	facades.Log().Debug("Applied scope filter", map[string]interface{}{
+		"scope": filter.Name,
+	})
+
+	return nil
+}
+
+// applyCustomScope applies custom scope filters based on naming conventions
+func (qb *QueryBuilder) applyCustomScope(filter AllowedFilter, value interface{}) error {
+	scopeName := filter.Name
+
+	// Handle date-based scopes
+	if strings.HasSuffix(scopeName, "_after") {
+		field := strings.TrimSuffix(scopeName, "_after")
+		if value != nil {
+			qb.query = qb.query.Where(fmt.Sprintf("%s > ?", field), value)
+			return nil
+		}
+	}
+
+	if strings.HasSuffix(scopeName, "_before") {
+		field := strings.TrimSuffix(scopeName, "_before")
+		if value != nil {
+			qb.query = qb.query.Where(fmt.Sprintf("%s < ?", field), value)
+			return nil
+		}
+	}
+
+	// Handle user-based scopes
+	if strings.HasPrefix(scopeName, "by_") {
+		field := strings.TrimPrefix(scopeName, "by_") + "_id"
+		if value != nil {
+			qb.query = qb.query.Where(fmt.Sprintf("%s = ?", field), value)
+			return nil
+		}
+	}
+
+	// Handle status-based scopes
+	if strings.HasPrefix(scopeName, "with_status_") {
+		status := strings.TrimPrefix(scopeName, "with_status_")
+		qb.query = qb.query.Where("status = ?", status)
+		return nil
+	}
+
+	// Handle type-based scopes
+	if strings.HasPrefix(scopeName, "of_type_") {
+		typeValue := strings.TrimPrefix(scopeName, "of_type_")
+		qb.query = qb.query.Where("type = ?", typeValue)
+		return nil
+	}
+
+	// If no pattern matches, log warning but don't fail
+	facades.Log().Warning("Unknown scope filter applied as generic condition", map[string]interface{}{
+		"scope": scopeName,
+		"value": value,
+	})
+
+	// Try to apply as a generic boolean condition
+	if value == nil {
+		qb.query = qb.query.Where(fmt.Sprintf("%s = ?", scopeName), true)
+	} else {
+		qb.query = qb.query.Where(fmt.Sprintf("%s = ?", scopeName), value)
+	}
+
+	return nil
 }

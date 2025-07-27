@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -298,8 +300,14 @@ func OptionalAuth() http.Middleware {
 
 // validateTokenWithClaims validates JWT token and returns user with claims
 func validateTokenWithClaims(token string) (*models.User, *services.JWTClaims, error) {
-	// Create JWT service instance
-	jwtService := services.NewJWTService()
+	// Create JWT service instance with proper error handling
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		facades.Log().Error("Failed to initialize JWT service in auth middleware", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, nil, fmt.Errorf("JWT service initialization failed: %w", err)
+	}
 
 	// Validate token using JWT service
 	claims, err := jwtService.ValidateToken(token)
@@ -400,10 +408,10 @@ func userHasAnyPermission(user *models.User, requiredPermissions []string) bool 
 		}
 	}
 
-	// Check permissions through roles (simplified - in production you'd load role permissions)
+	// Check permissions through roles (simplified - TODO: In production you'd load role permissions)
 	// For now, we'll assume roles have the permissions they need
 	for _, userRole := range user.Roles {
-		// This is a simplified check - in production you'd have a proper permission system
+		// This is a simplified check - TODO: In production you'd have a proper permission system
 		for _, requiredPermission := range requiredPermissions {
 			// Basic role-to-permission mapping
 			if (userRole.Name == "admin" && requiredPermission != "") ||
@@ -662,63 +670,396 @@ func isSuspiciousUserAgent(userAgent string) bool {
 }
 
 func isRapidRequests(ip string) bool {
-	// Check request rate from IP (simplified implementation)
-	// In production, use Redis or similar for distributed rate limiting
-	key := fmt.Sprintf("rate_check:%s", ip)
-	// This is a placeholder - implement proper rate checking
-	_ = key
+	// Production rate limiting using Redis
+	key := fmt.Sprintf("rate_limit:%s", ip)
+
+	// Get current count
+	current := facades.Cache().GetInt(key, 0)
+
+	// Allow up to 100 requests per minute
+	limit := 100
+	window := time.Minute
+
+	if current >= limit {
+		facades.Log().Warning("Rate limit exceeded", map[string]interface{}{
+			"ip":      ip,
+			"current": current,
+			"limit":   limit,
+		})
+		return true
+	}
+
+	// Increment counter with expiration
+	facades.Cache().Put(key, current+1, window)
 	return false
 }
 
 func isUnusualLocation(ip string) bool {
-	// Check if IP is from unusual geographical location
-	// In production, use GeoIP service
+	// Use production GeoIP service to check location
 	if strings.HasPrefix(ip, "127.") || strings.HasPrefix(ip, "::1") {
 		return false // Local requests are normal
 	}
-	return false // Placeholder
+
+	// Create GeoIP service instance
+	geoService := services.NewGeoIPService()
+	defer geoService.Close()
+
+	if !geoService.IsEnabled() {
+		return false // Skip check if GeoIP not available
+	}
+
+	location := geoService.GetLocation(ip)
+
+	// Check for suspicious indicators
+	if location.IsVPN || location.IsProxy || location.IsTor {
+		facades.Log().Warning("Suspicious location detected", map[string]interface{}{
+			"ip":       ip,
+			"country":  location.Country,
+			"is_vpn":   location.IsVPN,
+			"is_proxy": location.IsProxy,
+			"is_tor":   location.IsTor,
+		})
+		return true
+	}
+
+	// Check against blocked countries (configurable)
+	blockedCountries := facades.Config().GetString("security.blocked_countries", "")
+	if blockedCountries != "" {
+		blocked := strings.Split(blockedCountries, ",")
+		for _, country := range blocked {
+			if strings.EqualFold(strings.TrimSpace(country), location.CountryCode) {
+				facades.Log().Warning("Access from blocked country", map[string]interface{}{
+					"ip":      ip,
+					"country": location.Country,
+					"code":    location.CountryCode,
+				})
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func isIPAddressAnomaly(userID, currentIP string) bool {
-	// Check if this IP is unusual for this user
-	// In production, maintain user IP history
-	return false // Placeholder
+	// Check user's IP history for anomalies
+	key := fmt.Sprintf("user_ips:%s", userID)
+
+	// Get user's recent IPs from cache/database
+	var recentIPs []string
+	if ipsData := facades.Cache().GetString(key); ipsData != "" {
+		json.Unmarshal([]byte(ipsData), &recentIPs)
+	}
+
+	// Check if current IP is in recent history
+	for _, ip := range recentIPs {
+		if ip == currentIP {
+			return false // Known IP
+		}
+	}
+
+	// If we have a history and this is a new IP, it's potentially anomalous
+	if len(recentIPs) > 0 {
+		// Get GeoIP info for comparison
+		geoService := services.NewGeoIPService()
+		defer geoService.Close()
+
+		if geoService.IsEnabled() {
+			currentLocation := geoService.GetLocation(currentIP)
+
+			// Check if it's from a completely different country than recent activity
+			for _, recentIP := range recentIPs {
+				recentLocation := geoService.GetLocation(recentIP)
+				if currentLocation.CountryCode != recentLocation.CountryCode {
+					facades.Log().Warning("IP address anomaly detected", map[string]interface{}{
+						"user_id":         userID,
+						"current_ip":      currentIP,
+						"current_country": currentLocation.CountryCode,
+						"recent_country":  recentLocation.CountryCode,
+					})
+					return true
+				}
+			}
+		}
+	}
+
+	// Add current IP to history (keep last 10)
+	recentIPs = append([]string{currentIP}, recentIPs...)
+	if len(recentIPs) > 10 {
+		recentIPs = recentIPs[:10]
+	}
+
+	// Store updated history
+	if data, err := json.Marshal(recentIPs); err == nil {
+		facades.Cache().Put(key, string(data), 24*time.Hour)
+	}
+
+	return false
 }
 
 func isUserAgentAnomaly(userID, currentUA string) bool {
-	// Check if this user agent is unusual for this user
-	// In production, maintain user agent history
-	return false // Placeholder
+	// Check user's User Agent history for anomalies
+	key := fmt.Sprintf("user_agents:%s", userID)
+
+	// Get user's recent User Agents from cache
+	var recentUAs []string
+	if uasData := facades.Cache().GetString(key); uasData != "" {
+		json.Unmarshal([]byte(uasData), &recentUAs)
+	}
+
+	// Check if current UA is in recent history
+	for _, ua := range recentUAs {
+		if ua == currentUA {
+			return false // Known User Agent
+		}
+	}
+
+	// If we have history and this is completely new, it might be anomalous
+	if len(recentUAs) > 0 {
+		// Simple check for drastically different user agents
+		// (e.g., switching from Chrome to curl or automated tools)
+		if strings.Contains(strings.ToLower(currentUA), "bot") ||
+			strings.Contains(strings.ToLower(currentUA), "crawler") ||
+			strings.Contains(strings.ToLower(currentUA), "curl") ||
+			strings.Contains(strings.ToLower(currentUA), "wget") {
+
+			facades.Log().Warning("Suspicious user agent detected", map[string]interface{}{
+				"user_id":    userID,
+				"user_agent": currentUA,
+			})
+			return true
+		}
+	}
+
+	// Add current UA to history (keep last 5)
+	recentUAs = append([]string{currentUA}, recentUAs...)
+	if len(recentUAs) > 5 {
+		recentUAs = recentUAs[:5]
+	}
+
+	// Store updated history
+	if data, err := json.Marshal(recentUAs); err == nil {
+		facades.Cache().Put(key, string(data), 24*time.Hour)
+	}
+
+	return false
 }
 
 func isUnusualAccessPattern(userID, path string) bool {
-	// Check if this access pattern is unusual for this user
-	// In production, analyze user behavior patterns
-	return false // Placeholder
+	// Analyze user's access patterns for anomalies
+	key := fmt.Sprintf("user_patterns:%s", userID)
+
+	// Get user's access pattern data
+	type AccessPattern struct {
+		Paths      map[string]int `json:"paths"`
+		LastAccess time.Time      `json:"last_access"`
+	}
+
+	var pattern AccessPattern
+	if patternData := facades.Cache().GetString(key); patternData != "" {
+		json.Unmarshal([]byte(patternData), &pattern)
+	} else {
+		pattern.Paths = make(map[string]int)
+	}
+
+	// Check for rapid sequential access to sensitive endpoints
+	sensitiveEndpoints := []string{"/admin", "/api/users", "/api/oauth", "/api/security"}
+	isSensitive := false
+	for _, endpoint := range sensitiveEndpoints {
+		if strings.HasPrefix(path, endpoint) {
+			isSensitive = true
+			break
+		}
+	}
+
+	if isSensitive {
+		// Check if accessing sensitive endpoints too rapidly
+		if time.Since(pattern.LastAccess) < 5*time.Second {
+			facades.Log().Warning("Rapid access to sensitive endpoints", map[string]interface{}{
+				"user_id": userID,
+				"path":    path,
+				"gap":     time.Since(pattern.LastAccess),
+			})
+			return true
+		}
+	}
+
+	// Update pattern data
+	pattern.Paths[path]++
+	pattern.LastAccess = time.Now()
+
+	// Store updated pattern
+	if data, err := json.Marshal(pattern); err == nil {
+		facades.Cache().Put(key, string(data), 24*time.Hour)
+	}
+
+	return false
 }
 
 func isUnusualAccessTime(userID string) bool {
-	// Check if current access time is unusual for this user
-	// In production, analyze user's typical access times
-	return false // Placeholder
+	// Analyze user's typical access times
+	key := fmt.Sprintf("user_times:%s", userID)
+
+	// Get user's access time history
+	var accessTimes []int // Hours of the day (0-23)
+	if timesData := facades.Cache().GetString(key); timesData != "" {
+		json.Unmarshal([]byte(timesData), &accessTimes)
+	}
+
+	currentHour := time.Now().Hour()
+
+	// If we have history, check if current time is unusual
+	if len(accessTimes) > 10 { // Need sufficient history
+		// Count occurrences of current hour
+		hourCount := 0
+		for _, hour := range accessTimes {
+			if hour == currentHour {
+				hourCount++
+			}
+		}
+
+		// If this hour represents less than 5% of access times, it's unusual
+		if float64(hourCount)/float64(len(accessTimes)) < 0.05 {
+			facades.Log().Info("Unusual access time detected", map[string]interface{}{
+				"user_id":      userID,
+				"current_hour": currentHour,
+				"frequency":    float64(hourCount) / float64(len(accessTimes)),
+			})
+			return true
+		}
+	}
+
+	// Add current hour to history (keep last 100 entries)
+	accessTimes = append(accessTimes, currentHour)
+	if len(accessTimes) > 100 {
+		accessTimes = accessTimes[1:]
+	}
+
+	// Store updated times
+	if data, err := json.Marshal(accessTimes); err == nil {
+		facades.Cache().Put(key, string(data), 7*24*time.Hour) // Keep for a week
+	}
+
+	return false
 }
 
 func isIPBlocked(ip string) bool {
-	// Check against IP blocklist
-	// In production, maintain a blocklist in Redis or database
-	return false // Placeholder
+	// Check against IP blocklist stored in Redis/database
+	key := fmt.Sprintf("blocked_ip:%s", ip)
+
+	// Check if IP is in blocked list
+	if facades.Cache().Has(key) {
+		facades.Log().Warning("Blocked IP attempted access", map[string]interface{}{
+			"ip": ip,
+		})
+		return true
+	}
+
+	// Check against subnet blocks
+	blockedSubnets := facades.Config().GetString("security.blocked_subnets", "")
+	if blockedSubnets != "" {
+		subnets := strings.Split(blockedSubnets, ",")
+		for _, subnet := range subnets {
+			subnet = strings.TrimSpace(subnet)
+			if subnet == "" {
+				continue
+			}
+
+			_, network, err := net.ParseCIDR(subnet)
+			if err != nil {
+				continue
+			}
+
+			ipAddr := net.ParseIP(ip)
+			if ipAddr != nil && network.Contains(ipAddr) {
+				facades.Log().Warning("IP from blocked subnet attempted access", map[string]interface{}{
+					"ip":     ip,
+					"subnet": subnet,
+				})
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func isGeoBlocked(ip string) bool {
-	// Check geographical restrictions
-	// In production, use GeoIP service and restriction rules
-	return false // Placeholder
+	// Check geographical restrictions using GeoIP service
+	geoService := services.NewGeoIPService()
+	defer geoService.Close()
+
+	if !geoService.IsEnabled() {
+		return false // Skip check if GeoIP not available
+	}
+
+	location := geoService.GetLocation(ip)
+
+	// Check against blocked countries
+	blockedCountries := facades.Config().GetString("security.geo_blocked_countries", "")
+	if blockedCountries != "" {
+		blocked := strings.Split(blockedCountries, ",")
+		for _, country := range blocked {
+			if strings.EqualFold(strings.TrimSpace(country), location.CountryCode) {
+				facades.Log().Warning("Access blocked due to geographical restrictions", map[string]interface{}{
+					"ip":      ip,
+					"country": location.Country,
+					"code":    location.CountryCode,
+				})
+				return true
+			}
+		}
+	}
+
+	// Check for high-risk regions (configurable)
+	highRiskCountries := facades.Config().GetString("security.high_risk_countries", "")
+	if highRiskCountries != "" {
+		highRisk := strings.Split(highRiskCountries, ",")
+		for _, country := range highRisk {
+			if strings.EqualFold(strings.TrimSpace(country), location.CountryCode) {
+				// Log but don't block, just flag for additional monitoring
+				facades.Log().Info("Access from high-risk region", map[string]interface{}{
+					"ip":      ip,
+					"country": location.Country,
+					"code":    location.CountryCode,
+				})
+				break
+			}
+		}
+	}
+
+	return false
 }
 
 func isVPNOrProxy(ip string) bool {
-	// Check if IP is from VPN or proxy service
-	// In production, use VPN/proxy detection service
-	return false // Placeholder
+	// Use GeoIP service for VPN/proxy detection
+	geoService := services.NewGeoIPService()
+	defer geoService.Close()
+
+	if !geoService.IsEnabled() {
+		return false // Skip check if GeoIP not available
+	}
+
+	location := geoService.GetLocation(ip)
+
+	// Check VPN/Proxy detection from GeoIP
+	if location.IsVPN || location.IsProxy || location.IsTor {
+		facades.Log().Warning("VPN/Proxy/Tor access detected", map[string]interface{}{
+			"ip":       ip,
+			"is_vpn":   location.IsVPN,
+			"is_proxy": location.IsProxy,
+			"is_tor":   location.IsTor,
+			"isp":      location.ISP,
+		})
+
+		// Check if VPN/Proxy access is allowed
+		allowVPN := facades.Config().GetBool("security.allow_vpn_access", true)
+		if !allowVPN {
+			return true // Block VPN/Proxy access
+		}
+	}
+
+	return false
 }
 
 // Enhanced response functions

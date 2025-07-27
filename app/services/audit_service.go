@@ -105,17 +105,7 @@ type AuditContext struct {
 	Action      string                 `json:"action,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	ThreatLevel string                 `json:"threat_level,omitempty"`
-	GeoLocation *GeoLocation           `json:"geo_location,omitempty"`
-}
-
-// GeoLocation represents geographical information
-type GeoLocation struct {
-	Country   string  `json:"country,omitempty"`
-	Region    string  `json:"region,omitempty"`
-	City      string  `json:"city,omitempty"`
-	Latitude  float64 `json:"latitude,omitempty"`
-	Longitude float64 `json:"longitude,omitempty"`
-	ISP       string  `json:"isp,omitempty"`
+	GeoLocation *models.GeoLocation    `json:"geo_location,omitempty"`
 }
 
 // LogEvent logs an audit event with context
@@ -414,25 +404,12 @@ func (s *AuditService) getClientIP(ctx http.Context) string {
 	return ctx.Request().Ip()
 }
 
-func (s *AuditService) getGeoLocation(ip string) *GeoLocation {
-	// This would typically integrate with a GeoIP service
-	// For now, return a placeholder
-	if ip == "127.0.0.1" || ip == "::1" {
-		return &GeoLocation{
-			Country: "Local",
-			Region:  "Local",
-			City:    "Local",
-			ISP:     "Local",
-		}
-	}
+func (s *AuditService) getGeoLocation(ip string) *models.GeoLocation {
+	// Use production GeoIP service
+	geoIPService := NewGeoIPService()
+	defer geoIPService.Close()
 
-	// In production, you would use a service like MaxMind GeoIP
-	return &GeoLocation{
-		Country: "Unknown",
-		Region:  "Unknown",
-		City:    "Unknown",
-		ISP:     "Unknown",
-	}
+	return geoIPService.GetLocation(ip)
 }
 
 func (s *AuditService) determineSeverity(event AuditEvent) string {

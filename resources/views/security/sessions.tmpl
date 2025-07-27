@@ -436,18 +436,34 @@
         function viewSessionDetails(sessionId) {
             currentSessionId = sessionId;
             
-            // Mock session data - in real implementation, this would come from server
-            const sessionData = {
-                session_2: {
-                    device: 'Safari on iPhone 15',
-                    location: 'San Francisco, United States',
-                    ip: '203.0.113.45',
-                    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15',
-                    startTime: 'Yesterday at 2:30 PM',
-                    lastActivity: '30 minutes ago',
-                    activities: [
-                        { time: '30 min ago', action: 'Viewed security settings' },
-                        { time: '1 hour ago', action: 'Updated profile information' },
+            // Fetch real session data from server
+            fetch(`/api/v1/sessions/${sessionId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                }
+            })
+            .then(response => response.json())
+            .then(sessionData => {
+                displaySessionDetails(sessionData);
+            })
+            .catch(error => {
+                console.error('Error fetching session data:', error);
+                // Fallback to basic info if API fails
+                displaySessionDetails({
+                    device: 'Unknown Device',
+                    location: 'Unknown Location',
+                    ip: 'Unknown IP',
+                    userAgent: 'Unknown User Agent',
+                    startTime: 'Unknown',
+                    lastActivity: 'Unknown',
+                    activities: []
+                });
+            });
+        }
+
+        function displaySessionDetails(sessionData) {
                         { time: '2 hours ago', action: 'Logged in successfully' }
                     ]
                 }

@@ -3,6 +3,8 @@ package models
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/goravel/framework/facades"
 )
 
 // NotificationPreference represents a user's notification preferences
@@ -127,7 +129,7 @@ func (np *NotificationPreference) SetChannelSetting(channel, key string, value i
 }
 
 // ShouldSendNow checks if a notification should be sent now based on preferences
-func (np *NotificationPreference) ShouldSendNow() bool {
+func (np *NotificationPreference) ShouldSendNow(notificationType string) bool {
 	if !np.Enabled {
 		return false
 	}
@@ -136,8 +138,39 @@ func (np *NotificationPreference) ShouldSendNow() bool {
 		return false
 	}
 
-	// TODO: Check rate limits (MaxPerHour, MaxPerDay)
-	// This would require additional tracking of sent notifications
+	// Check rate limits (MaxPerHour, MaxPerDay)
+	if (np.MaxPerHour != nil && *np.MaxPerHour > 0) || (np.MaxPerDay != nil && *np.MaxPerDay > 0) {
+		// Get current hour and day counts from notification tracking
+		now := time.Now()
+		hourStart := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
+		dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+		// Check hourly limit
+		if np.MaxPerHour != nil && *np.MaxPerHour > 0 {
+			hourlyCount, _ := facades.Orm().Query().Model(&Notification{}).
+				Where("notifiable_id = ?", np.UserID).
+				Where("type = ?", notificationType).
+				Where("created_at >= ?", hourStart).
+				Count()
+
+			if hourlyCount >= int64(*np.MaxPerHour) {
+				return false
+			}
+		}
+
+		// Check daily limit
+		if np.MaxPerDay != nil && *np.MaxPerDay > 0 {
+			dailyCount, _ := facades.Orm().Query().Model(&Notification{}).
+				Where("notifiable_id = ?", np.UserID).
+				Where("type = ?", notificationType).
+				Where("created_at >= ?", dayStart).
+				Count()
+
+			if dailyCount >= int64(*np.MaxPerDay) {
+				return false
+			}
+		}
+	}
 
 	return true
 }

@@ -170,7 +170,7 @@ func (tc *TaskController) Store(ctx http.Context) http.Response {
 		})
 	}
 
-	// Get current user ID (you'll need to implement this based on your auth system)
+	// Get current user ID from authenticated context
 	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data
@@ -422,7 +422,7 @@ func (tc *TaskController) CreateLabel(ctx http.Context) http.Response {
 		})
 	}
 
-	// Get current user ID (you'll need to implement this based on your auth system)
+	// Get current user ID from authenticated context
 	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data
@@ -518,7 +518,7 @@ func (tc *TaskController) CreateMilestone(ctx http.Context) http.Response {
 		})
 	}
 
-	// Get current user ID (you'll need to implement this based on your auth system)
+	// Get current user ID from authenticated context
 	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data
@@ -618,7 +618,7 @@ func (tc *TaskController) CreateBoard(ctx http.Context) http.Response {
 		})
 	}
 
-	// Get current user ID (you'll need to implement this based on your auth system)
+	// Get current user ID from authenticated context
 	userID := tc.getCurrentUserID(ctx)
 
 	// Prepare data

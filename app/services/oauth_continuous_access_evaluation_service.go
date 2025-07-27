@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"goravel/app/models"
+
 	"github.com/goravel/framework/facades"
 )
 
@@ -118,8 +120,16 @@ type CAEEventHandler interface {
 }
 
 func NewOAuthContinuousAccessEvaluationService() *OAuthContinuousAccessEvaluationService {
+	oauthService, err := NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service for CAE", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	service := &OAuthContinuousAccessEvaluationService{
-		oauthService:     NewOAuthService(),
+		oauthService:     oauthService,
 		riskService:      NewOAuthRiskService(),
 		sessionService:   NewSessionService(),
 		eventSubscribers: make(map[string][]CAEEventHandler),
@@ -341,7 +351,7 @@ func (s *OAuthContinuousAccessEvaluationService) performScheduledEvaluations() {
 }
 
 func (s *OAuthContinuousAccessEvaluationService) getApplicablePolicies(userID, clientID, sessionID string) ([]*CAEPolicy, error) {
-	// In production, query database for applicable policies
+	// TODO: In production, query database for applicable policies
 	return s.getDefaultCAEPolicies(), nil
 }
 
@@ -776,7 +786,7 @@ func (s *OAuthContinuousAccessEvaluationService) executeAction(action CAEAction,
 	}
 }
 
-// Simplified helper methods (in production, these would be more robust)
+// Simplified helper methods (TODO: In production, these would be more robust)
 
 func (s *OAuthContinuousAccessEvaluationService) getCurrentLocation(userID string) string {
 	return "US-CA" // Simplified
@@ -823,7 +833,7 @@ func (s *OAuthContinuousAccessEvaluationService) isNetworkTrusted(ipAddress stri
 }
 
 func (s *OAuthContinuousAccessEvaluationService) getActiveSessionsForEvaluation() []map[string]interface{} {
-	// Simplified - in production, query database for active sessions
+	// Simplified - TODO: In production, query database for active sessions
 	return []map[string]interface{}{
 		{
 			"user_id":    "user123",
@@ -1026,11 +1036,46 @@ func (s *OAuthContinuousAccessEvaluationService) triggerEvaluationsForEvent(even
 	for _, tokenID := range event.AffectedTokens {
 		// Get token details and trigger evaluation
 		go func(tID string) {
-			// In production, get token details and evaluate
-			facades.Log().Info("Triggered evaluation for affected token", map[string]interface{}{
-				"token_id": tID,
-				"event_id": event.EventID,
-			})
+			// Get token details from database and evaluate access
+			var token models.OAuthAccessToken
+			if err := facades.Orm().Query().Where("id", tID).First(&token); err != nil {
+				facades.Log().Error("Failed to get token for CAE evaluation", map[string]interface{}{
+					"token_id": tID,
+					"error":    err.Error(),
+				})
+				return
+			}
+
+			// Evaluate access for the token
+			result, err := s.EvaluateAccess(*token.UserID, token.ClientID, "", tID)
+			if err != nil {
+				facades.Log().Error("CAE evaluation failed", map[string]interface{}{
+					"token_id": tID,
+					"error":    err.Error(),
+				})
+				return
+			}
+
+			// Handle evaluation result
+			if result.AccessDecision == "deny" || result.RiskLevel == "critical" {
+				// Revoke the token
+				token.Revoked = true
+				facades.Orm().Query().Save(&token)
+
+				facades.Log().Info("Token revoked due to CAE evaluation", map[string]interface{}{
+					"token_id":        tID,
+					"event_id":        event.EventID,
+					"access_decision": result.AccessDecision,
+					"risk_level":      result.RiskLevel,
+				})
+			} else {
+				facades.Log().Info("Token access maintained after CAE evaluation", map[string]interface{}{
+					"token_id":        tID,
+					"event_id":        event.EventID,
+					"access_decision": result.AccessDecision,
+					"risk_level":      result.RiskLevel,
+				})
+			}
 		}(tokenID)
 	}
 

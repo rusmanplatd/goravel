@@ -1236,15 +1236,24 @@ func (ds *DriveService) AddFileComment(ctx context.Context, fileID, userID, cont
 	// Log activity
 	ds.logFileActivity(fileID, userID, "comment", "Comment added to file", ctx)
 
-	// TODO: Send notification to file owner if different from commenter
+	// Send notification to file owner if different from commenter
 	if file.OwnerID != userID {
-		// Notification logic would go here
-		facades.Log().Info("File comment notification", map[string]interface{}{
-			"file_id":    fileID,
-			"commenter":  userID,
-			"owner":      file.OwnerID,
-			"comment_id": comment.ID,
-		})
+		notificationErr := ds.sendFileCommentNotification(&file, userID, comment.Content)
+		if notificationErr != nil {
+			facades.Log().Error("Failed to send file comment notification", map[string]interface{}{
+				"file_id":   fileID,
+				"commenter": userID,
+				"owner":     file.OwnerID,
+				"error":     notificationErr.Error(),
+			})
+		} else {
+			facades.Log().Info("File comment notification sent", map[string]interface{}{
+				"file_id":    fileID,
+				"commenter":  userID,
+				"owner":      file.OwnerID,
+				"comment_id": comment.ID,
+			})
+		}
 	}
 
 	return comment, nil
@@ -3296,11 +3305,57 @@ func (ds *DriveService) GetWorkspaceInsights(userID string) (map[string]interfac
 		insights["recommendations"] = append(insights["recommendations"].([]string), "Consider organizing root files into folders")
 	}
 	if taggedPercentage < 30 {
-		insights["recommendations"] = append(insights["recommendations"].([]string), "Add tags to your files for better organization")
-	}
-	if quota.UsagePercent > 80 {
-		insights["recommendations"] = append(insights["recommendations"].([]string), "Clean up old or duplicate files to free up space")
+		insights["recommendations"] = append(insights["recommendations"].([]string), "Add tags to improve file discoverability")
 	}
 
 	return insights, nil
+}
+
+// sendFileCommentNotification sends a notification to the file owner about a new comment
+func (ds *DriveService) sendFileCommentNotification(file *models.File, commenterID, commentContent string) error {
+	// Get commenter information
+	var commenter models.User
+	if err := facades.Orm().Query().Find(&commenter, commenterID); err != nil {
+		return fmt.Errorf("failed to get commenter information: %w", err)
+	}
+
+	// Get file owner information
+	var owner models.User
+	if err := facades.Orm().Query().Find(&owner, file.OwnerID); err != nil {
+		return fmt.Errorf("failed to get file owner information: %w", err)
+	}
+
+	// Create notification data
+	notificationData := map[string]interface{}{
+		"file_name":       file.Name,
+		"file_id":         file.ID,
+		"commenter_name":  commenter.Name,
+		"commenter_email": commenter.Email,
+		"comment_content": commentContent,
+		"file_path":       file.Path,
+	}
+
+	// Create notification
+	notification := &models.Notification{
+		NotifiableID:   owner.ID,
+		NotifiableType: "user",
+		Type:           "file_comment",
+		Data:           notificationData,
+		ReadAt:         nil,
+	}
+
+	// Save notification
+	if err := facades.Orm().Query().Create(notification); err != nil {
+		return fmt.Errorf("failed to create notification: %w", err)
+	}
+
+	// Log successful notification creation
+	facades.Log().Info("File comment notification created", map[string]interface{}{
+		"notification_id": notification.ID,
+		"file_id":         file.ID,
+		"owner_id":        owner.ID,
+		"commenter_id":    commenterID,
+	})
+
+	return nil
 }

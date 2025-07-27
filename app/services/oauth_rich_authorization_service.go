@@ -145,8 +145,16 @@ type SecurityPolicy struct {
 }
 
 func NewOAuthRichAuthorizationService() *OAuthRichAuthorizationService {
+	oauthService, err := NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service for rich authorization", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthRichAuthorizationService{
-		oauthService:              NewOAuthService(),
+		oauthService:              oauthService,
 		hierarchicalScopeService:  NewOAuthHierarchicalScopeService(),
 		resourceIndicatorsService: NewOAuthResourceIndicatorsService(),
 	}
@@ -247,7 +255,7 @@ func (s *OAuthRichAuthorizationService) RegisterAuthorizationDetailType(detailTy
 
 // GetSupportedAuthorizationDetailTypes returns supported authorization detail types
 func (s *OAuthRichAuthorizationService) GetSupportedAuthorizationDetailTypes() ([]*AuthorizationDetailType, error) {
-	// In production, query database for registered types
+	// TODO: In production, query database for registered types
 	return s.getDefaultAuthorizationDetailTypes(), nil
 }
 
@@ -529,7 +537,7 @@ func (s *OAuthRichAuthorizationService) validateRichAuthorizationRequest(request
 }
 
 func (s *OAuthRichAuthorizationService) getAuthorizationDetailType(detailType string) (*AuthorizationDetailType, error) {
-	// In production, query database
+	// TODO: In production, query database
 	defaultTypes := s.getDefaultAuthorizationDetailTypes()
 	for _, dt := range defaultTypes {
 		if dt.Type == detailType {
@@ -605,7 +613,7 @@ func (s *OAuthRichAuthorizationService) applyValidationRule(detail Authorization
 	case "format":
 		if _, ok := rule.Value.(string); ok {
 			if strValue, ok := fieldValue.(string); ok {
-				// Simplified format validation - in production use regex
+				// Simplified format validation - TODO: In production use regex
 				if len(strValue) == 0 {
 					return fmt.Errorf("%s", rule.Message)
 				}
@@ -741,10 +749,10 @@ func (s *OAuthRichAuthorizationService) getConditionFieldValue(fieldType string,
 	case "datatypes":
 		return detail.DataTypes
 	case "file_type":
-		// Simplified - in production, would analyze file type
+		// Simplified - TODO: In production, would analyze file type
 		return "document"
 	case "amount":
-		// Simplified - in production, would extract from additional_data
+		// Simplified - TODO: In production, would extract from additional_data
 		if detail.AdditionalData != nil {
 			if amount, exists := detail.AdditionalData["amount"]; exists {
 				return amount
@@ -752,7 +760,7 @@ func (s *OAuthRichAuthorizationService) getConditionFieldValue(fieldType string,
 		}
 		return 0.0
 	case "frequency":
-		// Simplified - in production, would check access frequency
+		// Simplified - TODO: In production, would check access frequency
 		return 10
 	default:
 		return nil

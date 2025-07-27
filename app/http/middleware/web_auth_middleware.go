@@ -22,7 +22,14 @@ func WebAuth() http.Middleware {
 		}
 
 		facades.Log().Info("WebAuth middleware: Session found, checking multi-account session")
-		multiAccountService := services.NewMultiAccountService()
+		multiAccountService, err := services.NewMultiAccountService()
+		if err != nil {
+			facades.Log().Error("Failed to create multi-account service", map[string]interface{}{
+				"error": err.Error(),
+			})
+			ctx.Response().Redirect(302, "/login")
+			return
+		}
 
 		// Get active account from multi-account session
 		activeAccount, err := multiAccountService.GetActiveAccount(ctx)

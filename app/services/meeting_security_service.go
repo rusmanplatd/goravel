@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"goravel/app/models"
 	"strings"
@@ -235,8 +236,26 @@ func (mss *MeetingSecurityService) AddToWaitingRoom(meetingID, userID string, de
 		Status:        "waiting",
 	}
 
-	// Store in cache or database (simplified implementation)
-	// In production, you'd have a waiting_room_participants table
+	// Store waiting room participant in database
+	waitingRoomParticipant := &models.MeetingWaitingRoomParticipant{
+		MeetingID:     meetingID,
+		UserID:        userID,
+		Name:          waitingParticipant.Name,
+		Email:         waitingParticipant.Email,
+		JoinTime:      waitingParticipant.JoinTime,
+		RequestReason: &reason,
+		Status:        "waiting",
+	}
+
+	// Set device info
+	if err := waitingRoomParticipant.SetDeviceInfo(deviceInfo); err != nil {
+		return fmt.Errorf("failed to set device info: %w", err)
+	}
+
+	// Save to database
+	if err := facades.Orm().Query().Create(waitingRoomParticipant); err != nil {
+		return fmt.Errorf("failed to save waiting room participant: %w", err)
+	}
 
 	// Notify host about waiting room participant
 	mss.notifyHostAboutWaitingParticipant(meetingID, waitingParticipant)
@@ -257,8 +276,23 @@ func (mss *MeetingSecurityService) ApproveWaitingRoomParticipant(meetingID, host
 		return fmt.Errorf("insufficient permissions: only hosts can approve participants")
 	}
 
-	// Update waiting room status (simplified)
-	// In production, you'd update the waiting_room_participants table
+	// Update waiting room participant status in database
+	var participant models.MeetingWaitingRoomParticipant
+	err := facades.Orm().Query().Where("meeting_id", meetingID).
+		Where("user_id", participantUserID).
+		Where("status", "waiting").
+		First(&participant)
+	if err != nil {
+		return fmt.Errorf("waiting room participant not found: %w", err)
+	}
+
+	// Approve the participant
+	participant.Approve(hostUserID)
+
+	// Save updated status
+	if err := facades.Orm().Query().Save(&participant); err != nil {
+		return fmt.Errorf("failed to update participant status: %w", err)
+	}
 
 	// Allow participant to join
 	mss.logSecurityEvent(meetingID, "waiting_room_approved", "info", hostUserID, "Participant approved from waiting room", map[string]interface{}{
@@ -278,8 +312,23 @@ func (mss *MeetingSecurityService) DenyWaitingRoomParticipant(meetingID, hostUse
 		return fmt.Errorf("insufficient permissions: only hosts can deny participants")
 	}
 
-	// Update waiting room status (simplified)
-	// In production, you'd update the waiting_room_participants table
+	// Update waiting room participant status in database
+	var participant models.MeetingWaitingRoomParticipant
+	err := facades.Orm().Query().Where("meeting_id", meetingID).
+		Where("user_id", participantUserID).
+		Where("status", "waiting").
+		First(&participant)
+	if err != nil {
+		return fmt.Errorf("waiting room participant not found: %w", err)
+	}
+
+	// Deny the participant
+	participant.Deny(hostUserID, reason)
+
+	// Save updated status
+	if err := facades.Orm().Query().Save(&participant); err != nil {
+		return fmt.Errorf("failed to update participant status: %w", err)
+	}
 
 	mss.logSecurityEvent(meetingID, "waiting_room_denied", "info", hostUserID, "Participant denied from waiting room", map[string]interface{}{
 		"denied_user": participantUserID,
@@ -293,10 +342,21 @@ func (mss *MeetingSecurityService) DenyWaitingRoomParticipant(meetingID, hostUse
 }
 
 // GetWaitingRoomParticipants returns participants in waiting room
-func (mss *MeetingSecurityService) GetWaitingRoomParticipants(meetingID string) ([]WaitingRoomParticipant, error) {
-	// In production, you'd query the waiting_room_participants table
-	// For now, return empty slice
-	return []WaitingRoomParticipant{}, nil
+func (mss *MeetingSecurityService) GetWaitingRoomParticipants(meetingID string) ([]models.MeetingWaitingRoomParticipant, error) {
+	var participants []models.MeetingWaitingRoomParticipant
+
+	err := facades.Orm().Query().
+		Where("meeting_id", meetingID).
+		Where("status", "waiting").
+		Order("join_time ASC").
+		With("User").
+		Find(&participants)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get waiting room participants: %w", err)
+	}
+
+	return participants, nil
 }
 
 // RemoveParticipant removes a participant from the meeting (kick/ban)
@@ -409,10 +469,25 @@ func (mss *MeetingSecurityService) LockMeeting(meetingID, hostUserID string, loc
 }
 
 // GetSecurityEvents returns security events for a meeting
-func (mss *MeetingSecurityService) GetSecurityEvents(meetingID string, limit int) ([]MeetingSecurityEvent, error) {
-	// In production, you'd query a security_events table
-	// For now, return empty slice
-	return []MeetingSecurityEvent{}, nil
+func (mss *MeetingSecurityService) GetSecurityEvents(meetingID string, limit int) ([]models.MeetingSecurityEvent, error) {
+	var events []models.MeetingSecurityEvent
+
+	query := facades.Orm().Query().
+		Where("meeting_id", meetingID).
+		Order("created_at DESC").
+		With("User").
+		With("ResolvedByUser")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&events)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get security events: %w", err)
+	}
+
+	return events, nil
 }
 
 // MonitorMeetingSecurity monitors ongoing security threats
@@ -539,15 +614,238 @@ func (mss *MeetingSecurityService) getRecentJoins(meetingID string, duration tim
 }
 
 func (mss *MeetingSecurityService) addToBlockedUsers(meetingID, userID string) {
-	// In production, you'd update the security policy or blocked users table
-	// For now, we'll just log it
-	mss.logSecurityEvent(meetingID, "user_blocked", "warning", "", "User added to blocked list", map[string]interface{}{
-		"blocked_user": userID,
+	// Get the current security policy for the meeting
+	var policy models.MeetingSecurityPolicy
+	err := facades.Orm().Query().Where("meeting_id = ?", meetingID).First(&policy)
+	if err != nil {
+		// Create a new security policy if one doesn't exist
+		policy = models.MeetingSecurityPolicy{
+			MeetingID:              meetingID,
+			RequireRegistration:    true,
+			RequireWaitingRoom:     true,
+			ScreenSharePermissions: "all",
+			RecordingPermissions:   "none",
+			MaxParticipants:        100,
+			BlockedUsers:           []string{userID},
+		}
+
+		err = facades.Orm().Query().Create(&policy)
+		if err != nil {
+			facades.Log().Error("Failed to create security policy with blocked user", map[string]interface{}{
+				"meeting_id": meetingID,
+				"user_id":    userID,
+				"error":      err.Error(),
+			})
+			// Fallback to logging
+			mss.logSecurityEvent(meetingID, "user_blocked", "warning", "", "User added to blocked list (policy creation failed)", map[string]interface{}{
+				"blocked_user": userID,
+				"error":        err.Error(),
+			})
+			return
+		}
+	} else {
+		// TODO: Implement LoadFromJSON method for MeetingSecurityPolicy
+		// Load existing blocked users
+		// policy.LoadFromJSON()
+
+		// Check if user is already blocked
+		for _, blockedID := range policy.BlockedUsers {
+			if blockedID == userID {
+				facades.Log().Info("User already in blocked list", map[string]interface{}{
+					"meeting_id": meetingID,
+					"user_id":    userID,
+				})
+				return
+			}
+		}
+
+		// Add user to blocked list
+		policy.BlockedUsers = append(policy.BlockedUsers, userID)
+
+		// TODO: Implement SaveToJSON method for MeetingSecurityPolicy
+		// Save updated policy
+		// policy.SaveToJSON()
+		err = facades.Orm().Query().Save(&policy)
+		if err != nil {
+			facades.Log().Error("Failed to update security policy with blocked user", map[string]interface{}{
+				"meeting_id": meetingID,
+				"user_id":    userID,
+				"error":      err.Error(),
+			})
+			// Fallback to logging
+			mss.logSecurityEvent(meetingID, "user_blocked", "warning", "", "User added to blocked list (policy update failed)", map[string]interface{}{
+				"blocked_user": userID,
+				"error":        err.Error(),
+			})
+			return
+		}
+	}
+
+	// Log successful security policy update
+	mss.logSecurityEvent(meetingID, "user_blocked", "warning", "", "User added to blocked list in security policy", map[string]interface{}{
+		"blocked_user":   userID,
+		"total_blocked":  len(policy.BlockedUsers),
+		"policy_updated": true,
+	})
+
+	// Also create an audit log entry for compliance
+	mss.createSecurityAuditLog(meetingID, userID, "user_blocked", map[string]interface{}{
+		"action":        "add_to_blocked_users",
+		"blocked_user":  userID,
+		"total_blocked": len(policy.BlockedUsers),
+		"policy_id":     policy.ID,
+	})
+
+	facades.Log().Info("User successfully added to meeting blocked list", map[string]interface{}{
+		"meeting_id":    meetingID,
+		"blocked_user":  userID,
+		"total_blocked": len(policy.BlockedUsers),
 	})
 }
 
+// removeFromBlockedUsers removes a user from the blocked users list
+func (mss *MeetingSecurityService) removeFromBlockedUsers(meetingID, userID string) error {
+	// Get the current security policy for the meeting
+	var policy models.MeetingSecurityPolicy
+	err := facades.Orm().Query().Where("meeting_id = ?", meetingID).First(&policy)
+	if err != nil {
+		return fmt.Errorf("security policy not found for meeting: %w", err)
+	}
+
+	// TODO: Implement LoadFromJSON method for MeetingSecurityPolicy
+	// Load existing blocked users
+	// policy.LoadFromJSON()
+
+	// Find and remove user from blocked list
+	userFound := false
+	newBlockedUsers := make([]string, 0, len(policy.BlockedUsers))
+	for _, blockedID := range policy.BlockedUsers {
+		if blockedID != userID {
+			newBlockedUsers = append(newBlockedUsers, blockedID)
+		} else {
+			userFound = true
+		}
+	}
+
+	if !userFound {
+		return fmt.Errorf("user not found in blocked list")
+	}
+
+	// Update blocked users list
+	policy.BlockedUsers = newBlockedUsers
+
+	// TODO: Implement SaveToJSON method for MeetingSecurityPolicy
+	// Save updated policy
+	// policy.SaveToJSON()
+	err = facades.Orm().Query().Save(&policy)
+	if err != nil {
+		return fmt.Errorf("failed to update security policy: %w", err)
+	}
+
+	// Log security event
+	mss.logSecurityEvent(meetingID, "user_unblocked", "info", "", "User removed from blocked list", map[string]interface{}{
+		"unblocked_user": userID,
+		"total_blocked":  len(policy.BlockedUsers),
+		"policy_updated": true,
+	})
+
+	// Create audit log entry
+	mss.createSecurityAuditLog(meetingID, userID, "user_unblocked", map[string]interface{}{
+		"action":         "remove_from_blocked_users",
+		"unblocked_user": userID,
+		"total_blocked":  len(policy.BlockedUsers),
+		"policy_id":      policy.ID,
+	})
+
+	facades.Log().Info("User successfully removed from meeting blocked list", map[string]interface{}{
+		"meeting_id":     meetingID,
+		"unblocked_user": userID,
+		"total_blocked":  len(policy.BlockedUsers),
+	})
+
+	return nil
+}
+
+// createSecurityAuditLog creates an audit log entry for security-related actions
+func (mss *MeetingSecurityService) createSecurityAuditLog(meetingID, userID, action string, metadata map[string]interface{}) {
+	// Create activity log for audit trail
+	auditData := map[string]interface{}{
+		"meeting_id": meetingID,
+		"action":     action,
+		"timestamp":  time.Now(),
+	}
+
+	// Merge additional metadata
+	for key, value := range metadata {
+		auditData[key] = value
+	}
+
+	// Convert to JSON
+	auditJSON, err := json.Marshal(auditData)
+	if err != nil {
+		facades.Log().Error("Failed to marshal audit data", map[string]interface{}{
+			"meeting_id": meetingID,
+			"action":     action,
+			"error":      err.Error(),
+		})
+		return
+	}
+
+	// Create activity log entry
+	activityLog := &models.ActivityLog{
+		LogName:     fmt.Sprintf("meeting_security_%s", action),
+		Description: fmt.Sprintf("Meeting security action: %s", action),
+		SubjectType: "meeting",
+		SubjectID:   meetingID,
+		CauserType:  "User",
+		CauserID:    userID,
+		Properties:  auditJSON,
+	}
+
+	err = facades.Orm().Query().Create(activityLog)
+	if err != nil {
+		facades.Log().Error("Failed to create security audit log", map[string]interface{}{
+			"meeting_id": meetingID,
+			"action":     action,
+			"error":      err.Error(),
+		})
+	}
+}
+
 func (mss *MeetingSecurityService) logSecurityEvent(meetingID, eventType, severity, userID, description string, metadata map[string]interface{}) {
-	// In production, you'd store this in a security_events table
+	// Create security event record
+	event := &models.MeetingSecurityEvent{
+		MeetingID:         meetingID,
+		EventType:         eventType,
+		Severity:          severity,
+		Description:       description,
+		RequiresAttention: severity == "critical" || severity == "error",
+	}
+
+	// Set user ID if provided
+	if userID != "" {
+		event.UserID = &userID
+	}
+
+	// Set metadata if provided
+	if metadata != nil {
+		if err := event.SetDetails(metadata); err != nil {
+			facades.Log().Error("Failed to set security event details", map[string]interface{}{
+				"error": err.Error(),
+			})
+		}
+	}
+
+	// Save to database
+	if err := facades.Orm().Query().Create(event); err != nil {
+		facades.Log().Error("Failed to save security event", map[string]interface{}{
+			"error":      err.Error(),
+			"meeting_id": meetingID,
+			"event_type": eventType,
+		})
+	}
+
+	// Also log for immediate visibility
 	facades.Log().Info("Security Event", map[string]interface{}{
 		"meeting_id":  meetingID,
 		"event_type":  eventType,

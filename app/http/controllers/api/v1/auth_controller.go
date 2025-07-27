@@ -17,24 +17,53 @@ import (
 )
 
 type AuthController struct {
-	authService     *services.AuthService
-	auditService    *services.AuditService
-	sessionService  *services.SessionService
-	jwtService      *services.JWTService
-	webauthnService *services.WebAuthnService
-	totpService     *services.TOTPService
+	authService         *services.AuthService
+	jwtService          *services.JWTService
+	multiAccountService *services.MultiAccountService
+	auditService        *services.AuditService
+	webauthnService     *services.WebAuthnService
+	totpService         *services.TOTPService
+	emailService        *services.EmailService
 }
 
-// NewAuthController creates a new authentication controller with enhanced security
-func NewAuthController() *AuthController {
-	return &AuthController{
-		authService:     services.NewAuthService(),
-		auditService:    services.NewAuditService(),
-		sessionService:  services.NewSessionService(),
-		jwtService:      services.NewJWTService(),
-		webauthnService: services.NewWebAuthnService(),
-		totpService:     services.NewTOTPService(),
+func NewAuthController() (*AuthController, error) {
+	authService, err := services.NewAuthService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize auth service: %w", err)
 	}
+
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize JWT service: %w", err)
+	}
+
+	multiAccountService, err := services.NewMultiAccountService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize multi-account service: %w", err)
+	}
+
+	return &AuthController{
+		authService:         authService,
+		jwtService:          jwtService,
+		multiAccountService: multiAccountService,
+		auditService:        services.NewAuditService(),
+		webauthnService:     services.NewWebAuthnService(),
+		totpService:         services.NewTOTPService(),
+		emailService:        services.NewEmailService(),
+	}, nil
+}
+
+// MustNewAuthController creates a new auth controller and panics on error (for backward compatibility)
+// Deprecated: Use NewAuthController() instead for proper error handling
+func MustNewAuthController() *AuthController {
+	controller, err := NewAuthController()
+	if err != nil {
+		facades.Log().Error("Critical AuthController initialization failure", map[string]interface{}{
+			"error": err.Error(),
+		})
+		panic(fmt.Sprintf("AuthController initialization failed: %v", err))
+	}
+	return controller
 }
 
 // DeviceInfo represents device information for security tracking
@@ -751,7 +780,7 @@ func (c *AuthController) RefreshToken(ctx http.Context) http.Response {
 	}
 
 	// Refresh the token using the new JWT service method
-	newAccessToken, err := services.NewJWTService().RefreshToken(req.RefreshToken)
+	newAccessToken, err := c.jwtService.RefreshToken(req.RefreshToken)
 	if err != nil {
 		return responses.CreateErrorResponse(ctx, "Invalid refresh token", err.Error(), 401)
 	}
@@ -1119,7 +1148,7 @@ func (c *AuthController) checkRegistrationRateLimit(ctx http.Context, email stri
 func (c *AuthController) checkRateLimit(key string, limit int, window time.Duration) bool {
 	// In a real implementation, use Redis or similar for distributed rate limiting
 	// For now, implement a simple in-memory rate limiter
-	// This is a placeholder - in production, use a proper rate limiting service
+	// This is a placeholder - TODO: In production, use a proper rate limiting service
 	return true
 }
 

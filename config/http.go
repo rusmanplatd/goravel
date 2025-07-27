@@ -1,6 +1,10 @@
 package config
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"math"
@@ -696,13 +700,19 @@ func init() {
 								return s // Return as-is for safety
 							},
 							"md5": func(s string) string {
-								return fmt.Sprintf("%x", s) // Placeholder for security
+								hash := md5.New()
+								hash.Write([]byte(s))
+								return fmt.Sprintf("%x", hash.Sum(nil))
 							},
 							"sha1": func(s string) string {
-								return fmt.Sprintf("%x", s) // Placeholder for security
+								hash := sha1.New()
+								hash.Write([]byte(s))
+								return fmt.Sprintf("%x", hash.Sum(nil))
 							},
 							"sha256": func(s string) string {
-								return fmt.Sprintf("%x", s) // Placeholder for security
+								hash := sha256.New()
+								hash.Write([]byte(s))
+								return fmt.Sprintf("%x", hash.Sum(nil))
 							},
 
 							// Random functions
@@ -741,10 +751,60 @@ func init() {
 								return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 							},
 							"lighten": func(percent int, color string) string {
-								return color // Placeholder
+								// Parse hex color
+								if len(color) != 7 || color[0] != '#' {
+									return color // Return original if invalid format
+								}
+
+								// Extract RGB components
+								r, g, b := hexToRGB(color)
+
+								// Lighten by increasing values towards 255
+								factor := float64(percent) / 100.0
+								r = int(float64(r) + (255-float64(r))*factor)
+								g = int(float64(g) + (255-float64(g))*factor)
+								b = int(float64(b) + (255-float64(b))*factor)
+
+								// Clamp values
+								if r > 255 {
+									r = 255
+								}
+								if g > 255 {
+									g = 255
+								}
+								if b > 255 {
+									b = 255
+								}
+
+								return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 							},
 							"darken": func(percent int, color string) string {
-								return color // Placeholder
+								// Parse hex color
+								if len(color) != 7 || color[0] != '#' {
+									return color // Return original if invalid format
+								}
+
+								// Extract RGB components
+								r, g, b := hexToRGB(color)
+
+								// Darken by decreasing values towards 0
+								factor := float64(percent) / 100.0
+								r = int(float64(r) * (1.0 - factor))
+								g = int(float64(g) * (1.0 - factor))
+								b = int(float64(b) * (1.0 - factor))
+
+								// Clamp values
+								if r < 0 {
+									r = 0
+								}
+								if g < 0 {
+									g = 0
+								}
+								if b < 0 {
+									b = 0
+								}
+
+								return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 							},
 
 							// File functions
@@ -1588,13 +1648,26 @@ func init() {
 
 							// JSON and data functions
 							"toJSON": func(v interface{}) string {
-								return fmt.Sprintf("%+v", v) // Simplified JSON representation
+								jsonBytes, err := json.Marshal(v)
+								if err != nil {
+									return fmt.Sprintf("error: %v", err)
+								}
+								return string(jsonBytes)
 							},
 							"fromJSON": func(s string) interface{} {
-								return s // Placeholder - would need proper JSON parsing
+								var result interface{}
+								err := json.Unmarshal([]byte(s), &result)
+								if err != nil {
+									return nil
+								}
+								return result
 							},
 							"prettyJSON": func(v interface{}) string {
-								return fmt.Sprintf("{\n  %+v\n}", v) // Simplified pretty print
+								jsonBytes, err := json.MarshalIndent(v, "", "  ")
+								if err != nil {
+									return fmt.Sprintf("error: %v", err)
+								}
+								return string(jsonBytes)
 							},
 							"flattenMap": func(m map[string]interface{}, prefix string) map[string]interface{} {
 								result := make(map[string]interface{})
@@ -1751,4 +1824,19 @@ func init() {
 			"idle_conn_timeout":       config.GetDuration("HTTP_CLIENT_IDLE_CONN_TIMEOUT"),
 		},
 	})
+}
+
+// Helper function to convert hex color to RGB components
+func hexToRGB(hex string) (int, int, int) {
+	// Remove # prefix if present
+	if hex[0] == '#' {
+		hex = hex[1:]
+	}
+
+	// Parse hex values
+	r, _ := strconv.ParseInt(hex[0:2], 16, 64)
+	g, _ := strconv.ParseInt(hex[2:4], 16, 64)
+	b, _ := strconv.ParseInt(hex[4:6], 16, 64)
+
+	return int(r), int(g), int(b)
 }

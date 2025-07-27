@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"goravel/app/models"
+
 	"github.com/goravel/framework/facades"
 )
 
@@ -433,7 +435,7 @@ func (s *OAuthSessionService) parseDeviceInfo(userAgent string) map[string]inter
 		"os":         "unknown",
 	}
 
-	// Simple user agent parsing (in production, use a proper library)
+	// Simple user agent parsing (TODO: In production, use a proper library)
 	userAgentLower := strings.ToLower(userAgent)
 
 	// Device type detection
@@ -473,34 +475,166 @@ func (s *OAuthSessionService) parseDeviceInfo(userAgent string) map[string]inter
 }
 
 func (s *OAuthSessionService) getLocationFromIP(ipAddress string) string {
-	// Placeholder for GeoIP lookup
-	// In production, integrate with a GeoIP service
-	if ipAddress == "127.0.0.1" || ipAddress == "::1" {
+	// Check for localhost/private IPs
+	if ipAddress == "127.0.0.1" || ipAddress == "::1" || strings.HasPrefix(ipAddress, "192.168.") || strings.HasPrefix(ipAddress, "10.") || strings.HasPrefix(ipAddress, "172.") {
 		return "localhost"
 	}
+
+	// Use GeoIP service for production location lookup
+	geoIPService := NewGeoIPService()
+
+	location := geoIPService.GetLocation(ipAddress)
+	if location == nil {
+		facades.Log().Warning("Failed to get location from IP", map[string]interface{}{
+			"ip": ipAddress,
+		})
+		return "unknown"
+	}
+
+	if location.Country != "" {
+		if location.City != "" {
+			return fmt.Sprintf("%s, %s", location.City, location.Country)
+		}
+		return location.Country
+	}
+
 	return "unknown"
 }
 
 func (s *OAuthSessionService) revokeTokenByHash(tokenHash string) {
-	// Implementation would revoke the token by its hash
-	// This would typically involve blacklisting the token
+	// Revoke tokens by updating their status in the database
+	// Update access tokens
+	_, err := facades.Orm().Query().Model(&models.OAuthAccessToken{}).
+		Where("token_hash = ?", tokenHash).
+		Update("revoked", true)
+
+	if err != nil {
+		facades.Log().Error("Failed to revoke access token", map[string]interface{}{
+			"token_hash": tokenHash,
+			"error":      err.Error(),
+		})
+	}
+
+	// Update refresh tokens
+	_, err = facades.Orm().Query().Model(&models.OAuthRefreshToken{}).
+		Where("token_hash = ?", tokenHash).
+		Update("revoked", true)
+
+	if err != nil {
+		facades.Log().Error("Failed to revoke refresh token", map[string]interface{}{
+			"token_hash": tokenHash,
+			"error":      err.Error(),
+		})
+	}
+
+	// Update associated session status
+	var sessions []models.OAuthSession
+	err = facades.Orm().Query().
+		Where("session_data LIKE ?", fmt.Sprintf("%%%s%%", tokenHash)).
+		Find(&sessions)
+
+	if err == nil {
+		for _, session := range sessions {
+			session.Status = "revoked"
+			facades.Orm().Query().Save(&session)
+		}
+	}
+
 	facades.Log().Info("Token revoked by hash", map[string]interface{}{
 		"token_hash": tokenHash,
 	})
 }
 
 func (s *OAuthSessionService) revokeSessionByToken(tokenHint string, reason string) error {
-	// Implementation would find the session by token and revoke it
-	// This is a simplified placeholder
-	facades.Log().Info("Session revoked by token hint", map[string]interface{}{
-		"token_hint": tokenHint,
-		"reason":     reason,
+	// Find and revoke session by token hint
+	var sessions []models.OAuthSession
+
+	// Search in session data for the token hint
+	err := facades.Orm().Query().
+		Where("session_data LIKE ? OR session_id = ?", fmt.Sprintf("%%%s%%", tokenHint), tokenHint).
+		Find(&sessions)
+
+	if err != nil {
+		facades.Log().Error("Failed to find sessions by token hint", map[string]interface{}{
+			"token_hint": tokenHint,
+			"error":      err.Error(),
+		})
+		return fmt.Errorf("failed to find sessions: %w", err)
+	}
+
+	if len(sessions) == 0 {
+		facades.Log().Warning("No sessions found for token hint", map[string]interface{}{
+			"token_hint": tokenHint,
+		})
+		return fmt.Errorf("no sessions found for token hint")
+	}
+
+	// Revoke all found sessions
+	for _, session := range sessions {
+		session.Status = "revoked"
+		if err := facades.Orm().Query().Save(&session); err != nil {
+			facades.Log().Error("Failed to revoke session", map[string]interface{}{
+				"session_id": session.SessionID,
+				"error":      err.Error(),
+			})
+			continue
+		}
+
+		// Also revoke associated tokens
+		s.revokeTokensForSession(session.SessionID)
+	}
+
+	facades.Log().Info("Sessions revoked by token hint", map[string]interface{}{
+		"token_hint":     tokenHint,
+		"reason":         reason,
+		"sessions_count": len(sessions),
 	})
+
 	return nil
 }
 
+func (s *OAuthSessionService) revokeTokensForSession(sessionID string) {
+	// Revoke access tokens for this session
+	_, err := facades.Orm().Query().Model(&models.OAuthAccessToken{}).
+		Where("session_id = ?", sessionID).
+		Update("revoked", true)
+
+	if err != nil {
+		facades.Log().Error("Failed to revoke access tokens for session", map[string]interface{}{
+			"session_id": sessionID,
+			"error":      err.Error(),
+		})
+	}
+
+	// Revoke refresh tokens for this session
+	_, err = facades.Orm().Query().Model(&models.OAuthRefreshToken{}).
+		Where("session_id = ?", sessionID).
+		Update("revoked", true)
+
+	if err != nil {
+		facades.Log().Error("Failed to revoke refresh tokens for session", map[string]interface{}{
+			"session_id": sessionID,
+			"error":      err.Error(),
+		})
+	}
+}
+
 func (s *OAuthSessionService) getAllUserIDs() []string {
-	// Placeholder - in production, this would query the database
-	// for all users with active sessions
-	return []string{}
+	// Query database for all users with active sessions
+	var userIDs []string
+
+	err := facades.Orm().Query().
+		Model(&models.OAuthSession{}).
+		Where("status = ? AND expires_at > ?", "active", time.Now()).
+		Distinct("user_id").
+		Pluck("user_id", &userIDs)
+
+	if err != nil {
+		facades.Log().Error("Failed to get user IDs with active sessions", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return []string{}
+	}
+
+	return userIDs
 }

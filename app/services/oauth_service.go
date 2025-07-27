@@ -33,9 +33,14 @@ type OAuthService struct {
 	rsaPublicKey              *rsa.PublicKey
 }
 
-func NewOAuthService() *OAuthService {
+func NewOAuthService() (*OAuthService, error) {
+	jwtService, err := NewJWTService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize JWT service: %w", err)
+	}
+
 	service := &OAuthService{
-		jwtService:                NewJWTService(),
+		jwtService:                jwtService,
 		analyticsService:          NewOAuthAnalyticsService(),
 		consentService:            NewOAuthConsentService(),
 		sessionService:            NewSessionService(),
@@ -45,27 +50,43 @@ func NewOAuthService() *OAuthService {
 	}
 
 	// Initialize RSA keys for JWT signing
-	service.initializeRSAKeys()
+	if err := service.initializeRSAKeys(); err != nil {
+		return nil, fmt.Errorf("failed to initialize RSA keys: %w", err)
+	}
 
+	return service, nil
+}
+
+// MustNewOAuthService creates a new OAuth service and panics on error (for backward compatibility)
+// Deprecated: Use NewOAuthService() instead for proper error handling
+func MustNewOAuthService() *OAuthService {
+	service, err := NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Critical OAuthService initialization failure", map[string]interface{}{
+			"error": err.Error(),
+		})
+		panic(fmt.Sprintf("OAuthService initialization failed: %v", err))
+	}
 	return service
 }
 
 // initializeRSAKeys initializes RSA key pair for JWT signing
-func (s *OAuthService) initializeRSAKeys() {
-	// Try to load existing keys or generate new ones
+func (s *OAuthService) initializeRSAKeys() error {
+	// Try to load existing keys from secure environment storage
 	privateKeyPEM := facades.Config().GetString("oauth.rsa_private_key", "")
+
 	if privateKeyPEM == "" {
 		// Generate new RSA key pair
 		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
 			facades.Log().Error("Failed to generate RSA key pair: " + err.Error())
-			return
+			return err
 		}
 
 		s.rsaPrivateKey = privateKey
 		s.rsaPublicKey = &privateKey.PublicKey
 
-		// Save keys to config for persistence (in production, use secure storage)
+		// Prepare key data for secure storage
 		privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
 		privateKeyPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  "RSA PRIVATE KEY",
@@ -79,25 +100,41 @@ func (s *OAuthService) initializeRSAKeys() {
 		})
 
 		facades.Log().Info("Generated new RSA key pair for OAuth2 JWT signing")
-		facades.Log().Info("Private Key: " + string(privateKeyPEM))
-		facades.Log().Info("Public Key: " + string(publicKeyPEM))
+
+		// In production, these keys should be stored securely in environment variables
+		// or a dedicated key management service like AWS KMS, HashiCorp Vault, etc.
+		if facades.Config().GetString("app.env") == "production" {
+			facades.Log().Warning("Production RSA keys generated - store OAUTH_RSA_PRIVATE_KEY and OAUTH_RSA_PUBLIC_KEY in secure environment variables")
+		} else {
+			// Only log keys in non-production environments for debugging
+			facades.Log().Debug("OAuth RSA Private Key (store in OAUTH_RSA_PRIVATE_KEY env var)", map[string]interface{}{
+				"private_key": string(privateKeyPEM),
+			})
+			facades.Log().Debug("OAuth RSA Public Key (store in OAUTH_RSA_PUBLIC_KEY env var)", map[string]interface{}{
+				"public_key": string(publicKeyPEM),
+			})
+		}
 	} else {
-		// Load existing keys
+		// Load existing keys from environment
 		block, _ := pem.Decode([]byte(privateKeyPEM))
 		if block == nil {
-			facades.Log().Error("Failed to decode RSA private key")
-			return
+			facades.Log().Error("Failed to decode RSA private key from environment")
+			return fmt.Errorf("failed to decode RSA private key")
 		}
 
 		privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			facades.Log().Error("Failed to parse RSA private key: " + err.Error())
-			return
+			return fmt.Errorf("failed to parse RSA private key: %w", err)
 		}
 
 		s.rsaPrivateKey = privateKey
 		s.rsaPublicKey = &privateKey.PublicKey
+
+		facades.Log().Info("Loaded RSA key pair from secure environment storage")
 	}
+
+	return nil
 }
 
 // CreateJWTAccessToken creates a JWT access token
@@ -1477,7 +1514,7 @@ func (s *OAuthService) GetAllowedScopes() []string {
 
 func (s *OAuthService) isKnownMaliciousIP(ipAddress string) bool {
 	// List of known malicious IP ranges/addresses
-	// In production, this would be loaded from a database or external service
+	// TODO: In production, this would be loaded from a database or external service
 	maliciousIPs := []string{
 		"0.0.0.0",
 		"127.0.0.1", // localhost attempts from external
@@ -1691,7 +1728,7 @@ func (s *OAuthService) isSuspiciousRedirectURI(uri string) bool {
 	// Check for suspicious domains
 	suspiciousDomains := []string{
 		"bit.ly", "tinyurl.com", "t.co", "goo.gl", // URL shorteners
-		"localhost", "127.0.0.1", "0.0.0.0", // Local addresses (might be suspicious in production)
+		"localhost", "127.0.0.1", "0.0.0.0", // Local addresses (might be suspicious TODO: In production)
 	}
 
 	for _, domain := range suspiciousDomains {
@@ -1700,7 +1737,7 @@ func (s *OAuthService) isSuspiciousRedirectURI(uri string) bool {
 		}
 	}
 
-	// Check for non-HTTPS URIs (suspicious in production)
+	// Check for non-HTTPS URIs (suspicious TODO: In production)
 	if !strings.HasPrefix(uriLower, "https://") && !strings.HasPrefix(uriLower, "http://localhost") {
 		return true
 	}
@@ -1752,7 +1789,7 @@ func (s *OAuthService) hasUnusualClientActivity(clientID string) bool {
 
 func (s *OAuthService) hasUnusualScopePattern(clientID string) bool {
 	// Check if client is requesting unusual combinations of scopes
-	// This is a simplified check - in production you'd analyze historical patterns
+	// This is a simplified check - TODO: In production you'd analyze historical patterns
 
 	// For now, just log that we're checking scope patterns
 	facades.Log().Debug("Checking scope patterns for client", map[string]interface{}{

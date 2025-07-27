@@ -387,7 +387,13 @@ func validateWebSocketToken(token string) (*models.User, *services.JWTClaims, er
 	}
 
 	// Create JWT service instance
-	jwtService := services.NewJWTService()
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		facades.Log().Error("Failed to initialize JWT service in websocket middleware", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, nil, fmt.Errorf("JWT service initialization failed: %w", err)
+	}
 
 	// Validate token using JWT service
 	claims, err := jwtService.ValidateToken(token)

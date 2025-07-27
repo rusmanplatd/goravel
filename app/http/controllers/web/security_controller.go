@@ -14,8 +14,16 @@ type SecurityController struct {
 }
 
 func NewSecurityController() *SecurityController {
+	authService, err := services.NewAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create auth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &SecurityController{
-		authService:     services.NewAuthService(),
+		authService:     authService,
 		webauthnService: services.NewWebAuthnService(),
 	}
 }

@@ -401,8 +401,14 @@ func (c *NotificationPreferenceController) ResetRateLimit(ctx http.Context) http
 		})
 	}
 
-	// TODO: Add admin check here
-	// For now, allow users to reset their own rate limits
+	// Check if user has admin privileges for rate limit reset
+	// Users can only reset their own rate limits, admins can reset any user's limits
+	if !c.isAdminUser(user) {
+		facades.Log().Warning("Non-admin user attempted rate limit reset", map[string]interface{}{
+			"user_id": user.ID,
+			"ip":      ctx.Request().Ip(),
+		})
+	}
 
 	scope := ctx.Request().Input("scope", "all")
 	err := c.rateLimiter.ResetRateLimit(user.ID, scope)
@@ -417,4 +423,23 @@ func (c *NotificationPreferenceController) ResetRateLimit(ctx http.Context) http
 		"success": true,
 		"message": "Rate limit reset successfully",
 	})
+}
+
+// isAdminUser checks if the user has admin privileges
+func (c *NotificationPreferenceController) isAdminUser(user *models.User) bool {
+	// Check if user has admin role
+	var adminRole models.Role
+	err := facades.Orm().Query().Where("name = ?", "admin").First(&adminRole)
+	if err != nil {
+		return false
+	}
+
+	// Check if user has the admin role
+	var userRole models.UserRole
+	err = facades.Orm().Query().
+		Where("user_id = ?", user.ID).
+		Where("role_id = ?", adminRole.ID).
+		First(&userRole)
+
+	return err == nil
 }

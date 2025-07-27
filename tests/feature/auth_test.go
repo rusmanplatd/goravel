@@ -215,7 +215,10 @@ func testTOTPDisable(t *testing.T) {
 
 func testJWTTokenGeneration(t *testing.T) {
 	// Test JWT token generation
-	jwtService := services.NewJWTService()
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		t.Fatalf("Failed to initialize JWT service: %v", err)
+	}
 
 	userID := "test_user_id"
 	email := "test@example.com"
@@ -240,7 +243,10 @@ func testJWTTokenGeneration(t *testing.T) {
 
 func testJWTTokenValidation(t *testing.T) {
 	// Test JWT token validation
-	jwtService := services.NewJWTService()
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		t.Fatalf("Failed to initialize JWT service: %v", err)
+	}
 
 	userID := "test_user_id"
 	email := "test@example.com"
@@ -264,7 +270,10 @@ func testJWTTokenValidation(t *testing.T) {
 
 func testJWTTokenRefresh(t *testing.T) {
 	// Test JWT token refresh
-	jwtService := services.NewJWTService()
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		t.Fatalf("Failed to initialize JWT service: %v", err)
+	}
 
 	userID := "test_user_id"
 	email := "test@example.com"
@@ -394,7 +403,10 @@ func BenchmarkTOTPGeneration(b *testing.B) {
 }
 
 func BenchmarkJWTTokenGeneration(b *testing.B) {
-	jwtService := services.NewJWTService()
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		b.Fatalf("Failed to initialize JWT service: %v", err)
+	}
 	userID := "test_user_id"
 	email := "test@example.com"
 

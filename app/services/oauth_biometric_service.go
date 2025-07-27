@@ -239,7 +239,7 @@ type TouchDynamics struct {
 type HeartRateVariability struct {
 	RMSSD           []float64            `json:"rmssd"`
 	SDNN            []float64            `json:"sdnn"`
-	pNN50           []float64            `json:"pnn50"`
+	PNN50           []float64            `json:"pnn50"`
 	FrequencyDomain map[string][]float64 `json:"frequency_domain"`
 	RestingHR       []float64            `json:"resting_hr"`
 }

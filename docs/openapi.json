@@ -29703,43 +29703,23 @@
   ],
   "tags": [
     {
-      "name": "Authentication",
+      "name": "countries",
       "description": ""
     },
     {
-      "name": "notifications",
+      "name": "districts",
       "description": ""
     },
     {
-      "name": "tasks",
+      "name": "meeting-analytics",
       "description": ""
     },
     {
-      "name": "task-labels",
+      "name": "organizations",
       "description": ""
     },
     {
-      "name": "users",
-      "description": ""
-    },
-    {
-      "name": "Drive",
-      "description": ""
-    },
-    {
-      "name": "event-templates",
-      "description": ""
-    },
-    {
-      "name": "calendar-analytics",
-      "description": ""
-    },
-    {
-      "name": "calendar-events",
-      "description": ""
-    },
-    {
-      "name": "calendar-sharing",
+      "name": "tenants",
       "description": ""
     },
     {
@@ -29751,7 +29731,67 @@
       "description": ""
     },
     {
+      "name": "notifications",
+      "description": ""
+    },
+    {
+      "name": "provinces",
+      "description": ""
+    },
+    {
+      "name": "roles",
+      "description": ""
+    },
+    {
+      "name": "task-labels",
+      "description": ""
+    },
+    {
+      "name": "departments",
+      "description": ""
+    },
+    {
+      "name": "projects",
+      "description": ""
+    },
+    {
+      "name": "calendar-delegation",
+      "description": ""
+    },
+    {
+      "name": "chat",
+      "description": ""
+    },
+    {
+      "name": "Drive",
+      "description": ""
+    },
+    {
+      "name": "Meeting Polls",
+      "description": ""
+    },
+    {
+      "name": "OAuth2",
+      "description": ""
+    },
+    {
+      "name": "tasks",
+      "description": ""
+    },
+    {
+      "name": "task-boards",
+      "description": ""
+    },
+    {
       "name": "meetings",
+      "description": ""
+    },
+    {
+      "name": "permissions",
+      "description": ""
+    },
+    {
+      "name": "calendar-analytics",
       "description": ""
     },
     {
@@ -29763,59 +29803,15 @@
       "description": ""
     },
     {
-      "name": "chat",
+      "name": "calendar-events",
       "description": ""
     },
     {
-      "name": "OAuth2",
+      "name": "calendar-sharing",
       "description": ""
     },
     {
-      "name": "teams",
-      "description": ""
-    },
-    {
-      "name": "calendar-delegation",
-      "description": ""
-    },
-    {
-      "name": "departments",
-      "description": ""
-    },
-    {
-      "name": "Meeting Polls",
-      "description": ""
-    },
-    {
-      "name": "organizations",
-      "description": ""
-    },
-    {
-      "name": "projects",
-      "description": ""
-    },
-    {
-      "name": "provinces",
-      "description": ""
-    },
-    {
-      "name": "tenants",
-      "description": ""
-    },
-    {
-      "name": "countries",
-      "description": ""
-    },
-    {
-      "name": "meeting-analytics",
-      "description": ""
-    },
-    {
-      "name": "roles",
-      "description": ""
-    },
-    {
-      "name": "districts",
+      "name": "event-templates",
       "description": ""
     },
     {
@@ -29827,19 +29823,23 @@
       "description": ""
     },
     {
-      "name": "permissions",
+      "name": "users",
       "description": ""
     },
     {
-      "name": "task-boards",
+      "name": "teams",
       "description": ""
     },
     {
-      "name": "oauth",
+      "name": "Authentication",
       "description": ""
     },
     {
       "name": "ws",
+      "description": ""
+    },
+    {
+      "name": "oauth",
       "description": ""
     },
     {

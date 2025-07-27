@@ -109,21 +109,13 @@ func Web() {
 		facades.Route().Middleware(middleware.WebAuth()).Get("/profile/settings", profileController.Settings)
 		facades.Route().Middleware(middleware.WebAuth()).Put("/profile/settings", profileController.UpdateSettings)
 
-		// Placeholder routes for other navbar links
-		facades.Route().Middleware(middleware.WebAuth()).Get("/milestones", func(ctx http.Context) http.Response {
-			return ctx.Response().View().Make("coming-soon.tmpl", map[string]interface{}{
-				"title":   "Milestones",
-				"user":    ctx.Value("user"),
-				"feature": "Milestones",
-			})
-		})
-		facades.Route().Middleware(middleware.WebAuth()).Get("/task-boards", func(ctx http.Context) http.Response {
-			return ctx.Response().View().Make("coming-soon.tmpl", map[string]interface{}{
-				"title":   "Task Boards",
-				"user":    ctx.Value("user"),
-				"feature": "Task Boards",
-			})
-		})
+		// Task Management routes
+		taskController := web.NewTaskController()
+		facades.Route().Middleware(middleware.WebAuth()).Get("/task-boards", taskController.Boards)
+
+		// Milestone Management routes
+		milestoneController := web.NewMilestoneController()
+		facades.Route().Middleware(middleware.WebAuth()).Get("/milestones", milestoneController.Index)
 
 		// OAuth Client management (requires authentication)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/oauth/clients", oauthClientController.Index)
@@ -230,16 +222,25 @@ func Web() {
 	})
 
 	// Generic OAuth IdP routes (public)
-	oauthIdpController := web.NewOAuthIdpController()
-	facades.Route().Get("/auth/oauth/{provider}", oauthIdpController.Redirect)
-	facades.Route().Get("/auth/oauth/{provider}/callback", oauthIdpController.Callback)
-	facades.Route().Get("/api/oauth/providers", oauthIdpController.GetProviders)
+	oauthIdpController, err := web.NewOAuthIdpController()
+	if err != nil {
+		facades.Log().Error("Failed to initialize OAuth IdP controller", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// Gracefully handle initialization failure without panic
+		facades.Log().Warning("OAuth IdP routes will be unavailable due to initialization failure")
+		// Skip registering OAuth IdP routes
+	} else {
+		facades.Route().Get("/auth/oauth/{provider}", oauthIdpController.Redirect)
+		facades.Route().Get("/auth/oauth/{provider}/callback", oauthIdpController.Callback)
+		facades.Route().Get("/api/oauth/providers", oauthIdpController.GetProviders)
 
-	// Protected OAuth IdP routes
-	facades.Route().Middleware(middleware.WebAuth()).Group(func(router route.Router) {
-		router.Post("/auth/oauth/{provider}/unlink", oauthIdpController.Unlink)
-		router.Get("/api/oauth/identities", oauthIdpController.GetUserIdentities)
-	})
+		// Protected OAuth IdP routes
+		facades.Route().Middleware(middleware.WebAuth()).Group(func(router route.Router) {
+			router.Post("/auth/oauth/{provider}/unlink", oauthIdpController.Unlink)
+			router.Get("/api/oauth/identities", oauthIdpController.GetUserIdentities)
+		})
+	}
 
 	// OAuth Provider Management routes (protected - admin only)
 	oauthProviderController := web.NewOAuthProviderController()
@@ -258,18 +259,29 @@ func Web() {
 		router.Post("/oauth/providers/from-template", oauthProviderController.CreateFromTemplate)
 	})
 
-	// OAuth Security Dashboard routes (protected) - TODO: Implement dashboard controller
-	// oauthSecurityDashboardController := web.NewOAuthSecurityDashboardController()
-	// facades.Route().Middleware(middleware.WebAuth()).Group(func(router route.Router) {
-	//	router.Get("/oauth/security/dashboard", oauthSecurityDashboardController.Dashboard)
-	//	router.Get("/oauth/security/devices", oauthSecurityDashboardController.DeviceManagement)
-	//	router.Post("/oauth/security/devices/{fingerprint}/revoke", oauthSecurityDashboardController.RevokeDevice)
-	//	router.Get("/oauth/security/events", oauthSecurityDashboardController.SecurityEvents)
-	//	router.Get("/oauth/security/analytics", oauthSecurityDashboardController.Analytics)
-	// })
+	// OAuth Security Dashboard routes (protected)
+	oauthSecurityDashboardController := web.NewOAuthSecurityDashboardController()
+	facades.Route().Middleware(middleware.WebAuth()).Group(func(router route.Router) {
+		router.Get("/oauth/security/dashboard", oauthSecurityDashboardController.Dashboard)
+		router.Get("/oauth/security/devices", oauthSecurityDashboardController.DeviceManagement)
+		router.Post("/oauth/security/devices/revoke", oauthSecurityDashboardController.RevokeDevice)
+		router.Post("/oauth/security/sessions/revoke", oauthSecurityDashboardController.RevokeSession)
+		router.Get("/oauth/security/events", oauthSecurityDashboardController.SecurityEvents)
+		router.Post("/oauth/security/sessions/revoke-all", oauthSecurityDashboardController.RevokeAllSessions)
+	})
 
 	// Legacy Google OAuth routes (public) - for backward compatibility
-	googleOAuthController := web.NewGoogleOAuthController()
+	googleOAuthController, err := web.NewGoogleOAuthController()
+	if err != nil {
+		facades.Log().Error("Failed to initialize Google OAuth controller", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// Return error to prevent server startup with broken OAuth
+		facades.Log().Fatal("Critical: Google OAuth controller initialization failed, cannot start server", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
 	facades.Route().Get("/auth/google", googleOAuthController.Redirect)
 	facades.Route().Get("/auth/google/callback", googleOAuthController.Callback)
 

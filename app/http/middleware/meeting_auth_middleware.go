@@ -86,7 +86,7 @@ func (m *MeetingAuthMiddleware) checkMeetingAccess(userID, meetingID string, mee
 	}
 
 	// For now, allow access to all authenticated users as default attendee
-	// In production, you would check event attendees or implement proper access control
+	// TODO: In production, you would check event attendees or implement proper access control
 	return true, "attendee"
 }
 

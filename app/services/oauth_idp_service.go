@@ -60,9 +60,25 @@ type AuthenticationContext struct {
 }
 
 func NewOAuthIdpService() *OAuthIdpService {
+	authService, err := NewAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create auth service for OAuth IDP", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	multiAccountService, err := NewMultiAccountService()
+	if err != nil {
+		facades.Log().Error("Failed to create multi-account service for OAuth IDP", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthIdpService{
-		authService:         NewAuthService(),
-		multiAccountService: NewMultiAccountService(),
+		authService:         authService,
+		multiAccountService: multiAccountService,
 		riskService:         NewOAuthRiskService(),
 	}
 }
@@ -386,13 +402,27 @@ func (s *OAuthIdpService) createUserIdentity(provider *models.OAuthIdentityProvi
 		return fmt.Errorf("failed to set provider data: %w", err)
 	}
 
-	// Store tokens (should be encrypted in production)
+	// Store tokens with encryption for production security
 	if token.AccessToken != "" {
-		identity.AccessToken = &token.AccessToken
+		encryptedAccessToken, err := s.encryptToken(token.AccessToken)
+		if err != nil {
+			facades.Log().Error("Failed to encrypt access token", map[string]interface{}{
+				"error": err.Error(),
+			})
+			return fmt.Errorf("failed to encrypt access token: %w", err)
+		}
+		identity.AccessToken = &encryptedAccessToken
 	}
 
 	if token.RefreshToken != "" {
-		identity.RefreshToken = &token.RefreshToken
+		encryptedRefreshToken, err := s.encryptToken(token.RefreshToken)
+		if err != nil {
+			facades.Log().Error("Failed to encrypt refresh token", map[string]interface{}{
+				"error": err.Error(),
+			})
+			return fmt.Errorf("failed to encrypt refresh token: %w", err)
+		}
+		identity.RefreshToken = &encryptedRefreshToken
 	}
 
 	if !token.Expiry.IsZero() {
@@ -703,4 +733,34 @@ func (s *OAuthIdpService) RevokeTrustedDevice(userID, deviceFingerprint string) 
 		"fingerprint": deviceFingerprint,
 	})
 	return nil
+}
+
+// encryptToken encrypts sensitive tokens using application encryption key
+func (s *OAuthIdpService) encryptToken(token string) (string, error) {
+	if token == "" {
+		return "", nil
+	}
+
+	// Use Goravel's encryption facade for consistent encryption
+	encrypted, err := facades.Crypt().EncryptString(token)
+	if err != nil {
+		return "", fmt.Errorf("failed to encrypt token: %w", err)
+	}
+
+	return encrypted, nil
+}
+
+// decryptToken decrypts sensitive tokens
+func (s *OAuthIdpService) decryptToken(encryptedToken string) (string, error) {
+	if encryptedToken == "" {
+		return "", nil
+	}
+
+	// Use Goravel's encryption facade for consistent decryption
+	decrypted, err := facades.Crypt().DecryptString(encryptedToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt token: %w", err)
+	}
+
+	return decrypted, nil
 }

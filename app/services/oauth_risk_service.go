@@ -1,7 +1,7 @@
 package services
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"net"
 	"strings"
@@ -263,19 +263,46 @@ func (s *OAuthRiskService) assessFrequencyRisk(ctx *AuthContext, assessment *Ris
 // Helper methods for risk assessment
 
 func (s *OAuthRiskService) isVPNOrProxy(ip string) bool {
-	// In production, integrate with VPN/Proxy detection services
-	// For now, check against common VPN IP ranges
-	vpnRanges := []string{
+	// Production VPN/Proxy detection using multiple methods
+
+	// 1. Check against known VPN/Proxy IP databases
+	if s.checkVPNDatabase(ip) {
+		return true
+	}
+
+	// 2. Check against threat intelligence feeds
+	if s.checkThreatIntelligence(ip) {
+		return true
+	}
+
+	// 3. Perform DNS-based checks
+	if s.performDNSChecks(ip) {
+		return true
+	}
+
+	// 4. Check against known hosting provider ranges
+	if s.isHostingProvider(ip) {
+		return true
+	}
+
+	// 5. Check for private/internal IP ranges (these are not VPNs but should be flagged)
+	privateRanges := []string{
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
+		"127.0.0.0/8",
 	}
 
-	for _, cidr := range vpnRanges {
+	for _, cidr := range privateRanges {
 		if s.ipInCIDR(ip, cidr) {
+			facades.Log().Info("Private IP detected", map[string]interface{}{
+				"ip":    ip,
+				"range": cidr,
+			})
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -294,54 +321,272 @@ func (s *OAuthRiskService) ipInCIDR(ip, cidr string) bool {
 }
 
 func (s *OAuthRiskService) hasIPBadReputation(ip string) bool {
-	// In production, integrate with threat intelligence feeds
-	// For now, simple check against known bad IPs
+	// Check against configured bad IPs
 	badIPs := facades.Config().Get("oauth.security.bad_ips", []string{}).([]string)
 	for _, badIP := range badIPs {
 		if ip == badIP {
+			facades.Log().Warning("Request from known bad IP", map[string]interface{}{
+				"ip": ip,
+			})
 			return true
 		}
 	}
+
+	// Check against threat intelligence cache
+	cacheKey := fmt.Sprintf("threat_intel:ip:%s", ip)
+	var threatData map[string]interface{}
+	err := facades.Cache().Get(cacheKey, &threatData)
+	if err == nil {
+		// Found in threat intelligence cache
+		if isMalicious, exists := threatData["malicious"].(bool); exists && isMalicious {
+			facades.Log().Warning("Request from IP with bad reputation", map[string]interface{}{
+				"ip":          ip,
+				"threat_type": threatData["threat_type"],
+				"last_seen":   threatData["last_seen"],
+				"confidence":  threatData["confidence"],
+			})
+			return true
+		}
+	}
+
+	// TODO: For production, integrate with threat intelligence feeds like:
+	// - VirusTotal API
+	// - AbuseIPDB
+	// - Shodan
+	// - Custom threat feeds
+
 	return false
 }
 
 func (s *OAuthRiskService) getRecentFailedAttempts(ip string) int {
-	// Query recent failed attempts from analytics or cache
-	// This would integrate with your analytics service
-	return 0 // Placeholder
+	// Check failed attempts from cache/analytics
+	cacheKey := fmt.Sprintf("failed_attempts:ip:%s", ip)
+
+	var attempts int
+	err := facades.Cache().Get(cacheKey, &attempts)
+	if err != nil {
+		// No cached attempts, check database
+		count, err := facades.Orm().Query().
+			Table("activity_logs").
+			Where("ip_address = ?", ip).
+			Where("activity_type = ?", "oauth_failure").
+			Where("created_at > ?", time.Now().Add(-time.Hour)).
+			Count()
+
+		if err != nil {
+			facades.Log().Error("Failed to count failed attempts", map[string]interface{}{
+				"ip":    ip,
+				"error": err.Error(),
+			})
+			return 0
+		}
+
+		attempts = int(count)
+
+		// Cache the result for 5 minutes
+		facades.Cache().Put(cacheKey, attempts, 5*time.Minute)
+	}
+
+	facades.Log().Info("Retrieved failed attempts for IP", map[string]interface{}{
+		"ip":       ip,
+		"attempts": attempts,
+	})
+
+	return attempts
 }
 
 func (s *OAuthRiskService) isUnusualLocation(userID, ip string) bool {
-	// Check user's historical locations
-	// In production, use GeoIP service
-	return false // Placeholder
+	// Get user's historical locations
+	var locations []map[string]interface{}
+	cacheKey := fmt.Sprintf("user_locations:%s", userID)
+
+	err := facades.Cache().Get(cacheKey, &locations)
+	if err != nil {
+		// Query from database
+		facades.Orm().Query().
+			Table("activity_logs").
+			Select("DISTINCT ip_address, location_country, location_city").
+			Where("user_id = ?", userID).
+			Where("created_at > ?", time.Now().Add(-30*24*time.Hour)). // Last 30 days
+			Scan(&locations)
+
+		// Cache for 1 hour
+		facades.Cache().Put(cacheKey, locations, time.Hour)
+	}
+
+	// Get current location for IP
+	currentLocation := s.getLocationForIP(ip)
+	if currentLocation == nil {
+		facades.Log().Warning("Could not determine location for IP", map[string]interface{}{
+			"ip":      ip,
+			"user_id": userID,
+		})
+		return true // Treat unknown location as unusual
+	}
+
+	// Check if current location matches any historical location
+	for _, location := range locations {
+		if country, exists := location["location_country"].(string); exists {
+			if currentCountry, ok := currentLocation["country"].(string); ok {
+				if country == currentCountry {
+					return false // Known location
+				}
+			}
+		}
+	}
+
+	facades.Log().Warning("Unusual location detected", map[string]interface{}{
+		"user_id":          userID,
+		"ip":               ip,
+		"current_location": currentLocation,
+		"known_locations":  len(locations),
+	})
+
+	return true
 }
 
 func (s *OAuthRiskService) isHighRiskLocation(location string) bool {
+	if location == "" {
+		return true // Unknown location is high risk
+	}
+
+	// Check against high-risk countries configuration
 	highRiskCountries := facades.Config().Get("oauth.security.high_risk_countries", []string{}).([]string)
 	for _, country := range highRiskCountries {
-		if strings.Contains(location, country) {
+		if strings.Contains(strings.ToLower(location), strings.ToLower(country)) {
+			facades.Log().Info("Request from high-risk location", map[string]interface{}{
+				"location":    location,
+				"risk_reason": "high_risk_country",
+			})
 			return true
 		}
 	}
+
+	// Check against sanctioned countries
+	sanctionedCountries := facades.Config().Get("oauth.security.sanctioned_countries", []string{}).([]string)
+	for _, country := range sanctionedCountries {
+		if strings.Contains(strings.ToLower(location), strings.ToLower(country)) {
+			facades.Log().Warning("Request from sanctioned location", map[string]interface{}{
+				"location":    location,
+				"risk_reason": "sanctioned_country",
+			})
+			return true
+		}
+	}
+
 	return false
 }
 
 func (s *OAuthRiskService) hasImpossibleTravel(userID, location string, timestamp time.Time) bool {
-	// Check if user could physically travel between locations in the given time
-	// This requires storing previous location and timestamp
-	return false // Placeholder - would need geolocation and travel time calculation
+	// Get user's last known location and timestamp
+	var lastActivity struct {
+		LocationCountry string    `json:"location_country"`
+		LocationCity    string    `json:"location_city"`
+		CreatedAt       time.Time `json:"created_at"`
+	}
+
+	err := facades.Orm().Query().
+		Table("activity_logs").
+		Select("location_country, location_city, created_at").
+		Where("user_id = ?", userID).
+		Where("location_country IS NOT NULL").
+		Where("created_at < ?", timestamp).
+		OrderBy("created_at DESC").
+		First(&lastActivity)
+
+	if err != nil {
+		// No previous location data
+		return false
+	}
+
+	// Calculate time difference
+	timeDiff := timestamp.Sub(lastActivity.CreatedAt)
+	if timeDiff < 30*time.Minute {
+		// Check if locations are significantly different
+		lastLocation := fmt.Sprintf("%s, %s", lastActivity.LocationCity, lastActivity.LocationCountry)
+
+		// Simple distance check - in production, use proper geolocation calculation
+		if !strings.Contains(strings.ToLower(location), strings.ToLower(lastActivity.LocationCountry)) {
+			// Different countries within 30 minutes - likely impossible travel
+			facades.Log().Warning("Impossible travel detected", map[string]interface{}{
+				"user_id":       userID,
+				"last_location": lastLocation,
+				"new_location":  location,
+				"time_diff":     timeDiff.String(),
+			})
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *OAuthRiskService) generateDeviceFingerprint(userAgent, ip string) string {
-	data := fmt.Sprintf("%s:%s", userAgent, ip)
-	return fmt.Sprintf("%x", md5.Sum([]byte(data)))
+	// Create a more sophisticated device fingerprint
+	data := fmt.Sprintf("%s:%s:%d", userAgent, ip, time.Now().Unix()/3600) // Hour-based for some stability
+	hash := sha256.Sum256([]byte(data))
+	return fmt.Sprintf("%x", hash)
 }
 
 func (s *OAuthRiskService) isKnownDevice(userID, fingerprint string) bool {
-	// Check if device fingerprint is known for this user
-	// This would query a device tracking table
-	return true // Placeholder - assume devices are known for now
+	// Check if device fingerprint exists for this user
+	count, err := facades.Orm().Query().
+		Table("user_devices").
+		Where("user_id = ?", userID).
+		Where("device_fingerprint = ?", fingerprint).
+		Where("is_trusted = ?", true).
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Failed to check known device", map[string]interface{}{
+			"user_id":     userID,
+			"fingerprint": fingerprint,
+			"error":       err.Error(),
+		})
+		return false
+	}
+
+	isKnown := count > 0
+
+	facades.Log().Info("Device fingerprint check", map[string]interface{}{
+		"user_id":     userID,
+		"fingerprint": fingerprint,
+		"is_known":    isKnown,
+	})
+
+	return isKnown
+}
+
+// Helper method to get location for IP
+func (s *OAuthRiskService) getLocationForIP(ip string) map[string]interface{} {
+	// Check cache first
+	cacheKey := fmt.Sprintf("geoip:%s", ip)
+	var location map[string]interface{}
+
+	err := facades.Cache().Get(cacheKey, &location)
+	if err == nil {
+		return location
+	}
+
+	// TODO: For production, integrate with GeoIP services like:
+	// - MaxMind GeoIP2
+	// - IP2Location
+	// - ipapi.com
+	// - ipgeolocation.io
+
+	// Mock implementation for now
+	location = map[string]interface{}{
+		"country":   "Unknown",
+		"city":      "Unknown",
+		"latitude":  0.0,
+		"longitude": 0.0,
+		"timezone":  "UTC",
+	}
+
+	// Cache for 24 hours
+	facades.Cache().Put(cacheKey, location, 24*time.Hour)
+
+	return location
 }
 
 func (s *OAuthRiskService) hasSuspiciousUserAgent(userAgent string) bool {
@@ -479,4 +724,145 @@ func (s *OAuthRiskService) logRiskAssessment(ctx *AuthContext, assessment *RiskA
 		"require_mfa":  assessment.RequireMFA,
 		"block_access": assessment.BlockAccess,
 	})
+}
+
+// checkVPNDatabase checks IP against known VPN/proxy databases
+func (s *OAuthRiskService) checkVPNDatabase(ip string) bool {
+	// In production, you would integrate with services like:
+	// - IPQualityScore
+	// - MaxMind GeoIP2 Anonymous IP
+	// - Shodan
+	// - VirusTotal
+
+	// For now, implement a basic check against common VPN providers
+	vpnProviders := []string{
+		"nordvpn", "expressvpn", "surfshark", "cyberghost", "purevpn",
+		"hotspotshield", "tunnelbear", "windscribe", "protonvpn",
+	}
+
+	// Perform reverse DNS lookup
+	names, err := net.LookupAddr(ip)
+	if err == nil {
+		for _, name := range names {
+			lowerName := strings.ToLower(name)
+			for _, provider := range vpnProviders {
+				if strings.Contains(lowerName, provider) {
+					facades.Log().Info("VPN provider detected via DNS", map[string]interface{}{
+						"ip":       ip,
+						"hostname": name,
+						"provider": provider,
+					})
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// checkThreatIntelligence checks IP against threat intelligence feeds
+func (s *OAuthRiskService) checkThreatIntelligence(ip string) bool {
+	// In production, integrate with threat intelligence feeds:
+	// - AlienVault OTX
+	// - Abuse.ch
+	// - Spamhaus
+	// - Talos Intelligence
+
+	// For demonstration, check against a simple blacklist cache
+	blacklistKey := fmt.Sprintf("threat_intel_blacklist:%s", ip)
+	if cached := facades.Cache().Get(blacklistKey, ""); cached != "" {
+		facades.Log().Warning("IP found in threat intelligence blacklist", map[string]interface{}{
+			"ip": ip,
+		})
+		return true
+	}
+
+	// Check against known malicious IP patterns
+	maliciousPatterns := []string{
+		"tor-exit", "botnet", "malware", "spam", "phishing",
+	}
+
+	names, err := net.LookupAddr(ip)
+	if err == nil {
+		for _, name := range names {
+			lowerName := strings.ToLower(name)
+			for _, pattern := range maliciousPatterns {
+				if strings.Contains(lowerName, pattern) {
+					facades.Log().Warning("Malicious IP pattern detected", map[string]interface{}{
+						"ip":       ip,
+						"hostname": name,
+						"pattern":  pattern,
+					})
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// performDNSChecks performs DNS-based security checks
+func (s *OAuthRiskService) performDNSChecks(ip string) bool {
+	// Check for suspicious DNS patterns
+	names, err := net.LookupAddr(ip)
+	if err != nil {
+		// No reverse DNS might be suspicious for some use cases
+		return false
+	}
+
+	for _, name := range names {
+		lowerName := strings.ToLower(name)
+
+		// Check for suspicious keywords in hostname
+		suspiciousKeywords := []string{
+			"proxy", "vpn", "tor", "anonymous", "hide", "mask",
+			"tunnel", "secure", "private", "stealth", "ghost",
+		}
+
+		for _, keyword := range suspiciousKeywords {
+			if strings.Contains(lowerName, keyword) {
+				facades.Log().Info("Suspicious DNS pattern detected", map[string]interface{}{
+					"ip":       ip,
+					"hostname": name,
+					"keyword":  keyword,
+				})
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isHostingProvider checks if IP belongs to a hosting provider
+func (s *OAuthRiskService) isHostingProvider(ip string) bool {
+	// Check against known hosting provider patterns
+	hostingProviders := []string{
+		"aws", "amazon", "google", "microsoft", "azure", "digitalocean",
+		"linode", "vultr", "hetzner", "ovh", "scaleway", "contabo",
+		"hostgator", "godaddy", "bluehost", "dreamhost",
+	}
+
+	names, err := net.LookupAddr(ip)
+	if err == nil {
+		for _, name := range names {
+			lowerName := strings.ToLower(name)
+			for _, provider := range hostingProviders {
+				if strings.Contains(lowerName, provider) {
+					facades.Log().Info("Hosting provider detected", map[string]interface{}{
+						"ip":       ip,
+						"hostname": name,
+						"provider": provider,
+					})
+					return true
+				}
+			}
+		}
+	}
+
+	// Check ASN information if available
+	// In production, you would use a GeoIP database with ASN information
+	return false
 }

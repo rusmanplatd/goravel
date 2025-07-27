@@ -493,11 +493,139 @@ func (s *NotificationSchedulerService) deserializeNotification(data map[string]i
 	return notification, nil
 }
 
-// createNotifiable creates a notifiable object (this would need to be implemented based on your models)
+// createNotifiable creates a notifiable object based on the notifiable type and ID
 func (s *NotificationSchedulerService) createNotifiable(notifiableID, notifiableType string) (notificationcore.Notifiable, error) {
-	// This is a placeholder - you'd need to implement this based on your user model
-	// For now, we'll return an error
-	return nil, fmt.Errorf("createNotifiable not implemented")
+	switch notifiableType {
+	case "user", "users", "App\\Models\\User":
+		// Get user from database
+		var user models.User
+		err := facades.Orm().Query().Where("id = ?", notifiableID).First(&user)
+		if err != nil {
+			return nil, fmt.Errorf("user not found with ID %s: %w", notifiableID, err)
+		}
+		return &user, nil
+
+	case "organization", "organizations", "App\\Models\\Organization":
+		// Get organization from database to populate generic notifiable
+		var organization models.Organization
+		err := facades.Orm().Query().Where("id = ?", notifiableID).First(&organization)
+		if err != nil {
+			return nil, fmt.Errorf("organization not found with ID %s: %w", notifiableID, err)
+		}
+		return &GenericNotifiable{
+			ID:    organization.ID,
+			Type:  "organization",
+			Email: "", // Organization model doesn't have direct email field
+			Phone: "", // Organization model doesn't have direct phone field
+		}, nil
+
+	case "tenant", "tenants", "App\\Models\\Tenant":
+		// Get tenant from database to populate generic notifiable
+		var tenant models.Tenant
+		err := facades.Orm().Query().Where("id = ?", notifiableID).First(&tenant)
+		if err != nil {
+			return nil, fmt.Errorf("tenant not found with ID %s: %w", notifiableID, err)
+		}
+		return &GenericNotifiable{
+			ID:    tenant.ID,
+			Type:  "tenant",
+			Email: "", // Tenant model doesn't have direct email field
+			Phone: "", // Tenant model doesn't have direct phone field
+		}, nil
+
+	default:
+		// For unknown types, we can try to create a generic notifiable wrapper
+		facades.Log().Warning("Unknown notifiable type, creating generic wrapper", map[string]interface{}{
+			"type": notifiableType,
+			"id":   notifiableID,
+		})
+
+		// Create a generic notifiable wrapper
+		return &GenericNotifiable{
+			ID:   notifiableID,
+			Type: notifiableType,
+		}, nil
+	}
+}
+
+// GenericNotifiable is a fallback implementation for unknown notifiable types
+type GenericNotifiable struct {
+	ID    string
+	Type  string
+	Email string
+	Phone string
+}
+
+// Implement the Notifiable interface for GenericNotifiable
+func (g *GenericNotifiable) GetID() string {
+	return g.ID
+}
+
+func (g *GenericNotifiable) GetType() string {
+	return g.Type
+}
+
+func (g *GenericNotifiable) GetEmail() string {
+	return g.Email
+}
+
+func (g *GenericNotifiable) GetPhone() string {
+	return g.Phone
+}
+
+func (g *GenericNotifiable) GetPushTokens() []string {
+	return []string{}
+}
+
+func (g *GenericNotifiable) GetWebhookURL() string {
+	return ""
+}
+
+func (g *GenericNotifiable) GetTimezone() string {
+	return "UTC"
+}
+
+func (g *GenericNotifiable) GetLocale() string {
+	return "en"
+}
+
+func (g *GenericNotifiable) GetNotificationPreferences() map[string]interface{} {
+	return map[string]interface{}{
+		"email": true,
+		"push":  false,
+		"sms":   false,
+	}
+}
+
+func (g *GenericNotifiable) GetChannelAddress(channel string) string {
+	switch channel {
+	case "email":
+		return g.Email
+	case "sms":
+		return g.Phone
+	default:
+		return ""
+	}
+}
+
+func (g *GenericNotifiable) IsChannelEnabled(channel string) bool {
+	preferences := g.GetNotificationPreferences()
+	if enabled, ok := preferences[channel].(bool); ok {
+		return enabled
+	}
+	return false
+}
+
+func (g *GenericNotifiable) GetQuietHours() (start, end string) {
+	return "22:00", "08:00"
+}
+
+func (g *GenericNotifiable) GetRateLimits() map[string]int {
+	return map[string]int{
+		"email": 10, // 10 emails per hour
+		"sms":   5,  // 5 SMS per hour
+		"push":  50, // 50 push notifications per hour
+	}
 }
 
 // GetPendingCount returns the count of pending scheduled notifications

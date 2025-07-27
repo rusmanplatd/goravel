@@ -17,9 +17,25 @@ type AuthController struct {
 }
 
 func NewAuthController() *AuthController {
+	authService, err := services.NewAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create auth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	multiAccountService, err := services.NewMultiAccountService()
+	if err != nil {
+		facades.Log().Error("Failed to create multi-account service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &AuthController{
-		authService:         services.NewAuthService(),
-		multiAccountService: services.NewMultiAccountService(),
+		authService:         authService,
+		multiAccountService: multiAccountService,
 	}
 }
 

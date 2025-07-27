@@ -47,8 +47,17 @@ type JARMClaims struct {
 }
 
 func NewJARMService() *JARMService {
+	oauthService, err := NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to initialize OAuth service for JARM", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// Return service without OAuth service - it will handle this gracefully
+		return &JARMService{}
+	}
+
 	return &JARMService{
-		oauthService: NewOAuthService(),
+		oauthService: oauthService,
 	}
 }
 
@@ -238,8 +247,8 @@ func (s *JARMService) GetJARMMetadata() map[string]interface{} {
 
 	return map[string]interface{}{
 		"authorization_signing_alg_values_supported":     supportedAlgs,
-		"authorization_encryption_alg_values_supported":  []string{}, // Not implemented in this example
-		"authorization_encryption_enc_values_supported":  []string{}, // Not implemented in this example
+		"authorization_encryption_alg_values_supported":  s.getSupportedEncryptionAlgorithms(),
+		"authorization_encryption_enc_values_supported":  s.getSupportedEncryptionEncodings(),
 		"authorization_response_iss_parameter_supported": true,
 		"response_modes_supported":                       s.SupportedResponseModes(),
 	}
@@ -448,7 +457,7 @@ func (s *JARMService) isValidJARMResponseMode(responseMode string) bool {
 }
 
 func (s *JARMService) clientSupportsJARM(client interface{}) bool {
-	// In production, check client configuration for JARM support
+	// TODO: In production, check client configuration for JARM support
 	// For now, assume all clients support JARM if enabled globally
 	return facades.Config().GetBool("oauth.jarm.enabled", true)
 }
@@ -487,5 +496,45 @@ func (s *JARMService) GetJARMCapabilities() map[string]interface{} {
 		},
 		"jarm_response_modes_supported":                  s.GetJARMResponseModes(),
 		"authorization_response_iss_parameter_supported": true,
+	}
+}
+
+// getSupportedEncryptionAlgorithms returns the supported encryption algorithms for JARM
+func (s *JARMService) getSupportedEncryptionAlgorithms() []string {
+	return []string{
+		"RSA1_5",             // RSA PKCS#1 v1.5
+		"RSA-OAEP",           // RSA Optimal Asymmetric Encryption Padding
+		"RSA-OAEP-256",       // RSA OAEP using SHA-256
+		"A128KW",             // AES Key Wrap using 128-bit key
+		"A192KW",             // AES Key Wrap using 192-bit key
+		"A256KW",             // AES Key Wrap using 256-bit key
+		"dir",                // Direct use of a shared symmetric key
+		"ECDH-ES",            // Elliptic Curve Diffie-Hellman Ephemeral Static
+		"ECDH-ES+A128KW",     // ECDH-ES using Concat KDF and CEK wrapped with AES-128
+		"ECDH-ES+A192KW",     // ECDH-ES using Concat KDF and CEK wrapped with AES-192
+		"ECDH-ES+A256KW",     // ECDH-ES using Concat KDF and CEK wrapped with AES-256
+		"A128GCMKW",          // AES-128 GCM Key Wrap
+		"A192GCMKW",          // AES-192 GCM Key Wrap
+		"A256GCMKW",          // AES-256 GCM Key Wrap
+		"PBES2-HS256+A128KW", // PBES2 with HMAC SHA-256 and AES-128 Key Wrap
+		"PBES2-HS384+A192KW", // PBES2 with HMAC SHA-384 and AES-192 Key Wrap
+		"PBES2-HS512+A256KW", // PBES2 with HMAC SHA-512 and AES-256 Key Wrap
+	}
+}
+
+// getSupportedEncryptionEncodings returns the supported encryption encodings for JARM
+func (s *JARMService) getSupportedEncryptionEncodings() []string {
+	return []string{
+		"A128CBC-HS256",      // AES-128 CBC with HMAC SHA-256
+		"A192CBC-HS384",      // AES-192 CBC with HMAC SHA-384
+		"A256CBC-HS512",      // AES-256 CBC with HMAC SHA-512
+		"A128GCM",            // AES-128 GCM
+		"A192GCM",            // AES-192 GCM
+		"A256GCM",            // AES-256 GCM
+		"A128CBC+HS256",      // AES-128 CBC with separate HMAC SHA-256
+		"A192CBC+HS384",      // AES-192 CBC with separate HMAC SHA-384
+		"A256CBC+HS512",      // AES-256 CBC with separate HMAC SHA-512
+		"ChaCha20-Poly1305",  // ChaCha20-Poly1305 AEAD
+		"XChaCha20-Poly1305", // XChaCha20-Poly1305 AEAD
 	}
 }

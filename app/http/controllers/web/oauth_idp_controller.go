@@ -19,13 +19,28 @@ type OAuthIdpController struct {
 }
 
 // NewOAuthIdpController creates a new generic OAuth IdP controller
-func NewOAuthIdpController() *OAuthIdpController {
+func NewOAuthIdpController() (*OAuthIdpController, error) {
+	authService, err := services.NewAuthService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize auth service: %w", err)
+	}
+
+	jwtService, err := services.NewJWTService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize JWT service: %w", err)
+	}
+
+	multiAccountService, err := services.NewMultiAccountService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize multi-account service: %w", err)
+	}
+
 	return &OAuthIdpController{
 		oauthIdpService:     services.NewOAuthIdpService(),
-		authService:         services.NewAuthService(),
-		jwtService:          services.NewJWTService(),
-		multiAccountService: services.NewMultiAccountService(),
-	}
+		authService:         authService,
+		jwtService:          jwtService,
+		multiAccountService: multiAccountService,
+	}, nil
 }
 
 // Redirect redirects the user to the OAuth provider's consent screen
@@ -160,7 +175,7 @@ func (c *OAuthIdpController) Callback(ctx http.Context) http.Response {
 	// Run AI-powered fraud detection
 	fraudPrediction, err := aiService.PredictFraud(
 		context.Background(),
-		fmt.Sprintf("%d", user.ID),
+		user.ID,
 		providerName,
 		ipAddress,
 		userAgent,
@@ -201,7 +216,7 @@ func (c *OAuthIdpController) Callback(ctx http.Context) http.Response {
 	// Detect suspicious activity before proceeding with authentication
 	suspiciousActivity, err := securityService.DetectSuspiciousActivity(
 		context.Background(),
-		fmt.Sprintf("%d", user.ID),
+		user.ID,
 		providerName,
 		ipAddress,
 		userAgent,
@@ -238,7 +253,7 @@ func (c *OAuthIdpController) Callback(ctx http.Context) http.Response {
 
 		// Update user login patterns for future analysis
 		err = securityService.AnalyzeLoginPattern(
-			fmt.Sprintf("%d", user.ID),
+			user.ID,
 			providerName,
 			ipAddress,
 			userAgent,
@@ -253,7 +268,7 @@ func (c *OAuthIdpController) Callback(ctx http.Context) http.Response {
 	}
 
 	authContext, err := c.oauthIdpService.CreateAuthenticationContext(
-		fmt.Sprintf("%d", user.ID),
+		user.ID,
 		providerName,
 		userAgent,
 		ipAddress,

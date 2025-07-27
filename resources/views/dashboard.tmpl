@@ -591,6 +591,7 @@
              if (isAutoRefreshEnabled) {
                  startAutoRefresh();
              }
+             initializeWebSocket(); // Initialize WebSocket on page load
          });
          
          // Initialize all charts
@@ -873,15 +874,250 @@
              }, 3000);
          }
          
-         // Real-time WebSocket connection (placeholder)
+         // Real-time WebSocket connection
+         let websocket = null;
+         let reconnectInterval = null;
+         let reconnectAttempts = 0;
+         const maxReconnectAttempts = 5;
+         const reconnectDelay = 3000; // 3 seconds
+         
          function initializeWebSocket() {
-             // Placeholder for WebSocket connection to receive real-time updates
-             console.log('WebSocket connection initialized (placeholder)');
+             // Get WebSocket URL from server configuration
+             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+             const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
+             
+             try {
+                 websocket = new WebSocket(wsUrl);
+                 
+                 websocket.onopen = function(event) {
+                     console.log('WebSocket connection established');
+                     reconnectAttempts = 0;
+                     
+                     // Send authentication token
+                     const token = localStorage.getItem('auth_token') || getCookie('auth_token');
+                     if (token) {
+                         websocket.send(JSON.stringify({
+                             type: 'auth',
+                             token: token
+                         }));
+                     }
+                     
+                     // Update connection status
+                     updateConnectionStatus(true);
+                 };
+                 
+                 websocket.onmessage = function(event) {
+                     try {
+                         const data = JSON.parse(event.data);
+                         handleWebSocketMessage(data);
+                     } catch (error) {
+                         console.error('Error parsing WebSocket message:', error);
+                     }
+                 };
+                 
+                 websocket.onclose = function(event) {
+                     console.log('WebSocket connection closed:', event.code, event.reason);
+                     updateConnectionStatus(false);
+                     
+                     // Attempt to reconnect if not manually closed
+                     if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+                         scheduleReconnect();
+                     }
+                 };
+                 
+                 websocket.onerror = function(error) {
+                     console.error('WebSocket error:', error);
+                     updateConnectionStatus(false);
+                 };
+                 
+             } catch (error) {
+                 console.error('Failed to initialize WebSocket:', error);
+                 scheduleReconnect();
+             }
+         }
+         
+         function handleWebSocketMessage(data) {
+             switch (data.type) {
+                 case 'auth_success':
+                     console.log('WebSocket authentication successful');
+                     // Subscribe to dashboard updates
+                     websocket.send(JSON.stringify({
+                         type: 'subscribe',
+                         channels: ['dashboard_stats', 'notifications', 'system_alerts']
+                     }));
+                     break;
+                     
+                 case 'auth_error':
+                     console.error('WebSocket authentication failed:', data.message);
+                     showNotification('Authentication failed for real-time updates', 'error');
+                     break;
+                     
+                 case 'dashboard_stats':
+                     updateDashboardStats(data.payload);
+                     break;
+                     
+                 case 'notification':
+                     showNotification(data.payload.message, data.payload.type || 'info');
+                     break;
+                     
+                 case 'system_alert':
+                     handleSystemAlert(data.payload);
+                     break;
+                     
+                 case 'user_activity':
+                     updateUserActivity(data.payload);
+                     break;
+                     
+                 case 'ping':
+                     // Respond to server ping to keep connection alive
+                     websocket.send(JSON.stringify({ type: 'pong' }));
+                     break;
+                     
+                 default:
+                     console.log('Unknown WebSocket message type:', data.type);
+             }
+         }
+         
+         function updateDashboardStats(stats) {
+             // Update dashboard statistics in real-time
+             if (stats.total_users !== undefined) {
+                 const userCountElement = document.querySelector('[data-stat="total_users"]');
+                 if (userCountElement) {
+                     animateCounter(userCountElement, parseInt(userCountElement.textContent), stats.total_users);
+                 }
+             }
+             
+             if (stats.active_sessions !== undefined) {
+                 const sessionCountElement = document.querySelector('[data-stat="active_sessions"]');
+                 if (sessionCountElement) {
+                     animateCounter(sessionCountElement, parseInt(sessionCountElement.textContent), stats.active_sessions);
+                 }
+             }
+             
+             if (stats.total_meetings !== undefined) {
+                 const meetingCountElement = document.querySelector('[data-stat="total_meetings"]');
+                 if (meetingCountElement) {
+                     animateCounter(meetingCountElement, parseInt(meetingCountElement.textContent), stats.total_meetings);
+                 }
+             }
+         }
+         
+         function animateCounter(element, startValue, endValue) {
+             const duration = 1000; // 1 second
+             const startTime = performance.now();
+             
+             function updateCounter(currentTime) {
+                 const elapsed = currentTime - startTime;
+                 const progress = Math.min(elapsed / duration, 1);
+                 
+                 const currentValue = Math.floor(startValue + (endValue - startValue) * progress);
+                 element.textContent = currentValue.toLocaleString();
+                 
+                 if (progress < 1) {
+                     requestAnimationFrame(updateCounter);
+                 }
+             }
+             
+             requestAnimationFrame(updateCounter);
+         }
+         
+         function handleSystemAlert(alert) {
+             // Handle system-wide alerts
+             const alertContainer = document.getElementById('system-alerts');
+             if (alertContainer) {
+                 const alertElement = document.createElement('div');
+                 alertElement.className = `alert alert-${alert.severity || 'warning'} alert-dismissible fade show`;
+                 alertElement.innerHTML = `
+                     <strong>${alert.title || 'System Alert'}:</strong> ${alert.message}
+                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                 `;
+                 alertContainer.appendChild(alertElement);
+                 
+                 // Auto-dismiss after 10 seconds for non-critical alerts
+                 if (alert.severity !== 'danger') {
+                     setTimeout(() => {
+                         if (alertElement.parentNode) {
+                             alertElement.remove();
+                         }
+                     }, 10000);
+                 }
+             }
+         }
+         
+         function updateUserActivity(activity) {
+             // Update recent user activity section
+             const activityContainer = document.getElementById('recent-activity');
+             if (activityContainer) {
+                 const activityItem = document.createElement('div');
+                 activityItem.className = 'activity-item';
+                 activityItem.innerHTML = `
+                     <div class="activity-icon">
+                         <i class="fas fa-${activity.icon || 'user'}"></i>
+                     </div>
+                     <div class="activity-content">
+                         <p class="activity-text">${activity.description}</p>
+                         <small class="activity-time">Just now</small>
+                     </div>
+                 `;
+                 
+                 // Add to top of activity list
+                 activityContainer.insertBefore(activityItem, activityContainer.firstChild);
+                 
+                 // Remove old items to keep list manageable
+                 const maxItems = 10;
+                 while (activityContainer.children.length > maxItems) {
+                     activityContainer.removeChild(activityContainer.lastChild);
+                 }
+             }
+         }
+         
+         function updateConnectionStatus(isConnected) {
+             const statusIndicator = document.getElementById('connection-status');
+             if (statusIndicator) {
+                 statusIndicator.className = isConnected ? 'status-connected' : 'status-disconnected';
+                 statusIndicator.title = isConnected ? 'Real-time updates active' : 'Real-time updates disconnected';
+             }
+         }
+         
+         function scheduleReconnect() {
+             if (reconnectInterval) {
+                 clearTimeout(reconnectInterval);
+             }
+             
+             reconnectAttempts++;
+             const delay = reconnectDelay * Math.pow(2, Math.min(reconnectAttempts - 1, 3)); // Exponential backoff
+             
+             console.log(`Scheduling WebSocket reconnection attempt ${reconnectAttempts} in ${delay}ms`);
+             
+             reconnectInterval = setTimeout(() => {
+                 initializeWebSocket();
+             }, delay);
+         }
+         
+         function closeWebSocket() {
+             if (websocket) {
+                 websocket.close(1000, 'Page unload');
+                 websocket = null;
+             }
+             
+             if (reconnectInterval) {
+                 clearTimeout(reconnectInterval);
+                 reconnectInterval = null;
+             }
+         }
+         
+         // Helper function to get cookie value
+         function getCookie(name) {
+             const value = `; ${document.cookie}`;
+             const parts = value.split(`; ${name}=`);
+             if (parts.length === 2) return parts.pop().split(';').shift();
+             return null;
          }
          
          // Cleanup on page unload
          window.addEventListener('beforeunload', function() {
              stopAutoRefresh();
+             closeWebSocket(); // Close WebSocket on page unload
          });
      </script>
      

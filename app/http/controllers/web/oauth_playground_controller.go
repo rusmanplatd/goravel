@@ -22,8 +22,16 @@ type OAuthPlaygroundController struct {
 
 // NewOAuthPlaygroundController creates a new OAuth playground controller
 func NewOAuthPlaygroundController() *OAuthPlaygroundController {
+	oauthService, err := services.NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthPlaygroundController{
-		oauthService: services.NewOAuthService(),
+		oauthService: oauthService,
 	}
 }
 

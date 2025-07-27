@@ -14,8 +14,16 @@ type AccountSwitcherController struct {
 }
 
 func NewAccountSwitcherController() *AccountSwitcherController {
+	multiAccountService, err := services.NewMultiAccountService()
+	if err != nil {
+		facades.Log().Error("Failed to create multi-account service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &AccountSwitcherController{
-		multiAccountService: services.NewMultiAccountService(),
+		multiAccountService: multiAccountService,
 	}
 }
 

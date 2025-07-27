@@ -2,7 +2,10 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
+
+	"github.com/goravel/framework/facades"
 )
 
 // OAuthUserIdentity represents a user's identity from an OAuth provider
@@ -42,11 +45,11 @@ type OAuthUserIdentity struct {
 	// @example {"locale": "en", "verified_email": true}
 	ProviderData *string `gorm:"type:text" json:"provider_data,omitempty" example:"{\"locale\": \"en\", \"verified_email\": true}"`
 
-	// OAuth access token (should be encrypted in production)
+	// OAuth access token (encrypted in production)
 	// @example eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 	AccessToken *string `gorm:"type:text" json:"access_token,omitempty" example:"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."`
 
-	// OAuth refresh token (should be encrypted in production)
+	// OAuth refresh token (encrypted in production)
 	// @example 1//04567890abcdef
 	RefreshToken *string `gorm:"type:text" json:"refresh_token,omitempty" example:"1//04567890abcdef"`
 
@@ -89,12 +92,90 @@ func (u *OAuthUserIdentity) SetProviderData(data map[string]interface{}) error {
 	return nil
 }
 
-// IsTokenExpired checks if the access token is expired
-func (u *OAuthUserIdentity) IsTokenExpired() bool {
-	if u.TokenExpiresAt == nil {
+// SetAccessToken encrypts and stores the access token
+func (i *OAuthUserIdentity) SetAccessToken(token string) error {
+	if token == "" {
+		i.AccessToken = nil
+		return nil
+	}
+
+	encrypted, err := facades.Crypt().EncryptString(token)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt access token: %w", err)
+	}
+
+	i.AccessToken = &encrypted
+	return nil
+}
+
+// GetAccessToken decrypts and returns the access token
+func (i *OAuthUserIdentity) GetAccessToken() (string, error) {
+	if i.AccessToken == nil || *i.AccessToken == "" {
+		return "", nil
+	}
+
+	decrypted, err := facades.Crypt().DecryptString(*i.AccessToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt access token: %w", err)
+	}
+
+	return decrypted, nil
+}
+
+// SetRefreshToken encrypts and stores the refresh token
+func (i *OAuthUserIdentity) SetRefreshToken(token string) error {
+	if token == "" {
+		i.RefreshToken = nil
+		return nil
+	}
+
+	encrypted, err := facades.Crypt().EncryptString(token)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt refresh token: %w", err)
+	}
+
+	i.RefreshToken = &encrypted
+	return nil
+}
+
+// GetRefreshToken decrypts and returns the refresh token
+func (i *OAuthUserIdentity) GetRefreshToken() (string, error) {
+	if i.RefreshToken == nil || *i.RefreshToken == "" {
+		return "", nil
+	}
+
+	decrypted, err := facades.Crypt().DecryptString(*i.RefreshToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt refresh token: %w", err)
+	}
+
+	return decrypted, nil
+}
+
+// IsTokenExpired checks if the access token has expired
+func (i *OAuthUserIdentity) IsTokenExpired() bool {
+	if i.TokenExpiresAt == nil {
+		return false // Assume non-expiring if no expiration set
+	}
+
+	return time.Now().After(*i.TokenExpiresAt)
+}
+
+// NeedsTokenRefresh checks if the token needs to be refreshed (expires within 5 minutes)
+func (i *OAuthUserIdentity) NeedsTokenRefresh() bool {
+	if i.TokenExpiresAt == nil {
 		return false
 	}
-	return time.Now().After(*u.TokenExpiresAt)
+
+	// Refresh if expires within 5 minutes
+	return time.Now().Add(5 * time.Minute).After(*i.TokenExpiresAt)
+}
+
+// ClearTokens securely clears both access and refresh tokens
+func (i *OAuthUserIdentity) ClearTokens() {
+	i.AccessToken = nil
+	i.RefreshToken = nil
+	i.TokenExpiresAt = nil
 }
 
 // UpdateLastLogin updates the last login timestamp

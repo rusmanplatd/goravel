@@ -14,8 +14,16 @@ type MfaController struct {
 }
 
 func NewMfaController() *MfaController {
+	authService, err := services.NewAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create auth service", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &MfaController{
-		authService: services.NewAuthService(),
+		authService: authService,
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"goravel/app/services"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
 )
 
 type OAuthMiddleware struct {
@@ -13,8 +14,16 @@ type OAuthMiddleware struct {
 }
 
 func NewOAuthMiddleware() *OAuthMiddleware {
+	oauthService, err := services.NewOAuthService()
+	if err != nil {
+		facades.Log().Error("Failed to create OAuth service for middleware", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
 	return &OAuthMiddleware{
-		oauthService: services.NewOAuthService(),
+		oauthService: oauthService,
 	}
 }
 
