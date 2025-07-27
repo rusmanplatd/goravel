@@ -4,28 +4,78 @@ import (
 	"time"
 )
 
+// Notification represents a system notification
+// @Description Notification model for system notifications and alerts
 type Notification struct {
 	BaseModel
-	Type           string                 `json:"type" gorm:"not null"`
-	Data           map[string]interface{} `json:"data" gorm:"type:json"`
-	NotifiableID   string                 `json:"notifiable_id" gorm:"not null"`
-	NotifiableType string                 `json:"notifiable_type" gorm:"not null"`
-	Channel        string                 `json:"channel" gorm:"default:database"`
-	ReadAt         *time.Time             `json:"read_at"`
-	SentAt         *time.Time             `json:"sent_at"`
-	FailedAt       *time.Time             `json:"failed_at"`
-	FailureReason  *string                `json:"failure_reason"`
+
+	// Notification type
+	// @example user_registered
+	Type string `json:"type" gorm:"not null" example:"user_registered"`
+
+	// Notification data (JSON)
+	// @example {"message":"Welcome to the platform","user_name":"John Doe"}
+	Data map[string]interface{} `json:"data" gorm:"type:json" example:"{\"message\":\"Welcome to the platform\",\"user_name\":\"John Doe\"}"`
+
+	// Notifiable entity ID (ULID)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	NotifiableID string `json:"notifiable_id" gorm:"not null" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Notifiable entity type
+	// @example User
+	NotifiableType string `json:"notifiable_type" gorm:"not null" example:"User"`
+
+	// Notification channel
+	// @example email
+	Channel string `json:"channel" gorm:"default:database" example:"email"`
+
+	// When notification was read
+	// @example 2024-01-15T10:30:00Z
+	ReadAt *time.Time `json:"read_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// When notification was sent
+	// @example 2024-01-15T10:30:00Z
+	SentAt *time.Time `json:"sent_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// When notification failed
+	// @example 2024-01-15T10:30:00Z
+	FailedAt *time.Time `json:"failed_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// Failure reason
+	// @example SMTP connection failed
+	FailureReason *string `json:"failure_reason,omitempty" example:"SMTP connection failed"`
 
 	// Delivery tracking fields
-	DeliveryStatus   string                 `json:"delivery_status" gorm:"default:pending"` // pending, sent, delivered, failed, read
-	DeliveryAttempts int                    `json:"delivery_attempts" gorm:"default:0"`
-	LastAttemptAt    *time.Time             `json:"last_attempt_at"`
-	DeliveredAt      *time.Time             `json:"delivered_at"`
-	Priority         string                 `json:"priority" gorm:"default:normal"` // low, normal, high, urgent
-	ExpiresAt        *time.Time             `json:"expires_at"`
-	Metadata         map[string]interface{} `json:"metadata" gorm:"type:json"`
+	// Delivery status (pending, sent, delivered, failed, read)
+	// @example pending
+	DeliveryStatus string `json:"delivery_status" gorm:"default:pending" example:"pending"`
+
+	// Number of delivery attempts
+	// @example 1
+	DeliveryAttempts int `json:"delivery_attempts" gorm:"default:0" example:"1"`
+
+	// Last delivery attempt time
+	// @example 2024-01-15T10:30:00Z
+	LastAttemptAt *time.Time `json:"last_attempt_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// When notification was delivered
+	// @example 2024-01-15T10:30:00Z
+	DeliveredAt *time.Time `json:"delivered_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// Notification priority (low, normal, high, urgent)
+	// @example normal
+	Priority string `json:"priority" gorm:"default:normal" example:"normal"`
+
+	// Notification expiration time
+	// @example 2024-01-15T10:30:00Z
+	ExpiresAt *time.Time `json:"expires_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// Additional metadata (JSON)
+	// @example {"campaign_id":"abc123","source":"api"}
+	Metadata map[string]interface{} `json:"metadata" gorm:"type:json" example:"{\"campaign_id\":\"abc123\",\"source\":\"api\"}"`
 
 	// Relationships
+	// @Description The entity that should receive this notification
 	Notifiable interface{} `json:"notifiable" gorm:"-"`
 }
 

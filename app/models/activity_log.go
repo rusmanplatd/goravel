@@ -9,18 +9,44 @@ import (
 )
 
 // ActivityLog represents an activity log entry
+// @Description Activity log model for audit trail and activity tracking
 type ActivityLog struct {
 	BaseModel
-	LogName     string          `gorm:"index" json:"log_name"`
-	Description string          `json:"description"`
-	SubjectType string          `gorm:"index" json:"subject_type"`
-	SubjectID   string          `gorm:"index;type:char(26)" json:"subject_id"`
-	CauserType  string          `gorm:"index" json:"causer_type"`
-	CauserID    string          `gorm:"index;type:char(26)" json:"causer_id"`
-	Properties  json.RawMessage `gorm:"type:json" json:"properties"`
-	TenantID    string          `gorm:"index;type:char(26)" json:"tenant_id"`
+
+	// Log name/category
+	// @example user_login
+	LogName string `gorm:"index" json:"log_name" example:"user_login"`
+
+	// Activity description
+	// @example User logged in successfully
+	Description string `json:"description" example:"User logged in successfully"`
+
+	// Subject type (model name)
+	// @example User
+	SubjectType string `gorm:"index" json:"subject_type" example:"User"`
+
+	// Subject ID (ULID)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	SubjectID string `gorm:"index;type:char(26)" json:"subject_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Causer type (who performed the action)
+	// @example User
+	CauserType string `gorm:"index" json:"causer_type" example:"User"`
+
+	// Causer ID (ULID)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	CauserID string `gorm:"index;type:char(26)" json:"causer_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Additional properties as JSON
+	// @example {"ip_address":"192.168.1.1","user_agent":"Mozilla/5.0..."}
+	Properties json.RawMessage `gorm:"type:json" json:"properties" example:"{\"ip_address\":\"192.168.1.1\",\"user_agent\":\"Mozilla/5.0...\"}"`
+
+	// Tenant ID for multi-tenancy
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TenantID string `gorm:"index;type:char(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
+	// @Description Tenant this activity belongs to
 	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
 }
 

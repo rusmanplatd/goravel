@@ -191,13 +191,14 @@ func (c *AuthController) Register(ctx http.Context) http.Response {
 
 // ForgotPassword handles password reset request
 // @Summary Request password reset
-// @Description Send password reset email to user
+// @Description Send password reset email to user with enhanced security validation
 // @Tags Authentication
 // @Accept json
 // @Produce json
-// @Param request body requests.ForgotPasswordRequest true "Email address"
+// @Param request body requests.ForgotPasswordRequest true "Email address for password reset"
 // @Success 200 {object} responses.ApiResponse
 // @Failure 400 {object} responses.ApiResponse
+// @Failure 429 {object} responses.ApiResponse
 // @Router /auth/forgot-password [post]
 func (c *AuthController) ForgotPassword(ctx http.Context) http.Response {
 	var req requests.ForgotPasswordRequest
@@ -213,13 +214,13 @@ func (c *AuthController) ForgotPassword(ctx http.Context) http.Response {
 	return responses.SuccessResponse(ctx, "Password reset email sent", nil)
 }
 
-// ResetPassword handles password reset confirmation
-// @Summary Reset password
-// @Description Reset password using reset token
+// ResetPassword handles password reset with token
+// @Summary Reset password with token
+// @Description Reset user password using the token sent via email
 // @Tags Authentication
 // @Accept json
 // @Produce json
-// @Param request body requests.ResetPasswordRequest true "Reset data"
+// @Param request body requests.ResetPasswordRequest true "Password reset data with token"
 // @Success 200 {object} responses.ApiResponse
 // @Failure 400 {object} responses.ApiResponse
 // @Router /auth/reset-password [post]
@@ -248,6 +249,7 @@ func (c *AuthController) ResetPassword(ctx http.Context) http.Response {
 // @Success 200 {object} responses.ApiResponse{data=map[string]interface{}}
 // @Failure 400 {object} responses.ApiResponse
 // @Failure 401 {object} responses.ApiResponse
+// @Failure 429 {object} responses.ApiResponse
 // @Router /auth/mfa/enable [post]
 func (c *AuthController) EnableMfa(ctx http.Context) http.Response {
 	user := c.getCurrentUser(ctx)
@@ -323,6 +325,7 @@ func (c *AuthController) EnableMfa(ctx http.Context) http.Response {
 // @Success 200 {object} responses.ApiResponse
 // @Failure 400 {object} responses.ApiResponse
 // @Failure 401 {object} responses.ApiResponse
+// @Failure 429 {object} responses.ApiResponse
 // @Router /auth/mfa/disable [post]
 func (c *AuthController) DisableMfa(ctx http.Context) http.Response {
 	user := c.getCurrentUser(ctx)

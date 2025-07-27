@@ -8,8 +8,11 @@ import (
 )
 
 // FileUploadRequest validates file upload requests
+// @Description Request model for file upload validation
 type FileUploadRequest struct {
-	FolderID *string `form:"folder_id" json:"folder_id"`
+	// Folder ID to upload file to (optional)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	FolderID *string `form:"folder_id" json:"folder_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 }
 
 func (r *FileUploadRequest) Authorize(ctx http.Context) error {
@@ -35,11 +38,23 @@ func (r *FileUploadRequest) PrepareForValidation(ctx http.Context, data validati
 }
 
 // CreateFolderRequest validates folder creation requests
+// @Description Request model for folder creation validation
 type CreateFolderRequest struct {
-	Name        string  `form:"name" json:"name"`
-	ParentID    *string `form:"parent_id" json:"parent_id"`
-	Description string  `form:"description" json:"description"`
-	Color       string  `form:"color" json:"color"`
+	// Folder name
+	// @example My Documents
+	Name string `form:"name" json:"name" example:"My Documents"`
+
+	// Parent folder ID (optional)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ParentID *string `form:"parent_id" json:"parent_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Folder description
+	// @example Important documents folder
+	Description string `form:"description" json:"description" example:"Important documents folder"`
+
+	// Folder color for UI
+	// @example #3B82F6
+	Color string `form:"color" json:"color" example:"#3B82F6"`
 }
 
 func (r *CreateFolderRequest) Authorize(ctx http.Context) error {
