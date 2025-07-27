@@ -36,6 +36,8 @@ func Api() {
 	calendarEventController := v1.NewCalendarEventController()
 	notificationController := v1.NewNotificationController()
 	driveController := v1.NewDriveController()
+	jobLevelController := v1.NewJobLevelController()
+	jobPositionController := v1.NewJobPositionController()
 
 	// Public authentication routes with rate limiting
 	facades.Route().Middleware(middleware.AuthRateLimit()).Post("/api/v1/auth/login", authController.Login)
@@ -162,6 +164,27 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/organizations/{id}/departments/{department_id}/users", departmentController.Users)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/organizations/{id}/departments/{department_id}/users", departmentController.AddUser)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/organizations/{id}/departments/{department_id}/users/{user_id}", departmentController.RemoveUser)
+
+	// Job Level management routes (protected)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/job-levels", jobLevelController.Index)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/job-levels", jobLevelController.Store)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/job-levels/{id}", jobLevelController.Show)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/job-levels/{id}", jobLevelController.Update)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/job-levels/{id}", jobLevelController.Destroy)
+
+	// Job Position management routes (protected)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/job-positions", jobPositionController.Index)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/job-positions", jobPositionController.Store)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/job-positions/{id}", jobPositionController.Show)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/job-positions/{id}", jobPositionController.Update)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/job-positions/{id}", jobPositionController.Destroy)
+
+	// User job management routes (protected)
+	userJobManagementController := v1.NewUserJobManagementController()
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/users/{user_id}/job-assignment", userJobManagementController.AssignUserToPosition)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/{user_id}/career-progression", userJobManagementController.GetUserCareerProgression)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/users/{user_id}/promote", userJobManagementController.PromoteUser)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/organizations/job-analytics", userJobManagementController.GetJobAnalytics)
 
 	// Team management routes (protected)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/organizations/{id}/teams", teamController.Index)

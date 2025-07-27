@@ -658,6 +658,14 @@ type UserOrganization struct {
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	DepartmentID *string `gorm:"index;type:char(26)" json:"department_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
+	// User's job position ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	JobPositionID *string `gorm:"index;type:char(26)" json:"job_position_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// User's job level ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	JobLevelID *string `gorm:"index;type:char(26)" json:"job_level_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
 	// User's team ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	TeamID *string `gorm:"index;type:char(26)" json:"team_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
@@ -686,6 +694,8 @@ type UserOrganization struct {
 	User         User         `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Organization Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 	Department   *Department  `gorm:"foreignKey:DepartmentID" json:"department,omitempty"`
+	JobPosition  *JobPosition `gorm:"foreignKey:JobPositionID" json:"job_position,omitempty"`
+	JobLevel     *JobLevel    `gorm:"foreignKey:JobLevelID" json:"job_level,omitempty"`
 	Team         *Team        `gorm:"foreignKey:TeamID" json:"team,omitempty"`
 	Manager      *User        `gorm:"foreignKey:ManagerID" json:"manager,omitempty"`
 }
