@@ -1793,19 +1793,19 @@ func init() {
 			},
 		},
 		// HTTP URL
-		"url": config.Env("APP_URL", "http://localhost"),
+		"url": VaultConfig("secret/app/config", "url", "http://localhost").(string),
 		// HTTP Host
-		"host": config.Env("APP_HOST", "127.0.0.1"),
+		"host": VaultConfig("secret/app/config", "host", "127.0.0.1").(string),
 		// HTTP Port
-		"port": config.Env("APP_PORT", "3000"),
+		"port": VaultConfig("secret/app/config", "port", "3000").(string),
 		// HTTP Timeout, default is 3 seconds
 		"request_timeout": 3,
 		// HTTPS Configuration
 		"tls": map[string]any{
 			// HTTPS Host
-			"host": config.Env("APP_HOST", "127.0.0.1"),
+			"host": VaultConfig("secret/app/config", "host", "127.0.0.1").(string),
 			// HTTPS Port
-			"port": config.Env("APP_PORT", "3000"),
+			"port": VaultConfig("secret/app/config", "port", "3000").(string),
 			// SSL Certificate, you can put the certificate in /public folder
 			"ssl": map[string]any{
 				// ca.pem

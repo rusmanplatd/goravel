@@ -13,57 +13,57 @@ func init() {
 		// for S3-compatible object storage.
 
 		// Connection Settings
-		"endpoint":   config.Env("MINIO_ENDPOINT", "localhost:9000"),
-		"access_key": config.Env("MINIO_ACCESS_KEY", "miniouserroot"),
-		"secret_key": config.Env("MINIO_SECRET_KEY", "miniouserrootpassword"),
-		"use_ssl":    config.Env("MINIO_USE_SSL", false),
-		"region":     config.Env("MINIO_REGION", "ap-southeast-1"),
+		"endpoint":   VaultConfig("secret/services/minio", "endpoint", "localhost:9000").(string),
+		"access_key": VaultConfig("secret/services/minio", "access_key", "miniouserroot").(string),
+		"secret_key": VaultConfig("secret/services/minio", "secret_key", "miniouserrootpassword").(string),
+		"use_ssl":    VaultConfig("secret/services/minio", "use_ssl", false).(bool),
+		"region":     VaultConfig("secret/services/minio", "region", "ap-southeast-1").(string),
 
 		// Default Bucket Configuration
-		"bucket":   config.Env("MINIO_BUCKET", "goravelstorage"),
-		"location": config.Env("MINIO_LOCATION", "ap-southeast-1"),
+		"bucket":   VaultConfig("secret/services/minio", "bucket", "goravelstorage").(string),
+		"location": VaultConfig("secret/services/minio", "location", "ap-southeast-1").(string),
 
 		// Application Buckets
 		"buckets": map[string]any{
-			"default":   config.Env("MINIO_BUCKET", "goravelstorage"),
-			"logs":      config.Env("MINIO_LOGS_BUCKET", "goravel-logs"),
-			"traces":    config.Env("MINIO_TRACES_BUCKET", "goravel-traces"),
-			"metrics":   config.Env("MINIO_METRICS_BUCKET", "goravel-metrics"),
-			"uploads":   config.Env("MINIO_UPLOADS_BUCKET", "goravelstorage"),
-			"avatars":   config.Env("MINIO_AVATARS_BUCKET", "goravelstorage"),
-			"documents": config.Env("MINIO_DOCUMENTS_BUCKET", "goravelstorage"),
+			"default":   VaultConfig("secret/services/minio", "bucket", "goravelstorage").(string),
+			"logs":      VaultConfig("secret/services/minio", "logs_bucket", "goravel-logs").(string),
+			"traces":    VaultConfig("secret/services/minio", "traces_bucket", "goravel-traces").(string),
+			"metrics":   VaultConfig("secret/services/minio", "metrics_bucket", "goravel-metrics").(string),
+			"uploads":   VaultConfig("secret/services/minio", "uploads_bucket", "goravelstorage").(string),
+			"avatars":   VaultConfig("secret/services/minio", "avatars_bucket", "goravelstorage").(string),
+			"documents": VaultConfig("secret/services/minio", "documents_bucket", "goravelstorage").(string),
 		},
 
 		// Path Configuration
 		"paths": map[string]any{
-			"uploads":   config.Env("MINIO_UPLOADS_PATH", "uploads"),
-			"avatars":   config.Env("MINIO_AVATARS_PATH", "avatars"),
-			"documents": config.Env("MINIO_DOCUMENTS_PATH", "documents"),
-			"logs":      config.Env("MINIO_LOGS_PATH", "logs"),
-			"traces":    config.Env("MINIO_TRACES_PATH", "traces"),
-			"metrics":   config.Env("MINIO_METRICS_PATH", "metrics"),
+			"uploads":   VaultConfig("secret/services/minio", "uploads_path", "uploads").(string),
+			"avatars":   VaultConfig("secret/services/minio", "avatars_path", "avatars").(string),
+			"documents": VaultConfig("secret/services/minio", "documents_path", "documents").(string),
+			"logs":      VaultConfig("secret/services/minio", "logs_path", "logs").(string),
+			"traces":    VaultConfig("secret/services/minio", "traces_path", "traces").(string),
+			"metrics":   VaultConfig("secret/services/minio", "metrics_path", "metrics").(string),
 		},
 
 		// Security Settings
-		"public_read_buckets": []string{
-			config.Env("MINIO_BUCKET", "goravelstorage").(string),
-		},
+		"public_read_buckets": VaultStringSlice("secret/services/minio", "public_read_buckets", []string{
+			"goravelstorage",
+		}),
 
 		// Advanced Settings
-		"timeout":        config.Env("MINIO_TIMEOUT", 30), // seconds
-		"retry_attempts": config.Env("MINIO_RETRY_ATTEMPTS", 3),
-		"part_size":      config.Env("MINIO_PART_SIZE", 64*1024*1024), // 64MB
+		"timeout":        VaultConfig("secret/services/minio", "timeout", 30).(int), // seconds
+		"retry_attempts": VaultConfig("secret/services/minio", "retry_attempts", 3).(int),
+		"part_size":      VaultConfig("secret/services/minio", "part_size", 64*1024*1024).(int), // 64MB
 
 		// Development Settings
-		"auto_create_buckets": config.Env("MINIO_AUTO_CREATE_BUCKETS", true),
-		"enable_logging":      config.Env("MINIO_ENABLE_LOGGING", true),
+		"auto_create_buckets": VaultConfig("secret/services/minio", "auto_create_buckets", true).(bool),
+		"enable_logging":      VaultConfig("secret/services/minio", "enable_logging", true).(bool),
 
 		// Observability Integration
 		"observability": map[string]any{
-			"enabled":         config.Env("MINIO_OBSERVABILITY_ENABLED", true),
-			"metrics_enabled": config.Env("MINIO_METRICS_ENABLED", true),
-			"tracing_enabled": config.Env("MINIO_TRACING_ENABLED", true),
-			"log_operations":  config.Env("MINIO_LOG_OPERATIONS", true),
+			"enabled":         VaultConfig("secret/services/minio", "observability_enabled", true).(bool),
+			"metrics_enabled": VaultConfig("secret/services/minio", "metrics_enabled", true).(bool),
+			"tracing_enabled": VaultConfig("secret/services/minio", "tracing_enabled", true).(bool),
+			"log_operations":  VaultConfig("secret/services/minio", "log_operations", true).(bool),
 		},
 	})
 }

@@ -1,268 +1,171 @@
 #!/bin/bash
 
-# Vault Initialization Script
-# This script sets up Vault with necessary policies and secret engines
-
+# Exit on any error
 set -e
 
-# Configuration
-VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"
-VAULT_TOKEN="${VAULT_TOKEN:-myroot}"
-VAULT_DEV_MODE="${VAULT_DEV_MODE:-true}"
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-echo "🔐 Initializing HashiCorp Vault..."
-echo "Vault Address: $VAULT_ADDR"
-echo "Development Mode: $VAULT_DEV_MODE"
+# Vault configuration
+export VAULT_ADDR=${VAULT_ADDR:-"http://localhost:8200"}
+export VAULT_TOKEN=${VAULT_TOKEN:-"myroot"}
 
-# Wait for Vault to be ready
-echo "⏳ Waiting for Vault to be ready..."
-until curl -s "$VAULT_ADDR/v1/sys/health" > /dev/null 2>&1; do
-  echo "Waiting for Vault..."
-  sleep 2
-done
+echo -e "${BLUE}🔐 Initializing HashiCorp Vault for Goravel Application${NC}"
+echo ""
 
-# Set Vault address and token
-export VAULT_ADDR="$VAULT_ADDR"
-export VAULT_TOKEN="$VAULT_TOKEN"
-
-echo "✅ Vault is ready!"
-
-# Only initialize if not in dev mode (dev mode auto-initializes)
-if [ "$VAULT_DEV_MODE" != "true" ]; then
-  echo "🔧 Initializing Vault..."
-  
-  # Check if Vault is already initialized
-  if ! vault status | grep -q "Initialized.*true"; then
-    echo "Initializing Vault with 5 key shares and 3 key threshold..."
-    vault operator init -key-shares=5 -key-threshold=3 > vault-init.txt
-    echo "⚠️  IMPORTANT: Save the vault-init.txt file securely!"
-    
-    # Extract unseal keys and root token
-    UNSEAL_KEY_1=$(grep 'Unseal Key 1:' vault-init.txt | awk '{print $NF}')
-    UNSEAL_KEY_2=$(grep 'Unseal Key 2:' vault-init.txt | awk '{print $NF}')
-    UNSEAL_KEY_3=$(grep 'Unseal Key 3:' vault-init.txt | awk '{print $NF}')
-    ROOT_TOKEN=$(grep 'Initial Root Token:' vault-init.txt | awk '{print $NF}')
-    
-    # Unseal Vault
-    echo "🔓 Unsealing Vault..."
-    vault operator unseal "$UNSEAL_KEY_1"
-    vault operator unseal "$UNSEAL_KEY_2"
-    vault operator unseal "$UNSEAL_KEY_3"
-    
-    # Use root token
-    export VAULT_TOKEN="$ROOT_TOKEN"
-    echo "Root token: $ROOT_TOKEN"
-  else
-    echo "Vault is already initialized"
-  fi
+# Check if Vault is running
+if ! curl -s "$VAULT_ADDR/v1/sys/health" > /dev/null 2>&1; then
+    echo -e "${RED}❌ Vault is not running or not accessible at $VAULT_ADDR${NC}"
+    echo "Please start Vault first: docker compose up vault -d"
+    exit 1
 fi
+
+echo -e "${GREEN}✅ Vault is running at $VAULT_ADDR${NC}"
 
 # Enable audit logging
-echo "📝 Enabling audit logging..."
-if ! vault audit list | grep -q "file/"; then
-  vault audit enable file file_path=/vault/logs/audit.log
-  echo "✅ Audit logging enabled"
-else
-  echo "Audit logging already enabled"
-fi
+echo "📋 Enabling audit logging..."
+vault audit enable file file_path=/vault/logs/audit.log || true
 
 # Enable secret engines
-echo "🔑 Setting up secret engines..."
+echo "🔧 Enabling secret engines..."
 
-# KV v2 secret engine (usually enabled by default in dev mode)
-if ! vault secrets list | grep -q "secret/"; then
-  vault secrets enable -path=secret kv-v2
-  echo "✅ KV v2 secret engine enabled"
-else
-  echo "KV v2 secret engine already enabled"
-fi
+# KV v2 for application secrets
+vault secrets enable -version=2 -path=secret kv || true
 
-# Transit secret engine for encryption
-if ! vault secrets list | grep -q "transit/"; then
-  vault secrets enable transit
-  echo "✅ Transit secret engine enabled"
-else
-  echo "Transit secret engine already enabled"
-fi
+# Transit engine for encryption as a service
+vault secrets enable transit || true
 
-# PKI secret engine for certificates
-if ! vault secrets list | grep -q "pki/"; then
-  vault secrets enable pki
-  vault secrets tune -max-lease-ttl=87600h pki
-  echo "✅ PKI secret engine enabled"
-else
-  echo "PKI secret engine already enabled"
-fi
+# PKI engine for certificate management
+vault secrets enable pki || true
 
-# Database secret engine for dynamic credentials
-if ! vault secrets list | grep -q "database/"; then
-  vault secrets enable database
-  echo "✅ Database secret engine enabled"
-else
-  echo "Database secret engine already enabled"
-fi
+# Database engine for dynamic credentials
+vault secrets enable database || true
 
-# TOTP secret engine for 2FA
-if ! vault secrets list | grep -q "totp/"; then
-  vault secrets enable totp
-  echo "✅ TOTP secret engine enabled"
-else
-  echo "TOTP secret engine already enabled"
-fi
+# TOTP engine for time-based OTP
+vault secrets enable totp || true
+
+echo "✅ Secret engines enabled"
 
 # Create policies
-echo "📋 Creating policies..."
+echo "📜 Creating Vault policies..."
 
 # Admin policy
 vault policy write admin - <<EOF
-# Admin Policy - Full access
 path "*" {
   capabilities = ["create", "read", "update", "delete", "list", "sudo"]
 }
 EOF
-echo "✅ Admin policy created"
 
-# Goravel app policy
+# Goravel application policy
 vault policy write goravel-app - <<EOF
-# Goravel Application Policy
+# Application configuration
 path "secret/data/app/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
-path "secret/metadata/app/*" {
-  capabilities = ["list", "read", "delete"]
-}
-path "secret/data/database/*" {
-  capabilities = ["read", "list"]
-}
-path "secret/metadata/database/*" {
-  capabilities = ["list", "read"]
-}
-path "secret/data/services/*" {
-  capabilities = ["read", "list"]
-}
-path "secret/metadata/services/*" {
-  capabilities = ["list", "read"]
-}
-path "secret/data/api/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
-path "secret/metadata/api/*" {
-  capabilities = ["list", "read", "delete"]
-}
-path "auth/token/renew-self" {
-  capabilities = ["update"]
-}
-path "auth/token/lookup-self" {
   capabilities = ["read"]
 }
-path "transit/encrypt/goravel-*" {
+path "secret/metadata/app/*" {
+  capabilities = ["read", "list"]
+}
+
+# Database credentials
+path "secret/data/database/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/database/*" {
+  capabilities = ["read", "list"]
+}
+
+# Services configuration
+path "secret/data/services/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/services/*" {
+  capabilities = ["read", "list"]
+}
+
+# Authentication configuration
+path "secret/data/auth/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/auth/*" {
+  capabilities = ["read", "list"]
+}
+
+# Session configuration
+path "secret/data/session/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/session/*" {
+  capabilities = ["read", "list"]
+}
+
+# Cache configuration
+path "secret/data/cache/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/cache/*" {
+  capabilities = ["read", "list"]
+}
+
+# Transit engine for encryption
+path "transit/encrypt/goravel" {
   capabilities = ["update"]
 }
-path "transit/decrypt/goravel-*" {
+path "transit/decrypt/goravel" {
   capabilities = ["update"]
+}
+
+# TOTP for MFA
+path "totp/code/*" {
+  capabilities = ["read"]
+}
+path "totp/keys/*" {
+  capabilities = ["create", "read", "update", "delete"]
 }
 EOF
-echo "✅ Goravel app policy created"
 
 # Read-only policy
 vault policy write readonly - <<EOF
-# Read-Only Policy
 path "secret/data/*" {
-  capabilities = ["read", "list"]
+  capabilities = ["read"]
 }
 path "secret/metadata/*" {
   capabilities = ["read", "list"]
 }
-path "sys/health" {
-  capabilities = ["read"]
-}
-path "sys/metrics" {
-  capabilities = ["read"]
-}
-path "auth/token/lookup-self" {
-  capabilities = ["read"]
-}
-path "auth/token/renew-self" {
-  capabilities = ["update"]
-}
 EOF
-echo "✅ Read-only policy created"
+
+echo "✅ Policies created"
+
+# Create authentication methods
+echo "🔑 Setting up authentication methods..."
 
 # Enable AppRole auth method
-echo "🔐 Setting up authentication methods..."
-if ! vault auth list | grep -q "approle/"; then
-  vault auth enable approle
-  echo "✅ AppRole auth method enabled"
-else
-  echo "AppRole auth method already enabled"
-fi
+vault auth enable approle || true
 
-# Create AppRole for Goravel application
-vault write auth/approle/role/goravel-app \
+# Create role for Goravel application
+vault write auth/approle/role/goravel \
     token_policies="goravel-app" \
     token_ttl=1h \
     token_max_ttl=4h \
     bind_secret_id=true
 
-# Get role ID and secret ID
-ROLE_ID=$(vault read -field=role_id auth/approle/role/goravel-app/role-id)
-SECRET_ID=$(vault write -field=secret_id -f auth/approle/role/goravel-app/secret-id)
+echo "✅ Authentication methods configured"
 
-echo "✅ AppRole created for Goravel application"
-echo "Role ID: $ROLE_ID"
-echo "Secret ID: $SECRET_ID"
+# Configure database dynamic credentials
+echo "🗄️ Configuring database dynamic credentials..."
 
-# Store AppRole credentials in a secure location
-cat > goravel-approle.txt <<EOF
-# Goravel AppRole Credentials
-# Store these securely and use them in your application
-VAULT_ROLE_ID=$ROLE_ID
-VAULT_SECRET_ID=$SECRET_ID
-EOF
-
-echo "⚠️  AppRole credentials saved to goravel-approle.txt"
-
-# Create transit encryption key for Goravel
-echo "🔐 Creating encryption keys..."
-vault write -f transit/keys/goravel-master-key
-vault write -f transit/keys/goravel-session-key
-vault write -f transit/keys/goravel-file-key
-echo "✅ Transit encryption keys created"
-
-# Setup PKI root CA
-echo "📜 Setting up PKI root CA..."
-vault write -field=certificate pki/root/generate/internal \
-    common_name="Goravel Root CA" \
-    ttl=87600h > goravel-ca.crt
-
-vault write pki/config/urls \
-    issuing_certificates="$VAULT_ADDR/v1/pki/ca" \
-    crl_distribution_points="$VAULT_ADDR/v1/pki/crl"
-
-# Create PKI role for Goravel
-vault write pki/roles/goravel-role \
-    allowed_domains="goravel.local,localhost" \
-    allow_subdomains=true \
-    max_ttl="720h"
-
-echo "✅ PKI root CA and role created"
-
-# Setup database connection (example for PostgreSQL)
-echo "🗄️  Setting up database dynamic credentials..."
+# PostgreSQL database connection
 vault write database/config/postgresql \
     plugin_name=postgresql-database-plugin \
     connection_url="postgresql://{{username}}:{{password}}@postgres:5432/goravel?sslmode=disable" \
-    allowed_roles="goravel-readonly,goravel-readwrite" \
+    allowed_roles="goravel-readwrite" \
     username="goravel" \
     password="goravel_password"
 
-# Create database roles
-vault write database/roles/goravel-readonly \
-    db_name=postgresql \
-    creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";" \
-    default_ttl="1h" \
-    max_ttl="24h"
-
+# Create database role
 vault write database/roles/goravel-readwrite \
     db_name=postgresql \
     creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";" \
@@ -271,8 +174,21 @@ vault write database/roles/goravel-readwrite \
 
 echo "✅ Database dynamic credentials configured"
 
-# Create some initial secrets for the application
-echo "🔑 Creating initial application secrets..."
+# Create application secrets
+echo "🔑 Creating application secrets..."
+
+# Application configuration
+vault kv put secret/app/config \
+    name="Goravel" \
+    env="local" \
+    debug=true \
+    timezone="UTC" \
+    url="http://localhost" \
+    host="127.0.0.1" \
+    port="3000" \
+    locale="en" \
+    fallback_locale="en" \
+    lang_path="lang"
 
 # Application master key
 vault kv put secret/app/master-key \
@@ -280,44 +196,226 @@ vault kv put secret/app/master-key \
     algorithm="AES-256-GCM" \
     created_at="$(date -Iseconds)"
 
+# Application encryption key
+vault kv put secret/app/app-key \
+    key="$(openssl rand -base64 32)" \
+    algorithm="AES-256-GCM" \
+    created_at="$(date -Iseconds)"
+
 # JWT secret
 vault kv put secret/app/jwt-secret \
     jwt_secret="$(openssl rand -base64 64)" \
     algorithm="HS256" \
-    access_token_ttl=3600 \
-    refresh_token_ttl=2592000 \
-    issuer="goravel-app" \
+    access_token_ttl=60 \
+    refresh_token_ttl=20160 \
+    issuer="goravel" \
     audience="goravel-users"
 
-# Database credentials
+# Database configuration
+vault kv put secret/database/config \
+    default="postgres" \
+    slow_threshold=200 \
+    migrations_table="migrations"
+
+# PostgreSQL credentials
 vault kv put secret/database/postgres \
     host="postgres" \
-    port="5432" \
+    port=5432 \
     database="goravel" \
     username="goravel" \
     password="goravel_password" \
-    ssl_mode="disable" \
-    max_connections=100
+    sslmode="disable" \
+    prefix="" \
+    singular=false \
+    schema="public"
+
+# Database pool configuration
+vault kv put secret/database/pool \
+    max_idle_conns=10 \
+    max_open_conns=100 \
+    conn_max_idletime=3600 \
+    conn_max_lifetime=3600
 
 # Redis configuration
 vault kv put secret/database/redis \
     host="redis" \
-    port="6379" \
+    port=6379 \
     password="" \
-    database=0 \
-    max_retries=3 \
-    pool_size=10
+    database=0
+
+# Authentication configuration
+vault kv put secret/auth/config \
+    guard="users" \
+    guard_driver="session" \
+    provider_driver="database" \
+    provider_table="users" \
+    password_provider="users" \
+    password_table="password_reset_tokens" \
+    password_expire=60 \
+    password_throttle=60 \
+    allowed_redirect_hosts="localhost:3000,127.0.0.1:3000"
+
+# Password rules
+vault kv put secret/auth/password_rules \
+    min_length=8 \
+    require_uppercase=true \
+    require_lowercase=true \
+    require_numbers=true \
+    require_symbols=false \
+    check_compromised=true \
+    max_attempts=5 \
+    lockout_duration=30
+
+# Session configuration
+vault kv put secret/auth/session \
+    lifetime=120 \
+    expire_on_close=false \
+    encrypt=false \
+    files="storage/framework/sessions" \
+    connection="" \
+    table="sessions" \
+    store="" \
+    cookie="goravel_session" \
+    path="/" \
+    domain="" \
+    secure=false \
+    same_site="lax"
+
+# MFA configuration
+vault kv put secret/auth/mfa \
+    enabled=true \
+    issuer="Goravel App" \
+    digits=6 \
+    period=30 \
+    backup_codes=8
+
+# Session configuration
+vault kv put secret/session/config \
+    default="database" \
+    connection="default" \
+    table="sessions" \
+    file_path="storage/framework/sessions" \
+    redis_connection="default" \
+    lifetime=120 \
+    expire_on_close=false \
+    encrypt=false \
+    files="storage/framework/sessions" \
+    gc_interval=30 \
+    cookie="goravel_session" \
+    path="/" \
+    domain="" \
+    secure=false \
+    http_only=true \
+    same_site="lax"
+
+# Cache configuration
+vault kv put secret/cache/config \
+    default="redis" \
+    redis_connection="default" \
+    prefix="goravel_cache"
 
 # MinIO configuration
 vault kv put secret/services/minio \
     endpoint="minio:9000" \
     access_key="miniouserroot" \
     secret_key="miniouserrootpassword" \
-    bucket="goravelstorage" \
+    use_ssl=false \
     region="ap-southeast-1" \
-    use_ssl=false
+    bucket="goravelstorage" \
+    location="ap-southeast-1" \
+    logs_bucket="goravel-logs" \
+    traces_bucket="goravel-traces" \
+    metrics_bucket="goravel-metrics" \
+    uploads_bucket="goravelstorage" \
+    avatars_bucket="goravelstorage" \
+    documents_bucket="goravelstorage" \
+    uploads_path="uploads" \
+    avatars_path="avatars" \
+    documents_path="documents" \
+    logs_path="logs" \
+    traces_path="traces" \
+    metrics_path="metrics" \
+    public_read_buckets="goravelstorage" \
+    timeout=30 \
+    retry_attempts=3 \
+    part_size=67108864 \
+    auto_create_buckets=true \
+    enable_logging=true \
+    observability_enabled=true \
+    metrics_enabled=true \
+    tracing_enabled=true \
+    log_operations=true
 
-echo "✅ Initial application secrets created"
+# Mail configuration
+vault kv put secret/services/mail \
+    default="log" \
+    host="mailpit" \
+    port=1025 \
+    encryption="tls" \
+    username="" \
+    password="" \
+    timeout=5 \
+    local_domain="" \
+    ses_key="" \
+    ses_secret="" \
+    ses_region="us-east-1" \
+    log_channel="" \
+    from_address="hello@example.com" \
+    from_name="Example" \
+    markdown_theme="default"
+
+# Google OAuth configuration
+vault kv put secret/services/oauth/google \
+    enabled=false \
+    client_id="" \
+    client_secret="" \
+    redirect_url="http://localhost:3000/auth/oauth/google/callback" \
+    scopes="https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/userinfo.profile"
+
+# GitHub OAuth configuration
+vault kv put secret/services/oauth/github \
+    enabled=false \
+    client_id="" \
+    client_secret="" \
+    redirect_url="http://localhost:3000/auth/oauth/github/callback" \
+    scopes="user:email,read:user"
+
+# Microsoft OAuth configuration
+vault kv put secret/services/oauth/microsoft \
+    enabled=false \
+    client_id="" \
+    client_secret="" \
+    redirect_url="http://localhost:3000/auth/oauth/microsoft/callback" \
+    scopes="openid,profile,email"
+
+# Discord OAuth configuration
+vault kv put secret/services/oauth/discord \
+    enabled=false \
+    client_id="" \
+    client_secret="" \
+    redirect_url="http://localhost:3000/auth/oauth/discord/callback" \
+    scopes="identify,email"
+
+# WebAuthn configuration
+vault kv put secret/services/webauthn \
+    enabled=true \
+    rp_id="localhost" \
+    rp_name="Goravel App" \
+    rp_origin="http://localhost:3000" \
+    timeout=60000
+
+echo "✅ Application secrets created"
+
+# Create transit encryption key
+echo "🔐 Creating encryption keys..."
+vault write -f transit/keys/goravel
+
+echo "✅ Encryption keys created"
+
+# Create AppRole credentials for the application
+echo "🔑 Creating AppRole credentials..."
+ROLE_ID=$(vault read -field=role_id auth/approle/role/goravel/role-id)
+SECRET_ID=$(vault write -field=secret_id -f auth/approle/role/goravel/secret-id)
 
 echo ""
 echo "🎉 Vault initialization complete!"
@@ -328,19 +426,26 @@ echo "- Audit logging: Enabled"
 echo "- Secret engines: KV v2, Transit, PKI, Database, TOTP"
 echo "- Auth methods: Token, AppRole"
 echo "- Policies: admin, goravel-app, readonly"
-echo "- Initial secrets: Created for app, database, services"
+echo "- Application secrets: Created for all services"
 echo ""
-echo "📁 Files created:"
-echo "- vault-init.txt (unseal keys and root token)"
-echo "- goravel-approle.txt (AppRole credentials)"
-echo "- goravel-ca.crt (Root CA certificate)"
+echo "📁 AppRole Credentials for Production:"
+echo "- Role ID: $ROLE_ID"
+echo "- Secret ID: $SECRET_ID"
 echo ""
-echo "⚠️  IMPORTANT SECURITY NOTES:"
-echo "1. Store vault-init.txt securely and remove it from this location"
-echo "2. Use AppRole credentials instead of root token in production"
-echo "3. Enable TLS for production deployments"
-echo "4. Regularly rotate secrets and tokens"
-echo "5. Monitor audit logs for security events"
+echo "📁 Secret Organization:"
+echo "- Application Config: secret/app/config, secret/app/master-key, secret/app/app-key"
+echo "- JWT Configuration: secret/app/jwt-secret"
+echo "- Database: secret/database/postgres, secret/database/redis, secret/database/config"
+echo "- Authentication: secret/auth/config, secret/auth/session, secret/auth/mfa"
+echo "- Session: secret/session/config"
+echo "- Cache: secret/cache/config"
+echo "- Services: secret/services/minio, secret/services/mail"
+echo "- OAuth: secret/services/oauth/google, secret/services/oauth/github, etc."
+echo "- WebAuthn: secret/services/webauthn"
 echo ""
-echo "🌐 Access Vault UI at: $VAULT_ADDR"
-echo "🔑 Default dev token: myroot" 
+echo "🌐 Access Vault UI: $VAULT_ADDR"
+echo "🔑 Token: $VAULT_TOKEN"
+echo ""
+echo "🚀 Your application is now fully configured to use HashiCorp Vault!"
+echo "   All sensitive configuration has been moved from environment variables to Vault."
+echo "" 

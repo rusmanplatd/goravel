@@ -1,9 +1,7 @@
 package config
 
 import (
-	"github.com/goravel/framework/contracts/cache"
 	"github.com/goravel/framework/facades"
-	redisfacades "github.com/goravel/redis/facades"
 )
 
 func init() {
@@ -14,33 +12,31 @@ func init() {
 		// This option controls the default cache connection that gets used while
 		// using this caching library. This connection is used when another is
 		// not explicitly specified when executing a given caching function.
-		"default": config.Env("CACHE_STORE", "redis"),
+
+		"default": VaultConfig("secret/cache/config", "default", "redis").(string),
 
 		// Cache Stores
 		//
-		// Here you may define all the cache "stores" for your application as
+		// Here you may define all of the cache "stores" for your application as
 		// well as their drivers. You may even define multiple stores for the
 		// same cache driver to group types of items stored in your caches.
-		// Available Drivers: "memory", "custom"
+
 		"stores": map[string]any{
 			"memory": map[string]any{
 				"driver": "memory",
 			},
 			"redis": map[string]any{
-				"driver":     "custom",
-				"connection": "default",
-				"via": func() (cache.Driver, error) {
-					return redisfacades.Cache("redis") // The `redis` value is the key of `stores`
-				},
+				"driver":     "redis",
+				"connection": VaultConfig("secret/cache/config", "redis_connection", "default").(string),
 			},
 		},
 
 		// Cache Key Prefix
 		//
-		// When utilizing a RAM based store such as APC or Memcached, there might
-		// be other applications utilizing the same cache. So, we'll specify a
-		// value to get prefixed to all our keys, so we can avoid collisions.
-		// Must: a-zA-Z0-9_-
-		"prefix": config.GetString("APP_NAME", "goravel") + "_cache",
+		// When utilizing a RAM based store such as APC or Memcached, there might be
+		// other applications utilizing the same cache. So, we'll specify a value
+		// to get prefixed to all our keys so we can avoid collisions.
+
+		"prefix": VaultConfig("secret/cache/config", "prefix", "goravel_cache").(string),
 	})
 }
