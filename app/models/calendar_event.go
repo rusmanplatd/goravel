@@ -80,6 +80,10 @@ type CalendarEvent struct {
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	ParentEventID *string `json:"parent_event_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
+	// Template ID if created from template
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TemplateID *string `json:"template_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
 	// Relationships
 	// @Description Event's associated tenant
 	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
@@ -95,6 +99,9 @@ type CalendarEvent struct {
 
 	// @Description Associated meeting details
 	Meeting *Meeting `gorm:"foreignKey:EventID" json:"meeting,omitempty"`
+
+	// @Description Template used to create this event
+	Template *EventTemplate `gorm:"foreignKey:TemplateID" json:"template,omitempty"`
 }
 
 // EventParticipant represents a participant in a calendar event
@@ -552,4 +559,84 @@ type BreakoutRoomParticipant struct {
 
 	// @Description Associated meeting participant
 	MeetingParticipant *MeetingParticipant `gorm:"foreignKey:MeetingParticipantID" json:"meeting_participant,omitempty"`
+}
+
+// EventTemplate represents a reusable event template
+// @Description Event template for creating recurring patterns and standardized events
+type EventTemplate struct {
+	BaseModel
+	// Template name
+	// @example Weekly Team Standup
+	Name string `gorm:"not null" json:"name" example:"Weekly Team Standup"`
+
+	// Template description
+	// @example Standard weekly team standup meeting template
+	Description string `json:"description" example:"Standard weekly team standup meeting template"`
+
+	// Template category (meeting, appointment, reminder, etc.)
+	// @example meeting
+	Category string `gorm:"default:'meeting'" json:"category" example:"meeting"`
+
+	// Template type (personal, team, organization)
+	// @example team
+	Type string `gorm:"default:'personal'" json:"type" example:"team"`
+
+	// Default event duration in minutes
+	// @example 30
+	DefaultDuration int `gorm:"not null" json:"default_duration" example:"30"`
+
+	// Default event color
+	// @example #3B82F6
+	DefaultColor string `json:"default_color" example:"#3B82F6"`
+
+	// Default location
+	// @example Conference Room A
+	DefaultLocation string `json:"default_location" example:"Conference Room A"`
+
+	// Template settings as JSON
+	// @example {"allow_conflicts": false, "require_confirmation": true, "auto_schedule": false}
+	Settings string `json:"settings" example:"{\"allow_conflicts\": false, \"require_confirmation\": true, \"auto_schedule\": false}"`
+
+	// Default recurrence rule
+	// @example FREQ=WEEKLY;INTERVAL=1;BYDAY=MO
+	DefaultRecurrenceRule string `json:"default_recurrence_rule" example:"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO"`
+
+	// Default reminder settings
+	// @example {"email": 15, "push": 30}
+	DefaultReminderSettings string `json:"default_reminder_settings" example:"{\"email\": 15, \"push\": 30}"`
+
+	// Default participant roles as JSON
+	// @example [{"role": "organizer", "required": true}, {"role": "attendee", "required": false}]
+	DefaultParticipantRoles string `json:"default_participant_roles" example:"[{\"role\": \"organizer\", \"required\": true}, {\"role\": \"attendee\", \"required\": false}]"`
+
+	// Template tags for categorization
+	// @example ["standup", "agile", "team"]
+	Tags string `json:"tags" example:"[\"standup\", \"agile\", \"team\"]"`
+
+	// Whether template is active
+	// @example true
+	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
+
+	// Whether template is public (can be used by others)
+	// @example false
+	IsPublic bool `gorm:"default:false" json:"is_public" example:"false"`
+
+	// Usage count
+	// @example 25
+	UsageCount int `gorm:"default:0" json:"usage_count" example:"25"`
+
+	// Last used date
+	// @example 2024-01-15T10:00:00Z
+	LastUsedAt *time.Time `json:"last_used_at,omitempty" example:"2024-01-15T10:00:00Z"`
+
+	// Tenant ID for multi-tenancy
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Template's associated tenant
+	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+
+	// @Description Events created from this template
+	Events []CalendarEvent `gorm:"foreignKey:TemplateID" json:"events,omitempty"`
 }

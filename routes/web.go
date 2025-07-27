@@ -23,6 +23,7 @@ func Web() {
 	mfaController := web.NewMfaController()
 	webauthnController := web.NewWebAuthnController()
 	securityController := web.NewSecurityController()
+	driveController := web.NewDriveController()
 	accountSwitcherController := web.NewAccountSwitcherController()
 	profileController := web.NewProfileController()
 
@@ -274,6 +275,9 @@ func Web() {
 
 	// Protected Google OAuth routes - for backward compatibility
 	facades.Route().Middleware(middleware.WebAuth()).Post("/auth/google/unlink", googleOAuthController.Unlink)
+
+	// Drive routes
+	facades.Route().Middleware(middleware.WebAuth()).Get("/drive", driveController.Index)
 
 	// Default route
 	facades.Route().Get("/", func(ctx http.Context) http.Response {

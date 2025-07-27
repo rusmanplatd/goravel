@@ -393,3 +393,155 @@ type ExportCalendarRequest struct {
 	// @example ["meeting", "appointment"]
 	EventTypes []string `json:"event_types" example:"[\"meeting\", \"appointment\"]"`
 }
+
+// EventSuggestionsRequest represents the request for getting event scheduling suggestions
+// @Description Request model for getting AI-powered scheduling suggestions
+type EventSuggestionsRequest struct {
+	// Participant user IDs
+	// @example ["01HXYZ123456789ABCDEFGHIJK", "01HXYZ123456789ABCDEFGHIJL"]
+	ParticipantIDs []string `json:"participant_ids" binding:"required" example:"[\"01HXYZ123456789ABCDEFGHIJK\", \"01HXYZ123456789ABCDEFGHIJL\"]" validate:"required"`
+
+	// Preferred start time for searching
+	// @example 2024-01-15T09:00:00Z
+	PreferredStartTime time.Time `json:"preferred_start_time" binding:"required" example:"2024-01-15T09:00:00Z" validate:"required"`
+
+	// Preferred end time for searching
+	// @example 2024-01-15T17:00:00Z
+	PreferredEndTime time.Time `json:"preferred_end_time" binding:"required" example:"2024-01-15T17:00:00Z" validate:"required"`
+
+	// Event duration
+	// @example 1h30m
+	Duration time.Duration `json:"duration" binding:"required" example:"1h30m" validate:"required"`
+
+	// Minimum availability rate (0.0 to 1.0)
+	// @example 0.8
+	MinAvailabilityRate float64 `json:"min_availability_rate" example:"0.8"`
+
+	// Event type for context
+	// @example meeting
+	EventType string `json:"event_type" example:"meeting"`
+
+	// Preferred time zones
+	// @example ["America/New_York", "Europe/London"]
+	PreferredTimezones []string `json:"preferred_timezones" example:"[\"America/New_York\", \"Europe/London\"]"`
+
+	// Working hours start (24-hour format)
+	// @example 9
+	WorkingHoursStart int `json:"working_hours_start" example:"9"`
+
+	// Working hours end (24-hour format)
+	// @example 17
+	WorkingHoursEnd int `json:"working_hours_end" example:"17"`
+
+	// Include weekends in suggestions
+	// @example false
+	IncludeWeekends bool `json:"include_weekends" example:"false"`
+}
+
+// BulkUpdateEventsRequest represents the request for bulk updating calendar events
+// @Description Request model for bulk updating multiple calendar events
+type BulkUpdateEventsRequest struct {
+	// Event IDs to update
+	// @example ["01HXYZ123456789ABCDEFGHIJK", "01HXYZ123456789ABCDEFGHIJL"]
+	EventIDs []string `json:"event_ids" binding:"required" example:"[\"01HXYZ123456789ABCDEFGHIJK\", \"01HXYZ123456789ABCDEFGHIJL\"]" validate:"required"`
+
+	// Fields to update
+	Updates BulkEventUpdates `json:"updates"`
+
+	// Time adjustment settings
+	TimeAdjustment *TimeAdjustment `json:"time_adjustment,omitempty"`
+}
+
+// BulkEventUpdates represents the fields that can be updated in bulk
+type BulkEventUpdates struct {
+	// Event title
+	// @example Updated Meeting Title
+	Title string `json:"title" example:"Updated Meeting Title"`
+
+	// Event description
+	// @example Updated meeting description
+	Description string `json:"description" example:"Updated meeting description"`
+
+	// Event location
+	// @example Updated Conference Room
+	Location string `json:"location" example:"Updated Conference Room"`
+
+	// Event color
+	// @example #EF4444
+	Color string `json:"color" example:"#EF4444"`
+
+	// Event status
+	// @example confirmed
+	Status string `json:"status" example:"confirmed"`
+
+	// Event type
+	// @example workshop
+	Type string `json:"type" example:"workshop"`
+}
+
+// TimeAdjustment represents time adjustment settings for bulk operations
+type TimeAdjustment struct {
+	// Adjustment type: "offset" or "set_duration"
+	// @example offset
+	Type string `json:"type" example:"offset"`
+
+	// Duration for the adjustment
+	// @example 1h30m
+	Duration time.Duration `json:"duration" example:"1h30m"`
+}
+
+// BulkDeleteEventsRequest represents the request for bulk deleting calendar events
+// @Description Request model for bulk deleting multiple calendar events
+type BulkDeleteEventsRequest struct {
+	// Event IDs to delete
+	// @example ["01HXYZ123456789ABCDEFGHIJK", "01HXYZ123456789ABCDEFGHIJL"]
+	EventIDs []string `json:"event_ids" binding:"required" example:"[\"01HXYZ123456789ABCDEFGHIJK\", \"01HXYZ123456789ABCDEFGHIJL\"]" validate:"required"`
+
+	// Whether to delete recurring series (for recurring events)
+	// @example false
+	DeleteSeries bool `json:"delete_series" example:"false"`
+
+	// Reason for deletion (optional)
+	// @example Meeting cancelled due to schedule conflicts
+	Reason string `json:"reason" example:"Meeting cancelled due to schedule conflicts"`
+}
+
+// BulkRescheduleEventsRequest represents the request for bulk rescheduling calendar events
+// @Description Request model for bulk rescheduling multiple calendar events
+type BulkRescheduleEventsRequest struct {
+	// Event IDs to reschedule
+	// @example ["01HXYZ123456789ABCDEFGHIJK", "01HXYZ123456789ABCDEFGHIJL"]
+	EventIDs []string `json:"event_ids" binding:"required" example:"[\"01HXYZ123456789ABCDEFGHIJK\", \"01HXYZ123456789ABCDEFGHIJL\"]" validate:"required"`
+
+	// Reschedule type: "offset", "set_start", "set_both"
+	// @example offset
+	RescheduleType string `json:"reschedule_type" binding:"required" example:"offset" validate:"required"`
+
+	// Time offset for "offset" type
+	// @example 2h
+	TimeOffset time.Duration `json:"time_offset" example:"2h"`
+
+	// New start time for "set_start" and "set_both" types
+	// @example 2024-01-15T14:00:00Z
+	NewStartTime time.Time `json:"new_start_time" example:"2024-01-15T14:00:00Z"`
+
+	// New end time for "set_both" type
+	// @example 2024-01-15T15:00:00Z
+	NewEndTime time.Time `json:"new_end_time" example:"2024-01-15T15:00:00Z"`
+
+	// Whether to check for conflicts
+	// @example true
+	CheckConflicts bool `json:"check_conflicts" example:"true"`
+
+	// Whether to allow conflicts
+	// @example false
+	AllowConflicts bool `json:"allow_conflicts" example:"false"`
+
+	// Whether to reschedule recurring series (for recurring events)
+	// @example false
+	RescheduleSeries bool `json:"reschedule_series" example:"false"`
+
+	// Reason for rescheduling (optional)
+	// @example Moved due to room availability
+	Reason string `json:"reason" example:"Moved due to room availability"`
+}

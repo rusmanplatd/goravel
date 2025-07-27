@@ -2,6 +2,7 @@ package routes
 
 import (
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/contracts/route"
 	"github.com/goravel/framework/facades"
 
 	v1 "goravel/app/http/controllers/api/v1"
@@ -28,6 +29,7 @@ func Api() {
 	chatController := v1.NewChatController()
 	calendarEventController := v1.NewCalendarEventController()
 	notificationController := v1.NewNotificationController()
+	driveController := v1.NewDriveController()
 
 	// Public authentication routes with rate limiting
 	facades.Route().Middleware(middleware.AuthRateLimit()).Post("/api/v1/auth/login", authController.Login)
@@ -371,6 +373,50 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/check-conflicts", calendarEventController.CheckConflicts)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/export", calendarEventController.ExportCalendar)
 
+	// Calendar bulk operations
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/bulk-update", calendarEventController.BulkUpdate)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/bulk-delete", calendarEventController.BulkDelete)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/bulk-reschedule", calendarEventController.BulkReschedule)
+
+	// Calendar view and availability routes
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-events/view", calendarEventController.GetCalendarView)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-events/availability", calendarEventController.GetAvailability)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/suggestions", calendarEventController.GetEventSuggestions)
+
+	// Event Templates API routes
+	eventTemplateController := v1.NewEventTemplateController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/event-templates", eventTemplateController.Index)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/event-templates", eventTemplateController.Store)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/event-templates/{id}", eventTemplateController.Show)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/event-templates/{id}", eventTemplateController.Update)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/event-templates/{id}", eventTemplateController.Delete)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/event-templates/{id}/create-event", eventTemplateController.CreateEventFromTemplate)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/event-templates/{id}/usage", eventTemplateController.GetTemplateUsage)
+
+	// Calendar Analytics API routes
+	calendarAnalyticsController := v1.NewCalendarAnalyticsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/users/{user_id}", calendarAnalyticsController.GetUserAnalytics)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/tenants/{tenant_id}", calendarAnalyticsController.GetTenantAnalytics)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/reports", calendarAnalyticsController.GenerateReport)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/meeting-effectiveness", calendarAnalyticsController.GetMeetingEffectivenessReport)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/productivity-insights", calendarAnalyticsController.GetProductivityInsights)
+
+	// Calendar Sharing API routes
+	calendarSharingController := v1.NewCalendarSharingController()
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-sharing/share/{shared_with_id}", calendarSharingController.ShareCalendar)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-sharing/accept/{share_id}", calendarSharingController.AcceptCalendarShare)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-sharing/shared-calendars", calendarSharingController.GetSharedCalendars)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/calendar-sharing/revoke/{share_id}", calendarSharingController.RevokeCalendarShare)
+
+	// Calendar Delegation API routes
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-delegation/create/{delegate_id}", calendarSharingController.CreateDelegation)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-delegation/accept/{delegation_id}", calendarSharingController.AcceptDelegation)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/calendar-delegation/revoke/{delegation_id}", calendarSharingController.RevokeDelegation)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-delegation/activities", calendarSharingController.GetDelegationActivities)
+
+	// Calendar Permissions API routes
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-permissions/check", calendarSharingController.CheckPermission)
+
 	// API Documentation (public)
 	facades.Route().Get("/api/docs", func(ctx http.Context) http.Response {
 		return ctx.Response().Success().Json(http.Json{
@@ -453,4 +499,79 @@ func Api() {
 	// Token Binding endpoints (RFC 8473)
 	facades.Route().Post("/api/v1/oauth/token-binding/validate", oauthController.ValidateTokenBinding)
 	facades.Route().Get("/api/v1/oauth/token-binding/info", oauthController.GetTokenBindingInfo)
+
+	// Drive API routes (Google Drive-like functionality)
+	facades.Route().Middleware(middleware.Auth()).Group(func(r route.Router) {
+		// File operations
+		r.Post("/api/v1/drive/files", driveController.UploadFile)
+		r.Get("/api/v1/drive/files", driveController.GetFiles)
+		r.Get("/api/v1/drive/files/{id}/download", driveController.DownloadFile)
+		r.Get("/api/v1/drive/files/{id}/preview", driveController.GetFilePreview)
+		r.Get("/api/v1/drive/files/{id}/thumbnail", driveController.GetFileThumbnail)
+		r.Post("/api/v1/drive/files/{id}/share", driveController.ShareFile)
+		r.Post("/api/v1/drive/files/{id}/move", driveController.MoveFile)
+		r.Post("/api/v1/drive/files/{id}/trash", driveController.TrashFile)
+		r.Post("/api/v1/drive/files/{id}/restore", driveController.RestoreFile)
+		r.Post("/api/v1/drive/files/{id}/star", driveController.ToggleFileStar)
+		r.Post("/api/v1/drive/files/{id}/versions", driveController.CreateFileVersion)
+		r.Post("/api/v1/drive/files/{id}/comments", driveController.AddFileComment)
+		r.Get("/api/v1/drive/files/{id}/comments", driveController.GetFileComments)
+		r.Get("/api/v1/drive/files/{id}/activity", driveController.GetFileActivity)
+
+		// Comment operations
+		r.Put("/api/v1/drive/comments/{id}", driveController.UpdateFileComment)
+		r.Delete("/api/v1/drive/comments/{id}", driveController.DeleteFileComment)
+
+		// Search and filtering
+		r.Get("/api/v1/drive/search", driveController.SearchFiles)
+		r.Get("/api/v1/drive/recent", driveController.GetRecentFiles)
+		r.Get("/api/v1/drive/starred", driveController.GetStarredFiles)
+		r.Get("/api/v1/drive/types/{type}", driveController.GetFilesByType)
+
+		// Bulk operations
+		r.Post("/api/v1/drive/bulk", driveController.BulkOperation)
+
+		// Folder operations
+		r.Post("/api/v1/drive/folders", driveController.CreateFolder)
+		r.Get("/api/v1/drive/folders", driveController.GetFolders)
+		r.Get("/api/v1/drive/folders/{id}/contents", driveController.GetFolderContents)
+		r.Post("/api/v1/drive/folders/{id}/share", driveController.ShareFolder)
+		r.Post("/api/v1/drive/folders/{id}/trash", driveController.MoveFolderToTrash)
+		r.Post("/api/v1/drive/folders/{id}/restore", driveController.RestoreFolderFromTrash)
+
+		// Shared and trash
+		r.Get("/api/v1/drive/shared/folders", driveController.GetSharedFolders)
+		r.Get("/api/v1/drive/trash", driveController.GetTrashedItems)
+
+		// Storage management
+		r.Get("/api/v1/drive/quota", driveController.GetStorageQuota)
+		r.Get("/api/v1/drive/analytics", driveController.GetStorageAnalytics)
+		r.Post("/api/v1/drive/cleanup", driveController.CleanupTrash)
+
+		// Tagging system
+		r.Post("/api/v1/drive/files/{id}/tags", driveController.TagFile)
+		r.Delete("/api/v1/drive/files/{id}/tags", driveController.RemoveTagsFromFile)
+		r.Get("/api/v1/drive/tags", driveController.GetAllUserTags)
+		r.Get("/api/v1/drive/tags/stats", driveController.GetTagUsageStats)
+		r.Get("/api/v1/drive/tags/files", driveController.GetFilesByTags)
+		r.Get("/api/v1/drive/tags/suggest", driveController.SuggestTags)
+		r.Get("/api/v1/drive/organize/tags", driveController.OrganizeFilesByTags)
+
+		// Duplicate detection and management
+		r.Get("/api/v1/drive/duplicates", driveController.FindDuplicateFiles)
+		r.Get("/api/v1/drive/duplicates/stats", driveController.GetDuplicateStats)
+		r.Post("/api/v1/drive/duplicates/resolve", driveController.ResolveDuplicates)
+		r.Get("/api/v1/drive/similar", driveController.FindSimilarFiles)
+		r.Get("/api/v1/drive/duplicates/suggestions", driveController.GetDuplicateManagementSuggestions)
+
+		// AI-powered insights and recommendations
+		r.Get("/api/v1/drive/insights/activity", driveController.GetUserActivityInsights)
+		r.Get("/api/v1/drive/insights/workspace", driveController.GetWorkspaceInsights)
+		r.Get("/api/v1/drive/recommendations", driveController.GetSmartRecommendations)
+		r.Get("/api/v1/drive/frequent", driveController.GetFrequentlyAccessedFiles)
+		r.Get("/api/v1/drive/recommended", driveController.GetRecommendedFiles)
+	})
+
+	// Public file download (for shared files)
+	facades.Route().Get("/api/v1/drive/public/files/{id}/download", driveController.DownloadFile)
 }

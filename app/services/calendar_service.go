@@ -320,7 +320,7 @@ func (cs *CalendarService) parseRRULE(event *models.CalendarEvent) []models.Cale
 	return instances
 }
 
-// RRULERule represents a parsed RRULE
+// RRULERule represents a parsed RRULE with enhanced support
 type RRULERule struct {
 	Frequency  string     // DAILY, WEEKLY, MONTHLY, YEARLY
 	Interval   int        // Interval between occurrences
@@ -329,12 +329,20 @@ type RRULERule struct {
 	ByDay      []string   // Days of week (MO, TU, WE, etc.)
 	ByMonth    []int      // Months (1-12)
 	ByMonthDay []int      // Days of month (1-31)
+	ByYearDay  []int      // Days of year (1-366)
+	ByWeekNo   []int      // Week numbers (1-53)
+	ByHour     []int      // Hours (0-23)
+	ByMinute   []int      // Minutes (0-59)
+	BySecond   []int      // Seconds (0-59)
+	BySetPos   []int      // Set positions (-366 to 366)
+	WeekStart  string     // Week start day (MO, TU, etc.)
 }
 
-// parseRRULEString parses an RRULE string into a structured format
+// parseRRULEString parses an RRULE string into a structured format with enhanced validation
 func (cs *CalendarService) parseRRULEString(rruleStr string) (*RRULERule, error) {
 	rule := &RRULERule{
-		Interval: 1, // Default interval
+		Interval:  1,    // Default interval
+		WeekStart: "MO", // Default week start
 	}
 
 	// Remove RRULE: prefix if present
@@ -356,57 +364,213 @@ func (cs *CalendarService) parseRRULEString(rruleStr string) (*RRULERule, error)
 
 		switch key {
 		case "FREQ":
+			if !cs.isValidFrequency(value) {
+				return nil, fmt.Errorf("invalid frequency: %s", value)
+			}
 			rule.Frequency = value
 		case "INTERVAL":
-			if interval, err := strconv.Atoi(value); err == nil {
+			if interval, err := strconv.Atoi(value); err == nil && interval > 0 {
 				rule.Interval = interval
+			} else {
+				return nil, fmt.Errorf("invalid interval: %s", value)
 			}
 		case "COUNT":
-			if count, err := strconv.Atoi(value); err == nil {
+			if count, err := strconv.Atoi(value); err == nil && count > 0 {
 				rule.Count = count
+			} else {
+				return nil, fmt.Errorf("invalid count: %s", value)
 			}
 		case "UNTIL":
-			if until, err := time.Parse("20060102T150405Z", value); err == nil {
-				rule.Until = &until
-			} else if until, err := time.Parse("20060102", value); err == nil {
-				rule.Until = &until
+			until, err := cs.parseUntilDate(value)
+			if err != nil {
+				return nil, fmt.Errorf("invalid until date: %s", value)
 			}
+			rule.Until = until
 		case "BYDAY":
-			rule.ByDay = strings.Split(value, ",")
+			days := strings.Split(value, ",")
+			for _, day := range days {
+				if !cs.isValidByDay(day) {
+					return nil, fmt.Errorf("invalid BYDAY value: %s", day)
+				}
+			}
+			rule.ByDay = days
 		case "BYMONTH":
-			for _, monthStr := range strings.Split(value, ",") {
-				if month, err := strconv.Atoi(monthStr); err == nil {
-					rule.ByMonth = append(rule.ByMonth, month)
-				}
+			months, err := cs.parseIntList(value, 1, 12)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYMONTH: %s", value)
 			}
+			rule.ByMonth = months
 		case "BYMONTHDAY":
-			for _, dayStr := range strings.Split(value, ",") {
-				if day, err := strconv.Atoi(dayStr); err == nil {
-					rule.ByMonthDay = append(rule.ByMonthDay, day)
-				}
+			days, err := cs.parseIntList(value, -31, 31)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYMONTHDAY: %s", value)
 			}
+			rule.ByMonthDay = days
+		case "BYYEARDAY":
+			days, err := cs.parseIntList(value, -366, 366)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYYEARDAY: %s", value)
+			}
+			rule.ByYearDay = days
+		case "BYWEEKNO":
+			weeks, err := cs.parseIntList(value, -53, 53)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYWEEKNO: %s", value)
+			}
+			rule.ByWeekNo = weeks
+		case "BYHOUR":
+			hours, err := cs.parseIntList(value, 0, 23)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYHOUR: %s", value)
+			}
+			rule.ByHour = hours
+		case "BYMINUTE":
+			minutes, err := cs.parseIntList(value, 0, 59)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYMINUTE: %s", value)
+			}
+			rule.ByMinute = minutes
+		case "BYSECOND":
+			seconds, err := cs.parseIntList(value, 0, 59)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYSECOND: %s", value)
+			}
+			rule.BySecond = seconds
+		case "BYSETPOS":
+			positions, err := cs.parseIntList(value, -366, 366)
+			if err != nil {
+				return nil, fmt.Errorf("invalid BYSETPOS: %s", value)
+			}
+			rule.BySetPos = positions
+		case "WKST":
+			if !cs.isValidWeekDay(value) {
+				return nil, fmt.Errorf("invalid WKST: %s", value)
+			}
+			rule.WeekStart = value
 		}
 	}
 
-	// Validate required fields
+	// Validate required fields and combinations
 	if rule.Frequency == "" {
 		return nil, fmt.Errorf("FREQ is required in RRULE")
+	}
+
+	// Validate COUNT and UNTIL are mutually exclusive
+	if rule.Count > 0 && rule.Until != nil {
+		return nil, fmt.Errorf("COUNT and UNTIL cannot both be specified")
 	}
 
 	return rule, nil
 }
 
-// generateRecurrenceInstances generates event instances based on the RRULE
+// Helper validation functions
+func (cs *CalendarService) isValidFrequency(freq string) bool {
+	validFreqs := []string{"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}
+	for _, valid := range validFreqs {
+		if freq == valid {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) isValidWeekDay(day string) bool {
+	validDays := []string{"MO", "TU", "WE", "TH", "FR", "SA", "SU"}
+	for _, valid := range validDays {
+		if day == valid {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) isValidByDay(byDay string) bool {
+	// BYDAY can be: MO, TU, WE, TH, FR, SA, SU
+	// Or with ordinal: 1MO, -1FR, 2TU, etc.
+	if len(byDay) < 2 {
+		return false
+	}
+
+	// Extract day part (last 2 characters)
+	day := byDay[len(byDay)-2:]
+	if !cs.isValidWeekDay(day) {
+		return false
+	}
+
+	// If there's an ordinal prefix, validate it
+	if len(byDay) > 2 {
+		ordinal := byDay[:len(byDay)-2]
+		if ordinalInt, err := strconv.Atoi(ordinal); err != nil || ordinalInt == 0 || ordinalInt < -53 || ordinalInt > 53 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (cs *CalendarService) parseUntilDate(dateStr string) (*time.Time, error) {
+	// Try different date formats
+	formats := []string{
+		"20060102T150405Z",
+		"20060102T150405",
+		"20060102",
+	}
+
+	for _, format := range formats {
+		if parsed, err := time.Parse(format, dateStr); err == nil {
+			return &parsed, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unable to parse date: %s", dateStr)
+}
+
+func (cs *CalendarService) parseIntList(value string, min, max int) ([]int, error) {
+	var result []int
+	parts := strings.Split(value, ",")
+
+	for _, part := range parts {
+		num, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil {
+			return nil, err
+		}
+		if num < min || num > max {
+			return nil, fmt.Errorf("value %d out of range [%d, %d]", num, min, max)
+		}
+		if num != 0 { // Skip zero values for most BY* rules
+			result = append(result, num)
+		}
+	}
+
+	return result, nil
+}
+
+// generateRecurrenceInstances generates event instances based on the RRULE with improved logic
 func (cs *CalendarService) generateRecurrenceInstances(event *models.CalendarEvent, rule *RRULERule) []models.CalendarEvent {
 	var instances []models.CalendarEvent
 
-	// Determine end condition
-	maxInstances := 100 // Safety limit
+	// Determine end condition with better defaults
+	maxInstances := 1000 // Increased safety limit
 	if rule.Count > 0 && rule.Count < maxInstances {
 		maxInstances = rule.Count
 	}
 
-	endTime := time.Now().AddDate(1, 0, 0) // Default: 1 year from now
+	// Default end time based on frequency
+	var defaultEndTime time.Time
+	switch rule.Frequency {
+	case "DAILY":
+		defaultEndTime = time.Now().AddDate(0, 6, 0) // 6 months for daily
+	case "WEEKLY":
+		defaultEndTime = time.Now().AddDate(1, 0, 0) // 1 year for weekly
+	case "MONTHLY":
+		defaultEndTime = time.Now().AddDate(2, 0, 0) // 2 years for monthly
+	case "YEARLY":
+		defaultEndTime = time.Now().AddDate(5, 0, 0) // 5 years for yearly
+	default:
+		defaultEndTime = time.Now().AddDate(1, 0, 0) // 1 year default
+	}
+
+	endTime := defaultEndTime
 	if rule.Until != nil {
 		endTime = *rule.Until
 	}
@@ -414,89 +578,301 @@ func (cs *CalendarService) generateRecurrenceInstances(event *models.CalendarEve
 		endTime = *event.RecurrenceUntil
 	}
 
-	currentTime := event.StartTime
 	duration := event.EndTime.Sub(event.StartTime)
 	instanceCount := 0
 
-	for instanceCount < maxInstances && currentTime.Before(endTime) {
-		// Check if this occurrence matches the rule criteria
-		if cs.matchesRRULECriteria(currentTime, rule) {
+	// Performance optimization: pre-calculate some values
+	candidates := cs.generateCandidateTimes(event.StartTime, endTime, rule)
+
+	for _, candidateTime := range candidates {
+		if instanceCount >= maxInstances {
+			break
+		}
+
+		// Check if this occurrence matches all rule criteria
+		if cs.matchesAllRRULECriteria(candidateTime, rule, event.StartTime) {
 			instance := *event
 			instance.ID = "" // Clear ID for new instance
-			instance.StartTime = currentTime
-			instance.EndTime = currentTime.Add(duration)
+			instance.StartTime = candidateTime
+			instance.EndTime = candidateTime.Add(duration)
 			instance.ParentEventID = &event.ID
 
 			instances = append(instances, instance)
 			instanceCount++
 		}
-
-		// Move to next potential occurrence
-		currentTime = cs.getNextOccurrence(currentTime, rule)
 	}
 
 	return instances
 }
 
-// matchesRRULECriteria checks if a given time matches the RRULE criteria
-func (cs *CalendarService) matchesRRULECriteria(t time.Time, rule *RRULERule) bool {
+// generateCandidateTimes generates candidate times based on frequency and interval
+func (cs *CalendarService) generateCandidateTimes(startTime, endTime time.Time, rule *RRULERule) []time.Time {
+	var candidates []time.Time
+	current := startTime
+
+	for current.Before(endTime) && len(candidates) < 10000 { // Safety limit
+		candidates = append(candidates, current)
+		current = cs.getNextOccurrence(current, rule)
+	}
+
+	return candidates
+}
+
+// matchesAllRRULECriteria checks if a given time matches all RRULE criteria with comprehensive validation
+func (cs *CalendarService) matchesAllRRULECriteria(t time.Time, rule *RRULERule, originalStart time.Time) bool {
 	// Check BYDAY constraint
-	if len(rule.ByDay) > 0 {
-		weekdayMap := map[string]time.Weekday{
-			"SU": time.Sunday, "MO": time.Monday, "TU": time.Tuesday,
-			"WE": time.Wednesday, "TH": time.Thursday, "FR": time.Friday, "SA": time.Saturday,
-		}
-
-		currentWeekday := t.Weekday()
-		matchesDay := false
-
-		for _, day := range rule.ByDay {
-			if weekdayMap[day] == currentWeekday {
-				matchesDay = true
-				break
-			}
-		}
-
-		if !matchesDay {
-			return false
-		}
+	if len(rule.ByDay) > 0 && !cs.matchesByDay(t, rule.ByDay, rule.Frequency) {
+		return false
 	}
 
 	// Check BYMONTH constraint
-	if len(rule.ByMonth) > 0 {
-		currentMonth := int(t.Month())
-		matchesMonth := false
-
-		for _, month := range rule.ByMonth {
-			if month == currentMonth {
-				matchesMonth = true
-				break
-			}
-		}
-
-		if !matchesMonth {
-			return false
-		}
+	if len(rule.ByMonth) > 0 && !cs.matchesByMonth(t, rule.ByMonth) {
+		return false
 	}
 
 	// Check BYMONTHDAY constraint
-	if len(rule.ByMonthDay) > 0 {
-		currentDay := t.Day()
-		matchesDay := false
+	if len(rule.ByMonthDay) > 0 && !cs.matchesByMonthDay(t, rule.ByMonthDay) {
+		return false
+	}
 
-		for _, day := range rule.ByMonthDay {
-			if day == currentDay {
-				matchesDay = true
-				break
-			}
-		}
+	// Check BYYEARDAY constraint
+	if len(rule.ByYearDay) > 0 && !cs.matchesByYearDay(t, rule.ByYearDay) {
+		return false
+	}
 
-		if !matchesDay {
-			return false
-		}
+	// Check BYWEEKNO constraint
+	if len(rule.ByWeekNo) > 0 && !cs.matchesByWeekNo(t, rule.ByWeekNo, rule.WeekStart) {
+		return false
+	}
+
+	// Check BYHOUR constraint
+	if len(rule.ByHour) > 0 && !cs.matchesByHour(t, rule.ByHour) {
+		return false
+	}
+
+	// Check BYMINUTE constraint
+	if len(rule.ByMinute) > 0 && !cs.matchesByMinute(t, rule.ByMinute) {
+		return false
+	}
+
+	// Check BYSECOND constraint
+	if len(rule.BySecond) > 0 && !cs.matchesBySecond(t, rule.BySecond) {
+		return false
 	}
 
 	return true
+}
+
+// Individual matching functions for better modularity
+func (cs *CalendarService) matchesByDay(t time.Time, byDays []string, frequency string) bool {
+	weekdayMap := map[string]time.Weekday{
+		"SU": time.Sunday, "MO": time.Monday, "TU": time.Tuesday,
+		"WE": time.Wednesday, "TH": time.Thursday, "FR": time.Friday, "SA": time.Saturday,
+	}
+
+	currentWeekday := t.Weekday()
+
+	for _, byDay := range byDays {
+		// Handle ordinal weekdays (e.g., 1MO, -1FR)
+		if len(byDay) > 2 {
+			ordinalStr := byDay[:len(byDay)-2]
+			dayStr := byDay[len(byDay)-2:]
+
+			ordinal, err := strconv.Atoi(ordinalStr)
+			if err != nil {
+				continue
+			}
+
+			if weekday, exists := weekdayMap[dayStr]; exists {
+				if cs.matchesOrdinalWeekday(t, weekday, ordinal, frequency) {
+					return true
+				}
+			}
+		} else {
+			// Simple weekday matching
+			if weekday, exists := weekdayMap[byDay]; exists && weekday == currentWeekday {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (cs *CalendarService) matchesOrdinalWeekday(t time.Time, weekday time.Weekday, ordinal int, frequency string) bool {
+	if frequency == "MONTHLY" {
+		return cs.matchesMonthlyOrdinalWeekday(t, weekday, ordinal)
+	} else if frequency == "YEARLY" {
+		return cs.matchesYearlyOrdinalWeekday(t, weekday, ordinal)
+	}
+	return false
+}
+
+func (cs *CalendarService) matchesMonthlyOrdinalWeekday(t time.Time, weekday time.Weekday, ordinal int) bool {
+	if t.Weekday() != weekday {
+		return false
+	}
+
+	year, month, _ := t.Date()
+	firstDay := time.Date(year, month, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+	lastDay := firstDay.AddDate(0, 1, -1)
+
+	if ordinal > 0 {
+		// Positive ordinal: count from beginning of month
+		count := 0
+		for d := firstDay; d.Month() == month; d = d.AddDate(0, 0, 1) {
+			if d.Weekday() == weekday {
+				count++
+				if count == ordinal && d.Day() == t.Day() {
+					return true
+				}
+			}
+		}
+	} else {
+		// Negative ordinal: count from end of month
+		count := 0
+		for d := lastDay; d.Month() == month; d = d.AddDate(0, 0, -1) {
+			if d.Weekday() == weekday {
+				count++
+				if count == -ordinal && d.Day() == t.Day() {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (cs *CalendarService) matchesYearlyOrdinalWeekday(t time.Time, weekday time.Weekday, ordinal int) bool {
+	if t.Weekday() != weekday {
+		return false
+	}
+
+	year := t.Year()
+	firstDay := time.Date(year, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+	lastDay := time.Date(year, 12, 31, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+
+	if ordinal > 0 {
+		// Positive ordinal: count from beginning of year
+		count := 0
+		for d := firstDay; d.Year() == year; d = d.AddDate(0, 0, 1) {
+			if d.Weekday() == weekday {
+				count++
+				if count == ordinal && d.YearDay() == t.YearDay() {
+					return true
+				}
+			}
+		}
+	} else {
+		// Negative ordinal: count from end of year
+		count := 0
+		for d := lastDay; d.Year() == year; d = d.AddDate(0, 0, -1) {
+			if d.Weekday() == weekday {
+				count++
+				if count == -ordinal && d.YearDay() == t.YearDay() {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (cs *CalendarService) matchesByMonth(t time.Time, byMonths []int) bool {
+	currentMonth := int(t.Month())
+	for _, month := range byMonths {
+		if month == currentMonth {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) matchesByMonthDay(t time.Time, byMonthDays []int) bool {
+	currentDay := t.Day()
+	year, month, _ := t.Date()
+	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, t.Location()).Day()
+
+	for _, day := range byMonthDays {
+		if day > 0 && day == currentDay {
+			return true
+		} else if day < 0 && currentDay == daysInMonth+day+1 {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) matchesByYearDay(t time.Time, byYearDays []int) bool {
+	currentYearDay := t.YearDay()
+	year := t.Year()
+	daysInYear := 365
+	if cs.isLeapYear(year) {
+		daysInYear = 366
+	}
+
+	for _, day := range byYearDays {
+		if day > 0 && day == currentYearDay {
+			return true
+		} else if day < 0 && currentYearDay == daysInYear+day+1 {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) matchesByWeekNo(t time.Time, byWeekNos []int, weekStart string) bool {
+	weekNo := cs.getWeekNumber(t, weekStart)
+	for _, week := range byWeekNos {
+		if week == weekNo {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) matchesByHour(t time.Time, byHours []int) bool {
+	currentHour := t.Hour()
+	for _, hour := range byHours {
+		if hour == currentHour {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) matchesByMinute(t time.Time, byMinutes []int) bool {
+	currentMinute := t.Minute()
+	for _, minute := range byMinutes {
+		if minute == currentMinute {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *CalendarService) matchesBySecond(t time.Time, bySeconds []int) bool {
+	currentSecond := t.Second()
+	for _, second := range bySeconds {
+		if second == currentSecond {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper functions
+func (cs *CalendarService) isLeapYear(year int) bool {
+	return year%4 == 0 && (year%100 != 0 || year%400 == 0)
+}
+
+func (cs *CalendarService) getWeekNumber(t time.Time, weekStart string) int {
+	// This is a simplified week number calculation
+	// For production, consider using a proper ISO week calculation
+	_, week := t.ISOWeek()
+	return week
 }
 
 // getNextOccurrence calculates the next potential occurrence based on frequency and interval

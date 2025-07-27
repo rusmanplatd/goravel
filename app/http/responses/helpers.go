@@ -22,6 +22,104 @@ func SuccessResponse(ctx http.Context, message string, data interface{}) http.Re
 	return ctx.Response().Json(200, response)
 }
 
+// Success creates a successful API response (alias for SuccessResponse)
+func Success(ctx http.Context, message string, data interface{}) http.Response {
+	return SuccessResponse(ctx, message, data)
+}
+
+// Created creates a 201 Created response
+func Created(ctx http.Context, message string, data interface{}) http.Response {
+	response := APIResponse{
+		Status:    "success",
+		Message:   message,
+		Data:      data,
+		Timestamp: time.Now(),
+	}
+	return ctx.Response().Json(201, response)
+}
+
+// BadRequest creates a 400 Bad Request response
+func BadRequest(ctx http.Context, message string, details interface{}) http.Response {
+	response := ErrorResponse{
+		Status:    "error",
+		Message:   message,
+		Details:   details,
+		Timestamp: time.Now(),
+	}
+	return ctx.Response().Json(400, response)
+}
+
+// NotFound creates a 404 Not Found response
+func NotFound(ctx http.Context, message string, details interface{}) http.Response {
+	response := ErrorResponse{
+		Status:    "error",
+		Message:   message,
+		Details:   details,
+		Timestamp: time.Now(),
+	}
+	return ctx.Response().Json(404, response)
+}
+
+// Forbidden creates a 403 Forbidden response
+func Forbidden(ctx http.Context, message string, details interface{}) http.Response {
+	response := ErrorResponse{
+		Status:    "error",
+		Message:   message,
+		Details:   details,
+		Timestamp: time.Now(),
+	}
+	return ctx.Response().Json(403, response)
+}
+
+// InternalServerError creates a 500 Internal Server Error response
+func InternalServerError(ctx http.Context, message string, details interface{}) http.Response {
+	response := ErrorResponse{
+		Status:    "error",
+		Message:   message,
+		Details:   details,
+		Timestamp: time.Now(),
+	}
+	return ctx.Response().Json(500, response)
+}
+
+// PaginatedSuccess creates a successful paginated response
+func PaginatedSuccess(ctx http.Context, message string, data interface{}, total int64, page, limit int) http.Response {
+	// Calculate pagination info
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	from := (page-1)*limit + 1
+	to := page * limit
+	if int64(to) > total {
+		to = int(total)
+	}
+	if total == 0 {
+		from = 0
+		to = 0
+	}
+
+	pagination := PaginationInfo{
+		Type:        "offset",
+		Count:       len(data.([]interface{})),
+		Limit:       limit,
+		HasNext:     page < totalPages,
+		HasPrev:     page > 1,
+		CurrentPage: &page,
+		LastPage:    &totalPages,
+		PerPage:     &limit,
+		Total:       &total,
+		From:        &from,
+		To:          &to,
+	}
+
+	response := PaginatedResponse{
+		Status:     "success",
+		Message:    message,
+		Data:       data,
+		Pagination: pagination,
+		Timestamp:  time.Now(),
+	}
+	return ctx.Response().Json(200, response)
+}
+
 // CreateErrorResponse creates an error API response
 func CreateErrorResponse(ctx http.Context, message string, details string, statusCode int) http.Response {
 	response := ErrorResponse{

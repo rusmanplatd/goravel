@@ -1,0 +1,493 @@
+{{ define "drive/index" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drive - {{ .AppName }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        .file-item {
+            transition: all 0.2s ease;
+        }
+        .file-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .dropzone {
+            border: 2px dashed #d1d5db;
+            transition: border-color 0.2s ease;
+        }
+        .dropzone.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-cloud text-blue-600 text-2xl mr-3"></i>
+                    <h1 class="text-xl font-semibold text-gray-900">Drive</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="uploadBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-upload mr-2"></i>Upload
+                    </button>
+                    <button id="newFolderBtn" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-folder-plus mr-2"></i>New Folder
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Breadcrumb -->
+        <div class="mb-6">
+            <nav class="flex" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                    <li class="inline-flex items-center">
+                        <a href="/drive" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+                            <i class="fas fa-home mr-2"></i>
+                            My Drive
+                        </a>
+                    </li>
+                    <li id="breadcrumb-container">
+                        <!-- Dynamic breadcrumbs will be inserted here -->
+                    </li>
+                </ol>
+            </nav>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-6">
+            <div class="relative">
+                <input type="text" id="searchInput" placeholder="Search files and folders..." 
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+            </div>
+        </div>
+
+        <!-- Upload Dropzone -->
+        <div id="dropzone" class="dropzone rounded-lg p-8 text-center mb-6 hidden">
+            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+            <p class="text-lg font-medium text-gray-700 mb-2">Drop files here to upload</p>
+            <p class="text-sm text-gray-500">or click to select files</p>
+            <input type="file" id="fileInput" multiple class="hidden">
+        </div>
+
+        <!-- View Toggle -->
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center space-x-4">
+                <span class="text-sm text-gray-700">View:</span>
+                <button id="gridViewBtn" class="p-2 rounded text-blue-600 bg-blue-50">
+                    <i class="fas fa-th-large"></i>
+                </button>
+                <button id="listViewBtn" class="p-2 rounded text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-list"></i>
+                </button>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="text-sm text-gray-500" id="itemCount">0 items</span>
+            </div>
+        </div>
+
+        <!-- Files and Folders Grid -->
+        <div id="filesContainer" class="file-grid">
+            <!-- Files and folders will be loaded here -->
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="text-center py-8 hidden">
+            <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+            <p class="text-gray-500 mt-2">Loading...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-12 hidden">
+            <i class="fas fa-folder-open text-6xl text-gray-300 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">This folder is empty</h3>
+            <p class="text-gray-500 mb-6">Upload files or create folders to get started</p>
+            <button class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-upload mr-2"></i>Upload Files
+            </button>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="fixed bg-white rounded-lg shadow-lg border py-2 z-50 hidden">
+        <button class="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm">
+            <i class="fas fa-download mr-2"></i>Download
+        </button>
+        <button class="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm">
+            <i class="fas fa-share mr-2"></i>Share
+        </button>
+        <button class="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm">
+            <i class="fas fa-edit mr-2"></i>Rename
+        </button>
+        <button class="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm">
+            <i class="fas fa-arrows-alt mr-2"></i>Move
+        </button>
+        <hr class="my-1">
+        <button class="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-red-600">
+            <i class="fas fa-trash mr-2"></i>Move to trash
+        </button>
+    </div>
+
+    <!-- Upload Progress Modal -->
+    <div id="uploadModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-96">
+            <h3 class="text-lg font-medium mb-4">Uploading Files</h3>
+            <div id="uploadProgress" class="space-y-3">
+                <!-- Upload progress items will be added here -->
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button id="cancelUpload" class="text-gray-500 hover:text-gray-700">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div id="newFolderModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-96">
+            <h3 class="text-lg font-medium mb-4">Create New Folder</h3>
+            <input type="text" id="folderNameInput" placeholder="Folder name" 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4">
+            <div class="flex justify-end space-x-3">
+                <button id="cancelNewFolder" class="text-gray-500 hover:text-gray-700">Cancel</button>
+                <button id="createFolder" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Drive functionality
+        class DriveApp {
+            constructor() {
+                this.currentFolderId = null;
+                this.currentView = 'grid';
+                this.selectedItems = new Set();
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.loadFiles();
+            }
+
+            bindEvents() {
+                // Upload button
+                document.getElementById('uploadBtn').addEventListener('click', () => {
+                    document.getElementById('fileInput').click();
+                });
+
+                // File input change
+                document.getElementById('fileInput').addEventListener('change', (e) => {
+                    this.uploadFiles(e.target.files);
+                });
+
+                // New folder button
+                document.getElementById('newFolderBtn').addEventListener('click', () => {
+                    this.showNewFolderModal();
+                });
+
+                // View toggle
+                document.getElementById('gridViewBtn').addEventListener('click', () => {
+                    this.setView('grid');
+                });
+
+                document.getElementById('listViewBtn').addEventListener('click', () => {
+                    this.setView('list');
+                });
+
+                // Search
+                document.getElementById('searchInput').addEventListener('input', (e) => {
+                    this.search(e.target.value);
+                });
+
+                // Drag and drop
+                const dropzone = document.getElementById('dropzone');
+                document.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('hidden');
+                    dropzone.classList.add('dragover');
+                });
+
+                document.addEventListener('dragleave', (e) => {
+                    if (e.clientX === 0 && e.clientY === 0) {
+                        dropzone.classList.add('hidden');
+                        dropzone.classList.remove('dragover');
+                    }
+                });
+
+                document.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.add('hidden');
+                    dropzone.classList.remove('dragover');
+                    this.uploadFiles(e.dataTransfer.files);
+                });
+
+                // Modal events
+                document.getElementById('cancelNewFolder').addEventListener('click', () => {
+                    this.hideNewFolderModal();
+                });
+
+                document.getElementById('createFolder').addEventListener('click', () => {
+                    this.createFolder();
+                });
+
+                // Context menu
+                document.addEventListener('contextmenu', (e) => {
+                    if (e.target.closest('.file-item')) {
+                        e.preventDefault();
+                        this.showContextMenu(e);
+                    }
+                });
+
+                document.addEventListener('click', () => {
+                    this.hideContextMenu();
+                });
+            }
+
+            async loadFiles() {
+                this.showLoading();
+                try {
+                    const response = await fetch(`/api/v1/drive/files?folder_id=${this.currentFolderId || ''}`);
+                    const data = await response.json();
+                    
+                    const foldersResponse = await fetch(`/api/v1/drive/folders?parent_id=${this.currentFolderId || ''}`);
+                    const foldersData = await foldersResponse.json();
+
+                    this.renderFiles([...foldersData.data, ...data.data]);
+                } catch (error) {
+                    console.error('Error loading files:', error);
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            renderFiles(items) {
+                const container = document.getElementById('filesContainer');
+                const itemCount = document.getElementById('itemCount');
+                
+                if (items.length === 0) {
+                    container.innerHTML = '';
+                    document.getElementById('emptyState').classList.remove('hidden');
+                    itemCount.textContent = '0 items';
+                    return;
+                }
+
+                document.getElementById('emptyState').classList.add('hidden');
+                itemCount.textContent = `${items.length} items`;
+
+                container.innerHTML = items.map(item => {
+                    const isFolder = !item.mime_type;
+                    const icon = isFolder ? 'fa-folder' : this.getFileIcon(item.mime_type);
+                    const size = isFolder ? '' : this.formatFileSize(item.size);
+                    
+                    return `
+                        <div class="file-item bg-white rounded-lg border p-4 cursor-pointer" data-id="${item.id}" data-type="${isFolder ? 'folder' : 'file'}">
+                            <div class="text-center mb-3">
+                                <i class="fas ${icon} text-3xl ${isFolder ? 'text-blue-500' : 'text-gray-400'}"></i>
+                            </div>
+                            <h3 class="font-medium text-sm text-gray-900 truncate mb-1">${item.name}</h3>
+                            <p class="text-xs text-gray-500">${size}</p>
+                            <p class="text-xs text-gray-400">${this.formatDate(item.created_at)}</p>
+                        </div>
+                    `;
+                }).join('');
+
+                // Add click events
+                container.querySelectorAll('.file-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        if (item.dataset.type === 'folder') {
+                            this.openFolder(item.dataset.id);
+                        } else {
+                            this.openFile(item.dataset.id);
+                        }
+                    });
+                });
+            }
+
+            getFileIcon(mimeType) {
+                if (mimeType.startsWith('image/')) return 'fa-image';
+                if (mimeType.startsWith('video/')) return 'fa-video';
+                if (mimeType.startsWith('audio/')) return 'fa-music';
+                if (mimeType === 'application/pdf') return 'fa-file-pdf';
+                if (mimeType.includes('word')) return 'fa-file-word';
+                if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'fa-file-excel';
+                if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return 'fa-file-powerpoint';
+                return 'fa-file';
+            }
+
+            formatFileSize(bytes) {
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                if (bytes === 0) return '0 B';
+                const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+            }
+
+            formatDate(dateString) {
+                return new Date(dateString).toLocaleDateString();
+            }
+
+            async uploadFiles(files) {
+                const modal = document.getElementById('uploadModal');
+                const progress = document.getElementById('uploadProgress');
+                
+                modal.classList.remove('hidden');
+                progress.innerHTML = '';
+
+                for (const file of files) {
+                    const progressItem = document.createElement('div');
+                    progressItem.innerHTML = `
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm truncate">${file.name}</span>
+                            <span class="text-xs text-gray-500">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    `;
+                    progress.appendChild(progressItem);
+
+                    await this.uploadFile(file, progressItem);
+                }
+
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    this.loadFiles();
+                }, 1000);
+            }
+
+            async uploadFile(file, progressElement) {
+                const formData = new FormData();
+                formData.append('file', file);
+                if (this.currentFolderId) {
+                    formData.append('folder_id', this.currentFolderId);
+                }
+
+                try {
+                    const response = await fetch('/api/v1/drive/files', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        progressElement.querySelector('.bg-blue-600').style.width = '100%';
+                        progressElement.querySelector('.text-gray-500').textContent = '100%';
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                }
+            }
+
+            showNewFolderModal() {
+                document.getElementById('newFolderModal').classList.remove('hidden');
+                document.getElementById('folderNameInput').focus();
+            }
+
+            hideNewFolderModal() {
+                document.getElementById('newFolderModal').classList.add('hidden');
+                document.getElementById('folderNameInput').value = '';
+            }
+
+            async createFolder() {
+                const name = document.getElementById('folderNameInput').value.trim();
+                if (!name) return;
+
+                try {
+                    const response = await fetch('/api/v1/drive/folders', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            name: name,
+                            parent_id: this.currentFolderId
+                        })
+                    });
+
+                    if (response.ok) {
+                        this.hideNewFolderModal();
+                        this.loadFiles();
+                    }
+                } catch (error) {
+                    console.error('Error creating folder:', error);
+                }
+            }
+
+            openFolder(folderId) {
+                this.currentFolderId = folderId;
+                this.loadFiles();
+                // Update breadcrumb here
+            }
+
+            openFile(fileId) {
+                window.open(`/api/v1/drive/files/${fileId}/download`, '_blank');
+            }
+
+            setView(view) {
+                this.currentView = view;
+                const gridBtn = document.getElementById('gridViewBtn');
+                const listBtn = document.getElementById('listViewBtn');
+                
+                if (view === 'grid') {
+                    gridBtn.classList.add('text-blue-600', 'bg-blue-50');
+                    gridBtn.classList.remove('text-gray-400');
+                    listBtn.classList.add('text-gray-400');
+                    listBtn.classList.remove('text-blue-600', 'bg-blue-50');
+                } else {
+                    listBtn.classList.add('text-blue-600', 'bg-blue-50');
+                    listBtn.classList.remove('text-gray-400');
+                    gridBtn.classList.add('text-gray-400');
+                    gridBtn.classList.remove('text-blue-600', 'bg-blue-50');
+                }
+            }
+
+            search(query) {
+                // Implement search functionality
+                console.log('Searching for:', query);
+            }
+
+            showContextMenu(event) {
+                const menu = document.getElementById('contextMenu');
+                menu.style.left = event.pageX + 'px';
+                menu.style.top = event.pageY + 'px';
+                menu.classList.remove('hidden');
+            }
+
+            hideContextMenu() {
+                document.getElementById('contextMenu').classList.add('hidden');
+            }
+
+            showLoading() {
+                document.getElementById('loadingSpinner').classList.remove('hidden');
+                document.getElementById('filesContainer').classList.add('hidden');
+            }
+
+            hideLoading() {
+                document.getElementById('loadingSpinner').classList.add('hidden');
+                document.getElementById('filesContainer').classList.remove('hidden');
+            }
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            new DriveApp();
+        });
+    </script>
+</body>
+</html>
+{{ end }} 

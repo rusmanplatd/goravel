@@ -13,6 +13,7 @@ import (
 	"goravel/app/http/responses"
 	"goravel/app/models"
 	"goravel/app/querybuilder"
+	"goravel/app/services"
 )
 
 type CalendarEventController struct {
@@ -1059,6 +1060,998 @@ func (cec *CalendarEventController) ExportCalendar(ctx http.Context) http.Respon
 		Header("Content-Disposition", "attachment; filename=\"calendar.ics\"").
 		Success().
 		Json(icalContent)
+}
+
+// GetCalendarView returns events in a structured calendar view format
+// @Summary Get calendar view
+// @Description Retrieve calendar events in daily, weekly, or monthly view format
+// @Tags calendar-events
+// @Accept json
+// @Produce json
+// @Param view query string true "View type: day, week, month" Enums(day,week,month)
+// @Param date query string false "Reference date (ISO 8601) - defaults to today"
+// @Param timezone query string false "Timezone for the view" default(UTC)
+// @Param user_id query string false "Filter events for specific user"
+// @Param include_all_day query bool false "Include all-day events" default(true)
+// @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /calendar-events/view [get]
+func (cec *CalendarEventController) GetCalendarView(ctx http.Context) http.Response {
+	viewType := ctx.Request().Input("view", "week")
+	dateStr := ctx.Request().Input("date", "")
+	timezone := ctx.Request().Input("timezone", "UTC")
+	userID := ctx.Request().Input("user_id", "")
+	includeAllDay := ctx.Request().InputBool("include_all_day", true)
+
+	// Parse reference date
+	var referenceDate time.Time
+	if dateStr != "" {
+		if parsed, err := time.Parse("2006-01-02", dateStr); err == nil {
+			referenceDate = parsed
+		} else if parsed, err := time.Parse(time.RFC3339, dateStr); err == nil {
+			referenceDate = parsed
+		} else {
+			return ctx.Response().Status(400).Json(responses.ErrorResponse{
+				Status:    "error",
+				Message:   "Invalid date format. Use YYYY-MM-DD or ISO 8601",
+				Timestamp: time.Now(),
+			})
+		}
+	} else {
+		referenceDate = time.Now()
+	}
+
+	// Load timezone
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	referenceDate = referenceDate.In(loc)
+
+	// Calculate date range based on view type
+	var startDate, endDate time.Time
+	var viewData map[string]interface{}
+
+	switch viewType {
+	case "day":
+		startDate, endDate = cec.getDayRange(referenceDate)
+		viewData, err = cec.getDayViewData(startDate, endDate, userID, includeAllDay)
+	case "week":
+		startDate, endDate = cec.getWeekRange(referenceDate)
+		viewData, err = cec.getWeekViewData(startDate, endDate, userID, includeAllDay)
+	case "month":
+		startDate, endDate = cec.getMonthRange(referenceDate)
+		viewData, err = cec.getMonthViewData(startDate, endDate, userID, includeAllDay)
+	default:
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid view type. Use 'day', 'week', or 'month'",
+			Timestamp: time.Now(),
+		})
+	}
+
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to retrieve calendar view: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Add metadata
+	viewData["view_type"] = viewType
+	viewData["reference_date"] = referenceDate.Format("2006-01-02")
+	viewData["start_date"] = startDate.Format("2006-01-02")
+	viewData["end_date"] = endDate.Format("2006-01-02")
+	viewData["timezone"] = timezone
+
+	return ctx.Response().Success().Json(responses.APIResponse{
+		Status:    "success",
+		Data:      viewData,
+		Timestamp: time.Now(),
+	})
+}
+
+// GetAvailability returns availability information for users
+// @Summary Get user availability
+// @Description Get availability information for one or more users within a time range
+// @Tags calendar-events
+// @Accept json
+// @Produce json
+// @Param user_ids query string true "Comma-separated user IDs"
+// @Param start_time query string true "Start time (ISO 8601)"
+// @Param end_time query string true "End time (ISO 8601)"
+// @Param timezone query string false "Timezone" default(UTC)
+// @Param granularity query string false "Time granularity: 15min, 30min, 1hour" default(30min)
+// @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /calendar-events/availability [get]
+func (cec *CalendarEventController) GetAvailability(ctx http.Context) http.Response {
+	userIDsStr := ctx.Request().Input("user_ids", "")
+	startTimeStr := ctx.Request().Input("start_time", "")
+	endTimeStr := ctx.Request().Input("end_time", "")
+	timezone := ctx.Request().Input("timezone", "UTC")
+	granularity := ctx.Request().Input("granularity", "30min")
+
+	if userIDsStr == "" || startTimeStr == "" || endTimeStr == "" {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "user_ids, start_time, and end_time are required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Parse user IDs
+	userIDs := strings.Split(userIDsStr, ",")
+	for i, id := range userIDs {
+		userIDs[i] = strings.TrimSpace(id)
+	}
+
+	// Parse times
+	startTime, err := time.Parse(time.RFC3339, startTimeStr)
+	if err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid start_time format. Use ISO 8601",
+			Timestamp: time.Now(),
+		})
+	}
+
+	endTime, err := time.Parse(time.RFC3339, endTimeStr)
+	if err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid end_time format. Use ISO 8601",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Load timezone
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	startTime = startTime.In(loc)
+	endTime = endTime.In(loc)
+
+	// Calculate availability
+	availability, err := cec.calculateAvailability(userIDs, startTime, endTime, granularity)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to calculate availability: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return ctx.Response().Success().Json(responses.APIResponse{
+		Status:    "success",
+		Data:      availability,
+		Timestamp: time.Now(),
+	})
+}
+
+// GetEventSuggestions returns smart scheduling suggestions
+// @Summary Get event scheduling suggestions
+// @Description Get AI-powered scheduling suggestions based on participant availability
+// @Tags calendar-events
+// @Accept json
+// @Produce json
+// @Param request body requests.EventSuggestionsRequest true "Suggestion parameters"
+// @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /calendar-events/suggestions [post]
+func (cec *CalendarEventController) GetEventSuggestions(ctx http.Context) http.Response {
+	var request requests.EventSuggestionsRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid request data",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Generate suggestions
+	suggestions, err := cec.generateEventSuggestions(&request)
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to generate suggestions: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	return ctx.Response().Success().Json(responses.APIResponse{
+		Status:    "success",
+		Data:      suggestions,
+		Timestamp: time.Now(),
+	})
+}
+
+// BulkUpdate updates multiple calendar events
+// @Summary Bulk update calendar events
+// @Description Update multiple calendar events at once
+// @Tags calendar-events
+// @Accept json
+// @Produce json
+// @Param request body requests.BulkUpdateEventsRequest true "Bulk update data"
+// @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /calendar-events/bulk-update [post]
+func (cec *CalendarEventController) BulkUpdate(ctx http.Context) http.Response {
+	var request requests.BulkUpdateEventsRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid request data",
+			Timestamp: time.Now(),
+		})
+	}
+
+	if len(request.EventIDs) == 0 {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "At least one event ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Start transaction
+	tx, err := facades.Orm().Query().Begin()
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to start transaction",
+			Timestamp: time.Now(),
+		})
+	}
+
+	updatedEvents := []models.CalendarEvent{}
+	failedUpdates := []map[string]interface{}{}
+
+	for _, eventID := range request.EventIDs {
+		// Find event
+		var event models.CalendarEvent
+		err := tx.Where("id = ?", eventID).First(&event)
+		if err != nil {
+			failedUpdates = append(failedUpdates, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Event not found",
+			})
+			continue
+		}
+
+		// Apply updates
+		updated := false
+		if request.Updates.Title != "" {
+			event.Title = request.Updates.Title
+			updated = true
+		}
+		if request.Updates.Description != "" {
+			event.Description = request.Updates.Description
+			updated = true
+		}
+		if request.Updates.Location != "" {
+			event.Location = request.Updates.Location
+			updated = true
+		}
+		if request.Updates.Color != "" {
+			event.Color = request.Updates.Color
+			updated = true
+		}
+		if request.Updates.Status != "" {
+			event.Status = request.Updates.Status
+			updated = true
+		}
+		if request.Updates.Type != "" {
+			event.Type = request.Updates.Type
+			updated = true
+		}
+
+		// Apply time adjustments
+		if request.TimeAdjustment != nil {
+			if request.TimeAdjustment.Type == "offset" {
+				event.StartTime = event.StartTime.Add(request.TimeAdjustment.Duration)
+				event.EndTime = event.EndTime.Add(request.TimeAdjustment.Duration)
+				updated = true
+			} else if request.TimeAdjustment.Type == "set_duration" {
+				event.EndTime = event.StartTime.Add(request.TimeAdjustment.Duration)
+				updated = true
+			}
+		}
+
+		if updated {
+			if err := tx.Save(&event); err != nil {
+				failedUpdates = append(failedUpdates, map[string]interface{}{
+					"event_id": eventID,
+					"error":    "Failed to update event: " + err.Error(),
+				})
+				continue
+			}
+			updatedEvents = append(updatedEvents, event)
+		}
+	}
+
+	// Commit transaction
+	tx.Commit()
+
+	return ctx.Response().Success().Json(responses.APIResponse{
+		Status: "success",
+		Data: map[string]interface{}{
+			"updated_events":  updatedEvents,
+			"updated_count":   len(updatedEvents),
+			"failed_updates":  failedUpdates,
+			"failed_count":    len(failedUpdates),
+			"total_processed": len(request.EventIDs),
+		},
+		Timestamp: time.Now(),
+	})
+}
+
+// BulkDelete deletes multiple calendar events
+// @Summary Bulk delete calendar events
+// @Description Delete multiple calendar events at once
+// @Tags calendar-events
+// @Accept json
+// @Produce json
+// @Param request body requests.BulkDeleteEventsRequest true "Bulk delete data"
+// @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /calendar-events/bulk-delete [post]
+func (cec *CalendarEventController) BulkDelete(ctx http.Context) http.Response {
+	var request requests.BulkDeleteEventsRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid request data",
+			Timestamp: time.Now(),
+		})
+	}
+
+	if len(request.EventIDs) == 0 {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "At least one event ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Start transaction
+	tx, err := facades.Orm().Query().Begin()
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to start transaction",
+			Timestamp: time.Now(),
+		})
+	}
+
+	deletedCount := 0
+	failedDeletes := []map[string]interface{}{}
+
+	for _, eventID := range request.EventIDs {
+		// Delete participants first
+		_, err := tx.Where("event_id = ?", eventID).Delete(&models.EventParticipant{})
+		if err != nil {
+			failedDeletes = append(failedDeletes, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Failed to delete participants: " + err.Error(),
+			})
+			continue
+		}
+
+		// Delete meeting details
+		_, err = tx.Where("event_id = ?", eventID).Delete(&models.Meeting{})
+		if err != nil {
+			failedDeletes = append(failedDeletes, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Failed to delete meeting details: " + err.Error(),
+			})
+			continue
+		}
+
+		// Delete reminders
+		_, err = tx.Where("event_id = ?", eventID).Delete(&models.EventReminder{})
+		if err != nil {
+			failedDeletes = append(failedDeletes, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Failed to delete reminders: " + err.Error(),
+			})
+			continue
+		}
+
+		// Delete event
+		result, err := tx.Where("id = ?", eventID).Delete(&models.CalendarEvent{})
+		if err != nil {
+			failedDeletes = append(failedDeletes, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Failed to delete event: " + err.Error(),
+			})
+			continue
+		}
+
+		if result.RowsAffected > 0 {
+			deletedCount++
+		} else {
+			failedDeletes = append(failedDeletes, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Event not found",
+			})
+		}
+	}
+
+	// Commit transaction
+	tx.Commit()
+
+	return ctx.Response().Success().Json(responses.APIResponse{
+		Status: "success",
+		Data: map[string]interface{}{
+			"deleted_count":   deletedCount,
+			"failed_deletes":  failedDeletes,
+			"failed_count":    len(failedDeletes),
+			"total_processed": len(request.EventIDs),
+		},
+		Timestamp: time.Now(),
+	})
+}
+
+// BulkReschedule reschedules multiple calendar events
+// @Summary Bulk reschedule calendar events
+// @Description Reschedule multiple calendar events with conflict detection
+// @Tags calendar-events
+// @Accept json
+// @Produce json
+// @Param request body requests.BulkRescheduleEventsRequest true "Bulk reschedule data"
+// @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /calendar-events/bulk-reschedule [post]
+func (cec *CalendarEventController) BulkReschedule(ctx http.Context) http.Response {
+	var request requests.BulkRescheduleEventsRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Invalid request data",
+			Timestamp: time.Now(),
+		})
+	}
+
+	if len(request.EventIDs) == 0 {
+		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "At least one event ID is required",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Start transaction
+	tx, err := facades.Orm().Query().Begin()
+	if err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to start transaction",
+			Timestamp: time.Now(),
+		})
+	}
+
+	rescheduledEvents := []models.CalendarEvent{}
+	failedReschedules := []map[string]interface{}{}
+	conflictingEvents := []map[string]interface{}{}
+
+	for _, eventID := range request.EventIDs {
+		// Find event
+		var event models.CalendarEvent
+		err := tx.With("Participants").Where("id = ?", eventID).First(&event)
+		if err != nil {
+			failedReschedules = append(failedReschedules, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Event not found",
+			})
+			continue
+		}
+
+		// Calculate new times
+		var newStartTime, newEndTime time.Time
+		duration := event.EndTime.Sub(event.StartTime)
+
+		switch request.RescheduleType {
+		case "offset":
+			newStartTime = event.StartTime.Add(request.TimeOffset)
+			newEndTime = event.EndTime.Add(request.TimeOffset)
+		case "set_start":
+			newStartTime = request.NewStartTime
+			newEndTime = newStartTime.Add(duration)
+		case "set_both":
+			newStartTime = request.NewStartTime
+			newEndTime = request.NewEndTime
+		default:
+			failedReschedules = append(failedReschedules, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Invalid reschedule type",
+			})
+			continue
+		}
+
+		// Check for conflicts if requested
+		if request.CheckConflicts {
+			userIDs := []string{}
+			for _, participant := range event.Participants {
+				userIDs = append(userIDs, participant.UserID)
+			}
+
+			if len(userIDs) > 0 {
+				calendarService := services.NewCalendarService()
+				conflicts, err := calendarService.CheckConflicts(newStartTime, newEndTime, userIDs, eventID)
+				if err != nil {
+					failedReschedules = append(failedReschedules, map[string]interface{}{
+						"event_id": eventID,
+						"error":    "Failed to check conflicts: " + err.Error(),
+					})
+					continue
+				}
+
+				if conflicts["has_conflicts"].(bool) {
+					conflictingEvents = append(conflictingEvents, map[string]interface{}{
+						"event_id":       eventID,
+						"event_title":    event.Title,
+						"new_start_time": newStartTime,
+						"new_end_time":   newEndTime,
+						"conflicts":      conflicts["conflicting_events"],
+					})
+
+					if !request.AllowConflicts {
+						failedReschedules = append(failedReschedules, map[string]interface{}{
+							"event_id": eventID,
+							"error":    "Scheduling conflict detected",
+						})
+						continue
+					}
+				}
+			}
+		}
+
+		// Update event times
+		event.StartTime = newStartTime
+		event.EndTime = newEndTime
+
+		if err := tx.Save(&event); err != nil {
+			failedReschedules = append(failedReschedules, map[string]interface{}{
+				"event_id": eventID,
+				"error":    "Failed to update event: " + err.Error(),
+			})
+			continue
+		}
+
+		rescheduledEvents = append(rescheduledEvents, event)
+	}
+
+	// Commit transaction
+	tx.Commit()
+
+	return ctx.Response().Success().Json(responses.APIResponse{
+		Status: "success",
+		Data: map[string]interface{}{
+			"rescheduled_events": rescheduledEvents,
+			"rescheduled_count":  len(rescheduledEvents),
+			"failed_reschedules": failedReschedules,
+			"failed_count":       len(failedReschedules),
+			"conflicting_events": conflictingEvents,
+			"conflicts_count":    len(conflictingEvents),
+			"total_processed":    len(request.EventIDs),
+		},
+		Timestamp: time.Now(),
+	})
+}
+
+// Helper methods for calendar views
+
+func (cec *CalendarEventController) getDayRange(date time.Time) (time.Time, time.Time) {
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	end := start.AddDate(0, 0, 1).Add(-time.Nanosecond)
+	return start, end
+}
+
+func (cec *CalendarEventController) getWeekRange(date time.Time) (time.Time, time.Time) {
+	// Start from Monday
+	weekday := int(date.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday = 7
+	}
+	start := date.AddDate(0, 0, -(weekday - 1))
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+	end := start.AddDate(0, 0, 7).Add(-time.Nanosecond)
+	return start, end
+}
+
+func (cec *CalendarEventController) getMonthRange(date time.Time) (time.Time, time.Time) {
+	start := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
+	end := start.AddDate(0, 1, 0).Add(-time.Nanosecond)
+	return start, end
+}
+
+func (cec *CalendarEventController) getDayViewData(startDate, endDate time.Time, userID string, includeAllDay bool) (map[string]interface{}, error) {
+	events, err := cec.getEventsInRange(startDate, endDate, userID, includeAllDay)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group events by hour
+	hourlyEvents := make(map[int][]models.CalendarEvent)
+	allDayEvents := []models.CalendarEvent{}
+
+	for _, event := range events {
+		if event.IsAllDay {
+			allDayEvents = append(allDayEvents, event)
+		} else {
+			hour := event.StartTime.Hour()
+			hourlyEvents[hour] = append(hourlyEvents[hour], event)
+		}
+	}
+
+	return map[string]interface{}{
+		"date":           startDate.Format("2006-01-02"),
+		"hourly_events":  hourlyEvents,
+		"all_day_events": allDayEvents,
+		"total_events":   len(events),
+	}, nil
+}
+
+func (cec *CalendarEventController) getWeekViewData(startDate, endDate time.Time, userID string, includeAllDay bool) (map[string]interface{}, error) {
+	events, err := cec.getEventsInRange(startDate, endDate, userID, includeAllDay)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group events by day
+	dailyEvents := make(map[string][]models.CalendarEvent)
+	weekDays := []string{}
+
+	for d := startDate; d.Before(endDate); d = d.AddDate(0, 0, 1) {
+		dayKey := d.Format("2006-01-02")
+		weekDays = append(weekDays, dayKey)
+		dailyEvents[dayKey] = []models.CalendarEvent{}
+	}
+
+	for _, event := range events {
+		dayKey := event.StartTime.Format("2006-01-02")
+		if _, exists := dailyEvents[dayKey]; exists {
+			dailyEvents[dayKey] = append(dailyEvents[dayKey], event)
+		}
+	}
+
+	return map[string]interface{}{
+		"week_start":   startDate.Format("2006-01-02"),
+		"week_end":     endDate.Format("2006-01-02"),
+		"days":         weekDays,
+		"daily_events": dailyEvents,
+		"total_events": len(events),
+	}, nil
+}
+
+func (cec *CalendarEventController) getMonthViewData(startDate, endDate time.Time, userID string, includeAllDay bool) (map[string]interface{}, error) {
+	events, err := cec.getEventsInRange(startDate, endDate, userID, includeAllDay)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group events by day
+	dailyEvents := make(map[string][]models.CalendarEvent)
+	monthDays := []string{}
+
+	for d := startDate; d.Before(endDate); d = d.AddDate(0, 0, 1) {
+		dayKey := d.Format("2006-01-02")
+		monthDays = append(monthDays, dayKey)
+		dailyEvents[dayKey] = []models.CalendarEvent{}
+	}
+
+	for _, event := range events {
+		dayKey := event.StartTime.Format("2006-01-02")
+		if _, exists := dailyEvents[dayKey]; exists {
+			dailyEvents[dayKey] = append(dailyEvents[dayKey], event)
+		}
+	}
+
+	// Calculate week structure for calendar grid
+	weeks := cec.calculateWeekStructure(startDate, endDate)
+
+	return map[string]interface{}{
+		"month":        startDate.Format("2006-01"),
+		"days":         monthDays,
+		"daily_events": dailyEvents,
+		"weeks":        weeks,
+		"total_events": len(events),
+	}, nil
+}
+
+func (cec *CalendarEventController) getEventsInRange(startDate, endDate time.Time, userID string, includeAllDay bool) ([]models.CalendarEvent, error) {
+	query := facades.Orm().Query().Model(&models.CalendarEvent{}).
+		Where("start_time >= ? AND start_time <= ?", startDate, endDate)
+
+	if userID != "" {
+		query = query.Join("JOIN event_participants ON calendar_events.id = event_participants.event_id").
+			Where("event_participants.user_id = ?", userID)
+	}
+
+	if !includeAllDay {
+		query = query.Where("is_all_day = ?", false)
+	}
+
+	query = query.With("Participants.User").With("Meeting").With("Creator")
+
+	var events []models.CalendarEvent
+	err := query.Find(&events)
+	return events, err
+}
+
+func (cec *CalendarEventController) calculateWeekStructure(startDate, endDate time.Time) [][]string {
+	var weeks [][]string
+	var currentWeek []string
+
+	// Start from the first day of the month, but align to week start (Monday)
+	current := startDate
+	weekday := int(current.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday = 7
+	}
+	current = current.AddDate(0, 0, -(weekday - 1))
+
+	for current.Before(endDate.AddDate(0, 0, 7)) {
+		if len(currentWeek) == 7 {
+			weeks = append(weeks, currentWeek)
+			currentWeek = []string{}
+		}
+		currentWeek = append(currentWeek, current.Format("2006-01-02"))
+		current = current.AddDate(0, 0, 1)
+	}
+
+	if len(currentWeek) > 0 {
+		weeks = append(weeks, currentWeek)
+	}
+
+	return weeks
+}
+
+func (cec *CalendarEventController) calculateAvailability(userIDs []string, startTime, endTime time.Time, granularity string) (map[string]interface{}, error) {
+	// Parse granularity
+	var interval time.Duration
+	switch granularity {
+	case "15min":
+		interval = 15 * time.Minute
+	case "30min":
+		interval = 30 * time.Minute
+	case "1hour":
+		interval = 1 * time.Hour
+	default:
+		interval = 30 * time.Minute
+	}
+
+	// Get busy times for all users
+	busyTimes, err := cec.getBusyTimes(userIDs, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate time slots
+	timeSlots := []map[string]interface{}{}
+	for current := startTime; current.Before(endTime); current = current.Add(interval) {
+		slotEnd := current.Add(interval)
+		if slotEnd.After(endTime) {
+			slotEnd = endTime
+		}
+
+		// Check availability for each user in this slot
+		userAvailability := make(map[string]bool)
+		for _, userID := range userIDs {
+			userAvailability[userID] = !cec.isTimeSlotBusy(current, slotEnd, busyTimes[userID])
+		}
+
+		// Count available users
+		availableCount := 0
+		for _, available := range userAvailability {
+			if available {
+				availableCount++
+			}
+		}
+
+		timeSlots = append(timeSlots, map[string]interface{}{
+			"start_time":        current.Format(time.RFC3339),
+			"end_time":          slotEnd.Format(time.RFC3339),
+			"user_availability": userAvailability,
+			"available_count":   availableCount,
+			"total_users":       len(userIDs),
+			"availability_rate": float64(availableCount) / float64(len(userIDs)),
+		})
+	}
+
+	return map[string]interface{}{
+		"time_slots":  timeSlots,
+		"granularity": granularity,
+		"user_ids":    userIDs,
+		"period": map[string]string{
+			"start": startTime.Format(time.RFC3339),
+			"end":   endTime.Format(time.RFC3339),
+		},
+	}, nil
+}
+
+func (cec *CalendarEventController) getBusyTimes(userIDs []string, startTime, endTime time.Time) (map[string][]map[string]time.Time, error) {
+	busyTimes := make(map[string][]map[string]time.Time)
+
+	// Initialize empty busy times for all users
+	for _, userID := range userIDs {
+		busyTimes[userID] = []map[string]time.Time{}
+	}
+
+	// Get events for all users in the time range
+	var events []models.CalendarEvent
+	err := facades.Orm().Query().Model(&models.CalendarEvent{}).
+		Join("JOIN event_participants ON calendar_events.id = event_participants.event_id").
+		Where("event_participants.user_id IN ?", userIDs).
+		Where("(start_time < ? AND end_time > ?) OR (start_time >= ? AND start_time < ?)",
+			endTime, startTime, startTime, endTime).
+		With("Participants").
+		Find(&events)
+
+	if err != nil {
+		return busyTimes, err
+	}
+
+	// Group busy times by user
+	for _, event := range events {
+		for _, participant := range event.Participants {
+			if contains(userIDs, participant.UserID) && participant.ResponseStatus != "declined" {
+				busyTimes[participant.UserID] = append(busyTimes[participant.UserID], map[string]time.Time{
+					"start": event.StartTime,
+					"end":   event.EndTime,
+				})
+			}
+		}
+	}
+
+	return busyTimes, nil
+}
+
+func (cec *CalendarEventController) isTimeSlotBusy(slotStart, slotEnd time.Time, busyTimes []map[string]time.Time) bool {
+	for _, busyTime := range busyTimes {
+		// Check if there's any overlap
+		if busyTime["start"].Before(slotEnd) && busyTime["end"].After(slotStart) {
+			return true
+		}
+	}
+	return false
+}
+
+func (cec *CalendarEventController) generateEventSuggestions(request *requests.EventSuggestionsRequest) (map[string]interface{}, error) {
+	// Get availability for all participants
+	availability, err := cec.calculateAvailability(
+		request.ParticipantIDs,
+		request.PreferredStartTime,
+		request.PreferredEndTime,
+		"30min",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	timeSlots := availability["time_slots"].([]map[string]interface{})
+	suggestions := []map[string]interface{}{}
+
+	// Find best time slots based on availability
+	for _, slot := range timeSlots {
+		availabilityRate := slot["availability_rate"].(float64)
+
+		// Only suggest slots with high availability
+		if availabilityRate >= request.MinAvailabilityRate {
+			// Calculate slot duration
+			startTime, _ := time.Parse(time.RFC3339, slot["start_time"].(string))
+
+			// Check if we have enough consecutive slots for the requested duration
+			if cec.hasEnoughConsecutiveTime(timeSlots, slot, request.Duration) {
+				suggestions = append(suggestions, map[string]interface{}{
+					"suggested_start_time": slot["start_time"],
+					"suggested_end_time":   startTime.Add(request.Duration).Format(time.RFC3339),
+					"availability_rate":    availabilityRate,
+					"available_count":      slot["available_count"],
+					"total_participants":   slot["total_users"],
+					"confidence_score":     cec.calculateConfidenceScore(availabilityRate, startTime, request),
+				})
+			}
+		}
+	}
+
+	// Sort suggestions by confidence score
+	cec.sortSuggestionsByConfidence(suggestions)
+
+	// Limit to top suggestions
+	maxSuggestions := 10
+	if len(suggestions) > maxSuggestions {
+		suggestions = suggestions[:maxSuggestions]
+	}
+
+	return map[string]interface{}{
+		"suggestions":     suggestions,
+		"total_found":     len(suggestions),
+		"search_criteria": request,
+	}, nil
+}
+
+func (cec *CalendarEventController) hasEnoughConsecutiveTime(timeSlots []map[string]interface{}, currentSlot map[string]interface{}, duration time.Duration) bool {
+	// Find current slot index
+	currentIndex := -1
+	for i, slot := range timeSlots {
+		if slot["start_time"] == currentSlot["start_time"] {
+			currentIndex = i
+			break
+		}
+	}
+
+	if currentIndex == -1 {
+		return false
+	}
+
+	// Calculate how many 30-minute slots we need
+	slotsNeeded := int(duration.Minutes() / 30)
+	if slotsNeeded <= 1 {
+		return true
+	}
+
+	// Check consecutive slots
+	for i := 0; i < slotsNeeded-1; i++ {
+		if currentIndex+i+1 >= len(timeSlots) {
+			return false
+		}
+
+		nextSlot := timeSlots[currentIndex+i+1]
+		if nextSlot["availability_rate"].(float64) < 0.8 { // Require high availability for all slots
+			return false
+		}
+	}
+
+	return true
+}
+
+func (cec *CalendarEventController) calculateConfidenceScore(availabilityRate float64, startTime time.Time, request *requests.EventSuggestionsRequest) float64 {
+	score := availabilityRate * 100
+
+	// Boost score for preferred time ranges
+	hour := startTime.Hour()
+	if hour >= 9 && hour <= 17 { // Business hours
+		score += 10
+	}
+	if hour >= 10 && hour <= 16 { // Peak business hours
+		score += 5
+	}
+
+	// Reduce score for very early or very late times
+	if hour < 8 || hour > 18 {
+		score -= 15
+	}
+
+	// Boost score for weekdays
+	if startTime.Weekday() >= time.Monday && startTime.Weekday() <= time.Friday {
+		score += 5
+	}
+
+	return score
+}
+
+func (cec *CalendarEventController) sortSuggestionsByConfidence(suggestions []map[string]interface{}) {
+	// Simple bubble sort by confidence score (for small arrays)
+	n := len(suggestions)
+	for i := 0; i < n-1; i++ {
+		for j := 0; j < n-i-1; j++ {
+			score1 := suggestions[j]["confidence_score"].(float64)
+			score2 := suggestions[j+1]["confidence_score"].(float64)
+			if score1 < score2 {
+				suggestions[j], suggestions[j+1] = suggestions[j+1], suggestions[j]
+			}
+		}
+	}
 }
 
 // Helper function to check if slice contains value
