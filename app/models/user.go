@@ -1,7 +1,6 @@
 package models
 
 import (
-	"goravel/app/notificationcore"
 	"time"
 )
 
@@ -134,21 +133,6 @@ func (u *User) GetPhone() string {
 	return u.Phone
 }
 
-// GetSlackWebhook returns the user's Slack webhook URL
-func (u *User) GetSlackWebhook() string {
-	return u.SlackWebhook
-}
-
-// GetDiscordWebhook returns the user's Discord webhook URL
-func (u *User) GetDiscordWebhook() string {
-	return u.DiscordWebhook
-}
-
-// GetTelegramChatID returns the user's Telegram chat ID
-func (u *User) GetTelegramChatID() string {
-	return u.TelegramChatID
-}
-
 // GetPushTokens returns the user's push notification tokens
 func (u *User) GetPushTokens() []string {
 	// Return active push subscription endpoints
@@ -166,34 +150,123 @@ func (u *User) GetWebhookURL() string {
 	return u.WebhookURL
 }
 
-// GetPreferredChannels returns the user's preferred notification channels
-func (u *User) GetPreferredChannels() []string {
-	if len(u.PreferredNotificationChannels) > 0 {
-		return u.PreferredNotificationChannels
+// GetTimezone returns the user's timezone (from profile or default)
+func (u *User) GetTimezone() string {
+	if u.Profile != nil && u.Profile.Timezone != "" {
+		return u.Profile.Timezone
 	}
-	// Default channels
-	return []string{"database", "mail"}
+	return "UTC"
 }
 
-// ShouldReceiveNotification checks if the user should receive a specific notification
-func (u *User) ShouldReceiveNotification(notification notificationcore.Notification) bool {
-	// Check if user is active
+// GetLocale returns the user's locale (from profile or default)
+func (u *User) GetLocale() string {
+	if u.Profile != nil && u.Profile.Language != "" {
+		return u.Profile.Language
+	}
+	return "en"
+}
+
+// GetNotificationPreferences returns the user's notification preferences
+func (u *User) GetNotificationPreferences() map[string]interface{} {
+	preferences := make(map[string]interface{})
+
+	// Add basic preferences
+	preferences["email_enabled"] = u.Email != ""
+	preferences["push_enabled"] = len(u.GetPushTokens()) > 0
+	preferences["sms_enabled"] = u.Phone != ""
+	preferences["slack_enabled"] = u.SlackWebhook != ""
+	preferences["discord_enabled"] = u.DiscordWebhook != ""
+	preferences["telegram_enabled"] = u.TelegramChatID != ""
+	preferences["webhook_enabled"] = u.WebhookURL != ""
+	preferences["security_notifications"] = true // Enable security notifications by default
+
+	// Add user status
+	preferences["is_active"] = u.IsActive
+	preferences["email_verified"] = u.EmailVerifiedAt != nil
+	preferences["mfa_enabled"] = u.MfaEnabled
+
+	return preferences
+}
+
+// GetChannelAddress returns the address for a specific notification channel
+func (u *User) GetChannelAddress(channel string) string {
+	switch channel {
+	case "mail", "email":
+		return u.Email
+	case "sms":
+		return u.Phone
+	case "slack":
+		return u.SlackWebhook
+	case "discord":
+		return u.DiscordWebhook
+	case "telegram":
+		return u.TelegramChatID
+	case "webhook":
+		return u.WebhookURL
+	case "push":
+		tokens := u.GetPushTokens()
+		if len(tokens) > 0 {
+			return tokens[0] // Return first token
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
+// IsChannelEnabled checks if a specific channel is enabled for the user
+func (u *User) IsChannelEnabled(channel string) bool {
 	if !u.IsActive {
 		return false
 	}
 
-	// Check if user is locked
-	if u.LockedAt != nil && u.LockedUntil != nil && time.Now().Before(*u.LockedUntil) {
+	switch channel {
+	case "database":
+		return true // Database notifications are always enabled for active users
+	case "mail", "email":
+		return u.Email != "" && u.EmailVerifiedAt != nil
+	case "sms":
+		return u.Phone != ""
+	case "push":
+		return len(u.GetPushTokens()) > 0
+	case "slack":
+		return u.SlackWebhook != ""
+	case "discord":
+		return u.DiscordWebhook != ""
+	case "telegram":
+		return u.TelegramChatID != ""
+	case "webhook":
+		return u.WebhookURL != ""
+	case "websocket":
+		return true // WebSocket notifications are enabled for active users
+	default:
 		return false
 	}
+}
 
-	// For email notifications, check if email is verified (optional)
-	// You can customize this logic based on your requirements
-	// if strings.Contains(notification.GetChannels(), "mail") && u.EmailVerifiedAt == nil {
-	//     return false
-	// }
+// GetQuietHours returns the user's quiet hours (from profile or defaults)
+func (u *User) GetQuietHours() (start, end string) {
+	if u.Profile != nil {
+		// Assuming profile has quiet hours fields
+		return "22:00", "08:00" // Default quiet hours
+	}
+	return "", "" // No quiet hours
+}
 
-	return true
+// GetRateLimits returns the user's rate limits for different notification types
+func (u *User) GetRateLimits() map[string]int {
+	limits := make(map[string]int)
+
+	// Default rate limits
+	limits["email"] = 50     // 50 emails per hour
+	limits["sms"] = 10       // 10 SMS per hour
+	limits["push"] = 200     // 200 push notifications per hour
+	limits["slack"] = 100    // 100 Slack messages per hour
+	limits["discord"] = 100  // 100 Discord messages per hour
+	limits["telegram"] = 100 // 100 Telegram messages per hour
+
+	// You could customize these based on user subscription level, etc.
+	return limits
 }
 
 // UserTenant represents the pivot table for user-tenant relationship

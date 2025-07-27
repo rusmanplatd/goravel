@@ -1,6 +1,7 @@
 package notifications
 
 import (
+	"goravel/app/notificationcore"
 	"time"
 )
 
@@ -17,25 +18,33 @@ func NewWelcomeNotification(userName string) *WelcomeNotification {
 		userName:         userName,
 	}
 
-	// Set notification properties
-	notification.SetType("WelcomeNotification")
-	notification.SetTitle("Welcome to " + getAppName())
-	notification.SetBody("Hi " + userName + ", welcome to our platform! We're excited to have you on board.")
-	notification.SetMessage("Welcome to our platform!")
-	notification.SetSubject("Welcome to " + getAppName())
-	notification.SetChannels([]string{"database", "mail"})
-	notification.SetActionURL(getAppURL() + "/dashboard")
-	notification.SetActionText("Go to Dashboard")
-	notification.SetIcon("🎉")
-	notification.SetColor("success")
-	notification.SetPriority("normal")
-	notification.SetCategory("welcome")
-	notification.AddTag("welcome")
-	notification.AddTag("new-user")
+	// Set notification properties using modern interface
+	notification.SetType("WelcomeNotification").
+		SetTemplate("welcome_email").
+		SetTitle("Welcome to " + getAppName()).
+		SetBody("Hi " + userName + ", welcome to our platform! We're excited to have you on board.").
+		SetSubject("Welcome to " + getAppName()).
+		SetChannels([]string{"database", "mail", "push"}).
+		SetActionURL(getAppURL() + "/dashboard").
+		SetActionText("Go to Dashboard").
+		SetIcon("🎉").
+		SetColor("#28a745").
+		SetPriority(notificationcore.PriorityNormal).
+		SetCategory("welcome").
+		AddTag("welcome").
+		AddTag("new-user")
 
-	// Add custom data
-	notification.AddData("user_name", userName)
-	notification.AddData("welcome_date", time.Now().Format("2006-01-02"))
+	// Add custom data for template rendering
+	notification.AddData("user_name", userName).
+		AddData("welcome_date", time.Now().Format("2006-01-02")).
+		AddData("app_name", getAppName()).
+		AddData("dashboard_url", getAppURL()+"/dashboard")
+
+	// Set analytics tracking
+	notification.SetTrackOpens(true).
+		SetTrackClicks(true).
+		AddAnalyticsData("user_type", "new_user").
+		AddAnalyticsData("registration_date", time.Now())
 
 	return notification
 }
@@ -45,10 +54,15 @@ func (n *WelcomeNotification) GetUserName() string {
 	return n.userName
 }
 
-// SetUserName sets the user name
-func (n *WelcomeNotification) SetUserName(userName string) {
+// SetUserName sets the user name and updates related data
+func (n *WelcomeNotification) SetUserName(userName string) *WelcomeNotification {
 	n.userName = userName
 	n.AddData("user_name", userName)
+
+	// Update the body with the new user name
+	n.SetBody("Hi " + userName + ", welcome to our platform! We're excited to have you on board.")
+
+	return n
 }
 
 // getAppName returns the application name

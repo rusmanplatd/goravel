@@ -151,7 +151,7 @@ func (cs *CalendarService) sendPushReminder(reminder *models.EventReminder) erro
 	notification.SetTitle("Event Reminder")
 	notification.SetBody(fmt.Sprintf("Reminder: %s is starting at %s", reminder.Event.Title, reminder.Event.StartTime.Format("2006-01-02 15:04")))
 	notification.SetChannels([]string{"push"})
-	notification.SetAction("/calendar", "View Event")
+	notification.SetActionURL("/calendar").SetActionText("View Event")
 	notification.AddData("event_title", reminder.Event.Title)
 	notification.AddData("event_time", reminder.Event.StartTime)
 

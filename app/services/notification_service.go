@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"math/rand/v2"
 	"reflect"
 	"sync"
 	"time"
 
 	"goravel/app/helpers"
+	"goravel/app/models"
 	"goravel/app/notificationcore"
 
 	"github.com/goravel/framework/facades"
@@ -31,16 +34,37 @@ type NotificationQueueJob struct {
 	MaxAttempts      int           `json:"max_attempts"`
 }
 
+// RetryConfig holds configuration for notification retry logic
+type RetryConfig struct {
+	MaxAttempts   int           `json:"max_attempts"`
+	BaseDelay     time.Duration `json:"base_delay"`
+	MaxDelay      time.Duration `json:"max_delay"`
+	BackoffFactor float64       `json:"backoff_factor"`
+	JitterEnabled bool          `json:"jitter_enabled"`
+}
+
 // NotificationService handles sending notifications through various channels
 type NotificationService struct {
-	channels map[string]notificationcore.Channel
-	mutex    sync.RWMutex
+	channels          map[string]notificationcore.Channel
+	mutex             sync.RWMutex
+	retryConfig       RetryConfig
+	preferenceService *NotificationPreferenceService
+	rateLimiter       *NotificationRateLimiter
 }
 
 // NewNotificationService creates a new notification service
 func NewNotificationService() *NotificationService {
 	service := &NotificationService{
 		channels: make(map[string]notificationcore.Channel),
+		retryConfig: RetryConfig{
+			MaxAttempts:   3,
+			BaseDelay:     5 * time.Second,
+			MaxDelay:      5 * time.Minute,
+			BackoffFactor: 2.0,
+			JitterEnabled: true,
+		},
+		preferenceService: NewNotificationPreferenceService(),
+		rateLimiter:       NewNotificationRateLimiter(),
 	}
 
 	// Register default channels
@@ -107,23 +131,12 @@ func (s *NotificationService) SendNow(ctx context.Context, notification notifica
 		return fmt.Errorf("no channels available for notification")
 	}
 
-	// Send through each channel
+	// Send through each channel with retry logic
 	var errors []error
 	for _, channel := range channels {
-		if err := channel.Send(ctx, notification, notifiable); err != nil {
-			errors = append(errors, fmt.Errorf("channel %s failed: %w", channel.GetName(), err))
-			facades.Log().Error("Notification channel failed", map[string]interface{}{
-				"channel":           channel.GetName(),
-				"notification_type": notification.GetType(),
-				"notifiable_id":     notifiable.GetID(),
-				"error":             err.Error(),
-			})
-		} else {
-			facades.Log().Info("Notification sent successfully", map[string]interface{}{
-				"channel":           channel.GetName(),
-				"notification_type": notification.GetType(),
-				"notifiable_id":     notifiable.GetID(),
-			})
+		err := s.sendWithRetry(ctx, notification, notifiable, channel)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("channel %s failed after retries: %w", channel.GetName(), err))
 		}
 	}
 
@@ -133,6 +146,158 @@ func (s *NotificationService) SendNow(ctx context.Context, notification notifica
 	}
 
 	return nil
+}
+
+// sendWithRetry sends a notification through a channel with retry logic
+func (s *NotificationService) sendWithRetry(ctx context.Context, notification notificationcore.Notification, notifiable notificationcore.Notifiable, channel notificationcore.Channel) error {
+	var lastErr error
+
+	// Create or find notification record for tracking
+	notificationRecord := s.findOrCreateNotificationRecord(notification, notifiable, channel.GetName())
+
+	for attempt := 1; attempt <= s.retryConfig.MaxAttempts; attempt++ {
+		// Check if notification has expired
+		if notificationRecord.IsExpired() {
+			s.markNotificationFailed(notificationRecord, "notification expired")
+			return fmt.Errorf("notification expired")
+		}
+
+		// Update attempt tracking
+		notificationRecord.IncrementAttempts()
+		facades.Orm().Query().Save(notificationRecord)
+
+		// Check rate limits before sending
+		rateLimitInfo := s.rateLimiter.IsAllowed(notifiable.GetID(), notification.GetType(), channel.GetName())
+		if !rateLimitInfo.Allowed {
+			s.markNotificationFailed(notificationRecord, fmt.Sprintf("rate limited: %s", rateLimitInfo.Reason))
+			return fmt.Errorf("notification rate limited: %s", rateLimitInfo.Reason)
+		}
+
+		// Attempt to send
+		err := channel.Send(ctx, notification, notifiable)
+		if err == nil {
+			// Success - mark as sent/delivered and increment rate limit counter
+			notificationRecord.MarkAsSent()
+			if channel.GetName() == "database" {
+				notificationRecord.MarkAsDelivered()
+			}
+			facades.Orm().Query().Save(notificationRecord)
+
+			// Increment rate limit counter
+			s.rateLimiter.IncrementCounter(notifiable.GetID(), notification.GetType(), channel.GetName())
+
+			facades.Log().Info("Notification sent successfully", map[string]interface{}{
+				"channel":           channel.GetName(),
+				"notification_type": notification.GetType(),
+				"notifiable_id":     notifiable.GetID(),
+				"attempt":           attempt,
+			})
+			return nil
+		}
+
+		lastErr = err
+		facades.Log().Warning("Notification attempt failed", map[string]interface{}{
+			"channel":           channel.GetName(),
+			"notification_type": notification.GetType(),
+			"notifiable_id":     notifiable.GetID(),
+			"attempt":           attempt,
+			"max_attempts":      s.retryConfig.MaxAttempts,
+			"error":             err.Error(),
+		})
+
+		// If this was the last attempt, mark as failed
+		if attempt == s.retryConfig.MaxAttempts {
+			s.markNotificationFailed(notificationRecord, fmt.Sprintf("max attempts reached: %s", err.Error()))
+			break
+		}
+
+		// Calculate delay for next attempt with exponential backoff
+		delay := s.calculateRetryDelay(attempt)
+
+		facades.Log().Info("Retrying notification after delay", map[string]interface{}{
+			"channel":           channel.GetName(),
+			"notification_type": notification.GetType(),
+			"notifiable_id":     notifiable.GetID(),
+			"next_attempt":      attempt + 1,
+			"delay_seconds":     delay.Seconds(),
+		})
+
+		// Wait before retry
+		select {
+		case <-ctx.Done():
+			s.markNotificationFailed(notificationRecord, "context cancelled")
+			return ctx.Err()
+		case <-time.After(delay):
+			// Continue to next attempt
+		}
+	}
+
+	return lastErr
+}
+
+// calculateRetryDelay calculates the delay for the next retry attempt using exponential backoff
+func (s *NotificationService) calculateRetryDelay(attempt int) time.Duration {
+	// Calculate exponential backoff: baseDelay * (backoffFactor ^ (attempt - 1))
+	delay := float64(s.retryConfig.BaseDelay) * math.Pow(s.retryConfig.BackoffFactor, float64(attempt-1))
+
+	// Cap at max delay
+	if time.Duration(delay) > s.retryConfig.MaxDelay {
+		delay = float64(s.retryConfig.MaxDelay)
+	}
+
+	// Add jitter if enabled (±25% of the calculated delay)
+	if s.retryConfig.JitterEnabled {
+		jitter := delay * 0.25 * (2.0*rand.Float64() - 1.0) // Random value between -0.25 and +0.25
+		delay += jitter
+		if delay < 0 {
+			delay = float64(s.retryConfig.BaseDelay)
+		}
+	}
+
+	return time.Duration(delay)
+}
+
+// findOrCreateNotificationRecord finds or creates a notification database record
+func (s *NotificationService) findOrCreateNotificationRecord(notification notificationcore.Notification, notifiable notificationcore.Notifiable, channel string) *models.Notification {
+	var notificationRecord models.Notification
+
+	// Try to find existing record
+	err := facades.Orm().Query().
+		Where("type = ?", notification.GetType()).
+		Where("notifiable_id = ?", notifiable.GetID()).
+		Where("notifiable_type = ?", notifiable.GetType()).
+		Where("channel = ?", channel).
+		Where("delivery_status IN ?", []string{"pending", "sent"}).
+		First(&notificationRecord)
+
+	if err != nil {
+		// Create new record
+		notificationRecord = models.Notification{
+			Type:           notification.GetType(),
+			Data:           notification.GetData(),
+			NotifiableID:   notifiable.GetID(),
+			NotifiableType: notifiable.GetType(),
+			Channel:        channel,
+			DeliveryStatus: "pending",
+			Priority:       string(notification.GetPriority()),
+			Metadata:       notification.GetMetadata(),
+		}
+
+		// Set expiration if notification has one
+		if notification.GetExpiresAt() != nil {
+			notificationRecord.SetExpiration(24 * time.Hour) // Default 24 hour expiration
+		}
+
+		facades.Orm().Query().Create(&notificationRecord)
+	}
+
+	return &notificationRecord
+}
+
+// markNotificationFailed marks a notification as failed with reason
+func (s *NotificationService) markNotificationFailed(notification *models.Notification, reason string) {
+	notification.MarkAsFailed(reason)
+	facades.Orm().Query().Save(notification)
 }
 
 // SendToMany sends a notification to multiple notifiable entities
@@ -191,7 +356,7 @@ func (s *NotificationService) serializeNotification(notification notificationcor
 	data := map[string]interface{}{
 		"type":        notification.GetType(),
 		"queue_name":  notification.GetQueueName(),
-		"queue_delay": notification.GetQueueDelay(),
+		"queue_delay": notification.GetDelay(),
 		// Add other serializable properties as needed
 	}
 
@@ -458,25 +623,51 @@ func (s *NotificationService) ValidateChannel(name string) error {
 func (s *NotificationService) getChannelsForNotification(notification notificationcore.Notification, notifiable notificationcore.Notifiable) []notificationcore.Channel {
 	var availableChannels []notificationcore.Channel
 
-	// Get notification channels
-	notificationChannels := notification.GetChannels()
-	if len(notificationChannels) == 0 {
-		// Use notifiable's preferred channels
-		notificationChannels = notifiable.GetPreferredChannels()
+	// Get user's preferred channels based on notification preferences
+	userID := notifiable.GetID()
+	notificationType := notification.GetType()
+
+	// Check if user has preferences for this notification type
+	preferredChannels := s.preferenceService.GetEnabledChannelsForType(userID, notificationType)
+
+	// If no user preferences, fall back to notification's default channels
+	if len(preferredChannels) == 0 {
+		preferredChannels = notification.GetChannels()
+	}
+
+	// If still no channels, use enabled channels for the notifiable
+	if len(preferredChannels) == 0 {
+		// Get all available channels and filter by enabled ones
+		allChannels := []string{"database", "mail", "push", "sms", "slack", "discord", "telegram", "webhook"}
+		for _, channel := range allChannels {
+			if notifiable.IsChannelEnabled(channel) {
+				preferredChannels = append(preferredChannels, channel)
+			}
+		}
 	}
 
 	// If still no channels, use default
-	if len(notificationChannels) == 0 {
-		notificationChannels = []string{"database"}
+	if len(preferredChannels) == 0 {
+		preferredChannels = []string{"database"}
 	}
 
-	// Get available channels
+	// Get available channels and filter by user preferences
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	for _, channelName := range notificationChannels {
+	for _, channelName := range preferredChannels {
+		// Check if channel exists and is enabled
 		if channel, exists := s.channels[channelName]; exists && channel.IsEnabled() {
-			availableChannels = append(availableChannels, channel)
+			// Check user preferences for this specific channel
+			if s.preferenceService.IsNotificationAllowed(userID, notificationType, channelName) {
+				availableChannels = append(availableChannels, channel)
+			} else {
+				facades.Log().Debug("Notification blocked by user preferences", map[string]interface{}{
+					"user_id":           userID,
+					"notification_type": notificationType,
+					"channel":           channelName,
+				})
+			}
 		}
 	}
 
@@ -493,7 +684,7 @@ func (s *NotificationService) queueNotification(ctx context.Context, notificatio
 		NotifiableType:   s.getNotifiableType(notifiable),
 		NotificationData: s.serializeNotification(notification),
 		QueueName:        notification.GetQueueName(),
-		Delay:            notification.GetQueueDelay(),
+		Delay:            notification.GetDelay(),
 		CreatedAt:        time.Now(),
 		Attempts:         0,
 		MaxAttempts:      3, // Default max attempts
@@ -526,7 +717,7 @@ func (s *NotificationService) queueNotificationToMany(ctx context.Context, notif
 		"recipient_count":   len(notifiables),
 		"failed_count":      len(errors),
 		"queue_name":        notification.GetQueueName(),
-		"queue_delay":       notification.GetQueueDelay(),
+		"queue_delay":       notification.GetDelay(),
 	})
 
 	// Return first error if any occurred
