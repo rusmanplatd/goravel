@@ -637,7 +637,7 @@ func (c *CalendarAnalyticsController) extractReportData(htmlContent string) map[
 	// Extract basic information from HTML
 	if strings.Contains(htmlContent, "Total Events:") {
 		// Simple regex or string parsing to extract values
-		// In production, use proper HTML parsing libraries
+		// TODO: in production, use proper HTML parsing libraries
 	}
 
 	return data

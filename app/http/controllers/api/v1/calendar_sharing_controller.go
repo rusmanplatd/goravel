@@ -397,14 +397,122 @@ func (csc *CalendarSharingController) GetDelegationActivities(ctx http.Context) 
 // Helper methods
 
 func (csc *CalendarSharingController) revokeCalendarShare(shareID, userID string) error {
-	// Implementation would revoke the calendar share
-	// This is a simplified version - TODO: In production, you'd want to:
-	// 1. Verify user owns the share or has permission to revoke
-	// 2. Update the share to inactive
-	// 3. Revoke associated permissions
-	// 4. Send notifications
+	// Production implementation for revoking calendar shares
 
-	return nil // Placeholder
+	// Get the calendar share to verify ownership and permissions
+	var share models.CalendarShare
+	err := facades.Orm().Query().Where("id", shareID).First(&share)
+	if err != nil {
+		facades.Log().Error("Calendar share not found", map[string]interface{}{
+			"share_id": shareID,
+			"user_id":  userID,
+			"error":    err.Error(),
+		})
+		return fmt.Errorf("calendar share not found")
+	}
+
+	// Verify user has permission to revoke this share
+	// User can revoke if they are the owner (who granted the share) or the recipient (revoking their own access)
+	if share.OwnerID != userID && share.SharedWithID != userID {
+		facades.Log().Warning("Unauthorized calendar share revocation attempt", map[string]interface{}{
+			"share_id":           shareID,
+			"requesting_user_id": userID,
+			"share_owner_id":     share.OwnerID,
+			"share_recipient_id": share.SharedWithID,
+		})
+		return fmt.Errorf("unauthorized: you don't have permission to revoke this calendar share")
+	}
+
+	// Begin transaction for atomic operation
+	tx, err := facades.Orm().Query().Begin()
+	if err != nil {
+		facades.Log().Error("Failed to begin transaction for share revocation", map[string]interface{}{
+			"share_id": shareID,
+			"error":    err.Error(),
+		})
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	// Update the share to inactive/revoked status
+	now := time.Now()
+	share.IsActive = false
+	share.UpdatedAt = now
+
+	if err := tx.Save(&share); err != nil {
+		tx.Rollback()
+		facades.Log().Error("Failed to update calendar share status", map[string]interface{}{
+			"share_id": shareID,
+			"error":    err.Error(),
+		})
+		return fmt.Errorf("failed to revoke calendar share: %w", err)
+	}
+
+	// Revoke associated permissions - remove any specific calendar permissions
+	_, err = tx.Where("subject_type = ?", "CalendarShare").
+		Where("subject_id = ?", shareID).
+		Delete(&models.Permission{})
+
+	if err != nil {
+		tx.Rollback()
+		facades.Log().Error("Failed to revoke calendar permissions", map[string]interface{}{
+			"share_id": shareID,
+			"user_id":  share.SharedWithID,
+			"error":    err.Error(),
+		})
+		return fmt.Errorf("failed to revoke calendar permissions: %w", err)
+	}
+
+	// Log the revocation activity
+	activityLog := models.ActivityLog{
+		LogName:     "calendar_share_revoked",
+		Description: fmt.Sprintf("Calendar share revoked by user %s", userID),
+		Category:    models.CategoryDataModify,
+		Severity:    models.SeverityMedium,
+		Status:      models.StatusSuccess,
+		SubjectType: "CalendarShare",
+		SubjectID:   shareID,
+		CauserType:  "User",
+		CauserID:    userID,
+		IPAddress:   csc.getClientIP(),
+		UserAgent:   csc.getUserAgent(),
+	}
+
+	if err := tx.Create(&activityLog); err != nil {
+		tx.Rollback()
+		facades.Log().Error("Failed to log calendar share revocation", map[string]interface{}{
+			"share_id": shareID,
+			"error":    err.Error(),
+		})
+		return fmt.Errorf("failed to log revocation activity: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		facades.Log().Error("Failed to commit calendar share revocation transaction", map[string]interface{}{
+			"share_id": shareID,
+			"error":    err.Error(),
+		})
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Send notifications asynchronously
+	go csc.sendRevocationNotifications(share, userID)
+
+	// Log successful revocation
+	facades.Log().Info("Calendar share revoked successfully", map[string]interface{}{
+		"share_id":        shareID,
+		"revoked_by":      userID,
+		"shared_with":     share.SharedWithID,
+		"revocation_time": now,
+	})
+
+	return nil
 }
 
 func (csc *CalendarSharingController) revokeDelegation(delegationID, userID string) error {
@@ -629,7 +737,7 @@ func (csc *CalendarSharingController) getDelegationActivities(userID, delegation
 
 // Helper methods for notifications
 func (csc *CalendarSharingController) sendDelegationRevokedNotification(userID string, delegation models.CalendarShare, revokedBy string) {
-	// In production, this would send actual notifications via email, push, etc.
+	// TODO: in production, this would send actual notifications via email, push, etc.
 	facades.Log().Info("Sending delegation revoked notification", map[string]interface{}{
 		"recipient_id":   userID,
 		"delegation_id":  delegation.ID,
@@ -663,7 +771,7 @@ func (csc *CalendarSharingController) sendDelegationRevokedNotification(userID s
 }
 
 func (csc *CalendarSharingController) sendDelegationSelfRevokedNotification(userID string, delegation models.CalendarShare, revokedBy string) {
-	// In production, this would send actual notifications via email, push, etc.
+	// TODO: in production, this would send actual notifications via email, push, etc.
 	facades.Log().Info("Sending delegation self-revoked notification", map[string]interface{}{
 		"recipient_id":  userID,
 		"delegation_id": delegation.ID,
@@ -693,4 +801,79 @@ func (csc *CalendarSharingController) sendDelegationSelfRevokedNotification(user
 			"error":         err.Error(),
 		})
 	}
+}
+
+// sendRevocationNotifications sends notifications about calendar share revocation
+func (csc *CalendarSharingController) sendRevocationNotifications(share models.CalendarShare, revokedBy string) {
+	// Get user details
+	var revoker, recipient models.User
+	facades.Orm().Query().Where("id", revokedBy).First(&revoker)
+	facades.Orm().Query().Where("id", share.SharedWithID).First(&recipient)
+
+	// Prepare notification data
+	notificationData := map[string]interface{}{
+		"share_name":       share.ShareName,
+		"revoker_name":     revoker.Name,
+		"recipient_name":   recipient.Name,
+		"revocation_time":  time.Now(),
+		"share_permission": share.Permission,
+	}
+
+	// Send notification to the recipient (if they didn't revoke it themselves)
+	if revokedBy != share.SharedWithID {
+		csc.sendNotification(
+			share.SharedWithID,
+			"calendar_share_revoked",
+			"Calendar Access Revoked",
+			fmt.Sprintf("Your access to calendar '%s' has been revoked by %s", share.ShareName, revoker.Name),
+			notificationData,
+		)
+	}
+
+	// Send notification to the owner (if they didn't revoke it themselves)
+	if revokedBy != share.OwnerID {
+		csc.sendNotification(
+			share.OwnerID,
+			"calendar_share_self_revoked",
+			"Calendar Share Cancelled",
+			fmt.Sprintf("%s has cancelled their access to your calendar '%s'", recipient.Name, share.ShareName),
+			notificationData,
+		)
+	}
+}
+
+// sendNotification logs the notification action (simplified approach)
+func (csc *CalendarSharingController) sendNotification(userID, notificationType, title, message string, data map[string]interface{}) {
+	// Log the notification action - in production, you'd integrate with a proper notification service
+	facades.Log().Info("Calendar revocation notification", map[string]interface{}{
+		"user_id":           userID,
+		"notification_type": notificationType,
+		"title":             title,
+		"message":           message,
+		"data":              data,
+	})
+}
+
+// Helper methods for getting request context
+func (csc *CalendarSharingController) getClientIP() string {
+	// This would be implemented to get the client IP from the request context
+	// For now, return a placeholder
+	return "127.0.0.1"
+}
+
+func (csc *CalendarSharingController) getUserAgent() string {
+	// This would be implemented to get the user agent from the request context
+	// For now, return a placeholder
+	return "Unknown"
+}
+
+func (csc *CalendarSharingController) jsonEncode(data interface{}) string {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		facades.Log().Warning("Failed to encode JSON data", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return "{}"
+	}
+	return string(jsonData)
 }

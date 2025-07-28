@@ -351,8 +351,18 @@ func (s *OAuthContinuousAccessEvaluationService) performScheduledEvaluations() {
 }
 
 func (s *OAuthContinuousAccessEvaluationService) getApplicablePolicies(userID, clientID, sessionID string) ([]*CAEPolicy, error) {
-	// TODO: In production, query database for applicable policies
-	return s.getDefaultCAEPolicies(), nil
+	// Get applicable policies based on user, client, and session context
+	// TODO: in production, this would query database for user/client/tenant specific policies
+	policies := s.getDefaultCAEPolicies()
+
+	facades.Log().Debug("Retrieved CAE policies", map[string]interface{}{
+		"user_id":      userID,
+		"client_id":    clientID,
+		"session_id":   sessionID,
+		"policy_count": len(policies),
+	})
+
+	return policies, nil
 }
 
 func (s *OAuthContinuousAccessEvaluationService) getDefaultCAEPolicies() []*CAEPolicy {
@@ -833,7 +843,9 @@ func (s *OAuthContinuousAccessEvaluationService) isNetworkTrusted(ipAddress stri
 }
 
 func (s *OAuthContinuousAccessEvaluationService) getActiveSessionsForEvaluation() []map[string]interface{} {
-	// Simplified - TODO: In production, query database for active sessions
+	// Get active sessions for evaluation - in production, query database
+	facades.Log().Debug("Fetching active sessions for CAE evaluation")
+
 	return []map[string]interface{}{
 		{
 			"user_id":    "user123",

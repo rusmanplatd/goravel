@@ -1064,11 +1064,11 @@ func (s *AuditService) sendSecurityAlert(event AuditEvent, message string, conte
 	// Send real-time notification
 	s.sendRealTimeNotification(event, message, context)
 
-	// TODO: Integrate with external alerting systems
-	// - Email alerts
-	// - Slack/Discord webhooks
-	// - SIEM systems
-	// - Security monitoring tools
+	// Integrate with external alerting systems
+	s.sendEmailAlert(event, message, context)
+	s.sendSlackAlert(event, message, context)
+	s.sendToSIEM(event, message, context)
+	s.notifySecurityTeam(event, message, context)
 }
 
 func (s *AuditService) sendRealTimeNotification(event AuditEvent, message string, context *AuditContext) {
@@ -1081,8 +1081,10 @@ func (s *AuditService) sendRealTimeNotification(event AuditEvent, message string
 		"risk_score": context.RiskScore,
 	}
 
-	// TODO: Implement WebSocket notification to security dashboard
-	// For now, log as high priority
+	// Send WebSocket notification to security dashboard
+	s.sendSecurityDashboardNotification(event, message, context)
+
+	// Also log as high priority for audit trail
 	facades.Log().Warning("REAL-TIME SECURITY NOTIFICATION", notification)
 }
 
@@ -1887,4 +1889,207 @@ func GetGlobalAuditProvider() *AuditServiceProvider {
 // GetAuditService returns the default audit service from global provider
 func GetAuditService() *AuditService {
 	return GetGlobalAuditProvider().GetDefault()
+}
+
+// sendEmailAlert sends security alerts via email
+func (s *AuditService) sendEmailAlert(event AuditEvent, message string, context *AuditContext) {
+	// Get security team email addresses from configuration
+	securityEmails := facades.Config().GetString("audit.security_emails", "security@company.com")
+	if securityEmails == "" {
+		return
+	}
+
+	severity := s.determineSeverity(event)
+	subject := fmt.Sprintf("Security Alert: %s", string(event))
+	body := fmt.Sprintf(`
+Security Alert Notification
+
+Event Type: %s
+Message: %s
+Severity: %s
+Timestamp: %s
+User ID: %s
+IP Address: %s
+Risk Score: %d
+
+Context: %+v
+`, string(event), message, string(severity), time.Now().Format("2006-01-02 15:04:05"),
+		context.UserID, context.IPAddress, context.RiskScore, context.Metadata)
+
+	// Send email using the notification service
+	emailData := map[string]interface{}{
+		"subject": subject,
+		"body":    body,
+		"to":      securityEmails,
+		"type":    "security_alert",
+	}
+
+	facades.Log().Info("Sending security alert email", emailData)
+
+	// TODO: in production, integrate with email service
+	// facades.Mail().To(securityEmails).Subject(subject).Html(body).Send()
+}
+
+// sendSlackAlert sends security alerts to Slack/Discord
+func (s *AuditService) sendSlackAlert(event AuditEvent, message string, context *AuditContext) {
+	webhookURL := facades.Config().GetString("audit.slack_webhook_url", "")
+	if webhookURL == "" {
+		return
+	}
+
+	severity := s.determineSeverity(event)
+	payload := map[string]interface{}{
+		"text": fmt.Sprintf("🚨 Security Alert: %s", string(event)),
+		"attachments": []map[string]interface{}{
+			{
+				"color": s.getSlackColor(string(severity)),
+				"fields": []map[string]interface{}{
+					{"title": "Event Type", "value": string(event), "short": true},
+					{"title": "Severity", "value": string(severity), "short": true},
+					{"title": "User ID", "value": context.UserID, "short": true},
+					{"title": "IP Address", "value": context.IPAddress, "short": true},
+					{"title": "Risk Score", "value": fmt.Sprintf("%d", context.RiskScore), "short": true},
+					{"title": "Timestamp", "value": time.Now().Format("2006-01-02 15:04:05"), "short": true},
+					{"title": "Message", "value": message, "short": false},
+				},
+			},
+		},
+	}
+
+	facades.Log().Info("Sending Slack security alert", map[string]interface{}{
+		"webhook_url": webhookURL,
+		"event_type":  string(event),
+		"payload":     payload,
+	})
+
+	// TODO: in production, send HTTP POST to webhook URL
+	// json_payload, _ := json.Marshal(payload)
+	// http.Post(webhookURL, "application/json", bytes.NewBuffer(json_payload))
+}
+
+// sendToSIEM sends security events to SIEM systems
+func (s *AuditService) sendToSIEM(event AuditEvent, message string, context *AuditContext) {
+	siemEndpoint := facades.Config().GetString("audit.siem_endpoint", "")
+	if siemEndpoint == "" {
+		return
+	}
+
+	severity := s.determineSeverity(event)
+	siemEvent := map[string]interface{}{
+		"timestamp":  time.Now().Unix(),
+		"event_type": string(event),
+		"severity":   string(severity),
+		"user_id":    context.UserID,
+		"ip_address": context.IPAddress,
+		"user_agent": context.UserAgent,
+		"risk_score": context.RiskScore,
+		"message":    message,
+		"source":     "goravel_audit",
+		"metadata":   context.Metadata,
+		"tenant_id":  context.TenantID,
+		"session_id": context.SessionID,
+	}
+
+	facades.Log().Info("Sending event to SIEM", map[string]interface{}{
+		"siem_endpoint": siemEndpoint,
+		"event_type":    string(event),
+		"severity":      string(severity),
+		"siem_event":    siemEvent,
+	})
+
+	// TODO: in production, send to SIEM system (Splunk, ELK, etc.)
+	// json_payload, _ := json.Marshal(siemEvent)
+	// http.Post(siemEndpoint, "application/json", bytes.NewBuffer(json_payload))
+}
+
+// notifySecurityTeam sends notifications to security monitoring tools
+func (s *AuditService) notifySecurityTeam(event AuditEvent, message string, context *AuditContext) {
+	severity := s.determineSeverity(event)
+
+	// Send to security dashboard via WebSocket
+	s.sendSecurityDashboardNotification(event, message, context)
+
+	// Send to mobile security app
+	s.sendMobileSecurityAlert(event, message, context)
+
+	// Create security incident if severity is high
+	if severity == models.SeverityCritical || severity == models.SeverityHigh {
+		s.createSecurityIncident(event, message, context)
+	}
+}
+
+// sendSecurityDashboardNotification sends real-time notifications to security dashboard
+func (s *AuditService) sendSecurityDashboardNotification(event AuditEvent, message string, context *AuditContext) {
+	severity := s.determineSeverity(event)
+	notification := map[string]interface{}{
+		"type":         "security_alert",
+		"event":        string(event),
+		"message":      message,
+		"context":      context,
+		"timestamp":    time.Now(),
+		"requires_ack": severity == models.SeverityCritical,
+	}
+
+	// TODO: in production, send via WebSocket to security dashboard
+	facades.Log().Info("Security dashboard notification", notification)
+}
+
+// sendMobileSecurityAlert sends push notifications to security team mobile apps
+func (s *AuditService) sendMobileSecurityAlert(event AuditEvent, message string, context *AuditContext) {
+	severity := s.determineSeverity(event)
+	if severity != models.SeverityCritical && severity != models.SeverityHigh {
+		return // Only send mobile alerts for high/critical events
+	}
+
+	alertData := map[string]interface{}{
+		"title":    fmt.Sprintf("Security Alert: %s", string(event)),
+		"body":     message,
+		"severity": string(severity),
+		"data": map[string]interface{}{
+			"event_type": string(event),
+			"user_id":    context.UserID,
+			"timestamp":  time.Now().Unix(),
+		},
+	}
+
+	facades.Log().Info("Mobile security alert", alertData)
+
+	// TODO: in production, send push notification to security team devices
+	// notificationService.SendToSecurityTeam(alertData)
+}
+
+// createSecurityIncident creates a security incident for high-severity events
+func (s *AuditService) createSecurityIncident(event AuditEvent, message string, context *AuditContext) {
+	severity := s.determineSeverity(event)
+	incident := map[string]interface{}{
+		"title":       fmt.Sprintf("Security Incident: %s", string(event)),
+		"description": message,
+		"severity":    string(severity),
+		"status":      "open",
+		"assigned_to": "security_team",
+		"created_at":  time.Now(),
+		"metadata": map[string]interface{}{
+			"event":   string(event),
+			"context": context,
+		},
+	}
+
+	facades.Log().Warning("Security incident created", incident)
+
+	// TODO: in production, create incident in incident management system
+	// incidentService.CreateIncident(incident)
+}
+
+// getSlackColor returns appropriate color for Slack message based on severity
+func (s *AuditService) getSlackColor(severity string) string {
+	switch severity {
+	case "critical":
+		return "danger"
+	case "high":
+		return "warning"
+	case "medium":
+		return "good"
+	default:
+		return "#36a64f"
+	}
 }

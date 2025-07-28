@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"goravel/app/models"
 	"goravel/app/services"
 
@@ -50,11 +51,30 @@ func (mc *MeetingController) Room(ctx http.Context) http.Response {
 		First(&participant)
 
 	isHost := false
+	canJoin := false
+
 	if err == nil {
+		// User is a participant
 		isHost = participant.Role == "host" || participant.Role == "co-host"
+		canJoin = true
 	} else {
-		// If not a participant, check if they can join
-		// For now, allow anyone to join (TODO: In production, add proper access control)
+		// User is not a participant, check access control
+		canJoin, err = mc.checkMeetingAccess(userID, meetingID)
+		if err != nil {
+			facades.Log().Error("Failed to check meeting access", map[string]interface{}{
+				"error":      err.Error(),
+				"meeting_id": meetingID,
+				"user_id":    userID,
+			})
+			canJoin = false
+		}
+	}
+
+	if !canJoin {
+		return ctx.Response().Status(http.StatusForbidden).Json(http.Json{
+			"success": false,
+			"message": "Access denied: You are not authorized to join this meeting",
+		})
 	}
 
 	// Generate LiveKit access token
@@ -133,4 +153,66 @@ func (mc *MeetingController) PreJoin(ctx http.Context) http.Response {
 		"meeting": meeting,
 		"title":   "Join Meeting - " + meeting.Event.Title,
 	})
+}
+
+// checkMeetingAccess checks if a user has access to join a meeting
+func (mc *MeetingController) checkMeetingAccess(userID, meetingID string) (bool, error) {
+	// Get meeting details
+	var meeting models.Meeting
+	err := facades.Orm().Query().
+		Where("id = ?", meetingID).
+		First(&meeting)
+	if err != nil {
+		return false, fmt.Errorf("meeting not found: %w", err)
+	}
+
+	// Check if user is the event creator (host)
+	if meeting.Event != nil && meeting.Event.CreatedBy != nil && *meeting.Event.CreatedBy == userID {
+		return true, nil
+	}
+
+	// Check if user is invited to the calendar event
+	var eventParticipant models.EventParticipant
+	err = facades.Orm().Query().
+		Where("event_id = ? AND user_id = ?", meeting.EventID, userID).
+		First(&eventParticipant)
+	if err == nil {
+		// User is invited to the event
+		return true, nil
+	}
+
+	// Check if user is in the same organization as the event creator
+	if meeting.Event != nil && meeting.Event.CreatedBy != nil {
+		var creatorOrg, userOrg models.UserOrganization
+
+		// Get creator's organization
+		err1 := facades.Orm().Query().
+			Where("user_id = ?", *meeting.Event.CreatedBy).
+			First(&creatorOrg)
+
+		// Get user's organization
+		err2 := facades.Orm().Query().
+			Where("user_id = ?", userID).
+			First(&userOrg)
+
+		if err1 == nil && err2 == nil && creatorOrg.OrganizationID == userOrg.OrganizationID {
+			// Same organization - allow access for internal users
+			return true, nil
+		}
+	}
+
+	// Check if user has a valid meeting link/token
+	meetingToken := facades.Cache().Get(fmt.Sprintf("meeting_access_%s_%s", meetingID, userID))
+	if meetingToken != nil {
+		return true, nil
+	}
+
+	// No access granted
+	facades.Log().Info("Meeting access denied", map[string]interface{}{
+		"user_id":    userID,
+		"meeting_id": meetingID,
+		"reason":     "no valid access method found",
+	})
+
+	return false, nil
 }

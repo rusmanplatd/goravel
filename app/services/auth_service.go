@@ -1,11 +1,16 @@
 package services
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
 	"time"
 
 	"goravel/app/helpers"
@@ -235,14 +240,58 @@ func (s *AuthService) EnableMfa(ctx http.Context, user *models.User, req *reques
 	// Generate backup codes
 	backupCodes := s.totpService.GenerateBackupCodes(10)
 
-	// Store backup codes (simplified - TODO: In production you'd store them securely)
-	backupCodesJSON, _ := json.Marshal(backupCodes)
-	user.MfaBackupCodes = string(backupCodesJSON)
+	// Store backup codes securely with proper encryption and hashing
+	hashedBackupCodes := make([]string, len(backupCodes))
+	for i, backupCode := range backupCodes {
+		hashedCode, err := facades.Hash().Make(backupCode.Code)
+		if err != nil {
+			facades.Log().Error("Failed to hash backup code", map[string]interface{}{
+				"user_id": user.ID,
+				"error":   err.Error(),
+			})
+			return nil, fmt.Errorf("failed to process backup codes")
+		}
+		hashedBackupCodes[i] = hashedCode
+	}
+
+	// Store hashed backup codes in secure JSON format
+	backupCodesData := map[string]interface{}{
+		"codes":      hashedBackupCodes,
+		"created_at": time.Now(),
+		"used_codes": []string{}, // Track used codes
+	}
+	backupCodesJSON, err := json.Marshal(backupCodesData)
+	if err != nil {
+		facades.Log().Error("Failed to marshal backup codes", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return nil, fmt.Errorf("failed to process backup codes")
+	}
+
+	// Encrypt the backup codes JSON before storage
+	encryptedBackupCodes, err := s.encryptSensitiveData(string(backupCodesJSON))
+	if err != nil {
+		facades.Log().Error("Failed to encrypt backup codes", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return nil, fmt.Errorf("failed to secure backup codes")
+	}
+
+	user.MfaBackupCodes = encryptedBackupCodes
 
 	// Save user
 	if err := facades.Orm().Query().Save(user); err != nil {
 		return nil, err
 	}
+
+	// Log MFA enablement for security audit
+	facades.Log().Info("MFA enabled for user", map[string]interface{}{
+		"user_id":    user.ID,
+		"user_email": user.Email,
+		"timestamp":  time.Now(),
+	})
 
 	// Generate QR code URL for backup
 	config := TOTPConfig{
@@ -412,9 +461,68 @@ func (s *AuthService) generateMfaQRCode(email, secret string) string {
 }
 
 func (s *AuthService) verifyWebauthnAssertion(user *models.User, assertion map[string]interface{}) bool {
-	// This is a simplified implementation
-	// In a real implementation, you would verify the WebAuthn assertion
-	return true
+	// Production WebAuthn assertion verification
+	webauthnService := NewWebAuthnService()
+
+	// Extract assertion data
+	assertionResponse, ok := assertion["response"].(map[string]interface{})
+	if !ok {
+		facades.Log().Warning("Invalid WebAuthn assertion format", map[string]interface{}{
+			"user_id": user.ID,
+		})
+		return false
+	}
+
+	// Get user's credentials
+	var credentials []models.WebauthnCredential
+	err := facades.Orm().Query().Where("user_id = ?", user.ID).Where("is_active = ?", true).Find(&credentials)
+	if err != nil {
+		facades.Log().Error("Failed to load user WebAuthn credentials", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return false
+	}
+
+	if len(credentials) == 0 {
+		facades.Log().Warning("No active WebAuthn credentials found for user", map[string]interface{}{
+			"user_id": user.ID,
+		})
+		return false
+	}
+
+	// Verify the assertion against each credential
+	for _, credential := range credentials {
+		if webauthnService.verifyAssertion(&credential, assertionResponse) {
+			// Update credential usage
+			now := time.Now()
+			credential.LastUsedAt = &now
+
+			if err := facades.Orm().Query().Save(&credential); err != nil {
+				facades.Log().Warning("Failed to update credential usage", map[string]interface{}{
+					"credential_id": credential.ID,
+					"error":         err.Error(),
+				})
+			}
+
+			// Log successful WebAuthn authentication
+			facades.Log().Info("WebAuthn authentication successful", map[string]interface{}{
+				"user_id":         user.ID,
+				"credential_id":   credential.ID,
+				"credential_name": credential.Name,
+			})
+
+			return true
+		}
+	}
+
+	// Log failed WebAuthn authentication
+	facades.Log().Warning("WebAuthn authentication failed", map[string]interface{}{
+		"user_id":             user.ID,
+		"credentials_checked": len(credentials),
+	})
+
+	return false
 }
 
 func (s *AuthService) recordFailedLogin(user *models.User, ctx http.Context) {
@@ -441,9 +549,65 @@ func (s *AuthService) updateLastLogin(user *models.User, ctx http.Context) {
 }
 
 func (s *AuthService) sendPasswordResetEmail(user *models.User, token string) error {
-	// This is a simplified implementation
-	// In a real implementation, you would send an actual email
-	facades.Log().Info(fmt.Sprintf("Password reset email sent to %s with token: %s", user.Email, token))
+	// Production password reset email implementation
+	emailService := NewEmailService()
+
+	// Generate secure reset URL
+	resetURL := fmt.Sprintf("%s/auth/reset-password?token=%s&email=%s",
+		facades.Config().GetString("app.url"),
+		token,
+		url.QueryEscape(user.Email))
+
+	// Prepare email data
+	emailData := map[string]interface{}{
+		"user_name":     user.Name,
+		"reset_url":     resetURL,
+		"expires_at":    time.Now().Add(time.Hour), // 1 hour expiry
+		"app_name":      facades.Config().GetString("app.name", "Goravel"),
+		"support_email": facades.Config().GetString("mail.support_email", "support@example.com"),
+	}
+
+	// Send email using template
+	err := emailService.SendEmail(
+		user.Email,
+		user.Name,
+		"Password Reset Request",
+		fmt.Sprintf(`
+			Dear %s,
+
+			You have requested to reset your password. Please click the link below to reset your password:
+
+			%s
+
+			This link will expire at %s.
+
+			If you did not request this password reset, please ignore this email.
+
+			Best regards,
+			%s Team
+			
+			Support: %s
+		`, emailData["user_name"], emailData["reset_url"], emailData["expires_at"],
+			emailData["app_name"], emailData["support_email"]),
+	)
+
+	if err != nil {
+		facades.Log().Error("Failed to send password reset email", map[string]interface{}{
+			"user_id":    user.ID,
+			"user_email": user.Email,
+			"error":      err.Error(),
+		})
+		return fmt.Errorf("failed to send password reset email")
+	}
+
+	// Log password reset request for security audit
+	facades.Log().Info("Password reset email sent", map[string]interface{}{
+		"user_id":    user.ID,
+		"user_email": user.Email,
+		"token":      token[:8] + "...", // Log only first 8 chars for security
+		"expires_at": time.Now().Add(time.Hour),
+	})
+
 	return nil
 }
 
@@ -479,4 +643,180 @@ func (s *AuthService) LoginFailed(email, reason string, ctx http.Context) {
 		"failure_reason": reason,
 		"attempt_time":   time.Now(),
 	})
+}
+
+// encryptSensitiveData encrypts sensitive data using application encryption key
+func (s *AuthService) encryptSensitiveData(data string) (string, error) {
+	encryptionKey := facades.Config().GetString("app.key")
+	if encryptionKey == "" {
+		return "", fmt.Errorf("encryption key not configured")
+	}
+
+	// Use AES-256-GCM for encryption
+	block, err := aes.NewCipher([]byte(encryptionKey)[:32]) // Use first 32 bytes for AES-256
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	// Generate random nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// Encrypt the data
+	ciphertext := gcm.Seal(nonce, nonce, []byte(data), nil)
+
+	// Encode as base64 for storage
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+// decryptSensitiveData decrypts sensitive data
+func (s *AuthService) decryptSensitiveData(encryptedData string) (string, error) {
+	encryptionKey := facades.Config().GetString("app.key")
+	if encryptionKey == "" {
+		return "", fmt.Errorf("encryption key not configured")
+	}
+
+	// Decode from base64
+	ciphertext, err := base64.StdEncoding.DecodeString(encryptedData)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode encrypted data: %w", err)
+	}
+
+	// Create cipher
+	block, err := aes.NewCipher([]byte(encryptionKey)[:32])
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	// Extract nonce and decrypt
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return "", fmt.Errorf("ciphertext too short")
+	}
+
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt: %w", err)
+	}
+
+	return string(plaintext), nil
+}
+
+// verifyBackupCode verifies a backup code and marks it as used
+func (s *AuthService) verifyBackupCode(user *models.User, code string) bool {
+	if user.MfaBackupCodes == "" {
+		return false
+	}
+
+	// Decrypt backup codes
+	decryptedData, err := s.decryptSensitiveData(user.MfaBackupCodes)
+	if err != nil {
+		facades.Log().Error("Failed to decrypt backup codes", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return false
+	}
+
+	// Parse backup codes data
+	var backupCodesData map[string]interface{}
+	if err := json.Unmarshal([]byte(decryptedData), &backupCodesData); err != nil {
+		facades.Log().Error("Failed to parse backup codes data", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return false
+	}
+
+	codes, ok := backupCodesData["codes"].([]interface{})
+	if !ok {
+		facades.Log().Error("Invalid backup codes format", map[string]interface{}{
+			"user_id": user.ID,
+		})
+		return false
+	}
+
+	usedCodes, ok := backupCodesData["used_codes"].([]interface{})
+	if !ok {
+		usedCodes = []interface{}{}
+	}
+
+	// Check if code is valid and not already used
+	for i, hashedCodeInterface := range codes {
+		hashedCode, ok := hashedCodeInterface.(string)
+		if !ok {
+			continue
+		}
+
+		// Check if this code was already used
+		codeIndex := fmt.Sprintf("%d", i)
+		for _, usedCodeInterface := range usedCodes {
+			if usedCode, ok := usedCodeInterface.(string); ok && usedCode == codeIndex {
+				continue // Skip used code
+			}
+		}
+
+		// Verify the code
+		if facades.Hash().Check(code, hashedCode) {
+			// Mark code as used
+			usedCodes = append(usedCodes, codeIndex)
+			backupCodesData["used_codes"] = usedCodes
+
+			// Update stored backup codes
+			updatedData, err := json.Marshal(backupCodesData)
+			if err != nil {
+				facades.Log().Error("Failed to marshal updated backup codes", map[string]interface{}{
+					"user_id": user.ID,
+					"error":   err.Error(),
+				})
+				return false
+			}
+
+			encryptedData, err := s.encryptSensitiveData(string(updatedData))
+			if err != nil {
+				facades.Log().Error("Failed to encrypt updated backup codes", map[string]interface{}{
+					"user_id": user.ID,
+					"error":   err.Error(),
+				})
+				return false
+			}
+
+			user.MfaBackupCodes = encryptedData
+			if err := facades.Orm().Query().Save(user); err != nil {
+				facades.Log().Error("Failed to save updated backup codes", map[string]interface{}{
+					"user_id": user.ID,
+					"error":   err.Error(),
+				})
+				return false
+			}
+
+			// Log backup code usage
+			facades.Log().Info("Backup code used successfully", map[string]interface{}{
+				"user_id":    user.ID,
+				"code_index": codeIndex,
+			})
+
+			return true
+		}
+	}
+
+	// Log failed backup code attempt
+	facades.Log().Warning("Invalid backup code attempted", map[string]interface{}{
+		"user_id": user.ID,
+	})
+
+	return false
 }

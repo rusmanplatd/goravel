@@ -1162,9 +1162,33 @@ func (s *OAuthAnalyticsService) createDeviceFingerprint(userAgent, ipAddress str
 	return fmt.Sprintf("device_%x", hash[:8]) // Use first 8 bytes of hash
 }
 
-func (s *OAuthAnalyticsService) parseUserAgent(userAgent string) DeviceInfo {
+// AnalyticsDeviceInfo represents device information for analytics
+type AnalyticsDeviceInfo struct {
+	DeviceType string `json:"device_type"`
+	OS         string `json:"os"`
+	Browser    string `json:"browser"`
+}
+
+// EndpointMetrics represents metrics for API endpoints
+type EndpointMetrics struct {
+	Endpoint            string           `json:"endpoint"`
+	RequestCount        int64            `json:"request_count"`
+	SuccessCount        int64            `json:"success_count"`
+	ClientErrorCount    int64            `json:"client_error_count"`
+	ServerErrorCount    int64            `json:"server_error_count"`
+	TotalResponseTime   time.Duration    `json:"total_response_time"`
+	AverageResponseTime time.Duration    `json:"average_response_time"`
+	MinResponseTime     time.Duration    `json:"min_response_time"`
+	MaxResponseTime     time.Duration    `json:"max_response_time"`
+	SuccessRate         float64          `json:"success_rate"`
+	RequestsByHour      map[string]int64 `json:"requests_by_hour"`
+	ErrorsByType        map[string]int64 `json:"errors_by_type"`
+	LastUpdated         time.Time        `json:"last_updated"`
+}
+
+func (s *OAuthAnalyticsService) parseUserAgent(userAgent string) AnalyticsDeviceInfo {
 	// Parse user agent to extract device information
-	deviceInfo := DeviceInfo{
+	deviceInfo := AnalyticsDeviceInfo{
 		DeviceType: "unknown",
 		OS:         "unknown",
 		Browser:    "unknown",
@@ -1269,11 +1293,8 @@ func (s *OAuthAnalyticsService) determineSeverityFromEvent(eventType string) str
 }
 
 func (s *OAuthAnalyticsService) getEndpointMetrics(metricKey string) *EndpointMetrics {
-	// Get endpoint metrics from cache
-	var metrics EndpointMetrics
-
 	// Try to get from cache first
-	if data, err := facades.Cache().Get(metricKey); err == nil {
+	if data := facades.Cache().Get(metricKey); data != nil {
 		if metricsData, ok := data.(*EndpointMetrics); ok {
 			return metricsData
 		}
@@ -1308,6 +1329,6 @@ func (s *OAuthAnalyticsService) persistEndpointMetrics(endpoint, method string, 
 		"avg_response":  metrics.AverageResponseTime.Milliseconds(),
 	})
 
-	// In production, you would store this in a metrics table
+	// TODO: in production, you would store this in a metrics table
 	// For now, just log the metrics
 }

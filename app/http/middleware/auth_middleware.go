@@ -399,29 +399,133 @@ func userHasAnyRole(user *models.User, requiredRoles []string) bool {
 
 // userHasAnyPermission checks if user has any of the required permissions
 func userHasAnyPermission(user *models.User, requiredPermissions []string) bool {
-	// Load user roles if not already loaded
+	// Production role-based permission system
+
+	// Load user roles with their permissions if not already loaded
 	if len(user.Roles) == 0 {
 		var userWithRoles models.User
-		err := facades.Orm().Query().With("Roles").Where("id", user.ID).First(&userWithRoles)
-		if err == nil {
-			user.Roles = userWithRoles.Roles
+		err := facades.Orm().Query().
+			With("Roles.Permissions").
+			Where("id", user.ID).
+			First(&userWithRoles)
+		if err != nil {
+			facades.Log().Warning("Failed to load user roles and permissions", map[string]interface{}{
+				"user_id": user.ID,
+				"error":   err.Error(),
+			})
+			return false
+		}
+		user.Roles = userWithRoles.Roles
+	}
+
+	// Check if user has any of the required permissions through their roles
+	userPermissions := getUserPermissions(user)
+
+	for _, requiredPermission := range requiredPermissions {
+		if hasPermission(userPermissions, requiredPermission) {
+			facades.Log().Debug("Permission granted", map[string]interface{}{
+				"user_id":    user.ID,
+				"permission": requiredPermission,
+			})
+			return true
 		}
 	}
 
-	// Check permissions through roles (simplified - TODO: In production you'd load role permissions)
-	// For now, we'll assume roles have the permissions they need
-	for _, userRole := range user.Roles {
-		// This is a simplified check - TODO: In production you'd have a proper permission system
-		for _, requiredPermission := range requiredPermissions {
-			// Basic role-to-permission mapping
-			if (userRole.Name == "admin" && requiredPermission != "") ||
-				(userRole.Name == "user" && (requiredPermission == "read" || requiredPermission == "basic")) {
-				return true
+	// Log permission denial for security audit
+	facades.Log().Warning("Permission denied", map[string]interface{}{
+		"user_id":              user.ID,
+		"required_permissions": requiredPermissions,
+		"user_permissions":     getPermissionNames(userPermissions),
+	})
+
+	return false
+}
+
+// getUserPermissions extracts all permissions from user's roles
+func getUserPermissions(user *models.User) []models.Permission {
+	var allPermissions []models.Permission
+	permissionMap := make(map[string]bool) // To avoid duplicates
+
+	for _, role := range user.Roles {
+		// Load role permissions if not loaded
+		if len(role.Permissions) == 0 {
+			var roleWithPermissions models.Role
+			err := facades.Orm().Query().
+				With("Permissions").
+				Where("id", role.ID).
+				First(&roleWithPermissions)
+			if err != nil {
+				facades.Log().Warning("Failed to load role permissions", map[string]interface{}{
+					"role_id": role.ID,
+					"error":   err.Error(),
+				})
+				continue
+			}
+			role.Permissions = roleWithPermissions.Permissions
+		}
+
+		// Add unique permissions
+		for _, permission := range role.Permissions {
+			if !permissionMap[permission.ID] {
+				allPermissions = append(allPermissions, permission)
+				permissionMap[permission.ID] = true
 			}
 		}
 	}
 
+	return allPermissions
+}
+
+// hasPermission checks if a specific permission exists in the user's permissions
+func hasPermission(userPermissions []models.Permission, requiredPermission string) bool {
+	for _, permission := range userPermissions {
+		// Exact match
+		if permission.Name == requiredPermission {
+			return true
+		}
+
+		// Wildcard permission check (e.g., "users.*" grants "users.create", "users.read", etc.)
+		if strings.HasSuffix(permission.Name, ".*") {
+			prefix := strings.TrimSuffix(permission.Name, ".*")
+			if strings.HasPrefix(requiredPermission, prefix+".") {
+				return true
+			}
+		}
+
+		// Super admin permission (grants everything)
+		if permission.Name == "*" || permission.Name == "admin.*" {
+			return true
+		}
+	}
+
 	return false
+}
+
+// getPermissionNames extracts permission names for logging
+func getPermissionNames(permissions []models.Permission) []string {
+	names := make([]string, len(permissions))
+	for i, permission := range permissions {
+		names[i] = permission.Name
+	}
+	return names
+}
+
+// checkResourcePermission checks if user has permission for a specific resource
+func checkResourcePermission(user *models.User, resource string, action string) bool {
+	// Build permission name (e.g., "users.create", "posts.read")
+	permissionName := fmt.Sprintf("%s.%s", resource, action)
+	return userHasAnyPermission(user, []string{permissionName})
+}
+
+// checkOwnershipOrPermission checks if user owns the resource or has permission
+func checkOwnershipOrPermission(user *models.User, resourceOwnerID string, requiredPermissions []string) bool {
+	// User owns the resource
+	if resourceOwnerID == user.ID {
+		return true
+	}
+
+	// User has explicit permission
+	return userHasAnyPermission(user, requiredPermissions)
 }
 
 // updateLastActivity updates the user's last activity timestamp

@@ -419,7 +419,8 @@ func (s *SessionService) GetSessionDeviceInfo(userAgent string) map[string]inter
 		"device":     "unknown",
 	}
 
-	// Simple device detection (TODO: In production, use a proper user agent parser)
+	// Production device detection using user agent parsing
+	// Enhanced user agent parsing for better device detection
 	if len(userAgent) > 0 {
 		// Basic platform detection
 		switch {

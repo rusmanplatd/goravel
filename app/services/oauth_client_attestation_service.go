@@ -569,7 +569,7 @@ func (s *OAuthClientAttestationService) loadTrustedRootCertificates() ([]*x509.C
 		} else {
 			// System certificate pool loaded successfully
 			// Note: x509.SystemCertPool() returns a *x509.CertPool which can't be easily converted to a slice
-			// In production, you might want to use a more sophisticated approach to merge system roots
+			// TODO: in production, you might want to use a more sophisticated approach to merge system roots
 			facades.Log().Info("System certificate pool loaded for attestation validation")
 		}
 	}

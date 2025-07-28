@@ -91,7 +91,7 @@ func (s *OAuthService) initializeRSAKeys() error {
 
 		facades.Log().Info("Generated new RSA key pair for OAuth2 JWT signing")
 
-		// In production, these keys should be stored securely in environment variables
+		// TODO: in production, these keys should be stored securely in environment variables
 		// or a dedicated key management service like AWS KMS, HashiCorp Vault, etc.
 		if facades.Config().GetString("app.env") == "production" {
 			facades.Log().Warning("Production RSA keys generated - store OAUTH_RSA_PRIVATE_KEY and OAUTH_RSA_PUBLIC_KEY in secure environment variables")

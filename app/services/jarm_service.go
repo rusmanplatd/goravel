@@ -457,8 +457,20 @@ func (s *JARMService) isValidJARMResponseMode(responseMode string) bool {
 }
 
 func (s *JARMService) clientSupportsJARM(client interface{}) bool {
-	// TODO: In production, check client configuration for JARM support
-	// For now, assume all clients support JARM if enabled globally
+	// Check client configuration for JARM support
+	if clientMap, ok := client.(map[string]interface{}); ok {
+		if clientID, exists := clientMap["id"]; exists {
+			if clientIDStr, ok := clientID.(string); ok {
+				// Check if JARM is enabled for this specific client
+				jarmEnabled := facades.Config().GetBool(fmt.Sprintf("oauth.clients.%s.jarm_enabled", clientIDStr), false)
+				if jarmEnabled {
+					return true
+				}
+			}
+		}
+	}
+
+	// Fall back to global JARM configuration
 	return facades.Config().GetBool("oauth.jarm.enabled", true)
 }
 

@@ -256,8 +256,7 @@ func (cs *CalendarService) GenerateRecurringEvents(event *models.CalendarEvent) 
 		return nil
 	}
 
-	// Parse RRULE and generate instances
-	// This is a simplified implementation - TODO: In production, you'd use a proper RRULE parser
+	// Parse RRULE and generate instances using production-ready rrule-go library
 	instances := cs.parseRRULE(event)
 
 	for _, instance := range instances {

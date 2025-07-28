@@ -85,7 +85,7 @@ func (s *ChatSeeder) Run() error {
 		}
 
 		// Create a secure passphrase for this user's private key
-		// In production, this would be derived from the user's password or stored securely
+		// TODO: in production, this would be derived from the user's password or stored securely
 		passphrase := s.deriveUserPassphrase(users[i].ID, masterSeedKey)
 
 		// Encrypt the private key
@@ -205,7 +205,7 @@ func (s *ChatSeeder) Run() error {
 			var recipientKeys []string
 
 			// For seeding purposes, generate or retrieve actual public keys
-			// In production, these would come from user profiles/key storage
+			// TODO: in production, these would come from user profiles/key storage
 			senderID := users[msg.userIdx].ID
 
 			// Get all users in the room as potential recipients
@@ -254,7 +254,7 @@ func (s *ChatSeeder) Run() error {
 									"user_id":               member.UserID,
 									"key_type":              "chat_encryption",
 									"public_key":            keyPair.PublicKey,
-									"private_key_encrypted": keyPair.PrivateKey, // In production, this would be encrypted
+									"private_key_encrypted": keyPair.PrivateKey, // TODO: in production, this would be encrypted
 									"is_active":             true,
 									"created_at":            time.Now(),
 									"updated_at":            time.Now(),

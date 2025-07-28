@@ -57,11 +57,13 @@ func (o *ObservabilityServiceProvider) Boot(app foundation.Application) {
 		// Register shutdown hook
 		o.registerShutdownHook(app, telemetry)
 
-		log.Println("Observability service provider booted successfully with full telemetry")
+		facades.Log().Info("Observability service provider booted successfully with full telemetry")
 	} else if _, ok := telemetryService.(*services.NoOpTelemetryService); ok {
-		log.Println("Observability service provider booted with no-op telemetry service (observability disabled)")
+		facades.Log().Info("Observability service provider booted with no-op telemetry service (observability disabled)")
 	} else {
-		log.Printf("Unknown telemetry service type: %T", telemetryService)
+		facades.Log().Warning("Unknown telemetry service type", map[string]interface{}{
+			"type": fmt.Sprintf("%T", telemetryService),
+		})
 	}
 }
 
@@ -71,7 +73,7 @@ func (o *ObservabilityServiceProvider) configureGORMInstrumentation(telemetry *s
 	// For now, we'll skip the direct GORM instrumentation and rely on manual instrumentation
 	// in database operations through the telemetry service
 
-	log.Println("Database instrumentation will be handled through manual telemetry calls")
+	facades.Log().Info("Database instrumentation will be handled through manual telemetry calls")
 }
 
 // registerShutdownHook registers a shutdown hook for graceful telemetry shutdown
@@ -81,7 +83,7 @@ func (o *ObservabilityServiceProvider) registerShutdownHook(app foundation.Appli
 	// if available, or use OS signal handling.
 
 	// For now, we'll log that the shutdown hook is registered
-	log.Println("Telemetry shutdown hook registered")
+	facades.Log().Info("Telemetry shutdown hook registered")
 
 	// You can extend this to actually register with Goravel's shutdown system
 	// when it becomes available, or implement signal handling here
