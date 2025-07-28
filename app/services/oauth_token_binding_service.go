@@ -78,17 +78,16 @@ type TokenBindingValidationResult struct {
 }
 
 func NewOAuthTokenBindingService() *OAuthTokenBindingService {
-	oauthService, err := NewOAuthService()
-	if err != nil {
-		facades.Log().Error("Failed to create OAuth service for token binding", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return nil
-	}
-
+	// Break circular dependency by initializing without OAuth service
+	// The OAuth service will be set later via dependency injection
 	return &OAuthTokenBindingService{
-		oauthService: oauthService,
+		oauthService: nil, // Will be set by the parent service
 	}
+}
+
+// SetOAuthService sets the OAuth service to break circular dependency
+func (s *OAuthTokenBindingService) SetOAuthService(oauthService *OAuthService) {
+	s.oauthService = oauthService
 }
 
 // ExtractTokenBindingInfo extracts token binding information from HTTP request

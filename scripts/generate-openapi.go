@@ -648,18 +648,22 @@ func parseParameterExtras(param *Parameter, extras string) {
 }
 
 func main() {
-	fmt.Println("Generating OpenAPI 3.0 specification...")
+	log.Println("Starting OpenAPI 3.0 specification generation...")
 
 	// Build the handler map once
+	log.Println("Building handler method map from controllers...")
 	globalHandlerMap = BuildHandlerMethodMap("app/http/controllers/api/v1")
 
 	// Build variable-to-type map from routes file
+	log.Println("Building variable-to-type map from routes file...")
 	varTypeMap = buildVarTypeMap("routes/api.go")
 
 	// Collect tags dynamically
+	log.Println("Collecting tags dynamically from controllers...")
 	dynamicTags := CollectTagsFromControllers("app/http/controllers/api/v1")
 
 	// Initialize OpenAPI specification
+	log.Println("Initializing OpenAPI specification structure...")
 	openAPI := &OpenAPI{
 		OpenAPI: "3.0.3",
 		Info: Info{
@@ -691,23 +695,27 @@ func main() {
 	}
 
 	// Parse routes from API routes file
-	fmt.Println("Parsing routes...")
+	log.Println("Parsing routes from API routes file...")
 	routes := parseRoutesFromFile("routes/api.go")
+	log.Printf("Found %d routes to process", len(routes))
 
 	// Parse models from model files
-	fmt.Println("Parsing models...")
+	log.Println("Parsing models from model directory...")
 	models := parseModelsFromDirectory("app/models")
+	log.Printf("Found %d models to process", len(models))
 
 	// Parse request schemas
-	fmt.Println("Parsing request schemas...")
+	log.Println("Parsing request schemas from requests directory...")
 	requests := parseRequestSchemas("app/http/requests")
+	log.Printf("Found %d request schemas to process", len(requests))
 
 	// Parse response schemas
-	fmt.Println("Parsing response schemas...")
+	log.Println("Parsing response schemas from responses directory...")
 	responses := parseResponseSchemas("app/http/responses")
+	log.Printf("Found %d response schemas to process", len(responses))
 
 	// Build OpenAPI paths from routes
-	fmt.Println("Building OpenAPI paths...")
+	log.Println("Building OpenAPI paths from parsed routes...")
 	buildPaths(openAPI, routes)
 
 	// Ensure all used tags are present in openAPI.Tags
@@ -732,21 +740,25 @@ func main() {
 	}
 
 	// Add schemas to components
-	fmt.Println("Adding schemas...")
+	log.Println("Adding schemas to OpenAPI components...")
 	addSchemas(openAPI, models, requests, responses)
 
 	// Add security schemes
+	log.Println("Adding security schemes to OpenAPI specification...")
 	addSecuritySchemes(openAPI)
 
 	// Generate YAML file
+	log.Println("Generating YAML specification file...")
 	generateYAML(openAPI, "docs/openapi.yaml")
 
 	// Generate JSON file
+	log.Println("Generating JSON specification file...")
 	generateJSON(openAPI, "docs/openapi.json")
 
-	fmt.Println("OpenAPI 3.0 specification generated successfully!")
-	fmt.Printf("- YAML: docs/openapi.yaml\n")
-	fmt.Printf("- JSON: docs/openapi.json\n")
+	log.Println("OpenAPI 3.0 specification generated successfully!")
+	log.Println("Generated files:")
+	log.Println("  - YAML: docs/openapi.yaml")
+	log.Println("  - JSON: docs/openapi.json")
 }
 
 func parseRoutesFromFile(filename string) []RouteInfo {

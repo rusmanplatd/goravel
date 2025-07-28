@@ -896,17 +896,71 @@ func (s *MultiAccountService) GetAccountSuggestions(ctx http.Context) ([]Account
 
 // Helper methods for account categorization
 func (s *MultiAccountService) getOrganizationForUser(user *models.User) string {
-	// Try to get organization from user's relationships
-	// This would typically involve checking user_organizations table
-	// For now, return empty string if no organization found
-	return ""
+	// Get user's primary organization from user_organizations table
+	var userOrg models.UserOrganization
+	err := facades.Orm().Query().
+		Where("user_id = ? AND is_active = ? AND status = ?", user.ID, true, "active").
+		Order("joined_at ASC"). // Get the first organization they joined
+		First(&userOrg)
+
+	if err != nil {
+		// No organization found
+		return ""
+	}
+
+	// Get organization details
+	var org models.Organization
+	if err := facades.Orm().Query().Where("id = ?", userOrg.OrganizationID).First(&org); err != nil {
+		facades.Log().Error("Failed to fetch organization details", map[string]interface{}{
+			"organization_id": userOrg.OrganizationID,
+			"user_id":         user.ID,
+			"error":           err.Error(),
+		})
+		return ""
+	}
+
+	return org.Name
 }
 
 func (s *MultiAccountService) getAccountTypeForUser(user *models.User) string {
-	// Determine account type based on user properties
-	// This could be based on roles, permissions, or user properties
-	// For now, default to "personal"
-	return "personal"
+	// Check if user has any organization memberships
+	orgCount, err := facades.Orm().Query().
+		Model(&models.UserOrganization{}).
+		Where("user_id = ? AND is_active = ? AND status = ?", user.ID, true, "active").
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Failed to count user organizations", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return "personal"
+	}
+
+	if orgCount == 0 {
+		return "personal"
+	}
+
+	// Check if user is an owner or admin in any organization
+	adminCount, err := facades.Orm().Query().
+		Model(&models.UserOrganization{}).
+		Where("user_id = ? AND is_active = ? AND status = ? AND role IN ?",
+			user.ID, true, "active", []string{"owner", "admin"}).
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Failed to count user admin roles", map[string]interface{}{
+			"user_id": user.ID,
+			"error":   err.Error(),
+		})
+		return "business" // Default to business if they have organizations
+	}
+
+	if adminCount > 0 {
+		return "enterprise"
+	}
+
+	return "business"
 }
 
 func (s *MultiAccountService) getSecurityLevelForLogin(loginMethod string) string {

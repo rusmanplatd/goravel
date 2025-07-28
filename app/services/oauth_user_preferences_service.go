@@ -4,54 +4,30 @@ import (
 	"fmt"
 	"time"
 
+	"goravel/app/models"
+
 	"github.com/goravel/framework/facades"
 )
 
 type OAuthUserPreferencesService struct{}
 
+// UserPreferences represents user OAuth preferences
 type UserPreferences struct {
-	UserID                   string               `json:"user_id"`
-	AutoLinkAccounts         bool                 `json:"auto_link_accounts"`           // Automatically link accounts with same email
-	RequireConsentForNewApps bool                 `json:"require_consent_for_new_apps"` // Always show consent screen for new apps
-	ShareProfileInfo         bool                 `json:"share_profile_info"`           // Allow sharing basic profile info
-	ShareEmailAddress        bool                 `json:"share_email_address"`          // Allow sharing email address
-	EnableSecurityAlerts     bool                 `json:"enable_security_alerts"`       // Receive security alerts
-	TrustedDeviceExpiry      int                  `json:"trusted_device_expiry"`        // Days before trusted device expires
-	PreferredProviders       []string             `json:"preferred_providers"`          // Preferred OAuth providers in order
-	BlockedProviders         []string             `json:"blocked_providers"`            // Blocked OAuth providers
-	PrivacyLevel             string               `json:"privacy_level"`                // strict, balanced, permissive
-	NotificationPreferences  NotificationSettings `json:"notification_preferences"`
-	SecurityPreferences      SecuritySettings     `json:"security_preferences"`
-	DataSharingPreferences   DataSharingSettings  `json:"data_sharing_preferences"`
-	CreatedAt                time.Time            `json:"created_at"`
-	UpdatedAt                time.Time            `json:"updated_at"`
-}
-
-type NotificationSettings struct {
-	EmailNotifications       bool `json:"email_notifications"`        // Email notifications for security events
-	PushNotifications        bool `json:"push_notifications"`         // Push notifications for security events
-	SMSNotifications         bool `json:"sms_notifications"`          // SMS notifications for critical events
-	NewDeviceAlerts          bool `json:"new_device_alerts"`          // Alerts for new device logins
-	SuspiciousActivityAlerts bool `json:"suspicious_activity_alerts"` // Alerts for suspicious activity
-	ConsentReminders         bool `json:"consent_reminders"`          // Reminders about app permissions
-}
-
-type SecuritySettings struct {
-	RequireMFAForHighRisk     bool `json:"require_mfa_for_high_risk"`   // Require MFA for high-risk logins
-	BlockSuspiciousIPs        bool `json:"block_suspicious_ips"`        // Block known malicious IPs
-	LimitConcurrentSessions   int  `json:"limit_concurrent_sessions"`   // Max concurrent sessions (0 = unlimited)
-	SessionTimeout            int  `json:"session_timeout"`             // Session timeout in minutes
-	RequireDeviceVerification bool `json:"require_device_verification"` // Require verification for new devices
-	EnableLocationTracking    bool `json:"enable_location_tracking"`    // Track login locations
-}
-
-type DataSharingSettings struct {
-	ShareWithTrustedApps  bool     `json:"share_with_trusted_apps"` // Share data with verified apps
-	ShareAnalyticsData    bool     `json:"share_analytics_data"`    // Share anonymized usage data
-	AllowDataExport       bool     `json:"allow_data_export"`       // Allow apps to export user data
-	RestrictSensitiveData bool     `json:"restrict_sensitive_data"` // Restrict access to sensitive data
-	AllowedDataTypes      []string `json:"allowed_data_types"`      // Types of data that can be shared
-	DataRetentionPeriod   int      `json:"data_retention_period"`   // Days to retain user data
+	UserID                   string                      `json:"user_id"`
+	AutoLinkAccounts         bool                        `json:"auto_link_accounts"`           // Automatically link accounts with same email
+	RequireConsentForNewApps bool                        `json:"require_consent_for_new_apps"` // Always show consent screen for new apps
+	ShareProfileInfo         bool                        `json:"share_profile_info"`           // Allow sharing basic profile info
+	ShareEmailAddress        bool                        `json:"share_email_address"`          // Allow sharing email address
+	EnableSecurityAlerts     bool                        `json:"enable_security_alerts"`       // Receive security alerts
+	TrustedDeviceExpiry      int                         `json:"trusted_device_expiry"`        // Days before trusted device expires
+	PreferredProviders       []string                    `json:"preferred_providers"`          // Preferred OAuth providers in order
+	BlockedProviders         []string                    `json:"blocked_providers"`            // Blocked OAuth providers
+	PrivacyLevel             string                      `json:"privacy_level"`                // strict, balanced, permissive
+	NotificationPreferences  models.NotificationSettings `json:"notification_preferences"`
+	SecurityPreferences      models.SecuritySettings     `json:"security_preferences"`
+	DataSharingPreferences   models.DataSharingSettings  `json:"data_sharing_preferences"`
+	CreatedAt                time.Time                   `json:"created_at"`
+	UpdatedAt                time.Time                   `json:"updated_at"`
 }
 
 func NewOAuthUserPreferencesService() *OAuthUserPreferencesService {
@@ -60,9 +36,20 @@ func NewOAuthUserPreferencesService() *OAuthUserPreferencesService {
 
 // GetUserPreferences retrieves user OAuth preferences
 func (s *OAuthUserPreferencesService) GetUserPreferences(userID string) (*UserPreferences, error) {
-	// In a real implementation, this would query the database
-	// For now, return default preferences
-	return s.getDefaultPreferences(userID), nil
+	var dbPrefs models.OAuthUserPreference
+
+	// Try to find existing preferences
+	err := facades.Orm().Query().Where("user_id = ?", userID).First(&dbPrefs)
+	if err != nil {
+		// If not found, create default preferences
+		if err.Error() == "record not found" {
+			return s.createDefaultPreferences(userID)
+		}
+		return nil, fmt.Errorf("failed to get user preferences: %w", err)
+	}
+
+	// Convert model to service struct
+	return s.modelToPreferences(&dbPrefs), nil
 }
 
 // UpdateUserPreferences updates user OAuth preferences
@@ -75,7 +62,29 @@ func (s *OAuthUserPreferencesService) UpdateUserPreferences(userID string, prefe
 	preferences.UserID = userID
 	preferences.UpdatedAt = time.Now()
 
-	// In a real implementation, this would update the database
+	var dbPrefs models.OAuthUserPreference
+
+	// Try to find existing preferences
+	err := facades.Orm().Query().Where("user_id = ?", userID).First(&dbPrefs)
+	if err != nil && err.Error() != "record not found" {
+		return fmt.Errorf("failed to find user preferences: %w", err)
+	}
+
+	// Convert service struct to model
+	if err != nil && err.Error() == "record not found" {
+		// Create new record
+		dbPrefs = s.preferencesToModel(preferences)
+		err = facades.Orm().Query().Create(&dbPrefs)
+	} else {
+		// Update existing record
+		s.updateModelFromPreferences(&dbPrefs, preferences)
+		err = facades.Orm().Query().Save(&dbPrefs)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to save user preferences: %w", err)
+	}
+
 	facades.Log().Info("User OAuth preferences updated", map[string]interface{}{
 		"user_id":       userID,
 		"privacy_level": preferences.PrivacyLevel,
@@ -202,9 +211,97 @@ func (s *OAuthUserPreferencesService) CheckConsentRequired(userID, provider, cli
 		return true, nil
 	}
 
-	// In a real implementation, check if this app has been consented to before
-	// For now, return based on privacy level
-	return preferences.PrivacyLevel != "permissive", nil
+	// Check if this app has been consented to before
+	consentCount, err := facades.Orm().Query().Table("oauth_consents").
+		Where("user_id = ? AND client_id = ?", userID, clientID).
+		Count()
+	if err != nil {
+		facades.Log().Warning("Failed to check consent history", map[string]interface{}{
+			"user_id":   userID,
+			"client_id": clientID,
+			"error":     err.Error(),
+		})
+		return true, nil // Default to requiring consent on error
+	}
+
+	// If no previous consent and not permissive, require consent
+	return consentCount == 0 && preferences.PrivacyLevel != "permissive", nil
+}
+
+// createDefaultPreferences creates default preferences for a new user
+func (s *OAuthUserPreferencesService) createDefaultPreferences(userID string) (*UserPreferences, error) {
+	preferences := s.getDefaultPreferences(userID)
+
+	// Save to database
+	err := s.UpdateUserPreferences(userID, preferences)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default preferences: %w", err)
+	}
+
+	return preferences, nil
+}
+
+// modelToPreferences converts database model to service struct
+func (s *OAuthUserPreferencesService) modelToPreferences(model *models.OAuthUserPreference) *UserPreferences {
+	return &UserPreferences{
+		UserID:                   model.UserID,
+		AutoLinkAccounts:         model.AutoLinkAccounts,
+		RequireConsentForNewApps: model.RequireConsentForNewApps,
+		ShareProfileInfo:         model.ShareProfileInfo,
+		ShareEmailAddress:        model.ShareEmailAddress,
+		EnableSecurityAlerts:     model.EnableSecurityAlerts,
+		TrustedDeviceExpiry:      model.TrustedDeviceExpiry,
+		PreferredProviders:       model.GetPreferredProviders(),
+		BlockedProviders:         model.GetBlockedProviders(),
+		PrivacyLevel:             model.PrivacyLevel,
+		NotificationPreferences:  model.GetNotificationPreferences(),
+		SecurityPreferences:      model.GetSecurityPreferences(),
+		DataSharingPreferences:   model.GetDataSharingPreferences(),
+		CreatedAt:                model.CreatedAt,
+		UpdatedAt:                model.UpdatedAt,
+	}
+}
+
+// preferencesToModel converts service struct to database model
+func (s *OAuthUserPreferencesService) preferencesToModel(prefs *UserPreferences) models.OAuthUserPreference {
+	model := models.OAuthUserPreference{
+		UserID:                   prefs.UserID,
+		AutoLinkAccounts:         prefs.AutoLinkAccounts,
+		RequireConsentForNewApps: prefs.RequireConsentForNewApps,
+		ShareProfileInfo:         prefs.ShareProfileInfo,
+		ShareEmailAddress:        prefs.ShareEmailAddress,
+		EnableSecurityAlerts:     prefs.EnableSecurityAlerts,
+		TrustedDeviceExpiry:      prefs.TrustedDeviceExpiry,
+		PrivacyLevel:             prefs.PrivacyLevel,
+		CreatedAt:                prefs.CreatedAt,
+		UpdatedAt:                prefs.UpdatedAt,
+	}
+
+	model.SetPreferredProviders(prefs.PreferredProviders)
+	model.SetBlockedProviders(prefs.BlockedProviders)
+	model.SetNotificationPreferences(prefs.NotificationPreferences)
+	model.SetSecurityPreferences(prefs.SecurityPreferences)
+	model.SetDataSharingPreferences(prefs.DataSharingPreferences)
+
+	return model
+}
+
+// updateModelFromPreferences updates existing model from preferences
+func (s *OAuthUserPreferencesService) updateModelFromPreferences(model *models.OAuthUserPreference, prefs *UserPreferences) {
+	model.AutoLinkAccounts = prefs.AutoLinkAccounts
+	model.RequireConsentForNewApps = prefs.RequireConsentForNewApps
+	model.ShareProfileInfo = prefs.ShareProfileInfo
+	model.ShareEmailAddress = prefs.ShareEmailAddress
+	model.EnableSecurityAlerts = prefs.EnableSecurityAlerts
+	model.TrustedDeviceExpiry = prefs.TrustedDeviceExpiry
+	model.PrivacyLevel = prefs.PrivacyLevel
+	model.UpdatedAt = prefs.UpdatedAt
+
+	model.SetPreferredProviders(prefs.PreferredProviders)
+	model.SetBlockedProviders(prefs.BlockedProviders)
+	model.SetNotificationPreferences(prefs.NotificationPreferences)
+	model.SetSecurityPreferences(prefs.SecurityPreferences)
+	model.SetDataSharingPreferences(prefs.DataSharingPreferences)
 }
 
 // Helper methods
@@ -221,7 +318,7 @@ func (s *OAuthUserPreferencesService) getDefaultPreferences(userID string) *User
 		PreferredProviders:       []string{},
 		BlockedProviders:         []string{},
 		PrivacyLevel:             "balanced",
-		NotificationPreferences: NotificationSettings{
+		NotificationPreferences: models.NotificationSettings{
 			EmailNotifications:       true,
 			PushNotifications:        false,
 			SMSNotifications:         false,
@@ -229,7 +326,7 @@ func (s *OAuthUserPreferencesService) getDefaultPreferences(userID string) *User
 			SuspiciousActivityAlerts: true,
 			ConsentReminders:         false,
 		},
-		SecurityPreferences: SecuritySettings{
+		SecurityPreferences: models.SecuritySettings{
 			RequireMFAForHighRisk:     true,
 			BlockSuspiciousIPs:        true,
 			LimitConcurrentSessions:   5,
@@ -237,7 +334,7 @@ func (s *OAuthUserPreferencesService) getDefaultPreferences(userID string) *User
 			RequireDeviceVerification: true,
 			EnableLocationTracking:    true,
 		},
-		DataSharingPreferences: DataSharingSettings{
+		DataSharingPreferences: models.DataSharingSettings{
 			ShareWithTrustedApps:  true,
 			ShareAnalyticsData:    false,
 			AllowDataExport:       true,

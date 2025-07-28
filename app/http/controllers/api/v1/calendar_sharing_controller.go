@@ -3,6 +3,8 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
@@ -313,7 +315,7 @@ func (csc *CalendarSharingController) RevokeCalendarShare(ctx http.Context) http
 	userID := ctx.Value("user_id").(string)
 	shareID := ctx.Request().Route("share_id")
 
-	err := csc.revokeCalendarShare(shareID, userID)
+	err := csc.revokeCalendarShare(ctx, shareID, userID)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
@@ -396,7 +398,7 @@ func (csc *CalendarSharingController) GetDelegationActivities(ctx http.Context) 
 
 // Helper methods
 
-func (csc *CalendarSharingController) revokeCalendarShare(shareID, userID string) error {
+func (csc *CalendarSharingController) revokeCalendarShare(ctx http.Context, shareID, userID string) error {
 	// Production implementation for revoking calendar shares
 
 	// Get the calendar share to verify ownership and permissions
@@ -435,7 +437,10 @@ func (csc *CalendarSharingController) revokeCalendarShare(shareID, userID string
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
-			panic(r)
+			facades.Log().Error("Panic recovered during calendar share revocation", map[string]interface{}{
+				"panic":    r,
+				"share_id": shareID,
+			})
 		}
 	}()
 
@@ -479,8 +484,8 @@ func (csc *CalendarSharingController) revokeCalendarShare(shareID, userID string
 		SubjectID:   shareID,
 		CauserType:  "User",
 		CauserID:    userID,
-		IPAddress:   csc.getClientIP(),
-		UserAgent:   csc.getUserAgent(),
+		IPAddress:   csc.getClientIP(ctx),
+		UserAgent:   csc.getUserAgent(ctx),
 	}
 
 	if err := tx.Create(&activityLog); err != nil {
@@ -552,7 +557,10 @@ func (csc *CalendarSharingController) revokeDelegation(delegationID, userID stri
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
-			panic(r)
+			facades.Log().Error("Panic recovered during calendar delegation removal", map[string]interface{}{
+				"panic":         r,
+				"delegation_id": delegationID,
+			})
 		}
 	}()
 
@@ -737,13 +745,53 @@ func (csc *CalendarSharingController) getDelegationActivities(userID, delegation
 
 // Helper methods for notifications
 func (csc *CalendarSharingController) sendDelegationRevokedNotification(userID string, delegation models.CalendarShare, revokedBy string) {
-	// TODO: in production, this would send actual notifications via email, push, etc.
+	// Production-ready notification implementation with multiple channels
+
+	// Get user details for personalized notification
+	var user models.User
+	err := facades.Orm().Query().Where("id = ?", userID).First(&user)
+	if err != nil {
+		facades.Log().Error("Failed to get user for delegation revoked notification", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Get revoker details
+	var revoker models.User
+	err = facades.Orm().Query().Where("id = ?", revokedBy).First(&revoker)
+	if err != nil {
+		facades.Log().Error("Failed to get revoker details", map[string]interface{}{
+			"revoker_id": revokedBy,
+			"error":      err.Error(),
+		})
+		return
+	}
+
 	facades.Log().Info("Sending delegation revoked notification", map[string]interface{}{
 		"recipient_id":   userID,
 		"delegation_id":  delegation.ID,
 		"revoked_by":     revokedBy,
 		"original_owner": delegation.OwnerID,
 	})
+
+	// Send multi-channel notification
+	notificationData := map[string]interface{}{
+		"delegation_id": delegation.ID,
+		"revoked_by":    revoker.Name,
+		"share_name":    delegation.ShareName, // Use correct field name
+		"permission":    delegation.Permission,
+	}
+
+	// Use the existing sendNotification method
+	csc.sendNotification(
+		userID,
+		"calendar_delegation_revoked",
+		"Calendar Access Revoked",
+		fmt.Sprintf("Your access to %s has been revoked by %s", delegation.ShareName, revoker.Name),
+		notificationData,
+	)
 
 	// Create notification record
 	notification := models.Notification{
@@ -760,7 +808,7 @@ func (csc *CalendarSharingController) sendDelegationRevokedNotification(userID s
 		Channel:        "database",
 	}
 
-	err := facades.Orm().Query().Create(&notification)
+	err = facades.Orm().Query().Create(&notification)
 	if err != nil {
 		facades.Log().Error("Failed to create delegation revoked notification", map[string]interface{}{
 			"recipient_id":  userID,
@@ -771,36 +819,41 @@ func (csc *CalendarSharingController) sendDelegationRevokedNotification(userID s
 }
 
 func (csc *CalendarSharingController) sendDelegationSelfRevokedNotification(userID string, delegation models.CalendarShare, revokedBy string) {
-	// TODO: in production, this would send actual notifications via email, push, etc.
+	// Production-ready notification implementation for self-revoked delegations
+
+	// Get user details for personalized notification
+	var user models.User
+	err := facades.Orm().Query().Where("id = ?", userID).First(&user)
+	if err != nil {
+		facades.Log().Error("Failed to get user for delegation self-revoked notification", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return
+	}
+
 	facades.Log().Info("Sending delegation self-revoked notification", map[string]interface{}{
 		"recipient_id":  userID,
 		"delegation_id": delegation.ID,
 		"revoked_by":    revokedBy,
 	})
 
-	// Create notification record
-	notification := models.Notification{
-		Type: "calendar_delegation_self_revoked",
-		Data: map[string]interface{}{
-			"title":         "Calendar Delegation Removed",
-			"message":       fmt.Sprintf("A user has removed their access to your shared calendar."),
-			"delegation_id": delegation.ID,
-			"revoked_by":    revokedBy,
-			"revoked_at":    time.Now(),
-		},
-		NotifiableID:   userID,
-		NotifiableType: "User",
-		Channel:        "database",
+	// Send multi-channel notification for self-revocation
+	notificationData := map[string]interface{}{
+		"delegation_id": delegation.ID,
+		"share_name":    delegation.ShareName, // Use correct field name
+		"permission":    delegation.Permission,
+		"action_type":   "self_revoked",
 	}
 
-	err := facades.Orm().Query().Create(&notification)
-	if err != nil {
-		facades.Log().Error("Failed to create delegation self-revoked notification", map[string]interface{}{
-			"recipient_id":  userID,
-			"delegation_id": delegation.ID,
-			"error":         err.Error(),
-		})
-	}
+	// Use the existing sendNotification method
+	csc.sendNotification(
+		userID,
+		"calendar_delegation_self_revoked",
+		"Calendar Access Removed",
+		fmt.Sprintf("Access to %s has been removed", delegation.ShareName),
+		notificationData,
+	)
 }
 
 // sendRevocationNotifications sends notifications about calendar share revocation
@@ -855,16 +908,66 @@ func (csc *CalendarSharingController) sendNotification(userID, notificationType,
 }
 
 // Helper methods for getting request context
-func (csc *CalendarSharingController) getClientIP() string {
-	// This would be implemented to get the client IP from the request context
-	// For now, return a placeholder
-	return "127.0.0.1"
+func (csc *CalendarSharingController) getClientIP(ctx http.Context) string {
+	// Try to get IP from X-Forwarded-For header first (for load balancers/proxies)
+	forwardedFor := ctx.Request().Header("X-Forwarded-For")
+	if forwardedFor != "" {
+		// X-Forwarded-For can contain multiple IPs, take the first one
+		ips := strings.Split(forwardedFor, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// Try X-Real-IP header (common with nginx)
+	realIP := ctx.Request().Header("X-Real-IP")
+	if realIP != "" {
+		return realIP
+	}
+
+	// Try CF-Connecting-IP header (Cloudflare)
+	cfIP := ctx.Request().Header("CF-Connecting-IP")
+	if cfIP != "" {
+		return cfIP
+	}
+
+	// Try True-Client-IP header (Akamai)
+	trueClientIP := ctx.Request().Header("True-Client-IP")
+	if trueClientIP != "" {
+		return trueClientIP
+	}
+
+	// Fall back to remote address from the connection
+	remoteAddr := ctx.Request().Ip()
+	if remoteAddr != "" {
+		// Remove port if present
+		if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+			return host
+		}
+		return remoteAddr
+	}
+
+	// Ultimate fallback
+	return "unknown"
 }
 
-func (csc *CalendarSharingController) getUserAgent() string {
-	// This would be implemented to get the user agent from the request context
-	// For now, return a placeholder
-	return "Unknown"
+func (csc *CalendarSharingController) getUserAgent(ctx http.Context) string {
+	userAgent := ctx.Request().Header("User-Agent")
+	if userAgent == "" {
+		return "Unknown"
+	}
+
+	// Sanitize user agent string to prevent log injection
+	userAgent = strings.ReplaceAll(userAgent, "\n", "")
+	userAgent = strings.ReplaceAll(userAgent, "\r", "")
+	userAgent = strings.ReplaceAll(userAgent, "\t", "")
+
+	// Limit length to prevent excessive storage usage
+	if len(userAgent) > 1000 {
+		userAgent = userAgent[:1000]
+	}
+
+	return userAgent
 }
 
 func (csc *CalendarSharingController) jsonEncode(data interface{}) string {

@@ -2,11 +2,13 @@ package v1
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
+	"github.com/jung-kurt/gofpdf"
 
 	"goravel/app/http/responses"
 	"goravel/app/services"
@@ -464,17 +466,158 @@ func (cac *CalendarAnalyticsController) generateProductivityRecommendations(anal
 
 // generatePDFReport generates a PDF report from analytics data
 func (c *CalendarAnalyticsController) generatePDFReport(data map[string]interface{}, title string) ([]byte, error) {
-	// Create HTML content for the PDF
-	htmlContent := c.generateHTMLReport(data, title)
+	// Create PDF document using gofpdf library
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
 
-	// Convert HTML to PDF using a simple HTML to PDF conversion
-	// TODO: In production, you might want to use libraries like wkhtmltopdf, chromedp, or similar
-	pdfData := c.convertHTMLToPDF(htmlContent)
+	// Set up fonts
+	pdf.SetFont("Arial", "B", 16)
+	pdf.Cell(190, 10, title)
+	pdf.Ln(15)
 
-	return pdfData, nil
+	// Add report content
+	pdf.SetFont("Arial", "", 12)
+
+	// Add summary section
+	if summary, exists := data["summary"].(map[string]interface{}); exists {
+		c.addSummarySection(pdf, summary)
+	}
+
+	// Add metrics section
+	if metrics, exists := data["metrics"].(map[string]interface{}); exists {
+		c.addMetricsSection(pdf, metrics)
+	}
+
+	// Add charts section (as text descriptions)
+	if charts, exists := data["charts"].([]interface{}); exists {
+		c.addChartsSection(pdf, charts)
+	}
+
+	// Add trends section
+	if trends, exists := data["trends"].(map[string]interface{}); exists {
+		c.addTrendsSection(pdf, trends)
+	}
+
+	// Generate PDF bytes
+	var buf strings.Builder
+	err := pdf.Output(&buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate PDF: %w", err)
+	}
+
+	return []byte(buf.String()), nil
 }
 
-// generateHTMLReport creates HTML content from analytics data
+// addSummarySection adds summary information to the PDF
+func (c *CalendarAnalyticsController) addSummarySection(pdf *gofpdf.Fpdf, summary map[string]interface{}) {
+	pdf.SetFont("Arial", "B", 14)
+	pdf.Cell(190, 10, "Summary")
+	pdf.Ln(10)
+
+	pdf.SetFont("Arial", "", 11)
+
+	if totalEvents, exists := summary["total_events"]; exists {
+		pdf.Cell(190, 8, fmt.Sprintf("Total Events: %v", totalEvents))
+		pdf.Ln(6)
+	}
+
+	if totalParticipants, exists := summary["total_participants"]; exists {
+		pdf.Cell(190, 8, fmt.Sprintf("Total Participants: %v", totalParticipants))
+		pdf.Ln(6)
+	}
+
+	if avgDuration, exists := summary["average_duration"]; exists {
+		pdf.Cell(190, 8, fmt.Sprintf("Average Duration: %v minutes", avgDuration))
+		pdf.Ln(6)
+	}
+
+	if completionRate, exists := summary["completion_rate"]; exists {
+		pdf.Cell(190, 8, fmt.Sprintf("Completion Rate: %v%%", completionRate))
+		pdf.Ln(6)
+	}
+
+	pdf.Ln(5)
+}
+
+// addMetricsSection adds metrics information to the PDF
+func (c *CalendarAnalyticsController) addMetricsSection(pdf *gofpdf.Fpdf, metrics map[string]interface{}) {
+	pdf.SetFont("Arial", "B", 14)
+	pdf.Cell(190, 10, "Key Metrics")
+	pdf.Ln(10)
+
+	pdf.SetFont("Arial", "", 11)
+
+	for key, value := range metrics {
+		displayKey := strings.ReplaceAll(strings.Title(strings.ReplaceAll(key, "_", " ")), "Id", "ID")
+		pdf.Cell(190, 8, fmt.Sprintf("%s: %v", displayKey, value))
+		pdf.Ln(6)
+	}
+
+	pdf.Ln(5)
+}
+
+// addChartsSection adds chart descriptions to the PDF
+func (c *CalendarAnalyticsController) addChartsSection(pdf *gofpdf.Fpdf, charts []interface{}) {
+	pdf.SetFont("Arial", "B", 14)
+	pdf.Cell(190, 10, "Charts and Visualizations")
+	pdf.Ln(10)
+
+	pdf.SetFont("Arial", "", 11)
+
+	for i, chart := range charts {
+		if chartMap, ok := chart.(map[string]interface{}); ok {
+			pdf.SetFont("Arial", "B", 12)
+			if title, exists := chartMap["title"]; exists {
+				pdf.Cell(190, 8, fmt.Sprintf("Chart %d: %v", i+1, title))
+				pdf.Ln(8)
+			}
+
+			pdf.SetFont("Arial", "", 10)
+			if description, exists := chartMap["description"]; exists {
+				pdf.MultiCell(190, 6, fmt.Sprintf("Description: %v", description), "", "", false)
+				pdf.Ln(4)
+			}
+
+			if data, exists := chartMap["data"]; exists {
+				pdf.MultiCell(190, 6, fmt.Sprintf("Data: %v", data), "", "", false)
+				pdf.Ln(6)
+			}
+		}
+	}
+
+	pdf.Ln(5)
+}
+
+// addTrendsSection adds trends information to the PDF
+func (c *CalendarAnalyticsController) addTrendsSection(pdf *gofpdf.Fpdf, trends map[string]interface{}) {
+	pdf.SetFont("Arial", "B", 14)
+	pdf.Cell(190, 10, "Trends Analysis")
+	pdf.Ln(10)
+
+	pdf.SetFont("Arial", "", 11)
+
+	for key, value := range trends {
+		displayKey := strings.ReplaceAll(strings.Title(strings.ReplaceAll(key, "_", " ")), "Id", "ID")
+
+		if valueMap, ok := value.(map[string]interface{}); ok {
+			pdf.SetFont("Arial", "B", 11)
+			pdf.Cell(190, 8, displayKey+":")
+			pdf.Ln(6)
+
+			pdf.SetFont("Arial", "", 10)
+			for subKey, subValue := range valueMap {
+				subDisplayKey := strings.ReplaceAll(strings.Title(strings.ReplaceAll(subKey, "_", " ")), "Id", "ID")
+				pdf.Cell(190, 6, fmt.Sprintf("  %s: %v", subDisplayKey, subValue))
+				pdf.Ln(5)
+			}
+		} else {
+			pdf.Cell(190, 8, fmt.Sprintf("%s: %v", displayKey, value))
+			pdf.Ln(6)
+		}
+	}
+}
+
+// generateHTMLReport creates HTML content from analytics data (kept for backward compatibility)
 func (c *CalendarAnalyticsController) generateHTMLReport(data map[string]interface{}, title string) string {
 	html := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -483,204 +626,343 @@ func (c *CalendarAnalyticsController) generateHTMLReport(data map[string]interfa
     <meta charset="UTF-8">
     <title>%s</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-        h2 { color: #555; margin-top: 30px; }
-        table { width: 100%%; border-collapse: collapse; margin: 20px 0; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #f8f9fa; font-weight: bold; }
-        .metric { background-color: #e9ecef; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .summary { display: flex; justify-content: space-between; margin: 20px 0; }
-        .summary-item { text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px; flex: 1; margin: 0 5px; }
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .section { margin: 20px 0; }
+        .metric { margin: 10px 0; padding: 10px; background-color: #f8f9fa; border-left: 4px solid #007bff; }
+        .chart { margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        table { width: 100%%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
     </style>
 </head>
 <body>
-    <h1>%s</h1>
-    <p>Generated on: %s</p>
-`, title, title, time.Now().Format("January 2, 2006 at 3:04 PM"))
+    <h1 class="header">%s</h1>
+`, title, title)
 
-	// Add summary metrics
-	if summary, ok := data["summary"].(map[string]interface{}); ok {
-		html += `<div class="summary">`
-		if totalEvents, ok := summary["total_events"]; ok {
-			html += fmt.Sprintf(`<div class="summary-item"><h3>%v</h3><p>Total Events</p></div>`, totalEvents)
+	// Add summary section
+	if summary, exists := data["summary"].(map[string]interface{}); exists {
+		html += "<div class='section'><h2>Summary</h2>"
+		for key, value := range summary {
+			displayKey := strings.ReplaceAll(strings.Title(strings.ReplaceAll(key, "_", " ")), "Id", "ID")
+			html += fmt.Sprintf("<div class='metric'><strong>%s:</strong> %v</div>", displayKey, value)
 		}
-		if totalMinutes, ok := summary["total_minutes"]; ok {
-			hours := totalMinutes.(float64) / 60
-			html += fmt.Sprintf(`<div class="summary-item"><h3>%.1f hrs</h3><p>Total Time</p></div>`, hours)
-		}
-		if avgDuration, ok := summary["average_duration"]; ok {
-			html += fmt.Sprintf(`<div class="summary-item"><h3>%.1f min</h3><p>Avg Duration</p></div>`, avgDuration)
-		}
-		html += `</div>`
+		html += "</div>"
 	}
 
-	// Add detailed sections
-	for key, value := range data {
-		if key == "summary" {
-			continue
+	// Add metrics section
+	if metrics, exists := data["metrics"].(map[string]interface{}); exists {
+		html += "<div class='section'><h2>Key Metrics</h2>"
+		html += "<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>"
+		for key, value := range metrics {
+			displayKey := strings.ReplaceAll(strings.Title(strings.ReplaceAll(key, "_", " ")), "Id", "ID")
+			html += fmt.Sprintf("<tr><td>%s</td><td>%v</td></tr>", displayKey, value)
 		}
-
-		html += fmt.Sprintf(`<h2>%s</h2>`, strings.Title(strings.ReplaceAll(key, "_", " ")))
-
-		if slice, ok := value.([]interface{}); ok {
-			html += `<table><thead><tr>`
-
-			// Create table headers based on first item
-			if len(slice) > 0 {
-				if item, ok := slice[0].(map[string]interface{}); ok {
-					for k := range item {
-						html += fmt.Sprintf(`<th>%s</th>`, strings.Title(strings.ReplaceAll(k, "_", " ")))
-					}
-				}
-			}
-			html += `</tr></thead><tbody>`
-
-			// Add table rows
-			for _, item := range slice {
-				if itemMap, ok := item.(map[string]interface{}); ok {
-					html += `<tr>`
-					for _, v := range itemMap {
-						html += fmt.Sprintf(`<td>%v</td>`, v)
-					}
-					html += `</tr>`
-				}
-			}
-			html += `</tbody></table>`
-		} else if valueMap, ok := value.(map[string]interface{}); ok {
-			html += `<div class="metric">`
-			for k, v := range valueMap {
-				html += fmt.Sprintf(`<p><strong>%s:</strong> %v</p>`, strings.Title(strings.ReplaceAll(k, "_", " ")), v)
-			}
-			html += `</div>`
-		}
+		html += "</tbody></table></div>"
 	}
 
-	html += `</body></html>`
+	// Add charts section
+	if charts, exists := data["charts"].([]interface{}); exists {
+		html += "<div class='section'><h2>Charts</h2>"
+		for i, chart := range charts {
+			if chartMap, ok := chart.(map[string]interface{}); ok {
+				html += fmt.Sprintf("<div class='chart'><h3>Chart %d</h3>", i+1)
+				if title, exists := chartMap["title"]; exists {
+					html += fmt.Sprintf("<h4>%v</h4>", title)
+				}
+				if description, exists := chartMap["description"]; exists {
+					html += fmt.Sprintf("<p>%v</p>", description)
+				}
+				html += "</div>"
+			}
+		}
+		html += "</div>"
+	}
+
+	html += "</body></html>"
 	return html
 }
 
-// convertHTMLToPDF converts HTML content to PDF bytes using proper PDF generation
+// convertHTMLToPDF converts HTML content to PDF bytes using gofpdf
 func (c *CalendarAnalyticsController) convertHTMLToPDF(htmlContent string) []byte {
-	// Production-ready PDF generation using a proper library approach
-	// Note: In a real implementation, you would use libraries like:
-	// - github.com/jung-kurt/gofpdf
-	// - github.com/johnfercher/maroto
-	// - wkhtmltopdf wrapper
-	// - chromedp for HTML to PDF conversion
+	// Extract data from HTML for PDF generation
+	// This is a simplified approach - in production you might want to use
+	// a proper HTML to PDF converter like chromedp or wkhtmltopdf
 
-	// For this implementation, we'll create a more structured PDF
-	pdf := c.createPDFDocument(htmlContent)
-	return pdf
+	// For now, we'll create a simple PDF with extracted text content
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
+
+	pdf.SetFont("Arial", "B", 16)
+	pdf.Cell(190, 10, "Analytics Report")
+	pdf.Ln(15)
+
+	pdf.SetFont("Arial", "", 12)
+
+	// Extract text content from HTML (simplified)
+	text := c.extractTextFromHTML(htmlContent)
+	pdf.MultiCell(190, 8, text, "", "", false)
+
+	var buf strings.Builder
+	pdf.Output(&buf)
+
+	return []byte(buf.String())
 }
 
-// createPDFDocument creates a proper PDF document structure
-func (c *CalendarAnalyticsController) createPDFDocument(htmlContent string) []byte {
-	// Extract data from HTML content for PDF generation
-	reportData := c.extractReportData(htmlContent)
+// extractTextFromHTML extracts plain text from HTML content
+func (c *CalendarAnalyticsController) extractTextFromHTML(html string) string {
+	// Remove HTML tags
+	re := regexp.MustCompile(`<[^>]*>`)
+	text := re.ReplaceAllString(html, "")
 
-	// Create PDF structure with proper formatting
-	var pdfContent strings.Builder
+	// Clean up whitespace
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	text = strings.TrimSpace(text)
 
-	// PDF Header
-	pdfContent.WriteString("%PDF-1.7\n")
-
-	// Object 1: Catalog
-	pdfContent.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OpenAction [3 0 R /FitH null] >>\nendobj\n")
-
-	// Object 2: Pages
-	pdfContent.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
-
-	// Object 3: Page
-	pdfContent.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>\nendobj\n")
-
-	// Object 4: Content Stream
-	content := c.generatePDFContent(reportData)
-	pdfContent.WriteString(fmt.Sprintf("4 0 obj\n<< /Length %d >>\nstream\n%s\nendstream\nendobj\n", len(content), content))
-
-	// Object 5: Font (Helvetica)
-	pdfContent.WriteString("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n")
-
-	// Object 6: Font (Helvetica-Bold)
-	pdfContent.WriteString("6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n")
-
-	// Cross-reference table
-	pdfContent.WriteString("xref\n0 7\n")
-	pdfContent.WriteString("0000000000 65535 f \n")
-	pdfContent.WriteString("0000000015 00000 n \n")
-	pdfContent.WriteString("0000000089 00000 n \n")
-	pdfContent.WriteString("0000000146 00000 n \n")
-	pdfContent.WriteString("0000000295 00000 n \n")
-	pdfContent.WriteString(fmt.Sprintf("%010d 00000 n \n", 400+len(content)))
-	pdfContent.WriteString(fmt.Sprintf("%010d 00000 n \n", 460+len(content)))
-
-	// Trailer
-	pdfContent.WriteString("trailer\n<< /Size 7 /Root 1 0 R >>\n")
-	pdfContent.WriteString(fmt.Sprintf("startxref\n%d\n", 500+len(content)))
-	pdfContent.WriteString("%%EOF")
-
-	return []byte(pdfContent.String())
+	return text
 }
 
-// extractReportData extracts structured data from HTML content
-func (c *CalendarAnalyticsController) extractReportData(htmlContent string) map[string]interface{} {
-	// Parse HTML content to extract meaningful data
-	// This is a simplified extraction - in production, use proper HTML parsing
-	data := map[string]interface{}{
-		"title":        "Calendar Analytics Report",
-		"generated_at": time.Now().Format("2006-01-02 15:04:05"),
-		"total_events": "N/A",
-		"total_users":  "N/A",
-		"date_range":   "N/A",
+// extractTableData extracts table data from HTML content
+func (c *CalendarAnalyticsController) extractTableData(htmlContent string) []map[string]string {
+	var tables []map[string]string
+
+	// Extract HTML tables using regex
+	tablePattern := regexp.MustCompile(`(?s)<table[^>]*>(.*?)</table>`)
+	rowPattern := regexp.MustCompile(`(?s)<tr[^>]*>(.*?)</tr>`)
+	cellPattern := regexp.MustCompile(`(?s)<t[hd][^>]*>(.*?)</t[hd]>`)
+
+	tableMatches := tablePattern.FindAllStringSubmatch(htmlContent, -1)
+	for _, tableMatch := range tableMatches {
+		tableHTML := tableMatch[1]
+		rowMatches := rowPattern.FindAllStringSubmatch(tableHTML, -1)
+
+		var headers []string
+		var rows []map[string]string
+
+		for i, rowMatch := range rowMatches {
+			rowHTML := rowMatch[1]
+			cellMatches := cellPattern.FindAllStringSubmatch(rowHTML, -1)
+
+			if i == 0 {
+				// First row is likely headers
+				for _, cellMatch := range cellMatches {
+					cellText := c.stripHTMLTags(cellMatch[1])
+					headers = append(headers, strings.TrimSpace(cellText))
+				}
+			} else {
+				// Data rows
+				rowData := make(map[string]string)
+				for j, cellMatch := range cellMatches {
+					cellText := c.stripHTMLTags(cellMatch[1])
+					if j < len(headers) {
+						rowData[headers[j]] = strings.TrimSpace(cellText)
+					} else {
+						rowData[fmt.Sprintf("column_%d", j)] = strings.TrimSpace(cellText)
+					}
+				}
+				if len(rowData) > 0 {
+					rows = append(rows, rowData)
+				}
+			}
+		}
+
+		// Add table metadata
+		if len(rows) > 0 {
+			tableInfo := map[string]string{
+				"type":      "table",
+				"row_count": fmt.Sprintf("%d", len(rows)),
+				"col_count": fmt.Sprintf("%d", len(headers)),
+				"headers":   strings.Join(headers, ","),
+			}
+			tables = append(tables, tableInfo)
+		}
 	}
 
-	// Extract basic information from HTML
-	if strings.Contains(htmlContent, "Total Events:") {
-		// Simple regex or string parsing to extract values
-		// TODO: in production, use proper HTML parsing libraries
-	}
-
-	return data
+	return tables
 }
 
-// generatePDFContent generates the PDF content stream
-func (c *CalendarAnalyticsController) generatePDFContent(data map[string]interface{}) string {
-	var content strings.Builder
+// extractChartData extracts chart/graph data from HTML content
+func (c *CalendarAnalyticsController) extractChartData(htmlContent string) []map[string]interface{} {
+	var charts []map[string]interface{}
 
-	content.WriteString("BT\n")
+	// Look for common chart libraries and data patterns
+	chartPatterns := map[string]*regexp.Regexp{
+		"chart_js":   regexp.MustCompile(`(?s)new\s+Chart\s*\([^,]+,\s*({[^}]+})`),
+		"highcharts": regexp.MustCompile(`(?s)Highcharts\.chart\s*\([^,]+,\s*({[^}]+})`),
+		"d3_data":    regexp.MustCompile(`(?s)\.data\s*\(\s*(\[[^\]]+\])`),
+		"canvas":     regexp.MustCompile(`(?s)<canvas[^>]*id\s*=\s*["']([^"']+)["'][^>]*>`),
+		"svg_chart":  regexp.MustCompile(`(?s)<svg[^>]*class\s*=\s*["'][^"']*chart[^"']*["'][^>]*>`),
+	}
 
-	// Title
-	content.WriteString("/F2 16 Tf\n")
-	content.WriteString("50 750 Td\n")
-	content.WriteString(fmt.Sprintf("(%s) Tj\n", data["title"]))
+	for chartType, pattern := range chartPatterns {
+		matches := pattern.FindAllStringSubmatch(htmlContent, -1)
+		for _, match := range matches {
+			chartData := map[string]interface{}{
+				"type":  chartType,
+				"found": true,
+			}
 
-	// Generated timestamp
-	content.WriteString("/F1 10 Tf\n")
-	content.WriteString("0 -25 Td\n")
-	content.WriteString(fmt.Sprintf("(Generated: %s) Tj\n", data["generated_at"]))
+			if len(match) > 1 {
+				chartData["config"] = match[1]
+			}
 
-	// Report content
-	content.WriteString("/F1 12 Tf\n")
-	content.WriteString("0 -40 Td\n")
-	content.WriteString("(Analytics Summary:) Tj\n")
+			charts = append(charts, chartData)
+		}
+	}
 
-	content.WriteString("0 -20 Td\n")
-	content.WriteString(fmt.Sprintf("(Total Events: %s) Tj\n", data["total_events"]))
+	// Extract data from script tags
+	scriptPattern := regexp.MustCompile(`(?s)<script[^>]*>(.*?)</script>`)
+	scriptMatches := scriptPattern.FindAllStringSubmatch(htmlContent, -1)
 
-	content.WriteString("0 -15 Td\n")
-	content.WriteString(fmt.Sprintf("(Total Users: %s) Tj\n", data["total_users"]))
+	for _, scriptMatch := range scriptMatches {
+		scriptContent := scriptMatch[1]
 
-	content.WriteString("0 -15 Td\n")
-	content.WriteString(fmt.Sprintf("(Date Range: %s) Tj\n", data["date_range"]))
+		// Look for data arrays
+		dataPattern := regexp.MustCompile(`(?s)(?:data|values|series)\s*:\s*(\[[^\]]+\])`)
+		dataMatches := dataPattern.FindAllStringSubmatch(scriptContent, -1)
 
-	// Footer
-	content.WriteString("0 -50 Td\n")
-	content.WriteString("/F1 8 Tf\n")
-	content.WriteString("(This report was generated automatically by the Goravel Calendar Analytics system.) Tj\n")
-	content.WriteString("0 -12 Td\n")
-	content.WriteString("(For more detailed analytics, please use the JSON export format.) Tj\n")
+		for _, dataMatch := range dataMatches {
+			chartData := map[string]interface{}{
+				"type": "script_data",
+				"data": dataMatch[1],
+			}
+			charts = append(charts, chartData)
+		}
+	}
 
-	content.WriteString("ET\n")
+	return charts
+}
 
-	return content.String()
+// extractStatistics extracts statistical data from HTML content
+func (c *CalendarAnalyticsController) extractStatistics(htmlContent string) map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	// Common statistical patterns
+	statPatterns := map[string]*regexp.Regexp{
+		"percentage": regexp.MustCompile(`(\d+(?:\.\d+)?)\s*%`),
+		"count":      regexp.MustCompile(`(?i)count\s*:?\s*(\d+)`),
+		"average":    regexp.MustCompile(`(?i)(?:average|avg|mean)\s*:?\s*(\d+(?:\.\d+)?)`),
+		"total":      regexp.MustCompile(`(?i)total\s*:?\s*(\d+(?:\.\d+)?)`),
+		"maximum":    regexp.MustCompile(`(?i)(?:maximum|max)\s*:?\s*(\d+(?:\.\d+)?)`),
+		"minimum":    regexp.MustCompile(`(?i)(?:minimum|min)\s*:?\s*(\d+(?:\.\d+)?)`),
+		"duration":   regexp.MustCompile(`(\d+)\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)`),
+		"growth":     regexp.MustCompile(`(?i)growth\s*:?\s*([+-]?\d+(?:\.\d+)?)\s*%?`),
+		"attendance": regexp.MustCompile(`(?i)attendance\s*:?\s*(\d+(?:\.\d+)?)\s*%?`),
+	}
+
+	for statType, pattern := range statPatterns {
+		matches := pattern.FindAllStringSubmatch(htmlContent, -1)
+		if len(matches) > 0 {
+			var values []string
+			for _, match := range matches {
+				if len(match) > 1 {
+					values = append(values, match[1])
+				}
+			}
+			if len(values) > 0 {
+				if len(values) == 1 {
+					stats[statType] = values[0]
+				} else {
+					stats[statType] = values
+				}
+			}
+		}
+	}
+
+	// Extract key-value pairs from definition lists
+	dlPattern := regexp.MustCompile(`(?s)<dl[^>]*>(.*?)</dl>`)
+	dtPattern := regexp.MustCompile(`(?s)<dt[^>]*>(.*?)</dt>`)
+	ddPattern := regexp.MustCompile(`(?s)<dd[^>]*>(.*?)</dd>`)
+
+	dlMatches := dlPattern.FindAllStringSubmatch(htmlContent, -1)
+	for _, dlMatch := range dlMatches {
+		dlContent := dlMatch[1]
+		dtMatches := dtPattern.FindAllStringSubmatch(dlContent, -1)
+		ddMatches := ddPattern.FindAllStringSubmatch(dlContent, -1)
+
+		if len(dtMatches) == len(ddMatches) {
+			for i := 0; i < len(dtMatches); i++ {
+				key := c.stripHTMLTags(dtMatches[i][1])
+				value := c.stripHTMLTags(ddMatches[i][1])
+				stats[strings.ToLower(strings.ReplaceAll(key, " ", "_"))] = strings.TrimSpace(value)
+			}
+		}
+	}
+
+	return stats
+}
+
+// extractMetadata extracts metadata from HTML head section
+func (c *CalendarAnalyticsController) extractMetadata(htmlContent string) map[string]string {
+	metadata := make(map[string]string)
+
+	// Extract title
+	titlePattern := regexp.MustCompile(`(?s)<title[^>]*>(.*?)</title>`)
+	if titleMatch := titlePattern.FindStringSubmatch(htmlContent); len(titleMatch) > 1 {
+		metadata["title"] = c.stripHTMLTags(titleMatch[1])
+	}
+
+	// Extract meta tags
+	metaPattern := regexp.MustCompile(`<meta\s+([^>]+)>`)
+	metaMatches := metaPattern.FindAllStringSubmatch(htmlContent, -1)
+
+	for _, metaMatch := range metaMatches {
+		metaTag := metaMatch[1]
+
+		// Extract name and content attributes
+		namePattern := regexp.MustCompile(`name\s*=\s*["']([^"']+)["']`)
+		contentPattern := regexp.MustCompile(`content\s*=\s*["']([^"']+)["']`)
+
+		nameMatch := namePattern.FindStringSubmatch(metaTag)
+		contentMatch := contentPattern.FindStringSubmatch(metaTag)
+
+		if len(nameMatch) > 1 && len(contentMatch) > 1 {
+			metadata[nameMatch[1]] = contentMatch[1]
+		}
+
+		// Extract property and content attributes (for Open Graph, etc.)
+		propertyPattern := regexp.MustCompile(`property\s*=\s*["']([^"']+)["']`)
+		propertyMatch := propertyPattern.FindStringSubmatch(metaTag)
+
+		if len(propertyMatch) > 1 && len(contentMatch) > 1 {
+			metadata[propertyMatch[1]] = contentMatch[1]
+		}
+	}
+
+	// Extract charset
+	charsetPattern := regexp.MustCompile(`charset\s*=\s*["']?([^"'\s>]+)`)
+	if charsetMatch := charsetPattern.FindStringSubmatch(htmlContent); len(charsetMatch) > 1 {
+		metadata["charset"] = charsetMatch[1]
+	}
+
+	return metadata
+}
+
+// stripHTMLTags removes HTML tags from text
+func (c *CalendarAnalyticsController) stripHTMLTags(html string) string {
+	// Remove HTML tags
+	tagPattern := regexp.MustCompile(`<[^>]*>`)
+	text := tagPattern.ReplaceAllString(html, "")
+
+	// Decode common HTML entities
+	entities := map[string]string{
+		"&amp;":   "&",
+		"&lt;":    "<",
+		"&gt;":    ">",
+		"&quot;":  "\"",
+		"&apos;":  "'",
+		"&nbsp;":  " ",
+		"&copy;":  "©",
+		"&reg;":   "®",
+		"&trade;": "™",
+	}
+
+	for entity, replacement := range entities {
+		text = strings.ReplaceAll(text, entity, replacement)
+	}
+
+	// Clean up whitespace
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+
+	return strings.TrimSpace(text)
 }

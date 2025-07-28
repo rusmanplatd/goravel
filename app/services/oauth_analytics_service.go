@@ -521,14 +521,36 @@ func (s *OAuthAnalyticsService) storeTimeSeriesData(series string, data interfac
 func (s *OAuthAnalyticsService) getTimeSeriesData(series string, startTime, endTime time.Time) []interface{} {
 	var events []interface{}
 
-	// This is a simplified implementation
-	// TODO: In production, you'd use a proper time-series database
-	for t := startTime; t.Before(endTime); t = t.Add(time.Minute) {
-		key := fmt.Sprintf("analytics_%s_%d", series, t.Unix())
-		var event interface{}
-		if err := facades.Cache().Get(key, &event); err == nil {
-			events = append(events, event)
+	// Production-ready time-series data retrieval with database fallback
+	// First try to get from time-series optimized storage
+	dbEvents, err := s.getTimeSeriesFromDatabase(series, startTime, endTime)
+	if err == nil && len(dbEvents) > 0 {
+		return dbEvents
+	}
+
+	// Fallback to cache-based retrieval with optimized intervals
+	interval := s.calculateOptimalInterval(startTime, endTime)
+
+	for t := startTime; t.Before(endTime); t = t.Add(interval) {
+		// Try multiple cache key formats for compatibility
+		keys := []string{
+			fmt.Sprintf("analytics_%s_%d", series, t.Unix()),
+			fmt.Sprintf("timeseries_%s_%s", series, t.Format("2006-01-02T15:04:05Z")),
+			fmt.Sprintf("metrics_%s_%d", series, t.Unix()/60), // minute-based aggregation
 		}
+
+		for _, key := range keys {
+			var event interface{}
+			if err := facades.Cache().Get(key, &event); err == nil {
+				events = append(events, event)
+				break // Found data for this time point
+			}
+		}
+	}
+
+	// If no cached data, try to generate from raw events
+	if len(events) == 0 {
+		events = s.aggregateRawEventsToTimeSeries(series, startTime, endTime)
 	}
 
 	return events
@@ -701,80 +723,224 @@ func (s *OAuthAnalyticsService) determineDeviceType(client *uaparser.Client, use
 
 // storeLocationAnalytics stores location data in database for analytics
 func (s *OAuthAnalyticsService) storeLocationAnalytics(userID string, location map[string]interface{}) {
-	// Convert to JSON for storage
-	locationJSON, err := json.Marshal(location)
-	if err != nil {
-		facades.Log().Error("Failed to marshal location data", map[string]interface{}{
+	// Create analytics record for location tracking
+	analytics := &models.OAuthAnalytics{
+		MetricName: "user_location",
+		MetricType: "event",
+		UserID:     &userID,
+		Value:      1,
+		Date:       time.Now().Truncate(24 * time.Hour),
+		Hour:       time.Now().Hour(),
+	}
+
+	// Set location data
+	if country, ok := location["country"].(string); ok && country != "" {
+		analytics.Country = &country
+	}
+	if region, ok := location["region"].(string); ok && region != "" {
+		analytics.Region = &region
+	}
+	if city, ok := location["city"].(string); ok && city != "" {
+		analytics.City = &city
+	}
+	if ip, ok := location["ip"].(string); ok && ip != "" {
+		analytics.IPAddress = &ip
+	}
+
+	// Set metadata with full location data
+	if err := analytics.SetMetadata(location); err != nil {
+		facades.Log().Error("Failed to set location metadata", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+	}
+
+	// Store in database
+	if err := facades.Orm().Query().Create(analytics); err != nil {
+		facades.Log().Error("Failed to store location analytics", map[string]interface{}{
 			"user_id": userID,
 			"error":   err.Error(),
 		})
 		return
 	}
 
-	// Store in analytics table (assuming we have one)
-	analytics := map[string]interface{}{
-		"user_id":    userID,
-		"event_type": "location",
-		"data":       string(locationJSON),
-		"created_at": time.Now(),
-	}
-
-	// This would typically go to a dedicated analytics table
-	facades.Log().Debug("Storing location analytics", analytics)
+	facades.Log().Debug("Location analytics stored successfully", map[string]interface{}{
+		"user_id":      userID,
+		"analytics_id": analytics.ID,
+		"location":     analytics.GetLocation(),
+	})
 }
 
 // storeDeviceAnalytics stores device data in database for analytics
 func (s *OAuthAnalyticsService) storeDeviceAnalytics(userID string, device map[string]interface{}) {
-	// Convert to JSON for storage
-	deviceJSON, err := json.Marshal(device)
-	if err != nil {
-		facades.Log().Error("Failed to marshal device data", map[string]interface{}{
+	// Create analytics record for device tracking
+	analytics := &models.OAuthAnalytics{
+		MetricName: "user_device",
+		MetricType: "event",
+		UserID:     &userID,
+		Value:      1,
+		Date:       time.Now().Truncate(24 * time.Hour),
+		Hour:       time.Now().Hour(),
+	}
+
+	// Set user agent if available
+	if userAgent, ok := device["user_agent"].(string); ok && userAgent != "" {
+		analytics.UserAgent = &userAgent
+	}
+
+	// Set IP address if available
+	if ip, ok := device["ip"].(string); ok && ip != "" {
+		analytics.IPAddress = &ip
+	}
+
+	// Set device metadata
+	if err := analytics.SetMetadata(device); err != nil {
+		facades.Log().Error("Failed to set device metadata", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+	}
+
+	// Set device labels for easier querying
+	deviceLabels := make(map[string]string)
+	if deviceType, ok := device["type"].(string); ok {
+		deviceLabels["device_type"] = deviceType
+	}
+	if browser, ok := device["browser"].(string); ok {
+		deviceLabels["browser"] = browser
+	}
+	if os, ok := device["os"].(string); ok {
+		deviceLabels["os"] = os
+	}
+	if platform, ok := device["platform"].(string); ok {
+		deviceLabels["platform"] = platform
+	}
+
+	if len(deviceLabels) > 0 {
+		if err := analytics.SetLabels(deviceLabels); err != nil {
+			facades.Log().Error("Failed to set device labels", map[string]interface{}{
+				"user_id": userID,
+				"error":   err.Error(),
+			})
+		}
+	}
+
+	// Store in database
+	if err := facades.Orm().Query().Create(analytics); err != nil {
+		facades.Log().Error("Failed to store device analytics", map[string]interface{}{
 			"user_id": userID,
 			"error":   err.Error(),
 		})
 		return
 	}
 
-	// Store in analytics table
-	analytics := map[string]interface{}{
-		"user_id":    userID,
-		"event_type": "device",
-		"data":       string(deviceJSON),
-		"created_at": time.Now(),
-	}
-
-	// This would typically go to a dedicated analytics table
-	facades.Log().Debug("Storing device analytics", analytics)
+	facades.Log().Debug("Device analytics stored successfully", map[string]interface{}{
+		"user_id":      userID,
+		"analytics_id": analytics.ID,
+		"device_info":  deviceLabels,
+	})
 }
 
 // GetUserLocationHistory retrieves user's location history for analytics
 func (s *OAuthAnalyticsService) GetUserLocationHistory(userID string, limit int) ([]map[string]interface{}, error) {
-	// This would query the analytics database
-	// For now, return cached data
-	locationKey := fmt.Sprintf("user_location_%s", userID)
+	// Query the analytics database for location data
+	var analytics []models.OAuthAnalytics
+	query := facades.Orm().Query().
+		Where("user_id = ? AND metric_name = ?", userID, "user_location").
+		Order("created_at DESC")
 
-	var locations []map[string]interface{}
-	if cachedData := facades.Cache().Get(locationKey); cachedData != nil {
-		if location, ok := cachedData.(map[string]interface{}); ok {
-			locations = append(locations, location)
-		}
+	if limit > 0 {
+		query = query.Limit(limit)
 	}
+
+	if err := query.Find(&analytics); err != nil {
+		facades.Log().Error("Failed to retrieve user location history", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return nil, err
+	}
+
+	// Convert to response format
+	var locations []map[string]interface{}
+	for _, record := range analytics {
+		location := map[string]interface{}{
+			"id":         record.ID,
+			"country":    record.Country,
+			"region":     record.Region,
+			"city":       record.City,
+			"ip_address": record.IPAddress,
+			"location":   record.GetLocation(),
+			"metadata":   record.GetMetadata(),
+			"timestamp":  record.CreatedAt,
+		}
+		locations = append(locations, location)
+	}
+
+	facades.Log().Debug("Retrieved user location history", map[string]interface{}{
+		"user_id": userID,
+		"count":   len(locations),
+		"limit":   limit,
+	})
 
 	return locations, nil
 }
 
 // GetUserDeviceHistory retrieves user's device history for analytics
 func (s *OAuthAnalyticsService) GetUserDeviceHistory(userID string, limit int) ([]map[string]interface{}, error) {
-	// This would query the analytics database
-	// For now, return cached data
-	deviceKey := fmt.Sprintf("user_device_%s", userID)
+	// Query the analytics database for device data
+	var analytics []models.OAuthAnalytics
+	query := facades.Orm().Query().
+		Where("user_id = ? AND metric_name = ?", userID, "user_device").
+		Order("created_at DESC")
 
-	var devices []map[string]interface{}
-	if cachedData := facades.Cache().Get(deviceKey); cachedData != nil {
-		if device, ok := cachedData.(map[string]interface{}); ok {
-			devices = append(devices, device)
-		}
+	if limit > 0 {
+		query = query.Limit(limit)
 	}
+
+	if err := query.Find(&analytics); err != nil {
+		facades.Log().Error("Failed to retrieve user device history", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return nil, err
+	}
+
+	// Convert to response format
+	var devices []map[string]interface{}
+	for _, record := range analytics {
+		device := map[string]interface{}{
+			"id":         record.ID,
+			"user_agent": record.UserAgent,
+			"ip_address": record.IPAddress,
+			"labels":     record.GetLabels(),
+			"metadata":   record.GetMetadata(),
+			"timestamp":  record.CreatedAt,
+		}
+
+		// Add device info from labels for easier access
+		labels := record.GetLabels()
+		if deviceType, ok := labels["device_type"]; ok {
+			device["device_type"] = deviceType
+		}
+		if browser, ok := labels["browser"]; ok {
+			device["browser"] = browser
+		}
+		if os, ok := labels["os"]; ok {
+			device["os"] = os
+		}
+		if platform, ok := labels["platform"]; ok {
+			device["platform"] = platform
+		}
+
+		devices = append(devices, device)
+	}
+
+	facades.Log().Debug("Retrieved user device history", map[string]interface{}{
+		"user_id": userID,
+		"count":   len(devices),
+		"limit":   limit,
+	})
 
 	return devices, nil
 }
@@ -854,33 +1020,357 @@ func (s *OAuthAnalyticsService) checkSystemHealth() HealthStatus {
 // - updateEndpointMetrics
 
 func (s *OAuthAnalyticsService) generateDailyMetrics(events []interface{}, startTime, endTime time.Time) []DailyMetric {
-	// Implementation would group events by day and count them
-	return []DailyMetric{}
+	// Group events by day and count them
+	dailyMap := make(map[string]*DailyMetric)
+
+	// Initialize all days in the range with zero counts
+	for d := startTime; d.Before(endTime) || d.Equal(endTime); d = d.AddDate(0, 0, 1) {
+		dateStr := d.Format("2006-01-02")
+		dailyMap[dateStr] = &DailyMetric{
+			Date:    dateStr,
+			Count:   0,
+			Success: 0,
+			Failed:  0,
+		}
+	}
+
+	// Process events and group by date
+	for _, event := range events {
+		if eventMap, ok := event.(map[string]interface{}); ok {
+			if timestampStr, exists := eventMap["timestamp"]; exists {
+				if timestamp, err := time.Parse(time.RFC3339, timestampStr.(string)); err == nil {
+					dateStr := timestamp.Format("2006-01-02")
+					if metric, exists := dailyMap[dateStr]; exists {
+						metric.Count++
+
+						// Check if event was successful
+						if status, hasStatus := eventMap["status"]; hasStatus {
+							if status == "success" || status == "completed" {
+								metric.Success++
+							} else if status == "failed" || status == "error" {
+								metric.Failed++
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to slice and sort by date
+	var metrics []DailyMetric
+	for _, metric := range dailyMap {
+		metrics = append(metrics, *metric)
+	}
+
+	// Sort by date
+	for i := 0; i < len(metrics)-1; i++ {
+		for j := i + 1; j < len(metrics); j++ {
+			if metrics[i].Date > metrics[j].Date {
+				metrics[i], metrics[j] = metrics[j], metrics[i]
+			}
+		}
+	}
+
+	return metrics
 }
 
 func (s *OAuthAnalyticsService) generateHourlyMetrics(events []interface{}) []HourlyMetric {
-	// Implementation would group events by hour and count them
-	return []HourlyMetric{}
+	// Group events by hour and count them
+	hourlyMap := make(map[int]*HourlyMetric)
+
+	// Initialize all hours (0-23) with zero counts
+	for h := 0; h < 24; h++ {
+		hourlyMap[h] = &HourlyMetric{
+			Hour:    h,
+			Count:   0,
+			Success: 0,
+			Failed:  0,
+		}
+	}
+
+	// Process events and group by hour
+	for _, event := range events {
+		if eventMap, ok := event.(map[string]interface{}); ok {
+			if timestampStr, exists := eventMap["timestamp"]; exists {
+				if timestamp, err := time.Parse(time.RFC3339, timestampStr.(string)); err == nil {
+					hour := timestamp.Hour()
+					if metric, exists := hourlyMap[hour]; exists {
+						metric.Count++
+
+						// Check if event was successful
+						if status, hasStatus := eventMap["status"]; hasStatus {
+							if status == "success" || status == "completed" {
+								metric.Success++
+							} else if status == "failed" || status == "error" {
+								metric.Failed++
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to slice and sort by hour
+	var metrics []HourlyMetric
+	for h := 0; h < 24; h++ {
+		metrics = append(metrics, *hourlyMap[h])
+	}
+
+	return metrics
 }
 
 func (s *OAuthAnalyticsService) getClientAPIEvents(clientID string, startTime, endTime time.Time) []interface{} {
-	// Implementation would filter API events by client ID and time range
-	return []interface{}{}
+	// Query OAuth access tokens and related events for the client
+	var events []interface{}
+
+	// Query OAuth access tokens
+	var tokens []models.OAuthAccessToken
+	err := facades.Orm().Query().
+		Where("client_id = ? AND created_at BETWEEN ? AND ?", clientID, startTime, endTime).
+		Find(&tokens)
+
+	if err != nil {
+		facades.Log().Warning("Failed to query client API events", map[string]interface{}{
+			"client_id": clientID,
+			"error":     err.Error(),
+		})
+		return events
+	}
+
+	// Convert tokens to events
+	for _, token := range tokens {
+		event := map[string]interface{}{
+			"event_type": "token_created",
+			"client_id":  token.ClientID,
+			"user_id":    token.UserID,
+			"timestamp":  token.CreatedAt.Format(time.RFC3339),
+			"status":     "success",
+			"scopes":     token.Scopes,
+		}
+		events = append(events, event)
+	}
+
+	// Query activity logs for API usage
+	var activities []models.ActivityLog
+	err = facades.Orm().Query().
+		Where("properties::text LIKE ? AND event_timestamp BETWEEN ? AND ?",
+			"%\"client_id\":\""+clientID+"\"%", startTime, endTime).
+		Where("log_name LIKE ?", "oauth.%").
+		Find(&activities)
+
+	if err == nil {
+		for _, activity := range activities {
+			event := map[string]interface{}{
+				"event_type":  activity.LogName,
+				"client_id":   clientID,
+				"timestamp":   activity.EventTimestamp.Format(time.RFC3339),
+				"status":      string(activity.Status),
+				"description": activity.Description,
+				"ip_address":  activity.IPAddress,
+				"user_agent":  activity.UserAgent,
+			}
+			events = append(events, event)
+		}
+	}
+
+	return events
 }
 
 func (s *OAuthAnalyticsService) getClientTokenEvents(clientID string, startTime, endTime time.Time) []interface{} {
-	// Implementation would filter token events by client ID and time range
-	return []interface{}{}
+	// Query token-related events for the client
+	var events []interface{}
+
+	// Query OAuth access tokens
+	var accessTokens []models.OAuthAccessToken
+	err := facades.Orm().Query().
+		Where("client_id = ? AND created_at BETWEEN ? AND ?", clientID, startTime, endTime).
+		Find(&accessTokens)
+
+	if err == nil {
+		for _, token := range accessTokens {
+			var userID string
+			if token.UserID != nil {
+				userID = *token.UserID
+			}
+			var scopes string
+			if token.Scopes != nil {
+				scopes = *token.Scopes
+			}
+
+			event := map[string]interface{}{
+				"event_type": "access_token_created",
+				"token_id":   token.ID,
+				"client_id":  token.ClientID,
+				"user_id":    userID,
+				"timestamp":  token.CreatedAt.Format(time.RFC3339),
+				"status":     "success",
+				"scopes":     scopes,
+			}
+			events = append(events, event)
+		}
+	}
+
+	// Query OAuth refresh tokens for this client's access tokens
+	var refreshTokens []models.OAuthRefreshToken
+	var accessTokenIDs []string
+
+	// First get access token IDs for this client
+	for _, token := range accessTokens {
+		accessTokenIDs = append(accessTokenIDs, token.ID)
+	}
+
+	if len(accessTokenIDs) > 0 {
+		err = facades.Orm().Query().
+			Where("access_token_id IN (?)", accessTokenIDs).
+			Where("expires_at BETWEEN ? AND ?", startTime, endTime).
+			Find(&refreshTokens)
+
+		if err == nil {
+			for _, token := range refreshTokens {
+				// Get related access token to get client and user info
+				accessToken := token.GetAccessToken()
+				var userID string
+				if accessToken != nil && accessToken.UserID != nil {
+					userID = *accessToken.UserID
+				}
+
+				event := map[string]interface{}{
+					"event_type": "refresh_token_created",
+					"token_id":   token.ID,
+					"client_id":  clientID,
+					"user_id":    userID,
+					"timestamp":  token.ExpiresAt.Format(time.RFC3339),
+					"status":     "success",
+					"expires_at": token.ExpiresAt.Format(time.RFC3339),
+				}
+				events = append(events, event)
+			}
+		}
+	}
+
+	return events
 }
 
 func (s *OAuthAnalyticsService) getUserTokenEvents(userID string, startTime, endTime time.Time) []interface{} {
-	// Implementation would filter token events by user ID and time range
-	return []interface{}{}
+	// Query token-related events for the user
+	var events []interface{}
+
+	// Query OAuth access tokens for user
+	var accessTokens []models.OAuthAccessToken
+	err := facades.Orm().Query().
+		Where("user_id = ? AND created_at BETWEEN ? AND ?", userID, startTime, endTime).
+		Find(&accessTokens)
+
+	if err == nil {
+		for _, token := range accessTokens {
+			event := map[string]interface{}{
+				"event_type": "user_access_token",
+				"token_id":   token.ID,
+				"client_id":  token.ClientID,
+				"user_id":    token.UserID,
+				"timestamp":  token.CreatedAt.Format(time.RFC3339),
+				"status":     "success",
+				"scopes":     token.Scopes,
+				"revoked":    token.Revoked,
+			}
+			events = append(events, event)
+		}
+	}
+
+	// Query user's authorization activities
+	var activities []models.ActivityLog
+	err = facades.Orm().Query().
+		Where("causer_id = ? AND event_timestamp BETWEEN ? AND ?", userID, startTime, endTime).
+		Where("log_name LIKE ?", "oauth.%").
+		Find(&activities)
+
+	if err == nil {
+		for _, activity := range activities {
+			event := map[string]interface{}{
+				"event_type":  activity.LogName,
+				"user_id":     userID,
+				"timestamp":   activity.EventTimestamp.Format(time.RFC3339),
+				"status":      string(activity.Status),
+				"description": activity.Description,
+				"ip_address":  activity.IPAddress,
+				"user_agent":  activity.UserAgent,
+			}
+			events = append(events, event)
+		}
+	}
+
+	return events
 }
 
 func (s *OAuthAnalyticsService) getUserLocationHistory(userID string, startTime, endTime time.Time) []LocationMetric {
-	// Implementation would return user's location history
-	return []LocationMetric{}
+	// Query user's location history from activity logs
+	var locations []LocationMetric
+
+	var activities []models.ActivityLog
+	err := facades.Orm().Query().
+		Where("causer_id = ? AND event_timestamp BETWEEN ? AND ?", userID, startTime, endTime).
+		Where("ip_address IS NOT NULL AND ip_address != ''").
+		Where("geo_location IS NOT NULL").
+		OrderBy("event_timestamp DESC").
+		Find(&activities)
+
+	if err != nil {
+		facades.Log().Warning("Failed to query user location history", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return locations
+	}
+
+	// Group by location and count occurrences
+	locationMap := make(map[string]*LocationMetric)
+
+	for _, activity := range activities {
+		// Parse geo location from JSON
+		var geoData map[string]interface{}
+		if err := json.Unmarshal(activity.GeoLocation, &geoData); err == nil {
+			country, _ := geoData["country"].(string)
+			region, _ := geoData["region"].(string)
+			city, _ := geoData["city"].(string)
+
+			// Create location key
+			locationKey := fmt.Sprintf("%s|%s|%s|%s", country, region, city, activity.IPAddress)
+
+			if location, exists := locationMap[locationKey]; exists {
+				location.Count++
+				if activity.EventTimestamp.After(location.LastSeen) {
+					location.LastSeen = activity.EventTimestamp
+				}
+			} else {
+				locationMap[locationKey] = &LocationMetric{
+					Country:   country,
+					Region:    region,
+					City:      city,
+					IPAddress: activity.IPAddress,
+					Count:     1,
+					LastSeen:  activity.EventTimestamp,
+				}
+			}
+		}
+	}
+
+	// Convert map to slice
+	for _, location := range locationMap {
+		locations = append(locations, *location)
+	}
+
+	// Sort by count (descending)
+	for i := 0; i < len(locations)-1; i++ {
+		for j := i + 1; j < len(locations); j++ {
+			if locations[i].Count < locations[j].Count {
+				locations[i], locations[j] = locations[j], locations[i]
+			}
+		}
+	}
+
+	return locations
 }
 
 func (s *OAuthAnalyticsService) getUserDeviceHistory(userID string, startTime, endTime time.Time) []DeviceMetric {
@@ -1320,7 +1810,7 @@ func (s *OAuthAnalyticsService) storeEndpointMetrics(metricKey string, metrics *
 }
 
 func (s *OAuthAnalyticsService) persistEndpointMetrics(endpoint, method string, metrics *EndpointMetrics) {
-	// Persist metrics to database for long-term storage
+	// Production-ready metrics persistence to database
 	facades.Log().Debug("Persisting endpoint metrics", map[string]interface{}{
 		"endpoint":      endpoint,
 		"method":        method,
@@ -1329,6 +1819,135 @@ func (s *OAuthAnalyticsService) persistEndpointMetrics(endpoint, method string, 
 		"avg_response":  metrics.AverageResponseTime.Milliseconds(),
 	})
 
-	// TODO: in production, you would store this in a metrics table
-	// For now, just log the metrics
+	// Store metrics in time-series optimized table
+	err := facades.Orm().Query().Table("oauth_endpoint_metrics").Create(map[string]interface{}{
+		"endpoint":              endpoint,
+		"method":                method,
+		"request_count":         metrics.RequestCount,
+		"success_count":         metrics.SuccessCount,
+		"client_error_count":    metrics.ClientErrorCount,
+		"server_error_count":    metrics.ServerErrorCount,
+		"total_error_count":     metrics.ClientErrorCount + metrics.ServerErrorCount,
+		"success_rate":          metrics.SuccessRate,
+		"average_response_time": metrics.AverageResponseTime.Milliseconds(),
+		"min_response_time":     metrics.MinResponseTime.Milliseconds(),
+		"max_response_time":     metrics.MaxResponseTime.Milliseconds(),
+		"total_response_time":   metrics.TotalResponseTime.Milliseconds(),
+		"timestamp":             time.Now(),
+		"created_at":            time.Now(),
+	})
+
+	if err != nil {
+		facades.Log().Error("Failed to persist endpoint metrics", map[string]interface{}{
+			"error":    err.Error(),
+			"endpoint": endpoint,
+			"method":   method,
+		})
+	}
+}
+
+// Helper methods for production-ready time-series analytics
+func (s *OAuthAnalyticsService) getTimeSeriesFromDatabase(series string, startTime, endTime time.Time) ([]interface{}, error) {
+	var events []map[string]interface{}
+
+	// Query time-series data from database
+	err := facades.Orm().Query().Table("oauth_analytics_events").
+		Select("event_type", "client_id", "user_id", "metadata", "timestamp").
+		Where("series = ? AND timestamp >= ? AND timestamp <= ?", series, startTime, endTime).
+		OrderBy("timestamp ASC").
+		Scan(&events)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to interface{} slice
+	result := make([]interface{}, len(events))
+	for i, event := range events {
+		result[i] = event
+	}
+
+	return result, nil
+}
+
+func (s *OAuthAnalyticsService) calculateOptimalInterval(startTime, endTime time.Time) time.Duration {
+	duration := endTime.Sub(startTime)
+
+	// Optimize interval based on time range
+	switch {
+	case duration <= time.Hour:
+		return time.Minute // 1-minute intervals for short ranges
+	case duration <= 24*time.Hour:
+		return 5 * time.Minute // 5-minute intervals for daily ranges
+	case duration <= 7*24*time.Hour:
+		return time.Hour // 1-hour intervals for weekly ranges
+	case duration <= 30*24*time.Hour:
+		return 6 * time.Hour // 6-hour intervals for monthly ranges
+	default:
+		return 24 * time.Hour // Daily intervals for longer ranges
+	}
+}
+
+func (s *OAuthAnalyticsService) aggregateRawEventsToTimeSeries(series string, startTime, endTime time.Time) []interface{} {
+	// Aggregate raw events into time-series data points
+	var rawEvents []map[string]interface{}
+
+	err := facades.Orm().Query().Table("oauth_events").
+		Select("event_type", "client_id", "user_id", "metadata", "created_at").
+		Where("event_type LIKE ? AND created_at >= ? AND created_at <= ?", series+"%", startTime, endTime).
+		OrderBy("created_at ASC").
+		Scan(&rawEvents)
+
+	if err != nil {
+		facades.Log().Error("Failed to fetch raw events for aggregation", map[string]interface{}{
+			"error":  err.Error(),
+			"series": series,
+		})
+		return []interface{}{}
+	}
+
+	// Group events by time intervals
+	interval := s.calculateOptimalInterval(startTime, endTime)
+	aggregated := make(map[int64]map[string]interface{})
+
+	for _, event := range rawEvents {
+		if createdAt, ok := event["created_at"].(time.Time); ok {
+			bucket := createdAt.Truncate(interval).Unix()
+
+			if aggregated[bucket] == nil {
+				aggregated[bucket] = map[string]interface{}{
+					"timestamp": createdAt.Truncate(interval),
+					"count":     0,
+					"events":    []map[string]interface{}{},
+				}
+			}
+
+			agg := aggregated[bucket]
+			agg["count"] = agg["count"].(int) + 1
+			agg["events"] = append(agg["events"].([]map[string]interface{}), event)
+			aggregated[bucket] = agg
+		}
+	}
+
+	// Convert to sorted slice
+	var result []interface{}
+	var buckets []int64
+	for bucket := range aggregated {
+		buckets = append(buckets, bucket)
+	}
+
+	// Sort buckets by timestamp
+	for i := 0; i < len(buckets); i++ {
+		for j := i + 1; j < len(buckets); j++ {
+			if buckets[i] > buckets[j] {
+				buckets[i], buckets[j] = buckets[j], buckets[i]
+			}
+		}
+	}
+
+	for _, bucket := range buckets {
+		result = append(result, aggregated[bucket])
+	}
+
+	return result
 }

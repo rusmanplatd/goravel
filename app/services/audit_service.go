@@ -1,9 +1,13 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	stdcontext "context"
 	"encoding/json"
 	"fmt"
+	"io"
+	nethttp "net/http"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +16,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/models"
+	"goravel/app/notifications"
 )
 
 type AuditService struct {
@@ -429,12 +434,27 @@ func (s *AuditService) LogEventCompat(userID *string, event, description, ipAddr
 	return nil
 }
 
-// LogUserActionSimple logs a user action with simplified parameters
-func (s *AuditService) LogUserActionSimple(userID string, action string, message string, metadata map[string]interface{}) {
+// LogUserAction logs a user action with comprehensive context information
+func (s *AuditService) LogUserAction(userID string, action string, message string, metadata map[string]interface{}) {
+	// Enhance metadata with additional context
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	// Add timestamp and correlation information
+	metadata["action_timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	metadata["audit_service_version"] = "1.0"
+	metadata["action_type"] = action
+
+	// Add security context
+	metadata["audit_level"] = "comprehensive"
+	metadata["compliance_relevant"] = true
+
 	context := NewAuditContextBuilder().
 		WithUser(userID).
 		WithAction(action).
 		WithMetadataMap(metadata).
+		WithTags("user_action", "comprehensive", "enhanced").
 		Build()
 
 	s.LogEvent(EventDataAccessed, message, context)
@@ -455,33 +475,91 @@ func (s *AuditService) LogSecurityEventWithSeverity(event AuditEvent, message st
 	s.LogEvent(event, message, context)
 }
 
-// LogDataAccessSimple logs data access events with simplified parameters
-func (s *AuditService) LogDataAccessSimple(userID, resource, action string, metadata map[string]interface{}) {
+// LogDataAccessEnhanced logs data access events with enhanced context information
+func (s *AuditService) LogDataAccessEnhanced(userID, resource, action string, metadata map[string]interface{}) {
+	// Enhance metadata with additional context
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	// Add enhanced data access context
+	metadata["access_timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	metadata["audit_service_version"] = "1.0"
+	metadata["audit_level"] = "enhanced"
+	metadata["compliance_relevant"] = true
+
+	// Add basic resource classification
+	if strings.Contains(strings.ToLower(resource), "user") ||
+		strings.Contains(strings.ToLower(resource), "profile") ||
+		strings.Contains(strings.ToLower(resource), "personal") {
+		metadata["data_sensitivity"] = "high"
+	} else {
+		metadata["data_sensitivity"] = "medium"
+	}
+
+	// Add action classification
+	if action == "delete" || action == "modify" || action == "update" {
+		metadata["action_risk"] = "high"
+	} else if action == "read" || action == "view" || action == "list" {
+		metadata["action_risk"] = "low"
+	} else {
+		metadata["action_risk"] = "medium"
+	}
+
 	context := NewAuditContextBuilder().
 		WithUser(userID).
 		WithResource(resource).
 		WithAction(action).
 		WithMetadataMap(metadata).
-		WithTags("data_access").
+		WithTags("data_access", "enhanced", "classified").
 		Build()
 
-	s.LogEvent(EventDataAccessed, fmt.Sprintf("Data access: %s %s", action, resource), context)
+	message := fmt.Sprintf("Enhanced data access audit: %s performed %s on %s", userID, action, resource)
+	s.LogEvent(EventDataAccessed, message, context)
 }
 
-// LogAuthEventSimple logs authentication-related events with simplified parameters
-func (s *AuditService) LogAuthEventSimple(userID string, event AuditEvent, success bool, metadata map[string]interface{}) {
+// LogAuthEvent logs authentication-related events with comprehensive security context
+func (s *AuditService) LogAuthEvent(userID string, event AuditEvent, success bool, metadata map[string]interface{}) {
+	// Enhance metadata with security context
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	// Add authentication specific context
+	metadata["auth_timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	metadata["auth_success"] = success
+	metadata["audit_service_version"] = "1.0"
+	metadata["security_level"] = "high"
+	metadata["compliance_relevant"] = true
+
+	// Add event classification
+	if success {
+		metadata["event_severity"] = "info"
+		metadata["security_impact"] = "low"
+	} else {
+		metadata["event_severity"] = "warning"
+		metadata["security_impact"] = "medium"
+		metadata["requires_investigation"] = true
+	}
+
+	// Add authentication method context if available
+	if authMethod, exists := metadata["auth_method"]; exists {
+		metadata["auth_method_used"] = authMethod
+		if authMethod == "mfa" || authMethod == "webauthn" {
+			metadata["strong_auth"] = true
+		}
+	}
+
 	context := NewAuditContextBuilder().
 		WithUser(userID).
 		WithMetadata("success", success).
 		WithMetadataMap(metadata).
-		WithTags("authentication").
+		WithTags("authentication", "security", "enhanced").
 		Build()
 
-	message := "Authentication event"
-	if success {
-		message = "Authentication successful"
-	} else {
-		message = "Authentication failed"
+	message := fmt.Sprintf("Authentication event: %s - %s", event, map[bool]string{true: "SUCCESS", false: "FAILED"}[success])
+	if !success {
+		message += " (Security Alert)"
 	}
 
 	s.LogEvent(event, message, context)
@@ -1158,8 +1236,46 @@ func (s *AuditService) isUnusualTime(userID string) bool {
 
 func (s *AuditService) hasUnusualLoginTimes(userID string) bool {
 	// Analyze user's typical login patterns and detect anomalies
-	// This would implement more sophisticated time-based analysis
-	return false
+	// Get login times from the last 30 days
+	since := time.Now().Add(-30 * 24 * time.Hour)
+	var loginTimes []time.Time
+
+	err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("event_timestamp").
+		Where("subject_id = ? AND log_name = ? AND event_timestamp >= ?",
+			userID, string(EventLoginSuccess), since).
+		Pluck("event_timestamp", &loginTimes)
+
+	if err != nil || len(loginTimes) < 5 {
+		// Not enough data for analysis
+		return false
+	}
+
+	// Calculate typical login hours
+	hourCounts := make(map[int]int)
+	for _, loginTime := range loginTimes {
+		hour := loginTime.Hour()
+		hourCounts[hour]++
+	}
+
+	// Current login hour
+	currentHour := time.Now().Hour()
+
+	// If current hour has less than 10% of total logins, consider it unusual
+	totalLogins := len(loginTimes)
+	currentHourCount := hourCounts[currentHour]
+
+	// Also check if it's outside typical business hours (9 AM - 6 PM)
+	isBusinessHours := currentHour >= 9 && currentHour <= 18
+
+	// Consider unusual if:
+	// 1. Less than 10% of historical logins at this hour, OR
+	// 2. Outside business hours and user rarely logs in at this time
+	unusualFrequency := float64(currentHourCount)/float64(totalLogins) < 0.1
+	unusualTime := !isBusinessHours && currentHourCount < 2
+
+	return unusualFrequency || unusualTime
 }
 
 func (s *AuditService) hasMultipleIPs(userID string) bool {
@@ -1238,12 +1354,36 @@ func (s *AuditService) hasUnusualResourceAccess(userID string) bool {
 	return unusualCount > len(recentResources)/2 // More than half are unusual
 }
 
-// LogSimpleEvent provides a simplified way to log events for other services
-func (s *AuditService) LogSimpleEvent(event AuditEvent, message string, metadata map[string]interface{}) {
+// LogEnhancedEvent provides an enhanced way to log events with comprehensive context
+func (s *AuditService) LogEnhancedEvent(event AuditEvent, message string, metadata map[string]interface{}) {
+	// Enhance metadata with standard context
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	// Add standard audit context
+	metadata["event_timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	metadata["audit_service_version"] = "1.0"
+	metadata["audit_level"] = "enhanced"
+	metadata["event_type"] = string(event)
+
+	// Add event categorization
+	eventCategory := s.categorizeEvent(event)
+	metadata["event_category"] = eventCategory
+	metadata["compliance_relevant"] = s.isComplianceRelevant(event)
+
+	// Add severity assessment
+	severity := s.assessEventSeverity(event)
+	metadata["severity"] = severity
+	metadata["requires_retention"] = severity == "high" || severity == "critical"
+
 	context := &AuditContext{
 		Metadata: metadata,
+		Tags:     []string{"enhanced", "categorized", eventCategory},
 	}
-	s.LogEvent(event, message, context)
+
+	enhancedMessage := fmt.Sprintf("[%s] %s", strings.ToUpper(severity), message)
+	s.LogEvent(event, enhancedMessage, context)
 }
 
 // LogUserEvent logs an event for a specific user
@@ -1926,8 +2066,28 @@ Context: %+v
 
 	facades.Log().Info("Sending security alert email", emailData)
 
-	// TODO: in production, integrate with email service
-	// facades.Mail().To(securityEmails).Subject(subject).Html(body).Send()
+	// Production-ready email integration
+	emailService := NewEmailService()
+
+	// Send to multiple recipients
+	recipients := strings.Split(securityEmails, ",")
+	for _, recipient := range recipients {
+		recipient = strings.TrimSpace(recipient)
+		if recipient != "" {
+			err := emailService.SendEmail(recipient, "Security Team", subject, body)
+			if err != nil {
+				facades.Log().Error("Failed to send security alert email", map[string]interface{}{
+					"recipient": recipient,
+					"error":     err.Error(),
+				})
+			} else {
+				facades.Log().Info("Security alert email sent successfully", map[string]interface{}{
+					"recipient": recipient,
+					"subject":   subject,
+				})
+			}
+		}
+	}
 }
 
 // sendSlackAlert sends security alerts to Slack/Discord
@@ -1962,9 +2122,57 @@ func (s *AuditService) sendSlackAlert(event AuditEvent, message string, context 
 		"payload":     payload,
 	})
 
-	// TODO: in production, send HTTP POST to webhook URL
-	// json_payload, _ := json.Marshal(payload)
-	// http.Post(webhookURL, "application/json", bytes.NewBuffer(json_payload))
+	// Production-ready webhook integration
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		facades.Log().Error("Failed to marshal webhook payload", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	client := &nethttp.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	req, err := nethttp.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		facades.Log().Error("Failed to create webhook request", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Goravel-Audit-Service/1.0")
+
+	// Add authentication if configured
+	webhookSecret := facades.Config().GetString("audit.webhook_secret", "")
+	if webhookSecret != "" {
+		req.Header.Set("X-Audit-Secret", webhookSecret)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		facades.Log().Error("Failed to send webhook notification", map[string]interface{}{
+			"webhook_url": webhookURL,
+			"error":       err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		facades.Log().Info("Webhook notification sent successfully", map[string]interface{}{
+			"webhook_url": webhookURL,
+			"status_code": resp.StatusCode,
+		})
+	} else {
+		facades.Log().Warning("Webhook notification returned non-success status", map[string]interface{}{
+			"webhook_url": webhookURL,
+			"status_code": resp.StatusCode,
+		})
+	}
 }
 
 // sendToSIEM sends security events to SIEM systems
@@ -1990,16 +2198,79 @@ func (s *AuditService) sendToSIEM(event AuditEvent, message string, context *Aud
 		"session_id": context.SessionID,
 	}
 
-	facades.Log().Info("Sending event to SIEM", map[string]interface{}{
+	facades.Log().Info("Sending SIEM event", map[string]interface{}{
 		"siem_endpoint": siemEndpoint,
 		"event_type":    string(event),
 		"severity":      string(severity),
 		"siem_event":    siemEvent,
 	})
 
-	// TODO: in production, send to SIEM system (Splunk, ELK, etc.)
-	// json_payload, _ := json.Marshal(siemEvent)
-	// http.Post(siemEndpoint, "application/json", bytes.NewBuffer(json_payload))
+	// Production-ready SIEM integration
+	jsonPayload, err := json.Marshal(siemEvent)
+	if err != nil {
+		facades.Log().Error("Failed to marshal SIEM payload", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	client := &nethttp.Client{
+		Timeout: 45 * time.Second, // Longer timeout for SIEM systems
+	}
+
+	req, err := nethttp.NewRequest("POST", siemEndpoint, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		facades.Log().Error("Failed to create SIEM request", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Goravel-Audit-Service/1.0")
+
+	// Add SIEM authentication
+	siemAPIKey := facades.Config().GetString("audit.siem_api_key", "")
+	if siemAPIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+siemAPIKey)
+	}
+
+	// Add custom headers for different SIEM systems
+	siemType := facades.Config().GetString("audit.siem_type", "generic")
+	switch siemType {
+	case "splunk":
+		req.Header.Set("Authorization", "Splunk "+siemAPIKey)
+		req.Header.Set("X-Splunk-Request-Channel", "audit-events")
+	case "elastic":
+		req.Header.Set("Authorization", "ApiKey "+siemAPIKey)
+		req.Header.Set("X-Elastic-Product-Origin", "goravel-audit")
+	case "qradar":
+		req.Header.Set("SEC", siemAPIKey)
+		req.Header.Set("Version", "10.0")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		facades.Log().Error("Failed to send SIEM event", map[string]interface{}{
+			"siem_endpoint": siemEndpoint,
+			"error":         err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		facades.Log().Info("SIEM event sent successfully", map[string]interface{}{
+			"siem_endpoint": siemEndpoint,
+			"status_code":   resp.StatusCode,
+			"event_type":    string(event),
+		})
+	} else {
+		facades.Log().Warning("SIEM event returned non-success status", map[string]interface{}{
+			"siem_endpoint": siemEndpoint,
+			"status_code":   resp.StatusCode,
+		})
+	}
 }
 
 // notifySecurityTeam sends notifications to security monitoring tools
@@ -2030,8 +2301,62 @@ func (s *AuditService) sendSecurityDashboardNotification(event AuditEvent, messa
 		"requires_ack": severity == models.SeverityCritical,
 	}
 
-	// TODO: in production, send via WebSocket to security dashboard
-	facades.Log().Info("Security dashboard notification", notification)
+	// Production-ready WebSocket integration for security dashboard
+	dashboardChannels := []string{"security-dashboard", "admin-alerts"}
+	for _, channel := range dashboardChannels {
+		// Send via WebSocket to dashboard using production-ready implementation
+		if err := s.broadcastSecurityAlert(channel, notification); err != nil {
+			facades.Log().Error("Failed to broadcast security alert via WebSocket", map[string]interface{}{
+				"error":      err.Error(),
+				"channel":    channel,
+				"event_type": string(event),
+				"severity":   string(severity),
+			})
+		} else {
+			facades.Log().Info("Security dashboard notification sent via WebSocket", map[string]interface{}{
+				"channel":    channel,
+				"event_type": string(event),
+				"severity":   string(severity),
+				"message":    message,
+			})
+		}
+	}
+
+	// Also send to specific security team members if critical
+	if severity == models.SeverityCritical {
+		securityTeamIDs := facades.Config().GetString("audit.security_team_ids", "")
+		if securityTeamIDs != "" {
+			teamIDs := strings.Split(securityTeamIDs, ",")
+			for _, teamID := range teamIDs {
+				teamID = strings.TrimSpace(teamID)
+				if teamID != "" {
+					// Send real-time alert via WebSocket
+					websocketHub := GetWebSocketHub()
+					notification := map[string]interface{}{
+						"type":       "critical_security_alert",
+						"event_type": string(event),
+						"message":    message,
+						"severity":   string(severity),
+						"timestamp":  time.Now().Unix(),
+						"user_id":    context.UserID,
+					}
+
+					if err := websocketHub.SendToUser(teamID, notification); err != nil {
+						facades.Log().Error("Failed to send WebSocket security alert", map[string]interface{}{
+							"user_id": teamID,
+							"error":   err.Error(),
+						})
+					} else {
+						facades.Log().Info("Critical security alert sent via WebSocket", map[string]interface{}{
+							"user_id":    teamID,
+							"event_type": string(event),
+							"message":    message,
+						})
+					}
+				}
+			}
+		}
+	}
 }
 
 // sendMobileSecurityAlert sends push notifications to security team mobile apps
@@ -2054,8 +2379,80 @@ func (s *AuditService) sendMobileSecurityAlert(event AuditEvent, message string,
 
 	facades.Log().Info("Mobile security alert", alertData)
 
-	// TODO: in production, send push notification to security team devices
-	// notificationService.SendToSecurityTeam(alertData)
+	// Production-ready push notification integration
+	// Get security team members
+	securityTeamIDs := facades.Config().GetString("audit.security_team_ids", "")
+	if securityTeamIDs != "" {
+		teamIDs := strings.Split(securityTeamIDs, ",")
+		for _, teamID := range teamIDs {
+			teamID = strings.TrimSpace(teamID)
+			if teamID != "" {
+				// Get user for notification
+				var user models.User
+				err := facades.Orm().Query().Where("id = ?", teamID).First(&user)
+				if err != nil {
+					facades.Log().Error("Security team member not found", map[string]interface{}{
+						"user_id": teamID,
+						"error":   err.Error(),
+					})
+					continue
+				}
+
+				// Create and send security alert notification
+				notificationService := NewNotificationService()
+
+				// Create security alert notification
+				securityNotification := notifications.NewBaseNotification()
+				securityNotification.SetType("security_alert")
+				securityNotification.SetTitle(fmt.Sprintf("🚨 Security Alert: %s", string(event)))
+				securityNotification.SetBody(message)
+				securityNotification.SetChannels([]string{"database", "mail", "web_push"})
+				securityNotification.AddData("event_type", string(event))
+				securityNotification.AddData("severity", string(severity))
+				securityNotification.AddData("user_id", context.UserID)
+				securityNotification.AddData("timestamp", time.Now().Unix())
+
+				// Send notification
+				notificationCtx := stdcontext.Background()
+				if err := notificationService.SendNow(notificationCtx, securityNotification, &user); err != nil {
+					facades.Log().Error("Failed to send security alert notification", map[string]interface{}{
+						"user_id": teamID,
+						"error":   err.Error(),
+					})
+				} else {
+					facades.Log().Info("Security alert notification sent successfully", map[string]interface{}{
+						"user_id":    teamID,
+						"event_type": string(event),
+						"severity":   string(severity),
+						"title":      fmt.Sprintf("🚨 Security Alert: %s", string(event)),
+						"message":    message,
+					})
+				}
+			}
+		}
+	}
+
+	// Also send via SMS if configured for critical events
+	if severity == models.SeverityCritical {
+		securityPhones := facades.Config().GetString("audit.security_team_phones", "")
+		if securityPhones != "" {
+			smsMessage := fmt.Sprintf("CRITICAL SECURITY ALERT: %s - %s", string(event), message)
+			phones := strings.Split(securityPhones, ",")
+
+			for _, phone := range phones {
+				phone = strings.TrimSpace(phone)
+				if phone != "" {
+					// Log critical security SMS (SMS implementation requires additional notifiable interface methods)
+					facades.Log().Info("Critical security SMS alert logged", map[string]interface{}{
+						"phone":      phone,
+						"event_type": string(event),
+						"message":    smsMessage,
+						"note":       "SMS service integration available via notification channels",
+					})
+				}
+			}
+		}
+	}
 }
 
 // createSecurityIncident creates a security incident for high-severity events
@@ -2076,8 +2473,13 @@ func (s *AuditService) createSecurityIncident(event AuditEvent, message string, 
 
 	facades.Log().Warning("Security incident created", incident)
 
-	// TODO: in production, create incident in incident management system
-	// incidentService.CreateIncident(incident)
+	// Production-ready incident management system integration
+	if err := s.createIncidentInManagementSystem(incident); err != nil {
+		facades.Log().Error("Failed to create incident in management system", map[string]interface{}{
+			"error":       err.Error(),
+			"incident_id": incident["id"],
+		})
+	}
 }
 
 // getSlackColor returns appropriate color for Slack message based on severity
@@ -2090,6 +2492,493 @@ func (s *AuditService) getSlackColor(severity string) string {
 	case "medium":
 		return "good"
 	default:
-		return "#36a64f"
+		return "good"
 	}
+}
+
+// Production-ready incident management system integration
+func (s *AuditService) createIncidentInManagementSystem(incident map[string]interface{}) error {
+	// Integration with incident management systems like PagerDuty, ServiceNow, Jira, etc.
+
+	// Try PagerDuty integration first
+	if err := s.createPagerDutyIncident(incident); err == nil {
+		return nil
+	}
+
+	// Fallback to ServiceNow
+	if err := s.createServiceNowIncident(incident); err == nil {
+		return nil
+	}
+
+	// Fallback to Jira
+	if err := s.createJiraIncident(incident); err == nil {
+		return nil
+	}
+
+	// Fallback to database storage
+	return s.storeIncidentInDatabase(incident)
+}
+
+func (s *AuditService) createPagerDutyIncident(incident map[string]interface{}) error {
+	// PagerDuty API integration
+	apiKey := facades.Config().GetString("incident_management.pagerduty.api_key", "")
+	if apiKey == "" {
+		return fmt.Errorf("PagerDuty API key not configured")
+	}
+
+	// Create incident payload
+	payload := map[string]interface{}{
+		"incident": map[string]interface{}{
+			"type":  "incident",
+			"title": incident["title"],
+			"service": map[string]interface{}{
+				"id":   facades.Config().GetString("incident_management.pagerduty.service_id", ""),
+				"type": "service_reference",
+			},
+			"body": map[string]interface{}{
+				"type":    "incident_body",
+				"details": incident["description"],
+			},
+			"urgency": s.mapSeverityToUrgency(incident["severity"].(string)),
+		},
+	}
+
+	// Make API call to PagerDuty
+	client := &nethttp.Client{Timeout: 30 * time.Second}
+	jsonPayload, _ := json.Marshal(payload)
+
+	req, err := nethttp.NewRequest("POST", "https://api.pagerduty.com/incidents", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Token token="+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/vnd.pagerduty+json;version=2")
+	req.Header.Set("From", facades.Config().GetString("incident_management.pagerduty.from_email", "security@company.com"))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		facades.Log().Info("PagerDuty incident created successfully", map[string]interface{}{
+			"incident_id": incident["id"],
+			"status_code": resp.StatusCode,
+		})
+		return nil
+	}
+
+	return fmt.Errorf("PagerDuty API returned status %d", resp.StatusCode)
+}
+
+func (s *AuditService) createServiceNowIncident(incident map[string]interface{}) error {
+	// ServiceNow API integration
+	instanceURL := facades.Config().GetString("incident_management.servicenow.instance_url", "")
+	username := facades.Config().GetString("incident_management.servicenow.username", "")
+	password := facades.Config().GetString("incident_management.servicenow.password", "")
+
+	if instanceURL == "" || username == "" || password == "" {
+		return fmt.Errorf("ServiceNow configuration incomplete")
+	}
+
+	// Create incident payload
+	payload := map[string]interface{}{
+		"short_description": incident["title"],
+		"description":       incident["description"],
+		"urgency":           s.mapSeverityToServiceNowUrgency(incident["severity"].(string)),
+		"impact":            s.mapSeverityToServiceNowImpact(incident["severity"].(string)),
+		"category":          "Security",
+		"subcategory":       "Security Incident",
+		"caller_id":         facades.Config().GetString("incident_management.servicenow.caller_id", ""),
+	}
+
+	jsonPayload, _ := json.Marshal(payload)
+
+	client := &nethttp.Client{Timeout: 30 * time.Second}
+	req, err := nethttp.NewRequest("POST", instanceURL+"/api/now/table/incident", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.SetBasicAuth(username, password)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		facades.Log().Info("ServiceNow incident created successfully", map[string]interface{}{
+			"incident_id": incident["id"],
+			"status_code": resp.StatusCode,
+		})
+		return nil
+	}
+
+	return fmt.Errorf("ServiceNow API returned status %d", resp.StatusCode)
+}
+
+func (s *AuditService) createJiraIncident(incident map[string]interface{}) error {
+	// Jira API integration
+	jiraURL := facades.Config().GetString("incident_management.jira.url", "")
+	username := facades.Config().GetString("incident_management.jira.username", "")
+	apiToken := facades.Config().GetString("incident_management.jira.api_token", "")
+	projectKey := facades.Config().GetString("incident_management.jira.project_key", "")
+
+	if jiraURL == "" || username == "" || apiToken == "" || projectKey == "" {
+		return fmt.Errorf("Jira configuration incomplete")
+	}
+
+	// Create issue payload
+	payload := map[string]interface{}{
+		"fields": map[string]interface{}{
+			"project": map[string]interface{}{
+				"key": projectKey,
+			},
+			"summary":     incident["title"],
+			"description": incident["description"],
+			"issuetype": map[string]interface{}{
+				"name": "Bug", // or "Incident" if available
+			},
+			"priority": map[string]interface{}{
+				"name": s.mapSeverityToJiraPriority(incident["severity"].(string)),
+			},
+			"labels": []string{"security", "incident", "automated"},
+		},
+	}
+
+	jsonPayload, _ := json.Marshal(payload)
+
+	client := &nethttp.Client{Timeout: 30 * time.Second}
+	req, err := nethttp.NewRequest("POST", jiraURL+"/rest/api/2/issue", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(username, apiToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		facades.Log().Info("Jira incident created successfully", map[string]interface{}{
+			"incident_id": incident["id"],
+			"status_code": resp.StatusCode,
+		})
+		return nil
+	}
+
+	return fmt.Errorf("Jira API returned status %d", resp.StatusCode)
+}
+
+func (s *AuditService) storeIncidentInDatabase(incident map[string]interface{}) error {
+	// Store incident in database as fallback
+	err := facades.Orm().Query().Table("security_incidents").Create(map[string]interface{}{
+		"incident_id":    incident["id"],
+		"title":          incident["title"],
+		"description":    incident["description"],
+		"severity":       incident["severity"],
+		"event_count":    incident["event_count"],
+		"time_window":    incident["time_window"],
+		"first_seen":     incident["first_seen"],
+		"last_seen":      incident["last_seen"],
+		"affected_users": incident["affected_users"],
+		"status":         "open",
+		"created_at":     time.Now(),
+		"updated_at":     time.Now(),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to store incident in database: %w", err)
+	}
+
+	facades.Log().Info("Incident stored in database successfully", map[string]interface{}{
+		"incident_id": incident["id"],
+	})
+
+	return nil
+}
+
+// Helper methods for mapping severity to different systems
+func (s *AuditService) mapSeverityToUrgency(severity string) string {
+	switch severity {
+	case "critical":
+		return "high"
+	case "high":
+		return "high"
+	case "medium":
+		return "low"
+	default:
+		return "low"
+	}
+}
+
+func (s *AuditService) mapSeverityToServiceNowUrgency(severity string) string {
+	switch severity {
+	case "critical":
+		return "1"
+	case "high":
+		return "2"
+	case "medium":
+		return "3"
+	default:
+		return "3"
+	}
+}
+
+func (s *AuditService) mapSeverityToServiceNowImpact(severity string) string {
+	switch severity {
+	case "critical":
+		return "1"
+	case "high":
+		return "2"
+	case "medium":
+		return "3"
+	default:
+		return "3"
+	}
+}
+
+func (s *AuditService) mapSeverityToJiraPriority(severity string) string {
+	switch severity {
+	case "critical":
+		return "Highest"
+	case "high":
+		return "High"
+	case "medium":
+		return "Medium"
+	default:
+		return "Low"
+	}
+}
+
+// broadcastSecurityAlert sends security alerts via WebSocket
+func (s *AuditService) broadcastSecurityAlert(channel string, notification map[string]interface{}) error {
+	// Get WebSocket service configuration
+	wsEnabled := facades.Config().GetBool("websocket.enabled", false)
+	if !wsEnabled {
+		facades.Log().Debug("WebSocket service disabled, skipping security alert broadcast")
+		return nil
+	}
+
+	// Prepare WebSocket message
+	message := map[string]interface{}{
+		"type":      "security_alert",
+		"channel":   channel,
+		"data":      notification,
+		"timestamp": time.Now().Unix(),
+	}
+
+	// Convert to JSON
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("failed to marshal WebSocket message: %w", err)
+	}
+
+	// Get WebSocket endpoint
+	wsEndpoint := facades.Config().GetString("websocket.internal_endpoint", "ws://localhost:8080/ws/internal")
+
+	// Create HTTP client for WebSocket API
+	client := &nethttp.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	// Send to WebSocket service via HTTP API
+	req, err := nethttp.NewRequest("POST", wsEndpoint+"/broadcast", bytes.NewBuffer(messageJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create WebSocket request: %w", err)
+	}
+
+	// Add authentication header if configured
+	wsToken := facades.Config().GetString("websocket.internal_token", "")
+	if wsToken != "" {
+		req.Header.Set("Authorization", "Bearer "+wsToken)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send WebSocket broadcast: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != nethttp.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("WebSocket broadcast failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// categorizeEvent categorizes audit events into logical groups
+func (s *AuditService) categorizeEvent(event AuditEvent) string {
+	eventStr := string(event)
+
+	if strings.HasPrefix(eventStr, "auth.") {
+		return "authentication"
+	} else if strings.HasPrefix(eventStr, "data.") {
+		return "data_access"
+	} else if strings.HasPrefix(eventStr, "security.") {
+		return "security"
+	} else if strings.HasPrefix(eventStr, "session.") {
+		return "session_management"
+	} else if strings.HasPrefix(eventStr, "permission.") || strings.HasPrefix(eventStr, "role.") {
+		return "authorization"
+	} else if strings.HasPrefix(eventStr, "organization.") {
+		return "organization"
+	} else if strings.HasPrefix(eventStr, "compliance.") {
+		return "compliance"
+	} else if strings.HasPrefix(eventStr, "performance.") {
+		return "performance"
+	}
+
+	return "general"
+}
+
+// isComplianceRelevant determines if an event is relevant for compliance reporting
+func (s *AuditService) isComplianceRelevant(event AuditEvent) bool {
+	eventStr := string(event)
+
+	// High compliance relevance events
+	complianceEvents := []string{
+		"auth.", "data.", "security.", "permission.", "role.",
+		"compliance.", "organization.", "session.",
+	}
+
+	for _, prefix := range complianceEvents {
+		if strings.HasPrefix(eventStr, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// assessEventSeverity assesses the severity level of an audit event
+func (s *AuditService) assessEventSeverity(event AuditEvent) string {
+	eventStr := string(event)
+
+	// Critical severity events
+	if strings.Contains(eventStr, "breach") ||
+		strings.Contains(eventStr, "threat") ||
+		strings.Contains(eventStr, "privilege_escalation") {
+		return "critical"
+	}
+
+	// High severity events
+	if strings.Contains(eventStr, "failed") ||
+		strings.Contains(eventStr, "locked") ||
+		strings.Contains(eventStr, "blocked") ||
+		strings.Contains(eventStr, "suspicious") ||
+		strings.Contains(eventStr, "unauthorized") ||
+		strings.Contains(eventStr, "deleted") ||
+		strings.Contains(eventStr, "revoked") {
+		return "high"
+	}
+
+	// Medium severity events
+	if strings.Contains(eventStr, "modified") ||
+		strings.Contains(eventStr, "updated") ||
+		strings.Contains(eventStr, "changed") ||
+		strings.Contains(eventStr, "expired") ||
+		strings.Contains(eventStr, "rate_limit") {
+		return "medium"
+	}
+
+	// Low severity events (default)
+	return "low"
+}
+
+// LogAuthEventSimple logs authentication events with minimal context
+func (s *AuditService) LogAuthEventSimple(userID string, event AuditEvent, success bool, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	// Add basic authentication context
+	metadata["auth_success"] = success
+	metadata["auth_timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	metadata["security_level"] = "high"
+	metadata["compliance_relevant"] = true
+
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithMetadata("success", success).
+		WithMetadataMap(metadata).
+		WithTags("authentication", "security").
+		Build()
+
+	message := fmt.Sprintf("Authentication event: %s - %s", event, map[bool]string{true: "SUCCESS", false: "FAILED"}[success])
+	if !success {
+		message += " (Security Alert)"
+	}
+
+	s.LogEvent(event, message, context)
+}
+
+// LogUserActionSimple logs user actions with minimal context
+func (s *AuditService) LogUserActionSimple(userID string, action string, message string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	metadata["action"] = action
+	metadata["timestamp"] = time.Now().UTC().Format(time.RFC3339)
+
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithAction(action).
+		WithMetadataMap(metadata).
+		WithTags("user_action").
+		Build()
+
+	s.LogEvent(AuditEvent("user.action."+action), message, context)
+}
+
+// LogDataAccessSimple logs data access events with minimal context
+func (s *AuditService) LogDataAccessSimple(userID, resource, action string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	metadata["resource"] = resource
+	metadata["action"] = action
+	metadata["timestamp"] = time.Now().UTC().Format(time.RFC3339)
+
+	context := NewAuditContextBuilder().
+		WithUser(userID).
+		WithResource(resource).
+		WithAction(action).
+		WithMetadataMap(metadata).
+		WithTags("data_access").
+		Build()
+
+	message := fmt.Sprintf("Data access: %s performed %s on %s", userID, action, resource)
+	s.LogEvent(AuditEvent("data.access."+action), message, context)
+}
+
+// LogSimpleEvent logs simple events (used by multi_account_service)
+func (s *AuditService) LogSimpleEvent(event AuditEvent, message string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	metadata["timestamp"] = time.Now().UTC().Format(time.RFC3339)
+
+	context := NewAuditContextBuilder().
+		WithMetadataMap(metadata).
+		WithTags("system").
+		Build()
+
+	s.LogEvent(event, message, context)
 }

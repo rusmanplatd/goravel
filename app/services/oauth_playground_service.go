@@ -1,7 +1,10 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -506,13 +509,22 @@ func (s *OAuthPlaygroundService) executeDeviceCodeNextStep(session *PlaygroundSe
 		baseURL := facades.Config().GetString("app.url")
 		tokenURL := fmt.Sprintf("%s/api/v1/oauth/token", baseURL)
 
-		// Simulate token response (in real implementation, this would poll)
-		tokenResponse := map[string]interface{}{
-			"access_token":  "playground_device_token_" + s.generateRandomString(32),
-			"token_type":    "Bearer",
-			"expires_in":    3600,
-			"refresh_token": "playground_refresh_token_" + s.generateRandomString(32),
-			"scope":         strings.Join(initialRequest.Scopes, " "),
+		// Actually poll the token endpoint for real device flow
+		tokenResponse, err := s.pollDeviceToken(tokenURL, tokenParams)
+		if err != nil {
+			return &PlaygroundResponse{
+				Step:     2,
+				StepName: "Device Token",
+				Success:  false,
+				Request: map[string]interface{}{
+					"method": "POST",
+					"url":    tokenURL,
+					"params": tokenParams,
+				},
+				Error:        err.Error(),
+				Instructions: "Device flow failed. Please try again or check if the user code has been entered.",
+				Timestamp:    time.Now(),
+			}, nil
 		}
 
 		return &PlaygroundResponse{
@@ -534,6 +546,65 @@ func (s *OAuthPlaygroundService) executeDeviceCodeNextStep(session *PlaygroundSe
 }
 
 // Helper methods
+
+// pollDeviceToken polls the OAuth token endpoint for device flow completion
+func (s *OAuthPlaygroundService) pollDeviceToken(tokenURL string, params map[string]interface{}) (map[string]interface{}, error) {
+	// Convert params to form data
+	formData := url.Values{}
+	for key, value := range params {
+		formData.Set(key, fmt.Sprintf("%v", value))
+	}
+
+	// Create HTTP request to token endpoint
+	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	// Make the request
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make token request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token response: %w", err)
+	}
+
+	// Parse JSON response
+	var tokenResponse map[string]interface{}
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	// Check if we got an error response
+	if resp.StatusCode != http.StatusOK {
+		if errorDesc, exists := tokenResponse["error"]; exists {
+			return nil, fmt.Errorf("token request failed: %v", errorDesc)
+		}
+		return nil, fmt.Errorf("token request failed with status: %d", resp.StatusCode)
+	}
+
+	// Validate required fields
+	requiredFields := []string{"access_token", "token_type"}
+	for _, field := range requiredFields {
+		if _, exists := tokenResponse[field]; !exists {
+			return nil, fmt.Errorf("token response missing required field: %s", field)
+		}
+	}
+
+	return tokenResponse, nil
+}
 
 func (s *OAuthPlaygroundService) getOrCreatePlaygroundClient() (*PlaygroundClient, error) {
 	clientID := "playground_client"

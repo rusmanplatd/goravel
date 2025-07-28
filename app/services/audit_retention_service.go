@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -667,8 +668,23 @@ func (ars *AuditRetentionService) executePolicy(ctx context.Context, tenantID st
 }
 
 func (ars *AuditRetentionService) executeScheduledRetention(ctx context.Context) {
-	// Get all tenants (this would be implemented based on your tenant management)
-	tenants := []string{"default"} // Placeholder
+	// Get all tenants from the tenant management system
+	tenants, err := ars.getAllTenants(ctx)
+	if err != nil {
+		facades.Log().Error("Failed to retrieve tenants for scheduled retention", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if len(tenants) == 0 {
+		facades.Log().Warning("No tenants found for scheduled retention", nil)
+		return
+	}
+
+	facades.Log().Info("Starting scheduled retention for all tenants", map[string]interface{}{
+		"tenant_count": len(tenants),
+	})
 
 	for _, tenantID := range tenants {
 		report, err := ars.ExecuteRetentionPolicies(ctx, tenantID)
@@ -994,4 +1010,262 @@ func (ars *AuditRetentionService) scanArchiveDirectory(tenantID string) ([]*Arch
 	}
 
 	return archives, nil
+}
+
+// getAllTenants retrieves all active tenants from the tenant management system
+func (ars *AuditRetentionService) getAllTenants(ctx context.Context) ([]string, error) {
+	var tenants []string
+
+	// Query the tenants table to get all active tenants
+	var tenantRecords []map[string]interface{}
+	err := facades.Orm().Query().
+		Table("tenants").
+		Where("status", "active").
+		Where("deleted_at IS NULL").
+		Select("id", "name", "domain", "status", "created_at").
+		Get(&tenantRecords)
+
+	if err != nil {
+		facades.Log().Error("Failed to query tenants table", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, fmt.Errorf("failed to query tenants: %v", err)
+	}
+
+	// Extract tenant IDs
+	for _, record := range tenantRecords {
+		if tenantID, ok := record["id"].(string); ok && tenantID != "" {
+			tenants = append(tenants, tenantID)
+		} else if tenantIDInt, ok := record["id"].(int64); ok {
+			tenants = append(tenants, fmt.Sprintf("%d", tenantIDInt))
+		} else if tenantIDUint, ok := record["id"].(uint64); ok {
+			tenants = append(tenants, fmt.Sprintf("%d", tenantIDUint))
+		}
+	}
+
+	// If no tenants found in database, include default tenant
+	if len(tenants) == 0 {
+		facades.Log().Info("No tenants found in database, using default tenant", nil)
+		tenants = append(tenants, "default")
+	}
+
+	// Add multi-tenant validation
+	validatedTenants, err := ars.validateTenants(ctx, tenants)
+	if err != nil {
+		facades.Log().Warning("Tenant validation failed, using all discovered tenants", map[string]interface{}{
+			"error": err.Error(),
+		})
+		validatedTenants = tenants
+	}
+
+	facades.Log().Info("Retrieved tenants for retention processing", map[string]interface{}{
+		"total_discovered": len(tenants),
+		"validated_count":  len(validatedTenants),
+		"tenants":          validatedTenants,
+	})
+
+	return validatedTenants, nil
+}
+
+// validateTenants validates that tenants have audit logs and are properly configured
+func (ars *AuditRetentionService) validateTenants(ctx context.Context, tenants []string) ([]string, error) {
+	var validTenants []string
+
+	for _, tenantID := range tenants {
+		// Check if tenant has audit logs
+		count, err := facades.Orm().Query().
+			Table("activity_logs").
+			Where("tenant_id = ? OR tenant_id IS NULL", tenantID).
+			Count()
+
+		if err != nil {
+			facades.Log().Warning("Failed to check audit logs for tenant", map[string]interface{}{
+				"tenant_id": tenantID,
+				"error":     err.Error(),
+			})
+			continue
+		}
+
+		// Check if tenant has retention policies configured
+		hasPolicies, err := ars.tenantHasRetentionPolicies(ctx, tenantID)
+		if err != nil {
+			facades.Log().Warning("Failed to check retention policies for tenant", map[string]interface{}{
+				"tenant_id": tenantID,
+				"error":     err.Error(),
+			})
+			// Include tenant anyway if it has audit logs
+			if count > 0 {
+				validTenants = append(validTenants, tenantID)
+			}
+			continue
+		}
+
+		// Include tenant if it has audit logs or retention policies
+		if count > 0 || hasPolicies {
+			validTenants = append(validTenants, tenantID)
+			facades.Log().Debug("Validated tenant for retention", map[string]interface{}{
+				"tenant_id":       tenantID,
+				"audit_log_count": count,
+				"has_policies":    hasPolicies,
+			})
+		} else {
+			facades.Log().Debug("Skipping tenant with no audit logs or policies", map[string]interface{}{
+				"tenant_id": tenantID,
+			})
+		}
+	}
+
+	return validTenants, nil
+}
+
+// tenantHasRetentionPolicies checks if a tenant has retention policies configured
+func (ars *AuditRetentionService) tenantHasRetentionPolicies(ctx context.Context, tenantID string) (bool, error) {
+	// Check if tenant has custom retention policies in configuration or database
+
+	// First check if there are tenant-specific retention policies in the database
+	count, err := facades.Orm().Query().
+		Table("audit_retention_policies").
+		Where("tenant_id = ?", tenantID).
+		Where("active = ?", true).
+		Count()
+
+	if err != nil {
+		// If the table doesn't exist, that's okay - use default policies
+		facades.Log().Debug("Audit retention policies table not found, using default policies", map[string]interface{}{
+			"tenant_id": tenantID,
+		})
+		return true, nil // Assume default policies apply
+	}
+
+	if count > 0 {
+		return true, nil
+	}
+
+	// Check if tenant has configuration-based policies
+	configKey := fmt.Sprintf("audit.retention.tenants.%s", tenantID)
+	tenantConfig := facades.Config().GetString(configKey, "")
+	if tenantConfig != "" {
+		return true, nil
+	}
+
+	// Check for default policies that apply to all tenants
+	defaultPolicies := facades.Config().GetString("audit.retention.default_policies", "")
+	return defaultPolicies != "", nil
+}
+
+// getTenantRetentionConfig gets retention configuration for a specific tenant
+func (ars *AuditRetentionService) getTenantRetentionConfig(ctx context.Context, tenantID string) (*TenantRetentionConfig, error) {
+	config := &TenantRetentionConfig{
+		TenantID:             tenantID,
+		DefaultRetentionDays: 365, // Default 1 year retention
+		ComplianceMode:       false,
+		ArchiveEnabled:       true,
+		CompressionEnabled:   true,
+		EncryptionEnabled:    true,
+		Categories:           make(map[string]CategoryRetentionConfig),
+	}
+
+	// Load tenant-specific configuration from database
+	var policyRecords []map[string]interface{}
+	err := facades.Orm().Query().
+		Table("audit_retention_policies").
+		Where("tenant_id = ?", tenantID).
+		Where("active = ?", true).
+		Get(&policyRecords)
+
+	if err != nil && !strings.Contains(err.Error(), "doesn't exist") {
+		return nil, fmt.Errorf("failed to load tenant retention policies: %v", err)
+	}
+
+	// Apply database policies
+	for _, record := range policyRecords {
+		if category, ok := record["category"].(string); ok {
+			if retentionDays, ok := record["retention_days"].(int64); ok {
+				config.Categories[category] = CategoryRetentionConfig{
+					RetentionDays:     int(retentionDays),
+					ArchiveEnabled:    getBoolFromRecord(record, "archive_enabled", true),
+					CompressionLevel:  getIntFromRecord(record, "compression_level", 6),
+					EncryptionEnabled: getBoolFromRecord(record, "encryption_enabled", true),
+				}
+			}
+		}
+	}
+
+	// Load configuration from config files
+	configKey := fmt.Sprintf("audit.retention.tenants.%s", tenantID)
+	if tenantConfigStr := facades.Config().GetString(configKey, ""); tenantConfigStr != "" {
+		// Parse tenant-specific configuration
+		// In production, you would implement proper config parsing
+		facades.Log().Debug("Loading tenant-specific retention config", map[string]interface{}{
+			"tenant_id": tenantID,
+			"config":    tenantConfigStr,
+		})
+	}
+
+	// Apply default configuration for missing categories
+	defaultCategories := []string{"authentication", "authorization", "data_access", "system", "security"}
+	for _, category := range defaultCategories {
+		if _, exists := config.Categories[category]; !exists {
+			config.Categories[category] = CategoryRetentionConfig{
+				RetentionDays:     config.DefaultRetentionDays,
+				ArchiveEnabled:    config.ArchiveEnabled,
+				CompressionLevel:  6,
+				EncryptionEnabled: config.EncryptionEnabled,
+			}
+		}
+	}
+
+	return config, nil
+}
+
+// TenantRetentionConfig represents retention configuration for a tenant
+type TenantRetentionConfig struct {
+	TenantID             string                             `json:"tenant_id"`
+	DefaultRetentionDays int                                `json:"default_retention_days"`
+	ComplianceMode       bool                               `json:"compliance_mode"`
+	ArchiveEnabled       bool                               `json:"archive_enabled"`
+	CompressionEnabled   bool                               `json:"compression_enabled"`
+	EncryptionEnabled    bool                               `json:"encryption_enabled"`
+	Categories           map[string]CategoryRetentionConfig `json:"categories"`
+}
+
+// CategoryRetentionConfig represents retention configuration for a specific audit category
+type CategoryRetentionConfig struct {
+	RetentionDays     int  `json:"retention_days"`
+	ArchiveEnabled    bool `json:"archive_enabled"`
+	CompressionLevel  int  `json:"compression_level"`
+	EncryptionEnabled bool `json:"encryption_enabled"`
+}
+
+// Helper functions for database record parsing
+func getBoolFromRecord(record map[string]interface{}, key string, defaultValue bool) bool {
+	if value, ok := record[key]; ok {
+		if boolValue, ok := value.(bool); ok {
+			return boolValue
+		}
+		if intValue, ok := value.(int64); ok {
+			return intValue != 0
+		}
+		if strValue, ok := value.(string); ok {
+			return strValue == "true" || strValue == "1"
+		}
+	}
+	return defaultValue
+}
+
+func getIntFromRecord(record map[string]interface{}, key string, defaultValue int) int {
+	if value, ok := record[key]; ok {
+		if intValue, ok := value.(int64); ok {
+			return int(intValue)
+		}
+		if intValue, ok := value.(int); ok {
+			return intValue
+		}
+		if strValue, ok := value.(string); ok {
+			if parsed, err := strconv.Atoi(strValue); err == nil {
+				return parsed
+			}
+		}
+	}
+	return defaultValue
 }

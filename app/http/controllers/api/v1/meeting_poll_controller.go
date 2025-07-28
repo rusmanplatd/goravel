@@ -1,6 +1,10 @@
 package v1
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
 	"goravel/app/http/responses"
 	"goravel/app/services"
 	"strconv"
@@ -58,12 +62,72 @@ func (pc *MeetingPollController) CreatePoll(ctx http.Context) http.Response {
 
 	// Parse options if provided
 	if optionsStr := ctx.Request().Input("options", ""); optionsStr != "" {
-		// In a real implementation, you'd parse JSON options
-		// For now, we'll create a simple structure
-		pollData["options"] = []interface{}{
-			map[string]interface{}{"text": "Option 1"},
-			map[string]interface{}{"text": "Option 2"},
+		var options []interface{}
+
+		// Try to parse as JSON array first
+		if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
+			// If JSON parsing fails, try to parse as comma-separated string
+			optionTexts := strings.Split(optionsStr, ",")
+			options = make([]interface{}, len(optionTexts))
+
+			for i, text := range optionTexts {
+				options[i] = map[string]interface{}{
+					"text":  strings.TrimSpace(text),
+					"value": strings.TrimSpace(text),
+					"id":    fmt.Sprintf("option_%d", i+1),
+				}
+			}
+		} else {
+			// Validate and normalize the parsed JSON options
+			normalizedOptions := make([]interface{}, 0, len(options))
+
+			for i, option := range options {
+				if optionMap, ok := option.(map[string]interface{}); ok {
+					// Ensure required fields exist
+					if text, exists := optionMap["text"]; exists {
+						normalizedOption := map[string]interface{}{
+							"text":  text,
+							"value": optionMap["value"],
+							"id":    optionMap["id"],
+						}
+
+						// Set default values if not provided
+						if normalizedOption["value"] == nil {
+							normalizedOption["value"] = text
+						}
+						if normalizedOption["id"] == nil {
+							normalizedOption["id"] = fmt.Sprintf("option_%d", i+1)
+						}
+
+						normalizedOptions = append(normalizedOptions, normalizedOption)
+					}
+				} else if optionStr, ok := option.(string); ok {
+					// Handle string options
+					normalizedOptions = append(normalizedOptions, map[string]interface{}{
+						"text":  optionStr,
+						"value": optionStr,
+						"id":    fmt.Sprintf("option_%d", i+1),
+					})
+				}
+			}
+
+			options = normalizedOptions
 		}
+
+		// Validate minimum options
+		if len(options) < 2 {
+			return responses.CreateErrorResponse(ctx, "Invalid poll options", "Poll must have at least 2 options", 400)
+		}
+
+		// Validate maximum options (reasonable limit)
+		if len(options) > 20 {
+			return responses.CreateErrorResponse(ctx, "Too many poll options", "Poll cannot have more than 20 options", 400)
+		}
+
+		pollData["options"] = options
+	} else {
+		// No options provided, return error
+		return responses.CreateErrorResponse(ctx, "Missing poll options", "Poll options are required", 400)
 	}
 
 	poll, err := pc.pollService.CreatePoll(meetingID, userID, pollData)

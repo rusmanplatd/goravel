@@ -63,16 +63,16 @@ paths:
                     default: "15"
                     minimum: 1
                     maximum: 100
-                - name: sort
+                - name: search
                   in: query
-                  description: Sort by field (prefix with - for desc)
+                  description: Search in description and properties
                   required: false
                   schema:
                     type: string
-                    default: -created_at
+                    default: -event_timestamp
                 - name: include
                   in: query
-                  description: 'Include relationships (comma-separated): causer,subject,tenant'
+                  description: 'Include relationships (comma-separated): causer_user,subject_user,tenant'
                   required: false
                   schema:
                     type: string
@@ -349,6 +349,460 @@ paths:
             description: API endpoint
             operationId: getApiDocsOpenapi.Yaml
             responses: {}
+    /api/v1/auth/change-password:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthChange-Password
+            description: API endpoint
+            operationId: postApiV1AuthChange-Password
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+            security:
+                - BearerAuth: []
+    /api/v1/auth/forgot-password:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthForgot-Password
+            description: API endpoint
+            operationId: postApiV1AuthForgot-Password
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ForgotPasswordRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+    /api/v1/auth/login:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthLogin
+            description: API endpoint
+            operationId: postApiV1AuthLogin
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/LoginRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+    /api/v1/auth/logout:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthLogout
+            description: API endpoint
+            operationId: postApiV1AuthLogout
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+            security:
+                - BearerAuth: []
+    /api/v1/auth/mfa/backup-codes/regenerate:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthMfaBackup-CodesRegenerate
+            description: API endpoint
+            operationId: postApiV1AuthMfaBackup-CodesRegenerate
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+            security:
+                - BearerAuth: []
+    /api/v1/auth/mfa/disable:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthMfaDisable
+            description: API endpoint
+            operationId: postApiV1AuthMfaDisable
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+            security:
+                - BearerAuth: []
+    /api/v1/auth/mfa/enable:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthMfaEnable
+            description: API endpoint
+            operationId: postApiV1AuthMfaEnable
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+            security:
+                - BearerAuth: []
+    /api/v1/auth/mfa/setup:
+        get:
+            tags:
+                - auth
+            summary: getApiV1AuthMfaSetup
+            description: API endpoint
+            operationId: getApiV1AuthMfaSetup
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - BearerAuth: []
+    /api/v1/auth/mfa/verify:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthMfaVerify
+            description: API endpoint
+            operationId: postApiV1AuthMfaVerify
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+            security:
+                - BearerAuth: []
+    /api/v1/auth/profile:
+        get:
+            tags:
+                - auth
+            summary: getApiV1AuthProfile
+            description: API endpoint
+            operationId: getApiV1AuthProfile
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - BearerAuth: []
+    /api/v1/auth/refresh:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthRefresh
+            description: API endpoint
+            operationId: postApiV1AuthRefresh
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+            security:
+                - BearerAuth: []
+    /api/v1/auth/register:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthRegister
+            description: API endpoint
+            operationId: postApiV1AuthRegister
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RegisterRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+    /api/v1/auth/reset-password:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthReset-Password
+            description: API endpoint
+            operationId: postApiV1AuthReset-Password
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ResetPasswordRequest'
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+    /api/v1/auth/webauthn/authenticate:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthWebauthnAuthenticate
+            description: API endpoint
+            operationId: postApiV1AuthWebauthnAuthenticate
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
+    /api/v1/auth/webauthn/begin-authentication:
+        get:
+            tags:
+                - auth
+            summary: getApiV1AuthWebauthnBegin-Authentication
+            description: API endpoint
+            operationId: getApiV1AuthWebauthnBegin-Authentication
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - BearerAuth: []
+    /api/v1/auth/webauthn/begin-registration:
+        get:
+            tags:
+                - auth
+            summary: getApiV1AuthWebauthnBegin-Registration
+            description: API endpoint
+            operationId: getApiV1AuthWebauthnBegin-Registration
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - BearerAuth: []
+    /api/v1/auth/webauthn/credentials:
+        get:
+            tags:
+                - auth
+            summary: getApiV1AuthWebauthnCredentials
+            description: API endpoint
+            operationId: getApiV1AuthWebauthnCredentials
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PaginatedResponse'
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+            security:
+                - BearerAuth: []
+    /api/v1/auth/webauthn/credentials/{id}:
+        delete:
+            tags:
+                - auth
+            summary: deleteApiV1AuthWebauthnCredentialsbyId
+            description: API endpoint
+            operationId: deleteApiV1AuthWebauthnCredentialsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: id identifier
+                  required: true
+                  schema:
+                    type: string
+                    format: ulid
+            responses:
+                "204":
+                    description: Deleted
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "404":
+                    description: Not found
+            security:
+                - BearerAuth: []
+    /api/v1/auth/webauthn/register:
+        post:
+            tags:
+                - auth
+            summary: postApiV1AuthWebauthnRegister
+            description: API endpoint
+            operationId: postApiV1AuthWebauthnRegister
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Bad request
+                "401":
+                    description: Unauthorized
+                "403":
+                    description: Forbidden
+                "422":
+                    description: Validation error
     /api/v1/drive/analytics:
         get:
             tags:
@@ -3419,6 +3873,290 @@ paths:
             responses: {}
             security:
                 - BearerAuth: []
+    /api/v1/vault/cache/clear:
+        post:
+            tags:
+                - vault
+            summary: Clear Vault key cache
+            description: Clears all cached encryption keys from memory
+            operationId: postApiV1VaultCacheClear
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/health:
+        get:
+            tags:
+                - vault
+            summary: Get Vault health status
+            description: Returns the current health status of the HashiCorp Vault connection
+            operationId: getApiV1VaultHealth
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/keys/{user_id}/history:
+        get:
+            tags:
+                - vault
+            summary: Get key version history
+            description: Returns the complete version history for an encryption key
+            operationId: getApiV1VaultKeysbyUser_idHistory
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/keys/{user_id}/rollback:
+        post:
+            tags:
+                - vault
+            summary: Rollback key version
+            description: Rolls back an encryption key to a previous version
+            operationId: postApiV1VaultKeysbyUser_idRollback
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/keys/{user_id}/versions:
+        get:
+            tags:
+                - vault
+            summary: List key versions
+            description: Returns all versions of an encryption key with metadata
+            operationId: getApiV1VaultKeysbyUser_idVersions
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+        post:
+            tags:
+                - vault
+            summary: Create new key version
+            description: Creates a new version of an encryption key with description and audit trail
+            operationId: postApiV1VaultKeysbyUser_idVersions
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/keys/{user_id}/versions/{version}:
+        delete:
+            tags:
+                - vault
+            summary: Delete key version
+            description: Soft-deletes a specific version of an encryption key
+            operationId: deleteApiV1VaultKeysbyUser_idVersionsbyVersion
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/metrics:
+        get:
+            tags:
+                - vault
+            summary: Get Vault performance metrics
+            description: Returns performance metrics for the Vault connection including request counts and response times
+            operationId: getApiV1VaultMetrics
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/status:
+        get:
+            tags:
+                - vault
+            summary: Get Vault integration status
+            description: Returns comprehensive status information about the Vault integration
+            operationId: getApiV1VaultStatus
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
+    /api/v1/vault/token/renew:
+        post:
+            tags:
+                - vault
+            summary: Renew Vault token
+            description: Renews the current Vault authentication token if renewable
+            operationId: postApiV1VaultTokenRenew
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/map[string]interface'
+            security:
+                - BearerAuth: []
     /api/v1/websocket/broadcast:
         post:
             tags:
@@ -3744,572 +4482,6 @@ paths:
                     description: Forbidden
                 "404":
                     description: Not found
-            security:
-                - BearerAuth: []
-    /auth/change-password:
-        post:
-            tags:
-                - Authentication
-            summary: Change password
-            description: Change user password
-            operationId: postAuthChange-Password
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/forgot-password:
-        post:
-            tags:
-                - Authentication
-            summary: Request password reset
-            description: Send password reset email to user with enhanced security validation
-            operationId: postAuthForgot-Password
-            requestBody:
-                description: Request data
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/ForgotPasswordRequest'
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-    /auth/login:
-        post:
-            tags:
-                - Authentication
-            summary: Authenticate user with enhanced security
-            description: Authenticate user with email and password, with support for MFA, WebAuthn, and device tracking
-            operationId: postAuthLogin
-            requestBody:
-                description: Request data
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/LoginRequest'
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "423":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-    /auth/logout:
-        post:
-            tags:
-                - Authentication
-            summary: Logout user
-            description: Logout user and invalidate session
-            operationId: postAuthLogout
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/mfa/backup-codes/regenerate:
-        post:
-            tags:
-                - Authentication
-            summary: Generate new MFA backup codes
-            description: Generate new backup codes and invalidate old ones
-            operationId: postAuthMfaBackup-CodesRegenerate
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/mfa/disable:
-        post:
-            tags:
-                - Authentication
-            summary: Disable MFA with security verification
-            description: Disable two-factor authentication with additional security checks
-            operationId: postAuthMfaDisable
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/mfa/enable:
-        post:
-            tags:
-                - Authentication
-            summary: Enable MFA with backup codes
-            description: Enable two-factor authentication for user with backup code generation
-            operationId: postAuthMfaEnable
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/mfa/setup:
-        get:
-            tags:
-                - Authentication
-            summary: Generate enhanced MFA setup
-            description: Generate MFA secret, QR code, and setup instructions
-            operationId: getAuthMfaSetup
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/mfa/verify:
-        post:
-            tags:
-                - Authentication
-            summary: Verify MFA code with backup support
-            description: Verify MFA code with support for backup codes and enhanced logging
-            operationId: postAuthMfaVerify
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/profile:
-        get:
-            tags:
-                - Authentication
-            summary: Get user profile
-            description: Get current authenticated user profile
-            operationId: getAuthProfile
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/refresh:
-        post:
-            tags:
-                - Authentication
-            summary: Refresh token
-            description: Refresh JWT authentication token
-            operationId: postAuthRefresh
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/register:
-        post:
-            tags:
-                - Authentication
-            summary: Register new user with enhanced security
-            description: Register a new user account with comprehensive validation and security checks
-            operationId: postAuthRegister
-            requestBody:
-                description: Request data
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/RegisterRequest'
-            responses:
-                "201":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "409":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-    /auth/reset-password:
-        post:
-            tags:
-                - Authentication
-            summary: Reset password with token
-            description: Reset user password using the token sent via email
-            operationId: postAuthReset-Password
-            requestBody:
-                description: Request data
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/ResetPasswordRequest'
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-    /auth/webauthn/authenticate:
-        post:
-            tags:
-                - Authentication
-            summary: Authenticate with WebAuthn enhanced security
-            description: Authenticate user using WebAuthn assertion with comprehensive validation
-            operationId: postAuthWebauthnAuthenticate
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/webauthn/begin-authentication:
-        get:
-            tags:
-                - Authentication
-            summary: Begin enhanced WebAuthn authentication
-            description: Start the WebAuthn authentication process with comprehensive security validation
-            operationId: getAuthWebauthnBegin-Authentication
-            parameters:
-                - name: email
-                  in: query
-                  description: User email for authentication context
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/webauthn/begin-registration:
-        get:
-            tags:
-                - Authentication
-            summary: Begin enhanced WebAuthn registration
-            description: Start the WebAuthn registration process with comprehensive security checks
-            operationId: getAuthWebauthnBegin-Registration
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/webauthn/credentials:
-        get:
-            tags:
-                - Authentication
-            summary: Get enhanced WebAuthn credentials
-            description: Get all WebAuthn credentials for the authenticated user with usage statistics
-            operationId: getAuthWebauthnCredentials
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/webauthn/credentials/{id}:
-        delete:
-            tags:
-                - Authentication
-            summary: Delete WebAuthn credential with security verification
-            description: Delete a WebAuthn credential with additional security checks
-            operationId: deleteAuthWebauthnCredentialsbyId
-            parameters:
-                - name: id
-                  in: path
-                  description: Credential ID
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-            security:
-                - BearerAuth: []
-    /auth/webauthn/register:
-        post:
-            tags:
-                - Authentication
-            summary: Register WebAuthn credential with enhanced security
-            description: Register a new WebAuthn authenticator with comprehensive validation and security checks
-            operationId: postAuthWebauthnRegister
-            responses:
-                "201":
-                    description: Success
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "400":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "401":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
-                "429":
-                    description: Error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ApiResponse'
             security:
                 - BearerAuth: []
     /calendar-analytics/meeting-effectiveness:
@@ -7439,6 +7611,416 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
             security:
                 - BearerAuth: []
+    /job-levels:
+        get:
+            tags:
+                - job-levels
+            summary: Get all job levels
+            description: Retrieve a list of all job levels with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
+            operationId: getJob-Levels
+            parameters:
+                - name: pagination_type
+                  in: query
+                  description: 'Pagination type: offset or cursor'
+                  required: false
+                  schema:
+                    type: string
+                    enum:
+                        - offset
+                        - cursor
+                    default: offset
+                - name: page
+                  in: query
+                  description: Page number for offset pagination
+                  required: false
+                  schema:
+                    type: int
+                    default: "1"
+                - name: cursor
+                  in: query
+                  description: Cursor for cursor pagination
+                  required: false
+                  schema:
+                    type: string
+                    default: "15"
+                    minimum: 1
+                    maximum: 100
+                - name: sort
+                  in: query
+                  description: Sort by field (prefix with - for desc)
+                  required: false
+                  schema:
+                    type: string
+                    default: -created_at
+                - name: include
+                  in: query
+                  description: 'Include relationships (comma-separated): organization'
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/QueryBuilderResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        post:
+            tags:
+                - job-levels
+            summary: Create a new job level
+            description: Create a new job level with the provided information
+            operationId: postJob-Levels
+            requestBody:
+                description: Job level information
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/JobLevelRequest'
+            responses:
+                "201":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /job-levels/{id}:
+        get:
+            tags:
+                - job-levels
+            summary: Get job level by ID
+            description: Retrieve a specific job level by its ID
+            operationId: getJob-LevelsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Job Level ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        put:
+            tags:
+                - job-levels
+            summary: Update a job level
+            description: Update an existing job level's information
+            operationId: putJob-LevelsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Job Level ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        delete:
+            tags:
+                - job-levels
+            summary: Delete a job level
+            description: Delete a job level by its ID (soft delete)
+            operationId: deleteJob-LevelsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Job Level ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /job-positions:
+        get:
+            tags:
+                - job-positions
+            summary: Get all job positions
+            description: Retrieve a list of all job positions with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
+            operationId: getJob-Positions
+            parameters:
+                - name: pagination_type
+                  in: query
+                  description: 'Pagination type: offset or cursor'
+                  required: false
+                  schema:
+                    type: string
+                    enum:
+                        - offset
+                        - cursor
+                    default: offset
+                - name: page
+                  in: query
+                  description: Page number for offset pagination
+                  required: false
+                  schema:
+                    type: int
+                    default: "1"
+                - name: cursor
+                  in: query
+                  description: Cursor for cursor pagination
+                  required: false
+                  schema:
+                    type: string
+                    default: "15"
+                    minimum: 1
+                    maximum: 100
+                - name: sort
+                  in: query
+                  description: Sort by field (prefix with - for desc)
+                  required: false
+                  schema:
+                    type: string
+                    default: -created_at
+                - name: include
+                  in: query
+                  description: 'Include relationships (comma-separated): job_level,department,organization,reports_to_position'
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/QueryBuilderResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        post:
+            tags:
+                - job-positions
+            summary: Create a new job position
+            description: Create a new job position with the provided information
+            operationId: postJob-Positions
+            requestBody:
+                description: Job position information
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/JobPositionRequest'
+            responses:
+                "201":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /job-positions/{id}:
+        get:
+            tags:
+                - job-positions
+            summary: Get job position by ID
+            description: Retrieve a specific job position by its ID
+            operationId: getJob-PositionsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Job Position ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        put:
+            tags:
+                - job-positions
+            summary: Update a job position
+            description: Update an existing job position's information
+            operationId: putJob-PositionsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Job Position ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        delete:
+            tags:
+                - job-positions
+            summary: Delete a job position
+            description: Delete a job position by its ID (soft delete)
+            operationId: deleteJob-PositionsbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Job Position ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
     /oauth/analytics:
         get:
             tags:
@@ -10076,6 +10658,881 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
             security:
                 - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/custom-fields:
+        get:
+            tags:
+                - project-custom-fields
+            summary: Get all project custom fields
+            description: Retrieve a list of all custom fields for a project
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idCustom-Fields
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: type
+                  in: query
+                  description: Filter by field type
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        post:
+            tags:
+                - project-custom-fields
+            summary: Create a new custom field
+            description: Create a new custom field for a project
+            operationId: postOrganizationsbyOrganization_idProjectsbyProject_idCustom-Fields
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                description: Field data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/object'
+            responses:
+                "201":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/custom-fields/{id}:
+        get:
+            tags:
+                - project-custom-fields
+            summary: Get a specific custom field by ID
+            description: Retrieve a specific custom field by its ID
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idCustom-FieldsbyId
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Field ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        put:
+            tags:
+                - project-custom-fields
+            summary: Update a custom field
+            description: Update an existing custom field
+            operationId: putOrganizationsbyOrganization_idProjectsbyProject_idCustom-FieldsbyId
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Field ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        delete:
+            tags:
+                - project-custom-fields
+            summary: Delete a custom field
+            description: Delete an existing custom field
+            operationId: deleteOrganizationsbyOrganization_idProjectsbyProject_idCustom-FieldsbyId
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Field ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/custom-fields/reorder:
+        post:
+            tags:
+                - project-custom-fields
+            summary: Reorder custom fields
+            description: Update the position of multiple custom fields
+            operationId: postOrganizationsbyOrganization_idProjectsbyProject_idCustom-FieldsReorder
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                description: Field positions map
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/object'
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/insights:
+        get:
+            tags:
+                - project-insights
+            summary: Get project insights
+            description: Retrieve insights and analytics for a project
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idInsights
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: type
+                  in: query
+                  description: Filter by insight type
+                  required: false
+                  schema:
+                    type: string
+                - name: start_date
+                  in: query
+                  description: Start date filter (YYYY-MM-DD)
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/insights/burndown:
+        get:
+            tags:
+                - project-insights
+            summary: Get burndown insights
+            description: Get burndown chart data for a project
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idInsightsBurndown
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: period
+                  in: query
+                  description: Period (daily, weekly, monthly, quarterly)
+                  required: false
+                  schema:
+                    type: string
+                    default: weekly
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/insights/distribution:
+        get:
+            tags:
+                - project-insights
+            summary: Get task distribution insights
+            description: Get task distribution analytics for a project
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idInsightsDistribution
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: period
+                  in: query
+                  description: Period (daily, weekly, monthly, quarterly)
+                  required: false
+                  schema:
+                    type: string
+                    default: weekly
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/insights/generate:
+        post:
+            tags:
+                - project-insights
+            summary: Generate project insights
+            description: Generate new insights and analytics for a project
+            operationId: postOrganizationsbyOrganization_idProjectsbyProject_idInsightsGenerate
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                description: Generation parameters
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/object'
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/insights/summary:
+        get:
+            tags:
+                - project-insights
+            summary: Get project summary
+            description: Get a summary of key project metrics and statistics
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idInsightsSummary
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/insights/velocity:
+        get:
+            tags:
+                - project-insights
+            summary: Get velocity insights
+            description: Get velocity insights for a project
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idInsightsVelocity
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: period
+                  in: query
+                  description: Period (daily, weekly, monthly, quarterly)
+                  required: false
+                  schema:
+                    type: string
+                    default: weekly
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/tasks/{task_id}/fields:
+        get:
+            tags:
+                - project-custom-fields
+            summary: Get task field values
+            description: Get all custom field values for a task
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idTasksbyTask_idFields
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: task_id
+                  in: path
+                  description: Task ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/tasks/{task_id}/fields/{field_id}:
+        post:
+            tags:
+                - project-custom-fields
+            summary: Set task field value
+            description: Set a custom field value for a task
+            operationId: postOrganizationsbyOrganization_idProjectsbyProject_idTasksbyTask_idFieldsbyField_id
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: task_id
+                  in: path
+                  description: Task ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                description: Field value
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/object'
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/views:
+        get:
+            tags:
+                - project-views
+            summary: Get all project views
+            description: Retrieve a list of all views for a project
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idViews
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: type
+                  in: query
+                  description: Filter by view type
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        post:
+            tags:
+                - project-views
+            summary: Create a new project view
+            description: Create a new view for a project
+            operationId: postOrganizationsbyOrganization_idProjectsbyProject_idViews
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                description: View data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/object'
+            responses:
+                "201":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/views/{id}:
+        get:
+            tags:
+                - project-views
+            summary: Get a specific project view by ID
+            description: Retrieve a specific project view by its ID
+            operationId: getOrganizationsbyOrganization_idProjectsbyProject_idViewsbyId
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: View ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        put:
+            tags:
+                - project-views
+            summary: Update a project view
+            description: Update an existing project view
+            operationId: putOrganizationsbyOrganization_idProjectsbyProject_idViewsbyId
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: View ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        delete:
+            tags:
+                - project-views
+            summary: Delete a project view
+            description: Delete an existing project view
+            operationId: deleteOrganizationsbyOrganization_idProjectsbyProject_idViewsbyId
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: View ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/views/{id}/duplicate:
+        post:
+            tags:
+                - project-views
+            summary: Duplicate a project view
+            description: Create a copy of an existing project view
+            operationId: postOrganizationsbyOrganization_idProjectsbyProject_idViewsbyIdDuplicate
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: View ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "201":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/{organization_id}/projects/{project_id}/views/{id}/set-default:
+        post:
+            tags:
+                - project-views
+            summary: Set default project view
+            description: Set a view as the default for a project
+            operationId: postOrganizationsbyOrganization_idProjectsbyProject_idViewsbyIdSet-Default
+            parameters:
+                - name: organization_id
+                  in: path
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: View ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
     /organizations/{organization_id}/teams:
         get:
             tags:
@@ -10410,6 +11867,49 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/APIResponse'
                 "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /organizations/job-analytics:
+        get:
+            tags:
+                - user-job-management
+            summary: Get job analytics
+            description: Get comprehensive job analytics and reporting for an organization
+            operationId: getOrganizationsJob-Analytics
+            parameters:
+                - name: organization_id
+                  in: query
+                  description: Organization ID
+                  required: true
+                  schema:
+                    type: string
+                    default: distribution
+                - name: time_range
+                  in: query
+                  description: Time range in days for time-based reports
+                  required: false
+                  schema:
+                    type: int
+                    default: "365"
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessResponse'
+                "400":
                     description: Error
                     content:
                         application/json:
@@ -11168,6 +12668,270 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
             security:
                 - BearerAuth: []
+    /templates:
+        get:
+            tags:
+                - project-templates
+            summary: Get all project templates
+            description: Retrieve a list of all project templates with filtering
+            operationId: getTemplates
+            parameters:
+                - name: category
+                  in: query
+                  description: Filter by template category
+                  required: false
+                  schema:
+                    type: string
+                - name: is_featured
+                  in: query
+                  description: Filter by featured status
+                  required: false
+                  schema:
+                    type: bool
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        post:
+            tags:
+                - project-templates
+            summary: Create a new project template
+            description: Create a new project template
+            operationId: postTemplates
+            requestBody:
+                description: Template data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/object'
+            responses:
+                "201":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /templates/{id}:
+        get:
+            tags:
+                - project-templates
+            summary: Get a specific template by ID
+            description: Retrieve a specific project template by its ID
+            operationId: getTemplatesbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Template ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        put:
+            tags:
+                - project-templates
+            summary: Update a project template
+            description: Update an existing project template
+            operationId: putTemplatesbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Template ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+        delete:
+            tags:
+                - project-templates
+            summary: Delete a project template
+            description: Delete an existing project template
+            operationId: deleteTemplatesbyId
+            parameters:
+                - name: id
+                  in: path
+                  description: Template ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /templates/{id}/use:
+        post:
+            tags:
+                - project-templates
+            summary: Create project from template
+            description: Create a new project using an existing template
+            operationId: postTemplatesbyIdUse
+            parameters:
+                - name: id
+                  in: path
+                  description: Template ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "201":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /templates/category/{category}:
+        get:
+            tags:
+                - project-templates
+            summary: Get templates by category
+            description: Retrieve templates filtered by category
+            operationId: getTemplatesCategorybyCategory
+            parameters:
+                - name: category
+                  in: path
+                  description: Template category
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /templates/featured:
+        get:
+            tags:
+                - project-templates
+            summary: Get featured templates
+            description: Retrieve a list of featured project templates
+            operationId: getTemplatesFeatured
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/APIResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
     /tenants:
         get:
             tags:
@@ -11859,6 +13623,143 @@ paths:
                                 $ref: '#/components/schemas/ErrorResponse'
             security:
                 - BearerAuth: []
+    /users/{user_id}/career-progression:
+        get:
+            tags:
+                - user-job-management
+            summary: Get user career progression
+            description: Get detailed career progression information for a user
+            operationId: getUsersbyUser_idCareer-Progression
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /users/{user_id}/job-assignment:
+        post:
+            tags:
+                - user-job-management
+            summary: Assign user to job position
+            description: Assign a user to a specific job position within an organization
+            operationId: postUsersbyUser_idJob-Assignment
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
+    /users/{user_id}/promote:
+        post:
+            tags:
+                - user-job-management
+            summary: Promote user
+            description: Promote a user to a higher job level or position
+            operationId: postUsersbyUser_idPromote
+            parameters:
+                - name: user_id
+                  in: path
+                  description: User ID
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                description: Request data
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+            responses:
+                "200":
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessResponse'
+                "400":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+                - BearerAuth: []
 components:
     schemas:
         APIResponse:
@@ -11883,27 +13784,84 @@ components:
             type: object
             description: ActivityLog model
             properties:
+                Category:
+                    type: string
+                    example: authentication
                 CauserID:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
                 CauserType:
                     type: string
                     example: User
+                CauserUser:
+                    type: string
+                    description: User who performed the action (if causer is a user)
+                    nullable: true
+                ComplianceFlags:
+                    type: string
+                    example: '{"gdpr": true, "hipaa": false}'
                 Description:
                     type: string
                     example: User logged in successfully
+                DeviceInfo:
+                    type: string
+                    example: '{"type": "desktop", "os": "Windows"}'
+                Duration:
+                    type: integer
+                    example: "150"
+                EventTimestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                GeoLocation:
+                    type: string
+                    example: '{"country": "US", "city": "New York"}'
+                IPAddress:
+                    type: string
+                    example: 192.168.1.1
                 LogName:
                     type: string
                     example: user_login
                 Properties:
                     type: string
-                    example: '{"ip_address":"192.168.1.1","user_agent":"Mozilla/5.0..."}'
+                    example: '{"previous_value":"old","new_value":"new"}'
+                RequestID:
+                    type: string
+                    example: req_abc123
+                RequestMethod:
+                    type: string
+                    example: POST
+                RequestPath:
+                    type: string
+                    example: /api/v1/users
+                RiskScore:
+                    type: integer
+                    example: "25"
+                SessionID:
+                    type: string
+                    example: session_abc123
+                Severity:
+                    type: string
+                    example: medium
+                Status:
+                    type: string
+                    example: success
+                StatusCode:
+                    type: integer
+                    example: "200"
                 SubjectID:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
                 SubjectType:
                     type: string
                     example: User
+                SubjectUser:
+                    type: string
+                    description: User who is the subject of the action (if subject is a user)
+                    nullable: true
+                Tags:
+                    type: string
+                    example: '["login", "success", "mobile"]'
                 Tenant:
                     type: string
                     description: Tenant this activity belongs to
@@ -11911,6 +13869,12 @@ components:
                 TenantID:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
+                ThreatLevel:
+                    type: string
+                    example: low
+                UserAgent:
+                    type: string
+                    example: Mozilla/5.0...
         ActivityLogger:
             type: object
             description: ActivityLogger model
@@ -14457,6 +16421,55 @@ components:
                     type: string
                 KeyType:
                     type: string
+        GeoLocation:
+            type: object
+            description: GeoLocation model
+            properties:
+                ASN:
+                    type: string
+                    example: "7922"
+                ASNOrg:
+                    type: string
+                    example: COMCAST-7922
+                City:
+                    type: string
+                    example: San Francisco
+                Country:
+                    type: string
+                    example: United States
+                CountryCode:
+                    type: string
+                    example: US
+                ISP:
+                    type: string
+                    example: Comcast Cable Communications
+                IsProxy:
+                    type: boolean
+                    example: "false"
+                IsTor:
+                    type: boolean
+                    example: "false"
+                IsVPN:
+                    type: boolean
+                    example: "false"
+                Latitude:
+                    type: number
+                    example: "37.7749"
+                Longitude:
+                    type: number
+                    example: "-122.4194"
+                PostalCode:
+                    type: string
+                    example: "94102"
+                Region:
+                    type: string
+                    example: California
+                RegionCode:
+                    type: string
+                    example: CA
+                TimeZone:
+                    type: string
+                    example: America/Los_Angeles
         GetMeetingAnalyticsRequest:
             type: object
             description: GetMeetingAnalyticsRequest model
@@ -14489,6 +16502,150 @@ components:
                     type: boolean
                 SendSMS:
                     type: boolean
+        JobLevel:
+            type: object
+            description: JobLevel model
+            properties:
+                Benefits:
+                    type: string
+                    example: '{"vacation_days":25,"health_insurance":true}'
+                    nullable: true
+                Code:
+                    type: string
+                    example: SR
+                    nullable: true
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                    nullable: true
+                Currency:
+                    type: string
+                    example: USD
+                Description:
+                    type: string
+                    example: Senior level position with advanced responsibilities
+                Icon:
+                    type: string
+                    example: star
+                    nullable: true
+                IsActive:
+                    type: boolean
+                    example: "true"
+                LevelOrder:
+                    type: integer
+                    example: "3"
+                MaxSalary:
+                    type: number
+                    example: "120000.00"
+                    nullable: true
+                MinSalary:
+                    type: number
+                    example: "80000.00"
+                    nullable: true
+                Name:
+                    type: string
+                    example: Senior
+                Organization:
+                    type: string
+                    description: Organization this job level belongs to
+                    nullable: true
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Requirements:
+                    type: string
+                    example: '{"experience_years":5,"skills":["leadership","technical"]}'
+                    nullable: true
+        JobPosition:
+            type: object
+            description: JobPosition model
+            properties:
+                Benefits:
+                    type: string
+                    example: '{"health_insurance":true,"flexible_hours":true}'
+                    nullable: true
+                Code:
+                    type: string
+                    example: SWE
+                    nullable: true
+                Color:
+                    type: string
+                    example: '#10B981'
+                    nullable: true
+                Currency:
+                    type: string
+                    example: USD
+                Department:
+                    type: string
+                    description: Department this position belongs to
+                    nullable: true
+                DepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Description:
+                    type: string
+                    example: Develop and maintain web applications using modern technologies
+                EmploymentType:
+                    type: string
+                    example: full_time
+                FilledCount:
+                    type: integer
+                    example: "1"
+                Headcount:
+                    type: integer
+                    example: "2"
+                Icon:
+                    type: string
+                    example: code
+                    nullable: true
+                IsActive:
+                    type: boolean
+                    example: "true"
+                IsRemote:
+                    type: boolean
+                    example: "true"
+                JobLevel:
+                    type: string
+                    description: Job level this position belongs to
+                    nullable: true
+                JobLevelID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                MaxSalary:
+                    type: number
+                    example: "100000.00"
+                    nullable: true
+                MinSalary:
+                    type: number
+                    example: "70000.00"
+                    nullable: true
+                Organization:
+                    type: string
+                    description: Organization this position belongs to
+                    nullable: true
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                ReportsToPosition:
+                    type: string
+                    description: Position this role reports to
+                    nullable: true
+                ReportsToPositionID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Requirements:
+                    type: string
+                    example: '{"skills":["golang","javascript"],"experience_years":3}'
+                    nullable: true
+                Responsibilities:
+                    type: string
+                    example: '{"primary":["coding","testing"],"secondary":["mentoring"]}'
+                    nullable: true
+                Title:
+                    type: string
+                    example: Software Engineer
         JoinMeetingRequest:
             type: object
             description: JoinMeetingRequest model
@@ -14957,6 +17114,72 @@ components:
                     type: array
                     items:
                         type: string
+        MeetingSecurityEvent:
+            type: object
+            description: MeetingSecurityEvent model
+            properties:
+                ActionTaken:
+                    type: string
+                    example: blocked_access
+                    nullable: true
+                Description:
+                    type: string
+                    example: User attempted to join without proper permissions
+                Details:
+                    type: string
+                    example: '{"attempt_count":3,"blocked_ip":"192.168.1.100"}'
+                    nullable: true
+                DeviceInfo:
+                    type: string
+                    example: '{"type":"desktop","browser":"Chrome","os":"Windows"}'
+                    nullable: true
+                EventType:
+                    type: string
+                    example: unauthorized_access_attempt
+                IPAddress:
+                    type: string
+                    example: 192.168.1.100
+                    nullable: true
+                Meeting:
+                    type: string
+                    description: Meeting where event occurred
+                MeetingID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                RequiresAttention:
+                    type: boolean
+                    example: "true"
+                ResolutionNotes:
+                    type: string
+                    example: False positive - user had valid permissions
+                    nullable: true
+                ResolvedAt:
+                    type: string
+                    example: "2024-01-15T10:45:00Z"
+                    nullable: true
+                ResolvedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                ResolvedByUser:
+                    type: string
+                    description: Admin who resolved the event
+                    nullable: true
+                Severity:
+                    type: string
+                    example: warning
+                User:
+                    type: string
+                    description: User who triggered the event
+                    nullable: true
+                UserAgent:
+                    type: string
+                    example: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+                    nullable: true
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
         MeetingSecurityPolicy:
             type: object
             description: MeetingSecurityPolicy model
@@ -15156,6 +17379,63 @@ components:
                     type: integer
                 TranscriptType:
                     type: string
+        MeetingWaitingRoomParticipant:
+            type: object
+            description: MeetingWaitingRoomParticipant model
+            properties:
+                ApprovedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                ApprovedByUser:
+                    type: string
+                    description: Host who approved/denied
+                    nullable: true
+                DenialReason:
+                    type: string
+                    example: Meeting is at capacity
+                    nullable: true
+                DeviceInfo:
+                    type: string
+                    example: '{"type":"desktop","browser":"Chrome","os":"Windows"}'
+                    nullable: true
+                Email:
+                    type: string
+                    example: john.doe@example.com
+                JoinTime:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                Meeting:
+                    type: string
+                    description: Meeting being joined
+                MeetingID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Metadata:
+                    type: string
+                    example: '{"retry_count":2,"last_attempt":"2024-01-15T10:25:00Z"}'
+                    nullable: true
+                Name:
+                    type: string
+                    example: John Doe
+                RequestReason:
+                    type: string
+                    example: I'm here for the quarterly review meeting
+                    nullable: true
+                Status:
+                    type: string
+                    example: waiting
+                StatusChangedAt:
+                    type: string
+                    example: "2024-01-15T10:35:00Z"
+                    nullable: true
+                User:
+                    type: string
+                    description: User waiting to join
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         MeetingWhiteboard:
             type: object
             description: MeetingWhiteboard model
@@ -16124,6 +18404,61 @@ components:
                     type: string
                 Revoked:
                     type: boolean
+        OAuthResourceServer:
+            type: object
+            description: OAuthResourceServer model
+            properties:
+                Active:
+                    type: boolean
+                    example: "true"
+                Audience:
+                    type: string
+                    example: '["https://api.example.com"]'
+                Category:
+                    type: string
+                    example: api
+                DefaultScopes:
+                    type: string
+                    example: '["read"]'
+                Description:
+                    type: string
+                    example: Main API server for the application
+                IntrospectionEndpoint:
+                    type: string
+                    example: https://auth.example.com/oauth/introspect
+                Issuer:
+                    type: string
+                    example: https://auth.example.com
+                JWKSURI:
+                    type: string
+                    example: https://auth.example.com/.well-known/jwks.json
+                MaxScopeLifetime:
+                    type: integer
+                    example: "3600"
+                Metadata:
+                    type: string
+                    example: '{"version": "1.0", "contact": "admin@example.com"}'
+                Name:
+                    type: string
+                    example: API Server
+                RequiredScopes:
+                    type: string
+                    example: '["read"]'
+                SecurityPolicy:
+                    type: string
+                    example: '{"require_mtls": false, "require_dpop": true}'
+                SupportedScopes:
+                    type: string
+                    example: '["read", "write", "admin"]'
+                TokenFormat:
+                    type: string
+                    example: jwt
+                TokenSigningAlgorithm:
+                    type: string
+                    example: RS256
+                URI:
+                    type: string
+                    example: https://api.example.com
         OAuthScopeRequest:
             type: object
             description: OAuthScopeRequest model
@@ -17031,6 +19366,11 @@ components:
                 Color:
                     type: string
                     example: '#F59E0B'
+                CustomFields:
+                    type: array
+                    description: Project custom fields
+                    items:
+                        type: string
                 Description:
                     type: string
                     example: Redesign and modernize the customer portal
@@ -17041,6 +19381,11 @@ components:
                 Icon:
                     type: string
                     example: project
+                Insights:
+                    type: array
+                    description: Project insights and analytics
+                    items:
+                        type: string
                 IsActive:
                     type: boolean
                     example: "true"
@@ -17108,6 +19453,77 @@ components:
                     description: Users assigned to this project
                     items:
                         type: string
+                Views:
+                    type: array
+                    description: Project views
+                    items:
+                        type: string
+                Workflows:
+                    type: array
+                    description: Project workflows
+                    items:
+                        type: string
+        ProjectCustomField:
+            type: object
+            description: ProjectCustomField model
+            properties:
+                Description:
+                    type: string
+                    example: Task priority level
+                IsActive:
+                    type: boolean
+                    example: "true"
+                IsRequired:
+                    type: boolean
+                    example: "false"
+                Name:
+                    type: string
+                    example: Priority
+                Options:
+                    type: string
+                    example: '{"options":["Low","Medium","High","Critical"],"colors":{"Low":"#10B981","Medium":"#F59E0B","High":"#EF4444","Critical":"#7C3AED"}}'
+                Position:
+                    type: integer
+                    example: "1"
+                Project:
+                    type: string
+                    description: Project this field belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                TaskFieldValues:
+                    type: array
+                    description: Task field values
+                    items:
+                        type: string
+                Type:
+                    type: string
+                    example: select
+        ProjectInsight:
+            type: object
+            description: ProjectInsight model
+            properties:
+                Data:
+                    type: string
+                    example: '{"completed_tasks":15,"total_tasks":20,"velocity":3.5}'
+                Date:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T00:00:00Z"
+                Period:
+                    type: string
+                    example: weekly
+                Project:
+                    type: string
+                    description: Project this insight belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Type:
+                    type: string
+                    example: velocity
         ProjectRequest:
             type: object
             description: ProjectRequest model
@@ -17154,6 +19570,45 @@ components:
                 Status:
                     type: string
                     example: active
+        ProjectTemplate:
+            type: object
+            description: ProjectTemplate model
+            properties:
+                Category:
+                    type: string
+                    example: development
+                Color:
+                    type: string
+                    example: '#3B82F6'
+                Configuration:
+                    type: string
+                    example: '{"default_views":[{"name":"Board","type":"board"}],"custom_fields":[{"name":"Priority","type":"select"}]}'
+                Description:
+                    type: string
+                    example: Template for software development projects with standard workflow
+                Icon:
+                    type: string
+                    example: code
+                IsFeatured:
+                    type: boolean
+                    example: "false"
+                IsPublic:
+                    type: boolean
+                    example: "true"
+                Name:
+                    type: string
+                    example: Software Development Template
+                Organization:
+                    type: string
+                    description: Organization this template belongs to (null for system templates)
+                    nullable: true
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                UsageCount:
+                    type: integer
+                    example: "42"
         ProjectUserRequest:
             type: object
             description: ProjectUserRequest model
@@ -17167,6 +19622,79 @@ components:
                 UserID:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
+        ProjectView:
+            type: object
+            description: ProjectView model
+            properties:
+                Description:
+                    type: string
+                    example: Current sprint tasks and progress
+                Filters:
+                    type: string
+                    example: '{"assignee":["user1","user2"],"priority":["high","medium"]}'
+                Grouping:
+                    type: string
+                    example: '{"field":"status","showCount":true}'
+                IsDefault:
+                    type: boolean
+                    example: "true"
+                IsPublic:
+                    type: boolean
+                    example: "true"
+                Layout:
+                    type: string
+                    example: '{"columns":["todo","in_progress","done"],"groupBy":"status","sortBy":"priority"}'
+                Name:
+                    type: string
+                    example: Sprint Board
+                Position:
+                    type: integer
+                    example: "1"
+                Project:
+                    type: string
+                    description: Project this view belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Sorting:
+                    type: string
+                    example: '{"field":"created_at","direction":"desc"}'
+                Type:
+                    type: string
+                    example: board
+        ProjectWorkflow:
+            type: object
+            description: ProjectWorkflow model
+            properties:
+                Actions:
+                    type: string
+                    example: '{"action":"set_field","field":"status","value":"todo"}'
+                Conditions:
+                    type: string
+                    example: '{"field":"type","operator":"equals","value":"task"}'
+                Description:
+                    type: string
+                    example: Automatically assign new tasks to current sprint
+                IsActive:
+                    type: boolean
+                    example: "true"
+                Name:
+                    type: string
+                    example: Auto-assign to Sprint
+                Position:
+                    type: integer
+                    example: "1"
+                Project:
+                    type: string
+                    description: Project this workflow belongs to
+                    nullable: true
+                ProjectID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Trigger:
+                    type: string
+                    example: item_added
         Province:
             type: object
             description: Province model
@@ -17629,12 +20157,22 @@ components:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
                     nullable: true
+                Attachments:
+                    type: array
+                    description: Task attachments
+                    items:
+                        type: string
                 Color:
                     type: string
                     example: '#3B82F6'
                 Comments:
                     type: array
                     description: Task comments
+                    items:
+                        type: string
+                CustomFieldValues:
+                    type: array
+                    description: Task custom field values
                     items:
                         type: string
                 Dependencies:
@@ -17767,6 +20305,39 @@ components:
                 UserID:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
+        TaskAttachment:
+            type: object
+            description: TaskAttachment model
+            properties:
+                FilePath:
+                    type: string
+                    example: /uploads/tasks/01HXYZ123456789ABCDEFGHIJK/screenshot.png
+                FileSize:
+                    type: integer
+                    example: "1024768"
+                Filename:
+                    type: string
+                    example: screenshot.png
+                MimeType:
+                    type: string
+                    example: image/png
+                OriginalFilename:
+                    type: string
+                    example: My Screenshot.png
+                Task:
+                    type: string
+                    description: Task this attachment belongs to
+                    nullable: true
+                TaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                UploadedBy:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Uploader:
+                    type: string
+                    description: User who uploaded the attachment
+                    nullable: true
         TaskBoard:
             type: object
             description: TaskBoard model
@@ -17977,6 +20548,30 @@ components:
                 Type:
                     type: string
                     example: blocks
+        TaskFieldValue:
+            type: object
+            description: TaskFieldValue model
+            properties:
+                Field:
+                    type: string
+                    description: Custom field definition
+                    nullable: true
+                FieldID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Task:
+                    type: string
+                    description: Task this value belongs to
+                    nullable: true
+                TaskID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                Value:
+                    type: string
+                    example: High
+                ValueJSON:
+                    type: string
+                    example: '{"selected":["option1","option2"]}'
         TaskFilterRequest:
             type: object
             description: TaskFilterRequest model
@@ -18984,6 +21579,94 @@ components:
                 UserID:
                     type: string
                     example: 01HXYZ123456789ABCDEFGHIJK
+        UserEmploymentHistory:
+            type: object
+            description: UserEmploymentHistory model
+            properties:
+                ChangeReason:
+                    type: string
+                    example: Performance-based promotion
+                ChangeType:
+                    type: string
+                    example: promotion
+                Currency:
+                    type: string
+                    example: USD
+                Department:
+                    type: string
+                    nullable: true
+                DepartmentID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                EffectiveDate:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T00:00:00Z"
+                EmployeeID:
+                    type: string
+                    example: EMP001
+                EmploymentType:
+                    type: string
+                    example: full_time
+                EndDate:
+                    type: string
+                    example: "2024-12-31T00:00:00Z"
+                    nullable: true
+                IsCurrent:
+                    type: boolean
+                    example: "true"
+                JobLevel:
+                    type: string
+                    nullable: true
+                JobLevelID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                JobPosition:
+                    type: string
+                    nullable: true
+                JobPositionID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                JobTitle:
+                    type: string
+                    example: Senior Software Engineer
+                Manager:
+                    type: string
+                    nullable: true
+                ManagerID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                Notes:
+                    type: string
+                    example: Promoted based on exceptional performance and leadership skills
+                Organization:
+                    type: string
+                OrganizationID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                PerformanceRating:
+                    type: number
+                    example: "4.5"
+                    nullable: true
+                Salary:
+                    type: string
+                    example: encrypted_salary_data
+                Team:
+                    type: string
+                    nullable: true
+                TeamID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                User:
+                    type: string
+                UserID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
         UserKey:
             type: object
             description: UserKey model
@@ -19038,6 +21721,20 @@ components:
                 IsActive:
                     type: boolean
                     example: "true"
+                JobLevel:
+                    type: string
+                    nullable: true
+                JobLevelID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
+                JobPosition:
+                    type: string
+                    nullable: true
+                JobPositionID:
+                    type: string
+                    example: 01HXYZ123456789ABCDEFGHIJK
+                    nullable: true
                 JoinedAt:
                     type: string
                     format: date-time
@@ -19477,75 +22174,93 @@ components:
 security:
     - BearerAuth: []
 tags:
-    - name: countries
-      description: ""
-    - name: districts
-      description: ""
-    - name: meeting-analytics
-      description: ""
-    - name: organizations
-      description: ""
-    - name: tenants
-      description: ""
-    - name: calendar-permissions
-      description: ""
-    - name: cities
-      description: ""
-    - name: notifications
-      description: ""
-    - name: provinces
-      description: ""
-    - name: roles
-      description: ""
-    - name: task-labels
-      description: ""
-    - name: departments
+    - name: permissions
       description: ""
     - name: projects
       description: ""
-    - name: calendar-delegation
+    - name: project-templates
       description: ""
-    - name: chat
+    - name: user-job-management
       description: ""
-    - name: Drive
-      description: ""
-    - name: Meeting Polls
-      description: ""
-    - name: OAuth2
+    - name: roles
       description: ""
     - name: tasks
       description: ""
-    - name: task-boards
-      description: ""
-    - name: meetings
-      description: ""
-    - name: permissions
-      description: ""
-    - name: calendar-analytics
-      description: ""
-    - name: milestones
-      description: ""
-    - name: activity-logs
-      description: ""
-    - name: calendar-events
-      description: ""
-    - name: calendar-sharing
-      description: ""
     - name: event-templates
       description: ""
-    - name: meeting-security
+    - name: job-positions
       description: ""
-    - name: Meeting Whiteboard
-      description: ""
-    - name: users
-      description: ""
-    - name: teams
+    - name: meeting-analytics
       description: ""
     - name: Authentication
       description: ""
-    - name: ws
+    - name: calendar-sharing
+      description: ""
+    - name: job-levels
+      description: ""
+    - name: Meeting Polls
+      description: ""
+    - name: Meeting Whiteboard
+      description: ""
+    - name: project-custom-fields
+      description: ""
+    - name: milestones
+      description: ""
+    - name: calendar-events
+      description: ""
+    - name: chat
+      description: ""
+    - name: departments
+      description: ""
+    - name: project-insights
+      description: ""
+    - name: project-views
+      description: ""
+    - name: provinces
+      description: ""
+    - name: teams
+      description: ""
+    - name: users
+      description: ""
+    - name: calendar-permissions
+      description: ""
+    - name: Drive
+      description: ""
+    - name: notifications
+      description: ""
+    - name: tenants
+      description: ""
+    - name: vault
+      description: ""
+    - name: activity-logs
+      description: ""
+    - name: calendar-delegation
+      description: ""
+    - name: cities
+      description: ""
+    - name: districts
+      description: ""
+    - name: meeting-security
+      description: ""
+    - name: task-labels
+      description: ""
+    - name: task-boards
+      description: ""
+    - name: calendar-analytics
+      description: ""
+    - name: meetings
+      description: ""
+    - name: countries
+      description: ""
+    - name: OAuth2
+      description: ""
+    - name: organizations
+      description: ""
+    - name: websocket
       description: ""
     - name: oauth
       description: ""
-    - name: websocket
+    - name: auth
+      description: ""
+    - name: ws
       description: ""

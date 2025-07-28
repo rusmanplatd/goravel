@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/goravel/framework/facades"
 
@@ -1391,17 +1392,61 @@ func (ss *StorageService) deleteFileFromDatabase(fileID string) error {
 
 // Helper methods for GCS OAuth2 authentication
 func (ss *StorageService) getGCSAccessToken(serviceAccountKey string) (string, error) {
-	// In production, this would parse the service account JSON and create a proper JWT
-	// For now, return a placeholder token
-	facades.Log().Debug("Getting GCS access token", map[string]interface{}{
-		"key_length": len(serviceAccountKey),
-	})
+	// Parse the service account JSON
+	var serviceAccount struct {
+		Type                    string `json:"type"`
+		ProjectID               string `json:"project_id"`
+		PrivateKeyID            string `json:"private_key_id"`
+		PrivateKey              string `json:"private_key"`
+		ClientEmail             string `json:"client_email"`
+		ClientID                string `json:"client_id"`
+		AuthURI                 string `json:"auth_uri"`
+		TokenURI                string `json:"token_uri"`
+		AuthProviderX509CertURL string `json:"auth_provider_x509_cert_url"`
+		ClientX509CertURL       string `json:"client_x509_cert_url"`
+	}
 
-	// This is a placeholder - in production you would:
-	// 1. Parse the service account JSON
-	// 2. Create a JWT assertion
-	// 3. Exchange it for an access token
-	return "placeholder_token", nil
+	if err := json.Unmarshal([]byte(serviceAccountKey), &serviceAccount); err != nil {
+		return "", fmt.Errorf("failed to parse service account key: %w", err)
+	}
+
+	// Parse the private key
+	block, _ := pem.Decode([]byte(serviceAccount.PrivateKey))
+	if block == nil {
+		return "", fmt.Errorf("failed to decode private key PEM")
+	}
+
+	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	rsaKey, ok := privateKey.(*rsa.PrivateKey)
+	if !ok {
+		return "", fmt.Errorf("private key is not RSA")
+	}
+
+	// Create JWT assertion
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"iss":   serviceAccount.ClientEmail,
+		"scope": "https://www.googleapis.com/auth/cloud-platform",
+		"aud":   serviceAccount.TokenURI,
+		"exp":   now.Add(time.Hour).Unix(),
+		"iat":   now.Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = serviceAccount.PrivateKeyID
+
+	// Sign the JWT
+	assertion, err := token.SignedString(rsaKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign JWT: %w", err)
+	}
+
+	// Exchange JWT for access token using the existing method
+	return ss.exchangeJWTForAccessToken(assertion)
 }
 
 // Helper methods for Azure authentication

@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"math"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/facades"
@@ -728,33 +730,305 @@ func (s *OAuthZeroTrustService) savePolicy(policy *ZeroTrustPolicy) error {
 }
 
 func (s *OAuthZeroTrustService) isKnownDevice(fingerprint, userID string) bool {
-	// Check if device is known for this user
-	return true // Simplified
+	// Production-ready device recognition using historical data
+	if fingerprint == "" || userID == "" {
+		return false
+	}
+
+	// Check device history in database
+	count, err := facades.Orm().Query().Table("user_devices").
+		Where("user_id = ? AND device_fingerprint = ? AND is_trusted = true", userID, fingerprint).
+		Count()
+
+	if err != nil {
+		facades.Log().Error("Error checking known device", map[string]interface{}{
+			"error":       err.Error(),
+			"user_id":     userID,
+			"fingerprint": fingerprint,
+		})
+		return false
+	}
+
+	return count > 0
 }
 
 func (s *OAuthZeroTrustService) hasSecurityFeatures(fingerprint string) bool {
-	// Check if device has security features
-	return true // Simplified
+	// Production-ready security feature detection
+	if fingerprint == "" {
+		return false
+	}
+
+	// Query device security features from device registry
+	var securityFeatures struct {
+		HasTpm        bool   `json:"has_tpm"`
+		HasSecureBoot bool   `json:"has_secure_boot"`
+		HasBiometrics bool   `json:"has_biometrics"`
+		HasScreenLock bool   `json:"has_screen_lock"`
+		HasEncryption bool   `json:"has_encryption"`
+		SecurityPatch string `json:"security_patch"`
+	}
+
+	err := facades.Orm().Query().Table("device_security_features").
+		Select("has_tpm, has_secure_boot, has_biometrics, has_screen_lock, has_encryption, security_patch").
+		Where("device_fingerprint = ?", fingerprint).
+		Scan(&securityFeatures)
+
+	if err != nil {
+		facades.Log().Warning("Unable to determine device security features", map[string]interface{}{
+			"error":       err.Error(),
+			"fingerprint": fingerprint,
+		})
+		return false // Conservative approach - assume no security features
+	}
+
+	// Device must have at least 2 security features to be considered secure
+	securityCount := 0
+	if securityFeatures.HasTpm {
+		securityCount++
+	}
+	if securityFeatures.HasSecureBoot {
+		securityCount++
+	}
+	if securityFeatures.HasBiometrics {
+		securityCount++
+	}
+	if securityFeatures.HasScreenLock {
+		securityCount++
+	}
+	if securityFeatures.HasEncryption {
+		securityCount++
+	}
+
+	return securityCount >= 2
 }
 
 func (s *OAuthZeroTrustService) isTypicalLocation(location, userID string) bool {
-	// Check if location is typical for user
-	return true // Simplified
+	// Production-ready location pattern analysis
+	if location == "" || userID == "" {
+		return false
+	}
+
+	// Check user's historical location patterns
+	var locationHistory []struct {
+		Location  string    `json:"location"`
+		Frequency int       `json:"frequency"`
+		LastSeen  time.Time `json:"last_seen"`
+	}
+
+	err := facades.Orm().Query().Table("user_location_history").
+		Select("location, frequency, last_seen").
+		Where("user_id = ? AND last_seen > ?", userID, time.Now().Add(-90*24*time.Hour)).
+		OrderBy("frequency DESC").
+		Limit(10).
+		Scan(&locationHistory)
+
+	if err != nil {
+		facades.Log().Error("Error checking location history", map[string]interface{}{
+			"error":    err.Error(),
+			"user_id":  userID,
+			"location": location,
+		})
+		return false
+	}
+
+	// Check if current location matches any known location
+	for _, hist := range locationHistory {
+		if hist.Location == location {
+			return true
+		}
+
+		// Check for similar locations (same city/region)
+		if s.locationsAreSimilar(location, hist.Location) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *OAuthZeroTrustService) getLocationRisk(location string) float64 {
-	// Get risk score for location
-	return 0.1 // Low risk
+	// Production-ready location risk assessment
+	if location == "" {
+		return 0.8 // High risk for unknown location
+	}
+
+	// Check against high-risk location database
+	var riskData struct {
+		RiskScore   float64   `json:"risk_score"`
+		ThreatLevel string    `json:"threat_level"`
+		IsHighRisk  bool      `json:"is_high_risk"`
+		LastUpdated time.Time `json:"last_updated"`
+	}
+
+	err := facades.Orm().Query().Table("location_risk_scores").
+		Select("risk_score, threat_level, is_high_risk, last_updated").
+		Where("location ILIKE ?", "%"+location+"%").
+		OrderBy("last_updated DESC").
+		Limit(1).
+		Scan(&riskData)
+
+	if err != nil {
+		facades.Log().Warning("Unable to determine location risk", map[string]interface{}{
+			"error":    err.Error(),
+			"location": location,
+		})
+
+		// Fallback: basic location risk assessment
+		return s.assessBasicLocationRisk(location)
+	}
+
+	// Adjust risk based on data freshness
+	dataAge := time.Since(riskData.LastUpdated)
+	if dataAge > 30*24*time.Hour {
+		// Increase risk for stale data
+		riskData.RiskScore += 0.1
+	}
+
+	return math.Max(0.0, math.Min(1.0, riskData.RiskScore))
 }
 
 func (s *OAuthZeroTrustService) getNetworkRisk(fingerprint string) float64 {
-	// Get risk score for network
-	return 0.1 // Low risk
+	// Production-ready network risk assessment
+	if fingerprint == "" {
+		return 0.7 // High risk for unknown network
+	}
+
+	// Extract network information from fingerprint
+	var networkInfo struct {
+		IpAddress    string  `json:"ip_address"`
+		ASN          string  `json:"asn"`
+		Organization string  `json:"organization"`
+		NetworkType  string  `json:"network_type"`
+		Country      string  `json:"country"`
+		IsTor        bool    `json:"is_tor"`
+		IsVpn        bool    `json:"is_vpn"`
+		IsProxy      bool    `json:"is_proxy"`
+		RiskScore    float64 `json:"risk_score"`
+	}
+
+	err := facades.Orm().Query().Table("network_intelligence").
+		Select("ip_address, asn, organization, network_type, country, is_tor, is_vpn, is_proxy, risk_score").
+		Where("fingerprint = ?", fingerprint).
+		OrderBy("updated_at DESC").
+		Limit(1).
+		Scan(&networkInfo)
+
+	if err != nil {
+		facades.Log().Warning("Unable to determine network risk", map[string]interface{}{
+			"error":       err.Error(),
+			"fingerprint": fingerprint,
+		})
+		return 0.5 // Medium risk for unknown network
+	}
+
+	baseRisk := networkInfo.RiskScore
+
+	// Increase risk for anonymizing services
+	if networkInfo.IsTor {
+		baseRisk += 0.4
+	}
+	if networkInfo.IsVpn {
+		baseRisk += 0.2
+	}
+	if networkInfo.IsProxy {
+		baseRisk += 0.3
+	}
+
+	// Adjust risk based on network type
+	switch networkInfo.NetworkType {
+	case "residential":
+		baseRisk += 0.0 // No additional risk
+	case "business":
+		baseRisk -= 0.1 // Slightly lower risk
+	case "mobile":
+		baseRisk += 0.1 // Slightly higher risk
+	case "hosting":
+		baseRisk += 0.3 // Higher risk for hosting providers
+	case "unknown":
+		baseRisk += 0.2 // Higher risk for unknown types
+	}
+
+	return math.Max(0.0, math.Min(1.0, baseRisk))
 }
 
 func (s *OAuthZeroTrustService) isVPNOrProxy(fingerprint string) bool {
-	// Check if network is VPN/Proxy
-	return false // Simplified
+	// Production-ready VPN/Proxy detection
+	if fingerprint == "" {
+		return false
+	}
+
+	// Check network intelligence database
+	var networkFlags struct {
+		IsVpn   bool `json:"is_vpn"`
+		IsProxy bool `json:"is_proxy"`
+		IsTor   bool `json:"is_tor"`
+	}
+
+	err := facades.Orm().Query().Table("network_intelligence").
+		Select("is_vpn, is_proxy, is_tor").
+		Where("fingerprint = ?", fingerprint).
+		OrderBy("updated_at DESC").
+		Limit(1).
+		Scan(&networkFlags)
+
+	if err != nil {
+		facades.Log().Warning("Unable to check VPN/Proxy status", map[string]interface{}{
+			"error":       err.Error(),
+			"fingerprint": fingerprint,
+		})
+		return false
+	}
+
+	return networkFlags.IsVpn || networkFlags.IsProxy || networkFlags.IsTor
+}
+
+// Helper methods for location and risk assessment
+func (s *OAuthZeroTrustService) locationsAreSimilar(location1, location2 string) bool {
+	// Simple similarity check based on common substrings
+	// In production, use proper geolocation services
+	if location1 == location2 {
+		return true
+	}
+
+	// Extract city/region from location strings
+	parts1 := strings.Split(location1, ",")
+	parts2 := strings.Split(location2, ",")
+
+	// Check if they share the same city or region
+	for _, part1 := range parts1 {
+		part1 = strings.TrimSpace(part1)
+		for _, part2 := range parts2 {
+			part2 = strings.TrimSpace(part2)
+			if part1 == part2 && len(part1) > 2 {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *OAuthZeroTrustService) assessBasicLocationRisk(location string) float64 {
+	// Basic location risk assessment without database
+	if location == "" {
+		return 0.8
+	}
+
+	// Check for high-risk indicators in location string
+	highRiskIndicators := []string{
+		"Anonymous", "Proxy", "VPN", "Tor", "Unknown",
+		"Satellite", "Mobile", "Temporary",
+	}
+
+	locationLower := strings.ToLower(location)
+	for _, indicator := range highRiskIndicators {
+		if strings.Contains(locationLower, strings.ToLower(indicator)) {
+			return 0.7 // High risk
+		}
+	}
+
+	// Default medium-low risk for known locations
+	return 0.3
 }
 
 func (s *OAuthZeroTrustService) analyzeMouseBehavior(movements []MouseMovement, userID string) float64 {

@@ -1,12 +1,15 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/goravel/framework/facades"
+	redisfacades "github.com/goravel/redis/facades"
+	"github.com/redis/go-redis/v9"
 )
 
 // NotificationRateLimiter handles rate limiting for notifications
@@ -311,17 +314,78 @@ func (rl *NotificationRateLimiter) scanKeys(pattern string) ([]string, error) {
 }
 
 // getRedisClient attempts to get a Redis client instance
-func (rl *NotificationRateLimiter) getRedisClient() interface{} {
-	// This is a simplified approach - in production you'd have proper Redis client access
-	// For now, return nil to use the fallback approach
-	return nil
+func (rl *NotificationRateLimiter) getRedisClient() *redis.Client {
+	// Get Redis client from Goravel's Redis facade
+	cacheDriver, err := redisfacades.Cache("redis")
+	if err != nil {
+		facades.Log().Warning("Failed to get Redis cache driver", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil
+	}
+
+	// Try to extract the underlying Redis client
+	// This is implementation-specific and may need adjustment based on the actual cache driver
+	if redisCache, ok := cacheDriver.(interface{ GetClient() *redis.Client }); ok {
+		return redisCache.GetClient()
+	}
+
+	// Fallback: create a direct Redis client using the same config as the cache
+	redisConfig := facades.Config().Get("database.redis.default")
+	if redisConfig == nil {
+		facades.Log().Warning("Redis configuration not found")
+		return nil
+	}
+
+	config := redisConfig.(map[string]interface{})
+	host := config["host"].(string)
+	port := config["port"].(int)
+	password := config["password"].(string)
+	db := config["database"].(int)
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", host, port),
+		Password: password,
+		DB:       db,
+	})
+
+	return client
 }
 
 // scanKeysWithRedis uses Redis SCAN command for efficient key scanning
-func (rl *NotificationRateLimiter) scanKeysWithRedis(client interface{}, pattern string) ([]string, error) {
-	// This would use the actual Redis client's SCAN command
-	// Implementation depends on the specific Redis client library used
-	return nil, fmt.Errorf("Redis client not available")
+func (rl *NotificationRateLimiter) scanKeysWithRedis(client *redis.Client, pattern string) ([]string, error) {
+	if client == nil {
+		return nil, fmt.Errorf("Redis client not available")
+	}
+
+	ctx := context.Background()
+	var keys []string
+	var cursor uint64
+
+	// Use Redis SCAN command for efficient key scanning
+	for {
+		var scanKeys []string
+		var err error
+
+		scanKeys, cursor, err = client.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan Redis keys: %w", err)
+		}
+
+		keys = append(keys, scanKeys...)
+
+		// If cursor is 0, we've scanned all keys
+		if cursor == 0 {
+			break
+		}
+	}
+
+	facades.Log().Debug("Redis SCAN completed", map[string]interface{}{
+		"pattern":    pattern,
+		"keys_found": len(keys),
+	})
+
+	return keys, nil
 }
 
 // scanKeysWithCache uses a cache-based approach as fallback

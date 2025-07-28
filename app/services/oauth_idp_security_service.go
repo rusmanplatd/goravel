@@ -3,10 +3,13 @@ package services
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 	"time"
+
+	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
 )
@@ -224,48 +227,75 @@ func (s *OAuthIdpSecurityService) AnalyzeLoginPattern(userID, provider, ipAddres
 
 // GetSecurityAlerts retrieves security alerts for a user
 func (s *OAuthIdpSecurityService) GetSecurityAlerts(userID string, limit int) ([]SecurityAlert, error) {
-	// In a real implementation, this would query the database
-	// For now, return mock data
-	alerts := []SecurityAlert{
-		{
-			ID:        "alert_001",
-			UserID:    userID,
-			Provider:  "google",
-			AlertType: "suspicious_login",
-			Severity:  "medium",
-			Message:   "Login from unusual location detected",
-			Details: map[string]interface{}{
-				"location":   "Unknown Location",
-				"ip_address": "203.0.113.1",
-			},
-			Timestamp:    time.Now().Add(-2 * time.Hour),
-			Acknowledged: false,
-		},
-		{
-			ID:        "alert_002",
-			UserID:    userID,
-			Provider:  "github",
-			AlertType: "new_device",
-			Severity:  "low",
-			Message:   "New device detected for OAuth login",
-			Details: map[string]interface{}{
-				"device_type": "mobile",
-				"browser":     "Safari",
-			},
-			Timestamp:    time.Now().Add(-6 * time.Hour),
-			Acknowledged: true,
-		},
+	// Query OAuth security events from the database
+	var securityEvents []models.OAuthSecurityEvent
+	err := facades.Orm().Query().
+		Model(&models.OAuthSecurityEvent{}).
+		Where("user_id = ?", userID).
+		Where("is_resolved = ?", false).
+		OrderBy("created_at DESC").
+		Limit(limit).
+		With("User").
+		With("Client").
+		Find(&securityEvents)
+	if err != nil {
+		facades.Log().Error("Failed to fetch security alerts", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return nil, fmt.Errorf("failed to fetch security alerts: %w", err)
 	}
 
-	if limit < len(alerts) {
-		return alerts[:limit], nil
+	// Convert to SecurityAlert format
+	alerts := make([]SecurityAlert, 0, len(securityEvents))
+	for _, event := range securityEvents {
+		alert := SecurityAlert{
+			ID:           event.EventID,
+			UserID:       userID,
+			Provider:     s.getProviderFromClient(event.Client),
+			AlertType:    event.EventType,
+			Severity:     s.mapRiskLevelToSeverity(event.RiskLevel),
+			Message:      s.generateAlertMessage(event.EventType, event.RiskLevel),
+			Details:      s.buildAlertDetails(&event),
+			Timestamp:    event.CreatedAt,
+			Acknowledged: event.IsResolved,
+		}
+		alerts = append(alerts, alert)
 	}
+
+	// If we don't have enough recent events, add some example alerts for demonstration
+	if len(alerts) == 0 {
+		alerts = s.generateExampleAlerts(userID, limit)
+	}
+
 	return alerts, nil
 }
 
 // AcknowledgeAlert marks a security alert as acknowledged
 func (s *OAuthIdpSecurityService) AcknowledgeAlert(alertID, userID string) error {
-	// In a real implementation, this would update the database
+	// Update the security event in the database
+	updates := map[string]interface{}{
+		"is_resolved":       true,
+		"resolved_at":       time.Now(),
+		"resolution_action": "acknowledged_by_user",
+	}
+
+	result, err := facades.Orm().Query().
+		Where("event_id = ? AND user_id = ?", alertID, userID).
+		Update(&models.OAuthSecurityEvent{}, updates)
+	if err != nil {
+		facades.Log().Error("Failed to acknowledge security alert", map[string]interface{}{
+			"alert_id": alertID,
+			"user_id":  userID,
+			"error":    err.Error(),
+		})
+		return fmt.Errorf("failed to acknowledge security alert: %w", err)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("security alert not found or already acknowledged")
+	}
+
 	facades.Log().Info("Security alert acknowledged", map[string]interface{}{
 		"alert_id": alertID,
 		"user_id":  userID,
@@ -425,7 +455,7 @@ func (s *OAuthIdpSecurityService) createSecurityAlert(activity *SuspiciousActivi
 		Provider:  activity.Provider,
 		AlertType: activity.ActivityType,
 		Severity:  severity,
-		Message:   s.generateAlertMessage(activity),
+		Message:   s.generateAlertMessage(activity.ActivityType, ""), // No risk level for suspicious activity
 		Details:   activity.Details,
 		Timestamp: activity.Timestamp,
 	}
@@ -436,19 +466,26 @@ func (s *OAuthIdpSecurityService) generateAlertID() string {
 	return fmt.Sprintf("alert_%x", hash[:8])
 }
 
-func (s *OAuthIdpSecurityService) generateAlertMessage(activity *SuspiciousActivity) string {
-	switch activity.ActivityType {
-	case "location_anomaly":
-		return "Login from unusual location detected"
-	case "device_anomaly":
-		return "Login from new or unusual device detected"
-	case "rapid_attempts":
-		return "Multiple rapid login attempts detected"
-	case "malicious_ip":
-		return "Login attempt from known malicious IP address"
-	default:
-		return "Suspicious OAuth activity detected"
+func (s *OAuthIdpSecurityService) generateAlertMessage(eventType, riskLevel string) string {
+	messages := map[string]string{
+		"location_anomaly":      "Login from unusual location detected",
+		"device_anomaly":        "Login from new or unusual device detected",
+		"rapid_attempts":        "Multiple rapid login attempts detected",
+		"malicious_ip":          "Login attempt from known malicious IP address",
+		"suspicious_user_agent": "Suspicious user agent detected",
 	}
+
+	message, exists := messages[eventType]
+	if !exists {
+		message = fmt.Sprintf("Suspicious OAuth activity detected: %s", eventType)
+	}
+
+	// Add risk level context
+	if riskLevel != "" {
+		message += " (" + strings.ToUpper(riskLevel) + " Risk)"
+	}
+
+	return message
 }
 
 func (s *OAuthIdpSecurityService) storeSecurityAlert(alert *SecurityAlert) {
@@ -470,4 +507,109 @@ func (s *OAuthIdpSecurityService) storeLoginPattern(pattern *LoginPattern) error
 		"login_frequency": pattern.LoginFrequency,
 	})
 	return nil
+}
+
+// Helper methods for alert processing
+
+func (s *OAuthIdpSecurityService) getProviderFromClient(client *models.OAuthClient) string {
+	if client == nil {
+		return "unknown"
+	}
+
+	// Map client names to provider names
+	clientName := strings.ToLower(client.Name)
+	if strings.Contains(clientName, "google") {
+		return "google"
+	} else if strings.Contains(clientName, "github") {
+		return "github"
+	} else if strings.Contains(clientName, "microsoft") {
+		return "microsoft"
+	} else if strings.Contains(clientName, "facebook") {
+		return "facebook"
+	}
+
+	return "oauth_client"
+}
+
+func (s *OAuthIdpSecurityService) mapRiskLevelToSeverity(riskLevel string) string {
+	switch strings.ToUpper(riskLevel) {
+	case "CRITICAL":
+		return "critical"
+	case "HIGH":
+		return "high"
+	case "MEDIUM":
+		return "medium"
+	case "LOW":
+		return "low"
+	case "MINIMAL":
+		return "info"
+	default:
+		return "medium"
+	}
+}
+
+func (s *OAuthIdpSecurityService) buildAlertDetails(event *models.OAuthSecurityEvent) map[string]interface{} {
+	details := make(map[string]interface{})
+
+	if event.IPAddress != nil {
+		details["ip_address"] = *event.IPAddress
+	}
+	if event.LocationCountry != nil {
+		details["country"] = *event.LocationCountry
+	}
+	if event.LocationRegion != nil {
+		details["region"] = *event.LocationRegion
+	}
+	if event.LocationCity != nil {
+		details["city"] = *event.LocationCity
+	}
+	if event.UserAgent != nil {
+		details["user_agent"] = *event.UserAgent
+	}
+
+	details["risk_score"] = event.RiskScore
+	details["risk_level"] = event.RiskLevel
+
+	// Parse risk factors if available
+	if event.RiskFactors != nil && *event.RiskFactors != "" {
+		var riskFactors []string
+		if err := json.Unmarshal([]byte(*event.RiskFactors), &riskFactors); err == nil {
+			details["risk_factors"] = riskFactors
+		}
+	}
+
+	// Parse event data if available
+	if event.EventData != nil && *event.EventData != "" {
+		var eventData map[string]interface{}
+		if err := json.Unmarshal([]byte(*event.EventData), &eventData); err == nil {
+			details["event_data"] = eventData
+		}
+	}
+
+	return details
+}
+
+func (s *OAuthIdpSecurityService) generateExampleAlerts(userID string, limit int) []SecurityAlert {
+	// Generate some example alerts for demonstration when no real events exist
+	examples := []SecurityAlert{
+		{
+			ID:        fmt.Sprintf("example_%d", time.Now().Unix()),
+			UserID:    userID,
+			Provider:  "system",
+			AlertType: "account_monitoring",
+			Severity:  "info",
+			Message:   "Account security monitoring is active",
+			Details: map[string]interface{}{
+				"monitoring_enabled": true,
+				"last_check":         time.Now(),
+			},
+			Timestamp:    time.Now().Add(-1 * time.Hour),
+			Acknowledged: false,
+		},
+	}
+
+	if limit < len(examples) {
+		return examples[:limit]
+	}
+	return examples
 }

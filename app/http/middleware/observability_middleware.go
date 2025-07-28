@@ -42,7 +42,12 @@ func (m *ObservabilityMiddleware) Handle(ctx http.Context) http.Response {
 				"panic": r,
 				"path":  ctx.Request().Path(),
 			}).Error("Panic recovered in observability middleware")
-			panic(r) // Re-panic to maintain normal panic behavior
+
+			// Return internal server error response instead of re-panicking
+			ctx.Response().Status(500).Json(map[string]interface{}{
+				"error": "Internal server error",
+			})
+			return
 		}
 	}()
 

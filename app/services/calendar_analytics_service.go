@@ -491,13 +491,192 @@ func (cas *CalendarAnalyticsService) getTenantOverview(tenantID string, startDat
 	}, nil
 }
 
-// getTeamAnalytics provides team-level analytics (placeholder for future implementation)
+// getTeamAnalytics provides team-level analytics using department and team structure
 func (cas *CalendarAnalyticsService) getTeamAnalytics(tenantID string, startDate, endDate time.Time) (map[string]interface{}, error) {
-	// This would require team/department structure in the database
-	// For now, return basic structure
+	// Get all teams for the tenant through organizations
+	var teams []struct {
+		TeamID      string  `json:"team_id"`
+		TeamName    string  `json:"team_name"`
+		TeamCode    string  `json:"team_code"`
+		TeamType    string  `json:"team_type"`
+		DeptName    string  `json:"department_name"`
+		OrgName     string  `json:"organization_name"`
+		TeamLeadID  *string `json:"team_lead_id"`
+		CurrentSize int     `json:"current_size"`
+	}
+
+	err := facades.Orm().Query().
+		Table("teams t").
+		Select("t.id as team_id, t.name as team_name, t.code as team_code, t.type as team_type, "+
+			"d.name as department_name, o.name as organization_name, t.team_lead_id, t.current_size").
+		Join("LEFT JOIN departments d ON t.department_id = d.id").
+		Join("LEFT JOIN organizations o ON t.organization_id = o.id").
+		Where("o.tenant_id = ? AND t.is_active = ?", tenantID, true).
+		Scan(&teams)
+	if err != nil {
+		return nil, err
+	}
+
+	teamAnalytics := make([]map[string]interface{}, 0)
+
+	for _, team := range teams {
+		// Get team members
+		var teamMemberIDs []string
+		err := facades.Orm().Query().
+			Table("user_teams").
+			Select("user_id").
+			Where("team_id = ? AND is_active = ?", team.TeamID, true).
+			Pluck("user_id", &teamMemberIDs)
+		if err != nil {
+			continue
+		}
+
+		if len(teamMemberIDs) == 0 {
+			teamAnalytics = append(teamAnalytics, map[string]interface{}{
+				"team_id":              team.TeamID,
+				"team_name":            team.TeamName,
+				"team_code":            team.TeamCode,
+				"team_type":            team.TeamType,
+				"department_name":      team.DeptName,
+				"organization_name":    team.OrgName,
+				"team_lead_id":         team.TeamLeadID,
+				"current_size":         team.CurrentSize,
+				"total_events":         0,
+				"total_hours":          0.0,
+				"avg_hours_per_member": 0.0,
+				"meeting_types":        map[string]int64{},
+				"participation_rate":   0.0,
+			})
+			continue
+		}
+
+		// Get events where team members participated
+		var eventStats []struct {
+			EventID   string    `json:"event_id"`
+			Type      string    `json:"type"`
+			Duration  float64   `json:"duration"`
+			StartTime time.Time `json:"start_time"`
+		}
+
+		err = facades.Orm().Query().
+			Table("calendar_events ce").
+			Select("DISTINCT ce.id as event_id, ce.type, "+
+				"EXTRACT(EPOCH FROM (ce.end_time - ce.start_time))/3600 as duration, ce.start_time").
+			Join("INNER JOIN event_participants ep ON ce.id = ep.event_id").
+			Where("ce.tenant_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
+				tenantID, teamMemberIDs, startDate, endDate).
+			Where("ep.response_status IN ?", []string{"accepted", "tentative"}).
+			Scan(&eventStats)
+		if err != nil {
+			continue
+		}
+
+		// Calculate team metrics
+		totalEvents := int64(len(eventStats))
+		totalHours := 0.0
+		meetingTypes := make(map[string]int64)
+
+		for _, event := range eventStats {
+			totalHours += event.Duration
+			meetingTypes[event.Type]++
+		}
+
+		avgHoursPerMember := 0.0
+		if len(teamMemberIDs) > 0 {
+			avgHoursPerMember = totalHours / float64(len(teamMemberIDs))
+		}
+
+		// Calculate participation rate (events with team members / total team events invited to)
+		var totalInvitations int64
+		totalInvitations, err = facades.Orm().Query().
+			Table("event_participants ep").
+			Join("INNER JOIN calendar_events ce ON ep.event_id = ce.id").
+			Where("ce.tenant_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
+				tenantID, teamMemberIDs, startDate, endDate).
+			Count()
+		if err != nil {
+			totalInvitations = 1 // Avoid division by zero
+		}
+
+		participationRate := 0.0
+		if totalInvitations > 0 {
+			acceptedInvitations, _ := facades.Orm().Query().
+				Table("event_participants ep").
+				Join("INNER JOIN calendar_events ce ON ep.event_id = ce.id").
+				Where("ce.tenant_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
+					tenantID, teamMemberIDs, startDate, endDate).
+				Where("ep.response_status IN ?", []string{"accepted", "tentative"}).
+				Count()
+			participationRate = float64(acceptedInvitations) / float64(totalInvitations) * 100
+		}
+
+		teamAnalytics = append(teamAnalytics, map[string]interface{}{
+			"team_id":              team.TeamID,
+			"team_name":            team.TeamName,
+			"team_code":            team.TeamCode,
+			"team_type":            team.TeamType,
+			"department_name":      team.DeptName,
+			"organization_name":    team.OrgName,
+			"team_lead_id":         team.TeamLeadID,
+			"current_size":         team.CurrentSize,
+			"active_members":       len(teamMemberIDs),
+			"total_events":         totalEvents,
+			"total_hours":          totalHours,
+			"avg_hours_per_member": avgHoursPerMember,
+			"meeting_types":        meetingTypes,
+			"participation_rate":   participationRate,
+		})
+	}
+
+	// Get department-level aggregations
+	departmentStats := make(map[string]map[string]interface{})
+	for _, teamData := range teamAnalytics {
+		deptName := teamData["department_name"].(string)
+		if deptName == "" {
+			deptName = "No Department"
+		}
+
+		if _, exists := departmentStats[deptName]; !exists {
+			departmentStats[deptName] = map[string]interface{}{
+				"department_name":        deptName,
+				"total_teams":            0,
+				"total_members":          0,
+				"total_events":           int64(0),
+				"total_hours":            0.0,
+				"avg_participation_rate": 0.0,
+			}
+		}
+
+		dept := departmentStats[deptName]
+		dept["total_teams"] = dept["total_teams"].(int) + 1
+		dept["total_members"] = dept["total_members"].(int) + teamData["active_members"].(int)
+		dept["total_events"] = dept["total_events"].(int64) + teamData["total_events"].(int64)
+		dept["total_hours"] = dept["total_hours"].(float64) + teamData["total_hours"].(float64)
+		dept["avg_participation_rate"] = dept["avg_participation_rate"].(float64) + teamData["participation_rate"].(float64)
+	}
+
+	// Calculate department averages
+	for _, dept := range departmentStats {
+		if totalTeams := dept["total_teams"].(int); totalTeams > 0 {
+			dept["avg_participation_rate"] = dept["avg_participation_rate"].(float64) / float64(totalTeams)
+		}
+	}
+
+	// Convert department stats to slice
+	departmentAnalytics := make([]map[string]interface{}, 0, len(departmentStats))
+	for _, dept := range departmentStats {
+		departmentAnalytics = append(departmentAnalytics, dept)
+	}
+
 	return map[string]interface{}{
-		"teams": []map[string]interface{}{},
-		"note":  "Team analytics require department/team structure to be implemented",
+		"teams":       teamAnalytics,
+		"departments": departmentAnalytics,
+		"summary": map[string]interface{}{
+			"total_teams":       len(teamAnalytics),
+			"total_departments": len(departmentAnalytics),
+			"period_start":      startDate,
+			"period_end":        endDate,
+		},
 	}, nil
 }
 

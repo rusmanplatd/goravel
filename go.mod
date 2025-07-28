@@ -17,6 +17,8 @@ require (
 	github.com/goravel/postgres v1.4.0
 	github.com/goravel/redis v1.4.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/hashicorp/vault/api v1.20.0
+	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/livekit/protocol v1.39.4-0.20250721114233-52633eee694f
 	github.com/livekit/server-sdk-go/v2 v2.9.2
 	github.com/oklog/ulid/v2 v2.1.1
@@ -131,7 +133,6 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
-	github.com/hashicorp/vault/api v1.20.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.7.5 // indirect

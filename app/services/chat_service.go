@@ -1053,3 +1053,47 @@ func (s *ChatService) UpdateGlobalNotificationSettings(userID string, settings *
 
 	return &existingSettings, nil
 }
+
+// Public wrapper methods for encryption - used by WebSocket controller
+
+// EncryptMessage encrypts a message for a room using appropriate encryption method
+func (s *ChatService) EncryptMessage(roomID, content, senderID string, isGroup bool) (string, int, error) {
+	if isGroup {
+		return s.encryptGroupMessage(roomID, content)
+	}
+	return s.encryptDirectMessage(roomID, content, senderID)
+}
+
+// DecryptMessage decrypts a message for a user
+func (s *ChatService) DecryptMessage(message *models.ChatMessage, userID string) (string, error) {
+	return s.decryptMessage(message, userID)
+}
+
+// IsE2EEEnabled checks if E2EE is enabled for a room
+func (s *ChatService) IsE2EEEnabled(roomID string) (bool, error) {
+	keyCount, err := facades.Orm().Query().
+		Model(&models.ChatRoomKey{}).
+		Where("chat_room_id = ? AND is_active = ?", roomID, true).
+		Count()
+
+	if err != nil {
+		return false, fmt.Errorf("failed to check E2EE status: %v", err)
+	}
+
+	return keyCount > 0, nil
+}
+
+// GetRoomEncryptionVersion gets the current encryption version for a room
+func (s *ChatService) GetRoomEncryptionVersion(roomID string) (int, error) {
+	var roomKey models.ChatRoomKey
+	err := facades.Orm().Query().
+		Where("chat_room_id = ? AND is_active = ?", roomID, true).
+		OrderBy("version DESC").
+		First(&roomKey)
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to get encryption version: %v", err)
+	}
+
+	return roomKey.Version, nil
+}

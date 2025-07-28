@@ -380,29 +380,247 @@ func (acs *AuditCorrelationService) GetActiveCorrelationSessions() []*Correlatio
 
 // AnalyzeCorrelationHistory analyzes historical correlations
 func (acs *AuditCorrelationService) AnalyzeCorrelationHistory(tenantID string, timeRange TimeRange) (*CorrelationAnalysisReport, error) {
-	// This would analyze historical correlations
-	// For now, return a basic report
+	reportID := fmt.Sprintf("correlation_analysis_%d", time.Now().UnixNano())
+
+	// Get all correlation results for the time range
+	var correlationResults []CorrelationResult
+	err := facades.Orm().Query().
+		Model(&models.ActivityLog{}).
+		Select("correlation_id, session_id, rule_id, rule_name, tenant_id, event_count, score, confidence, "+
+			"severity, start_time, end_time, duration, created_at").
+		Where("tenant_id = ? AND created_at >= ? AND created_at <= ?", tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("correlation_id IS NOT NULL AND correlation_id != ''").
+		Scan(&correlationResults)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch correlation results: %w", err)
+	}
+
+	// Calculate summary statistics
+	totalCorrelations := len(correlationResults)
+	highRiskEvents := 0
+	totalScore := 0.0
+	severityCount := make(map[string]int)
+	ruleStats := make(map[string]*RuleSummary)
+	patternFrequency := make(map[string]int)
+
+	for _, result := range correlationResults {
+		totalScore += result.Score
+
+		// Count high-risk events (score > 0.7 or critical/high severity)
+		if result.Score > 0.7 || result.Severity == "critical" || result.Severity == "high" {
+			highRiskEvents++
+		}
+
+		severityCount[result.Severity]++
+
+		// Track rule statistics
+		if _, exists := ruleStats[result.RuleID]; !exists {
+			ruleStats[result.RuleID] = &RuleSummary{
+				RuleID:      result.RuleID,
+				Name:        result.RuleName,
+				Triggers:    0,
+				SuccessRate: 0.0,
+				LastTrigger: result.CreatedAt,
+			}
+		}
+
+		rule := ruleStats[result.RuleID]
+		rule.Triggers++
+		if result.CreatedAt.After(rule.LastTrigger) {
+			rule.LastTrigger = result.CreatedAt
+		}
+
+		// Track pattern frequency (using rule name as pattern identifier)
+		patternFrequency[result.RuleName]++
+	}
+
+	// Calculate average score
+	averageScore := 0.0
+	if totalCorrelations > 0 {
+		averageScore = totalScore / float64(totalCorrelations)
+	}
+
+	// Calculate success rates for rules
+	for _, rule := range ruleStats {
+		// Success rate based on high-confidence correlations
+		highConfidenceCount := 0
+		for _, result := range correlationResults {
+			if result.RuleID == rule.RuleID && result.Confidence > 0.8 {
+				highConfidenceCount++
+			}
+		}
+		if rule.Triggers > 0 {
+			rule.SuccessRate = float64(highConfidenceCount) / float64(rule.Triggers) * 100
+		}
+	}
+
+	// Create top patterns list
+	topPatterns := make([]PatternSummary, 0)
+	for patternName, frequency := range patternFrequency {
+		// Find the most recent occurrence and calculate average confidence
+		var lastSeen time.Time
+		totalConfidence := 0.0
+		count := 0
+
+		for _, result := range correlationResults {
+			if result.RuleName == patternName {
+				if result.CreatedAt.After(lastSeen) {
+					lastSeen = result.CreatedAt
+				}
+				totalConfidence += result.Confidence
+				count++
+			}
+		}
+
+		avgConfidence := 0.0
+		if count > 0 {
+			avgConfidence = totalConfidence / float64(count)
+		}
+
+		topPatterns = append(topPatterns, PatternSummary{
+			PatternID:  fmt.Sprintf("pattern_%s", strings.ReplaceAll(strings.ToLower(patternName), " ", "_")),
+			Name:       patternName,
+			Frequency:  frequency,
+			Confidence: avgConfidence,
+			LastSeen:   lastSeen,
+		})
+	}
+
+	// Sort patterns by frequency
+	sort.Slice(topPatterns, func(i, j int) bool {
+		return topPatterns[i].Frequency > topPatterns[j].Frequency
+	})
+
+	// Limit to top 10 patterns
+	if len(topPatterns) > 10 {
+		topPatterns = topPatterns[:10]
+	}
+
+	// Create top rules list
+	topRules := make([]RuleSummary, 0, len(ruleStats))
+	for _, rule := range ruleStats {
+		topRules = append(topRules, *rule)
+	}
+
+	// Sort rules by trigger count
+	sort.Slice(topRules, func(i, j int) bool {
+		return topRules[i].Triggers > topRules[j].Triggers
+	})
+
+	// Limit to top 10 rules
+	if len(topRules) > 10 {
+		topRules = topRules[:10]
+	}
+
+	// Generate trend data (daily correlation counts)
+	trends := make([]TrendData, 0)
+	dailyCorrelations := make(map[string]int)
+
+	for _, result := range correlationResults {
+		day := result.CreatedAt.Format("2006-01-02")
+		dailyCorrelations[day]++
+	}
+
+	// Create trend data points
+	current := timeRange.StartTime
+	for current.Before(timeRange.EndTime) || current.Equal(timeRange.EndTime) {
+		day := current.Format("2006-01-02")
+		count := dailyCorrelations[day]
+
+		trends = append(trends, TrendData{
+			Timestamp: current,
+			Value:     float64(count),
+			Metric:    "daily_correlations",
+		})
+
+		current = current.AddDate(0, 0, 1)
+	}
+
+	// Generate intelligent recommendations
+	recommendations := generateCorrelationRecommendations(totalCorrelations, highRiskEvents, averageScore, severityCount, len(ruleStats))
+
+	// Create summary
+	summary := CorrelationSummary{
+		TotalCorrelations: totalCorrelations,
+		UniquePatterns:    len(patternFrequency),
+		HighRiskEvents:    highRiskEvents,
+		AverageScore:      averageScore,
+	}
+
 	report := &CorrelationAnalysisReport{
-		ReportID:    fmt.Sprintf("correlation_analysis_%d", time.Now().UnixNano()),
-		TenantID:    tenantID,
-		TimeRange:   timeRange,
-		GeneratedAt: time.Now(),
-		Summary: CorrelationSummary{
-			TotalCorrelations: 0,
-			UniquePatterns:    0,
-			HighRiskEvents:    0,
-			AverageScore:      0.0,
-		},
-		TopPatterns: []PatternSummary{},
-		TopRules:    []RuleSummary{},
-		Recommendations: []string{
-			"Consider adding more correlation rules for better threat detection",
-			"Review high-risk correlations for potential security incidents",
-			"Optimize correlation rules based on false positive rates",
+		ReportID:        reportID,
+		TenantID:        tenantID,
+		TimeRange:       timeRange,
+		GeneratedAt:     time.Now(),
+		Summary:         summary,
+		TopPatterns:     topPatterns,
+		TopRules:        topRules,
+		Trends:          trends,
+		Recommendations: recommendations,
+		Metadata: map[string]interface{}{
+			"analysis_version":    "1.0",
+			"severity_breakdown":  severityCount,
+			"total_rules_active":  len(ruleStats),
+			"high_risk_threshold": 0.7,
 		},
 	}
 
 	return report, nil
+}
+
+// generateCorrelationRecommendations creates intelligent recommendations based on analysis
+func generateCorrelationRecommendations(totalCorrelations, highRiskEvents int, averageScore float64, severityCount map[string]int, activeRules int) []string {
+	recommendations := make([]string, 0)
+
+	// Base recommendations
+	if totalCorrelations == 0 {
+		recommendations = append(recommendations, "No correlations found in the specified time range. Consider reviewing correlation rules and their trigger conditions.")
+		recommendations = append(recommendations, "Ensure audit logging is properly configured and events are being generated.")
+		return recommendations
+	}
+
+	// High-risk event recommendations
+	riskRatio := float64(highRiskEvents) / float64(totalCorrelations)
+	if riskRatio > 0.3 {
+		recommendations = append(recommendations, "High number of high-risk correlations detected. Immediate investigation recommended.")
+		recommendations = append(recommendations, "Consider implementing automated response actions for critical security patterns.")
+	} else if riskRatio < 0.05 {
+		recommendations = append(recommendations, "Very few high-risk correlations detected. Review rule sensitivity and thresholds.")
+	}
+
+	// Score-based recommendations
+	if averageScore < 0.3 {
+		recommendations = append(recommendations, "Low average correlation scores suggest rules may need refinement or additional context.")
+		recommendations = append(recommendations, "Consider adding more correlation criteria or adjusting rule weights.")
+	} else if averageScore > 0.8 {
+		recommendations = append(recommendations, "High correlation scores indicate effective rule configuration.")
+		recommendations = append(recommendations, "Consider expanding successful rule patterns to detect similar threats.")
+	}
+
+	// Rule quantity recommendations
+	if activeRules < 5 {
+		recommendations = append(recommendations, "Limited number of correlation rules active. Consider adding more rules for comprehensive threat detection.")
+		recommendations = append(recommendations, "Review industry best practices for security event correlation patterns.")
+	} else if activeRules > 50 {
+		recommendations = append(recommendations, "Large number of correlation rules may lead to alert fatigue. Consider consolidating similar rules.")
+	}
+
+	// Severity-based recommendations
+	if criticalCount, exists := severityCount["critical"]; exists && criticalCount > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("%d critical correlations require immediate attention and response.", criticalCount))
+	}
+
+	if highCount, exists := severityCount["high"]; exists && highCount > totalCorrelations/2 {
+		recommendations = append(recommendations, "High proportion of high-severity correlations may indicate ongoing security issues.")
+	}
+
+	// Pattern diversity recommendations
+	if len(recommendations) == 0 {
+		recommendations = append(recommendations, "Correlation analysis shows normal security posture. Continue monitoring for emerging patterns.")
+		recommendations = append(recommendations, "Consider periodic review of correlation rules to ensure they remain effective against evolving threats.")
+	}
+
+	return recommendations
 }
 
 // Private methods

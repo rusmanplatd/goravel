@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strings"
 	"time"
 
 	"goravel/app/http/responses"
@@ -111,17 +112,18 @@ func (m *MeetingAuthMiddleware) checkMeetingAccess(userID, meetingID string, mee
 		}
 	}
 
-	// Check if meeting allows public access (simplified check)
-	// In production, this would check meeting configuration
-	// For now, we'll assume meetings are not public by default
+	// Check if meeting allows public access
+	if m.checkPublicMeetingAccess(meeting, userID) {
+		return true, "attendee"
+	}
 
-	// Check organization membership for internal meetings (simplified check)
-	// In production, this would check organization membership properly
-	// For now, we'll use a basic approach
-
-	// For now, we'll use a simplified access control approach
-	// In production, this would be extended with proper event attendee checking
-	// and organization membership validation
+	// Check organization membership for internal meetings
+	if meeting.Event != nil && meeting.Event.CreatedBy != nil {
+		hasOrgAccess := m.checkOrganizationMembershipAccess(userID, *meeting.Event.CreatedBy)
+		if hasOrgAccess {
+			return true, "attendee"
+		}
+	}
 
 	// Log access denial for security audit
 	facades.Log().Warning("Meeting access denied", map[string]interface{}{
@@ -134,20 +136,39 @@ func (m *MeetingAuthMiddleware) checkMeetingAccess(userID, meetingID string, mee
 
 // checkEventAttendeeAccess checks if user is an attendee of the calendar event
 func (m *MeetingAuthMiddleware) checkEventAttendeeAccess(userID, eventID string) (bool, string) {
-	// Check if user is explicitly invited to the event
-	// For now, use a simplified check - in production you'd have an event_attendees table
+	// Check if user is explicitly invited to the event using EventParticipant model
+	var participant models.EventParticipant
+	err := facades.Orm().Query().
+		Where("event_id", eventID).
+		Where("user_id", userID).
+		First(&participant)
+
+	if err == nil {
+		// Check if participant has accepted or is pending (allow both)
+		if participant.ResponseStatus == "accepted" || participant.ResponseStatus == "pending" {
+			// Map event roles to meeting roles
+			switch participant.Role {
+			case "organizer":
+				return true, "host"
+			case "presenter":
+				return true, "co-host"
+			default:
+				return true, "attendee"
+			}
+		}
+	}
+
+	// Check if user is the event creator (fallback check)
 	var event models.CalendarEvent
-	err := facades.Orm().Query().Where("id", eventID).First(&event)
+	err = facades.Orm().Query().Where("id", eventID).First(&event)
 	if err != nil {
 		return false, ""
 	}
 
-	// Check if user is the event creator
 	if event.CreatedBy != nil && *event.CreatedBy == userID {
 		return true, "host"
 	}
 
-	// For now, return false - in production you'd check attendee list
 	return false, ""
 }
 
@@ -209,22 +230,133 @@ func (m *MeetingAuthMiddleware) checkPublicMeetingRestrictions(userID, meetingID
 	return true
 }
 
+// checkPublicMeetingAccess checks if meeting allows public access and validates restrictions
+func (m *MeetingAuthMiddleware) checkPublicMeetingAccess(meeting *models.Meeting, userID string) bool {
+	// Get meeting security policy
+	var securityPolicy models.MeetingSecurityPolicy
+	err := facades.Orm().Query().
+		Where("meeting_id", meeting.ID).
+		First(&securityPolicy)
+
+	if err != nil {
+		// No security policy found, use default restrictive approach
+		return false
+	}
+
+	// Check if anonymous join is allowed (equivalent to public access)
+	if !securityPolicy.AllowAnonymousJoin {
+		return false
+	}
+
+	// Check if user is blocked
+	if securityPolicy.IsUserBlocked(userID) {
+		facades.Log().Warning("Meeting access denied for blocked user", map[string]interface{}{
+			"user_id":    userID,
+			"meeting_id": meeting.ID,
+		})
+		return false
+	}
+
+	// Check if password is required and meeting has passcode
+	if securityPolicy.RequirePassword && meeting.Passcode != "" {
+		// In a real implementation, you'd validate the password from request
+		// For now, we'll require explicit authentication for password-protected meetings
+		return false
+	}
+
+	// Check domain restrictions if user email is available
+	var user models.User
+	err = facades.Orm().Query().Where("id", userID).First(&user)
+	if err == nil && user.Email != "" {
+		// Extract domain from email
+		emailParts := strings.Split(user.Email, "@")
+		if len(emailParts) == 2 {
+			domain := emailParts[1]
+			if !securityPolicy.IsDomainAllowed(domain) {
+				facades.Log().Warning("Meeting access denied for domain restriction", map[string]interface{}{
+					"user_id":    userID,
+					"meeting_id": meeting.ID,
+					"domain":     domain,
+				})
+				return false
+			}
+		}
+	}
+
+	// Check meeting capacity and other restrictions
+	return m.checkPublicMeetingRestrictions(userID, meeting.ID)
+}
+
+// checkOrganizationMembershipAccess checks if user belongs to the same organization as meeting creator
+func (m *MeetingAuthMiddleware) checkOrganizationMembershipAccess(userID, creatorID string) bool {
+	// Get creator's organization memberships
+	var creatorOrgs []models.UserOrganization
+	err := facades.Orm().Query().
+		Where("user_id", creatorID).
+		Where("status", "active").
+		Where("is_active", true).
+		Find(&creatorOrgs)
+
+	if err != nil || len(creatorOrgs) == 0 {
+		return false
+	}
+
+	// Get user's organization memberships
+	var userOrgs []models.UserOrganization
+	err = facades.Orm().Query().
+		Where("user_id", userID).
+		Where("status", "active").
+		Where("is_active", true).
+		Find(&userOrgs)
+
+	if err != nil || len(userOrgs) == 0 {
+		return false
+	}
+
+	// Check if user and creator share any organization
+	creatorOrgMap := make(map[string]bool)
+	for _, org := range creatorOrgs {
+		creatorOrgMap[org.OrganizationID] = true
+	}
+
+	for _, userOrg := range userOrgs {
+		if creatorOrgMap[userOrg.OrganizationID] {
+			// Additional check: ensure user has appropriate role/permissions
+			if userOrg.Role == "member" || userOrg.Role == "admin" || userOrg.Role == "owner" {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // checkOrganizationAccess checks if user belongs to the meeting's organization
 func (m *MeetingAuthMiddleware) checkOrganizationAccess(userID, organizationID string) bool {
 	if organizationID == "" {
 		return false
 	}
 
-	// For now, use a simplified check - in production you'd have organization membership
-	// Check if user belongs to the same tenant/organization
-	var user models.User
-	err := facades.Orm().Query().Where("id", userID).First(&user)
+	// Check if user belongs to the organization with active membership
+	var userOrg models.UserOrganization
+	err := facades.Orm().Query().
+		Where("user_id", userID).
+		Where("organization_id", organizationID).
+		Where("status", "active").
+		Where("is_active", true).
+		First(&userOrg)
+
 	if err != nil {
 		return false
 	}
 
-	// Simplified organization check - in production you'd have proper organization membership
-	return true // Allow for now
+	// Check if membership is not expired
+	if userOrg.ExpiresAt != nil && userOrg.ExpiresAt.Before(time.Now()) {
+		return false
+	}
+
+	// Ensure user has appropriate role (exclude guests from meetings by default)
+	return userOrg.Role == "member" || userOrg.Role == "admin" || userOrg.Role == "owner"
 }
 
 // RequireHostRole middleware that requires host or co-host permissions

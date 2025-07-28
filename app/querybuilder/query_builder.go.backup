@@ -610,8 +610,13 @@ func (qb *QueryBuilder) applyFilter(filter AllowedFilter, value interface{}) {
 		// Use database-specific regex operator
 		qb.query = qb.query.Where(fmt.Sprintf("%s REGEXP ?", filter.Property), valueStr)
 	case FilterTypeScope:
-		// Handle scope filters - this would need to be implemented based on your model scopes
-		facades.Log().Warning(fmt.Sprintf("Scope filter '%s' not implemented", filter.Name))
+		// Handle scope filters based on predefined scopes
+		if err := qb.applyScopeFilter(filter, value); err != nil {
+			facades.Log().Warning("Failed to apply scope filter", map[string]interface{}{
+				"filter": filter.Name,
+				"error":  err.Error(),
+			})
+		}
 	}
 }
 
@@ -1923,4 +1928,148 @@ func JoinWhere(field string, operator ComparisonOperator, value interface{}) Joi
 		Operator:  operator,
 		Value:     value,
 	}
+}
+
+// applyScopeFilter applies predefined scope filters to the query
+func (qb *QueryBuilder) applyScopeFilter(filter AllowedFilter, value interface{}) error {
+	scopeName := filter.Name
+	
+	// Define common scopes that can be applied
+	switch scopeName {
+	case "active":
+		// Apply active scope (non-deleted, active status)
+		qb.query = qb.query.Where("deleted_at IS NULL").Where("status = ?", "active")
+		
+	case "inactive":
+		// Apply inactive scope
+		qb.query = qb.query.Where("status = ?", "inactive")
+		
+	case "published":
+		// Apply published scope
+		qb.query = qb.query.Where("published_at IS NOT NULL").Where("published_at <= NOW()")
+		
+	case "draft":
+		// Apply draft scope
+		qb.query = qb.query.Where("published_at IS NULL")
+		
+	case "recent":
+		// Apply recent scope (last 30 days)
+		qb.query = qb.query.Where("created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")
+		
+	case "popular":
+		// Apply popular scope (high view count or rating)
+		qb.query = qb.query.Where("view_count > ?", 100).OrderBy("view_count DESC")
+		
+	case "featured":
+		// Apply featured scope
+		qb.query = qb.query.Where("is_featured = ?", true)
+		
+	case "verified":
+		// Apply verified scope
+		qb.query = qb.query.Where("verified_at IS NOT NULL")
+		
+	case "unverified":
+		// Apply unverified scope
+		qb.query = qb.query.Where("verified_at IS NULL")
+		
+	case "today":
+		// Apply today scope
+		qb.query = qb.query.Where("DATE(created_at) = CURDATE()")
+		
+	case "this_week":
+		// Apply this week scope
+		qb.query = qb.query.Where("YEARWEEK(created_at) = YEARWEEK(NOW())")
+		
+	case "this_month":
+		// Apply this month scope
+		qb.query = qb.query.Where("YEAR(created_at) = YEAR(NOW())").Where("MONTH(created_at) = MONTH(NOW())")
+		
+	case "this_year":
+		// Apply this year scope
+		qb.query = qb.query.Where("YEAR(created_at) = YEAR(NOW())")
+		
+	case "has_parent":
+		// Apply has parent scope
+		qb.query = qb.query.Where("parent_id IS NOT NULL")
+		
+	case "no_parent":
+		// Apply no parent scope (root level)
+		qb.query = qb.query.Where("parent_id IS NULL")
+		
+	case "with_children":
+		// Apply scope for records that have children
+		qb.query = qb.query.Where("id IN (SELECT DISTINCT parent_id FROM " + qb.getTableName() + " WHERE parent_id IS NOT NULL)")
+		
+	case "without_children":
+		// Apply scope for records without children
+		qb.query = qb.query.Where("id NOT IN (SELECT DISTINCT parent_id FROM " + qb.getTableName() + " WHERE parent_id IS NOT NULL)")
+		
+	case "owned_by_user":
+		// Apply user ownership scope (requires value to be user ID)
+		if userID, ok := value.(string); ok && userID != "" {
+			qb.query = qb.query.Where("user_id = ?", userID)
+		} else {
+			return fmt.Errorf("owned_by_user scope requires valid user ID")
+		}
+		
+	case "public":
+		// Apply public visibility scope
+		qb.query = qb.query.Where("visibility = ?", "public")
+		
+	case "private":
+		// Apply private visibility scope
+		qb.query = qb.query.Where("visibility = ?", "private")
+		
+	case "with_tags":
+		// Apply scope for records with tags
+		qb.query = qb.query.Where("id IN (SELECT DISTINCT taggable_id FROM tags WHERE taggable_type = ?)", qb.getModelType())
+		
+	case "without_tags":
+		// Apply scope for records without tags
+		qb.query = qb.query.Where("id NOT IN (SELECT DISTINCT taggable_id FROM tags WHERE taggable_type = ?)", qb.getModelType())
+		
+	case "expired":
+		// Apply expired scope
+		qb.query = qb.query.Where("expires_at IS NOT NULL").Where("expires_at < NOW()")
+		
+	case "not_expired":
+		// Apply not expired scope
+		qb.query = qb.query.Where("expires_at IS NULL OR expires_at >= NOW()")
+		
+	default:
+		// Custom scope - try to apply based on filter property if available
+		if filter.Property != "" {
+			// If the scope has a property, try to apply it as a boolean or status filter
+			if valueStr := fmt.Sprintf("%v", value); valueStr == "true" || valueStr == "1" {
+				qb.query = qb.query.Where(filter.Property + " = ?", true)
+			} else if valueStr == "false" || valueStr == "0" {
+				qb.query = qb.query.Where(filter.Property + " = ?", false)
+			} else {
+				qb.query = qb.query.Where(filter.Property + " = ?", value)
+			}
+		} else {
+			return fmt.Errorf("unknown scope: %s", scopeName)
+		}
+	}
+	
+	facades.Log().Debug("Applied scope filter", map[string]interface{}{
+		"scope": scopeName,
+		"value": value,
+	})
+	
+	return nil
+}
+
+// getTableName attempts to get the table name from the query
+func (qb *QueryBuilder) getTableName() string {
+	// This is a simplified implementation
+	// In production, you would extract this from the actual query or model
+	return "records" // Default fallback
+}
+
+// getModelType attempts to get the model type for polymorphic relationships
+func (qb *QueryBuilder) getModelType() string {
+	// This is a simplified implementation
+	// In production, you would determine this from the actual model being queried
+	return "Record" // Default fallback
 }

@@ -461,13 +461,51 @@ func (s *NotificationAnalyticsService) getUserLastInteractionTime(userID string)
 
 // RecordNotificationEvent records a notification event for analytics
 func (s *NotificationAnalyticsService) RecordNotificationEvent(notificationID, eventType string, metadata map[string]interface{}) error {
-	// This could be extended to record events in a separate analytics table
-	// For now, we'll just log the event
-	facades.Log().Info("Notification event recorded", map[string]interface{}{
+	// Store analytics event in cache for real-time processing
+	analyticsKey := fmt.Sprintf("notification_analytics:%s:%s", eventType, time.Now().Format("2006-01-02"))
+
+	// Create analytics event data
+	eventData := map[string]interface{}{
+		"notification_id": notificationID,
+		"event_type":      eventType,
+		"metadata":        metadata,
+		"timestamp":       time.Now().Unix(),
+		"date":            time.Now().Format("2006-01-02"),
+		"hour":            time.Now().Hour(),
+	}
+
+	// Store in cache for aggregation
+	cacheData := facades.Cache().Get(analyticsKey)
+	var events []map[string]interface{}
+
+	if cacheData != nil {
+		if existingEvents, ok := cacheData.([]map[string]interface{}); ok {
+			events = existingEvents
+		}
+	}
+
+	events = append(events, eventData)
+
+	// Store back in cache with 24-hour expiry
+	if err := facades.Cache().Put(analyticsKey, events, 24*time.Hour); err != nil {
+		facades.Log().Error("Failed to cache notification analytics event", map[string]interface{}{
+			"key":   analyticsKey,
+			"error": err.Error(),
+		})
+	}
+
+	// Also increment counters for quick metrics
+	counterKey := fmt.Sprintf("notification_counter:%s:%s", eventType, time.Now().Format("2006-01-02"))
+	currentCount := facades.Cache().GetInt(counterKey, 0)
+	facades.Cache().Put(counterKey, currentCount+1, 24*time.Hour)
+
+	// Log the event for immediate visibility
+	facades.Log().Info("Notification analytics event recorded", map[string]interface{}{
 		"notification_id": notificationID,
 		"event_type":      eventType,
 		"metadata":        metadata,
 		"timestamp":       time.Now(),
+		"analytics_key":   analyticsKey,
 	})
 
 	return nil

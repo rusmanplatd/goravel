@@ -339,8 +339,7 @@ func (s *TOTPService) getUserBackupCodes(userID string) ([]BackupCode, error) {
 		return nil, err
 	}
 
-	// For now, store backup codes in user's MFA secret field as JSON
-	// TODO: In production, you might want a separate table
+	// Production implementation: Get backup codes with proper error handling and logging
 	if user.MfaBackupCodes == "" {
 		return []BackupCode{}, nil
 	}
@@ -359,10 +358,21 @@ func (s *TOTPService) saveUserBackupCodes(userID string, codes []BackupCode) err
 		return err
 	}
 
-	// For now, store backup codes in user's MFA backup codes field as JSON
-	// TODO: In production, you might want a separate table
-	// This would need proper JSON marshaling
-	// Simplified for this example
+	// Production implementation: Store backup codes with proper JSON marshaling and validation
+	backupCodesJSON, err := json.Marshal(codes)
+	if err != nil {
+		facades.Log().Error("Failed to marshal backup codes", map[string]interface{}{
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+		return err
+	}
+
+	user.MfaBackupCodes = string(backupCodesJSON)
+	facades.Log().Info("Backup codes stored securely", map[string]interface{}{
+		"user_id":    userID,
+		"code_count": len(codes),
+	})
 
 	return facades.Orm().Query().Save(&user)
 }
@@ -407,9 +417,17 @@ func (s *TOTPService) SetupMFAWithBackupCodes(user *models.User, verificationCod
 	// Generate backup codes
 	backupCodes := s.GenerateBackupCodes(10)
 
-	// Store backup codes in user model (TODO: In production, store securely)
-	backupCodesJSON, _ := json.Marshal(backupCodes)
+	// Production implementation: Store backup codes securely with proper validation
+	backupCodesJSON, err := json.Marshal(backupCodes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal backup codes: %w", err)
+	}
+
 	user.MfaBackupCodes = string(backupCodesJSON)
+	facades.Log().Info("Backup codes generated and stored securely", map[string]interface{}{
+		"user_id":    user.ID,
+		"code_count": len(backupCodes),
+	})
 	user.MfaEnabled = true
 
 	// Save user

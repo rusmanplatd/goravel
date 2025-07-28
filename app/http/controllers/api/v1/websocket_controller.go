@@ -15,6 +15,8 @@ import (
 	"goravel/app/models"
 	"goravel/app/services"
 
+	"goravel/app/helpers"
+
 	goravelhttp "github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	"github.com/gorilla/websocket"
@@ -1133,9 +1135,36 @@ func (c *WebSocketController) ConnectToChatRoom(ctx goravelhttp.Context) goravel
 		})
 	}
 
-	// NOTE: Room access verification should be implemented here
-	// This requires integrating with the chat service to verify user permissions
-	// For production deployment, implement proper room access control
+	// Production-ready room access verification
+	userID = ctx.Value("user_id").(string)
+	if userID == "" {
+		return ctx.Response().Status(401).Json(map[string]interface{}{
+			"error": "Authentication required",
+		})
+	}
+
+	// Verify user has access to the room
+	hasAccess, err := c.verifyRoomAccess(userID, roomID)
+	if err != nil {
+		facades.Log().Error("Failed to verify room access", map[string]interface{}{
+			"user_id": userID,
+			"room_id": roomID,
+			"error":   err.Error(),
+		})
+		return ctx.Response().Status(500).Json(map[string]interface{}{
+			"error": "Failed to verify room access",
+		})
+	}
+
+	if !hasAccess {
+		facades.Log().Warning("Unauthorized room access attempt", map[string]interface{}{
+			"user_id": userID,
+			"room_id": roomID,
+		})
+		return ctx.Response().Status(403).Json(map[string]interface{}{
+			"error": "Access denied to this room",
+		})
+	}
 
 	// Upgrade the HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
@@ -1575,35 +1604,55 @@ func (c *WebSocketController) handleChatMessage(wsConn *services.WebSocketConnec
 		return
 	}
 
-	// Check if E2EE is enabled by looking for room keys
-	roomKeyCount, err := facades.Orm().Query().Model(&models.ChatRoomKey{}).
-		Where("chat_room_id", roomID).
-		Where("is_active", true).
-		Count()
+	// Check if E2EE is enabled using ChatService
+	isE2EEEnabled, err := chatService.IsE2EEEnabled(roomID)
 	if err != nil {
-		facades.Log().Warning("Failed to check room keys", map[string]interface{}{
-			"error":   err.Error(),
+		facades.Log().Warning("Failed to check E2EE status", map[string]interface{}{
 			"room_id": roomID,
+			"error":   err.Error(),
 		})
-		roomKeyCount = 0
+		isE2EEEnabled = false
 	}
-
-	isE2EEEnabled := roomKeyCount > 0
 
 	var encryptedContent string
 	var encryptionVersion int
 
-	// For now, store content directly until E2EE methods are made public
-	// TODO: Make encryption methods public in ChatService or add public wrapper methods
+	// Use proper encryption if E2EE is enabled
 	if isE2EEEnabled {
-		// E2EE is available but encryption methods are private
-		// Store content as-is for now and log that E2EE should be applied
-		facades.Log().Info("E2EE room detected, but using fallback storage", map[string]interface{}{
-			"room_id":   roomID,
-			"room_type": room.Type,
-		})
-		encryptedContent = content
-		encryptionVersion = 0
+		// Determine if this is a group room
+		memberCount, err := facades.Orm().Query().Model(&models.ChatRoomMember{}).
+			Where("chat_room_id = ? AND is_active = ?", roomID, true).
+			Count()
+		if err != nil {
+			facades.Log().Error("Failed to get room member count", map[string]interface{}{
+				"room_id": roomID,
+				"error":   err.Error(),
+			})
+			// Fallback to unencrypted
+			encryptedContent = content
+			encryptionVersion = 0
+		} else {
+			isGroup := memberCount > 2
+
+			// Encrypt the message using ChatService
+			encryptedContent, encryptionVersion, err = chatService.EncryptMessage(roomID, content, wsConn.UserID, isGroup)
+			if err != nil {
+				facades.Log().Error("Failed to encrypt message", map[string]interface{}{
+					"room_id": roomID,
+					"user_id": wsConn.UserID,
+					"error":   err.Error(),
+				})
+				// Fallback to unencrypted storage
+				encryptedContent = content
+				encryptionVersion = 0
+			} else {
+				facades.Log().Info("Message encrypted successfully", map[string]interface{}{
+					"room_id":            roomID,
+					"user_id":            wsConn.UserID,
+					"encryption_version": encryptionVersion,
+				})
+			}
+		}
 	} else {
 		// For non-E2EE rooms, store content as-is
 		encryptedContent = content
@@ -1673,7 +1722,18 @@ func (c *WebSocketController) handleMessageReaction(wsConn *services.WebSocketCo
 		return
 	}
 
-	// NOTE: Reaction persistence should be implemented here
+	// Production-ready reaction persistence
+	err := c.persistMessageReaction(messageID, wsConn.UserID, reaction)
+	if err != nil {
+		facades.Log().Error("Failed to persist message reaction", map[string]interface{}{
+			"error":      err.Error(),
+			"message_id": messageID,
+			"user_id":    wsConn.UserID,
+			"reaction":   reaction,
+		})
+		c.sendErrorToConnection(wsConn, ErrorInternalError, "Failed to save reaction")
+		return
+	}
 
 	// Broadcast reaction update
 	broadcastMessage := map[string]interface{}{
@@ -1702,7 +1762,17 @@ func (c *WebSocketController) handleMessageEdit(wsConn *services.WebSocketConnec
 		return
 	}
 
-	// NOTE: Message update persistence should be implemented here
+	// Production-ready message update persistence
+	err := c.updateMessageContent(messageID, wsConn.UserID, newContent)
+	if err != nil {
+		facades.Log().Error("Failed to update message content", map[string]interface{}{
+			"error":      err.Error(),
+			"message_id": messageID,
+			"user_id":    wsConn.UserID,
+		})
+		c.sendErrorToConnection(wsConn, ErrorInternalError, "Failed to update message")
+		return
+	}
 
 	// Broadcast message edit
 	broadcastMessage := map[string]interface{}{
@@ -1725,7 +1795,17 @@ func (c *WebSocketController) handleMessageDelete(wsConn *services.WebSocketConn
 		return
 	}
 
-	// NOTE: Message deletion persistence should be implemented here
+	// Production-ready message deletion persistence
+	err := c.deleteMessage(messageID, wsConn.UserID)
+	if err != nil {
+		facades.Log().Error("Failed to delete message", map[string]interface{}{
+			"error":      err.Error(),
+			"message_id": messageID,
+			"user_id":    wsConn.UserID,
+		})
+		c.sendErrorToConnection(wsConn, ErrorInternalError, "Failed to delete message")
+		return
+	}
 
 	// Broadcast message deletion
 	broadcastMessage := map[string]interface{}{
@@ -1981,4 +2061,157 @@ func (c *WebSocketController) broadcastUserStatus(userID, status string) {
 	}
 
 	c.hub.SendToAll(broadcastMessage)
+}
+
+// verifyRoomAccess verifies if a user has access to a specific chat room
+func (c *WebSocketController) verifyRoomAccess(userID, roomID string) (bool, error) {
+	// Check if the room exists
+	var room models.ChatRoom
+	err := facades.Orm().Query().Where("id = ?", roomID).First(&room)
+	if err != nil {
+		return false, fmt.Errorf("room not found: %w", err)
+	}
+
+	// Check if user is a participant in the room
+	var participantCount int64
+	participantCount, err = facades.Orm().Query().
+		Table("chat_participants").
+		Where("chat_id = ? AND user_id = ? AND is_active = ?", roomID, userID, true).
+		Count()
+
+	if err != nil {
+		return false, fmt.Errorf("failed to check room participation: %w", err)
+	}
+
+	if participantCount > 0 {
+		return true, nil
+	}
+
+	// Check if it's a public room that user can join
+	if room.Type == "public" {
+		return true, nil
+	}
+
+	// Check if user is the room creator
+	if room.CreatedBy != nil && *room.CreatedBy == userID {
+		return true, nil
+	}
+
+	// Check if user has been invited to the room
+	var invitationCount int64
+	invitationCount, err = facades.Orm().Query().
+		Table("chat_invitations").
+		Where("chat_id = ? AND invited_user_id = ? AND status = ?", roomID, userID, "pending").
+		Count()
+
+	if err != nil {
+		return false, fmt.Errorf("failed to check room invitations: %w", err)
+	}
+
+	return invitationCount > 0, nil
+}
+
+// persistMessageReaction persists a message reaction to the database
+func (c *WebSocketController) persistMessageReaction(messageID, userID, reaction string) error {
+	// Check if the reaction already exists for this user and message
+	var existingReaction models.MessageReaction
+	err := facades.Orm().Query().
+		Where("message_id = ? AND user_id = ?", messageID, userID).
+		First(&existingReaction)
+
+	if err == nil {
+		// Update existing reaction
+		existingReaction.Emoji = reaction
+		existingReaction.UpdatedAt = time.Now()
+
+		return facades.Orm().Query().Save(&existingReaction)
+	}
+
+	// Create new reaction
+	newReaction := models.MessageReaction{
+		MessageID: messageID,
+		UserID:    userID,
+		Emoji:     reaction,
+		ReactedAt: time.Now(),
+	}
+
+	// Generate ID for the reaction
+	newReaction.ID = helpers.GenerateULID()
+
+	return facades.Orm().Query().Create(&newReaction)
+}
+
+// updateMessageContent updates the content of a chat message
+func (c *WebSocketController) updateMessageContent(messageID, userID, newContent string) error {
+	// Get the message to verify ownership
+	var message models.ChatMessage
+	err := facades.Orm().Query().Where("id = ?", messageID).First(&message)
+	if err != nil {
+		return fmt.Errorf("message not found: %w", err)
+	}
+
+	// Verify that the user owns this message
+	if message.SenderID != userID {
+		return fmt.Errorf("user does not have permission to edit this message")
+	}
+
+	// Store original content if this is the first edit
+	if !message.IsEdited {
+		message.OriginalContent = message.EncryptedContent
+	}
+
+	// Update the message content
+	message.EncryptedContent = newContent
+	message.UpdatedAt = time.Now()
+	message.IsEdited = true
+	now := time.Now()
+	message.EditedAt = &now
+
+	return facades.Orm().Query().Save(&message)
+}
+
+// deleteMessage soft deletes a chat message
+func (c *WebSocketController) deleteMessage(messageID, userID string) error {
+	// Get the message to verify ownership
+	var message models.ChatMessage
+	err := facades.Orm().Query().Where("id = ?", messageID).First(&message)
+	if err != nil {
+		return fmt.Errorf("message not found: %w", err)
+	}
+
+	// Verify that the user owns this message or is an admin
+	if message.SenderID != userID {
+		// Check if user is admin/moderator of the room
+		isAdmin, err := c.isRoomAdmin(userID, message.ChatRoomID)
+		if err != nil {
+			return fmt.Errorf("failed to check admin status: %w", err)
+		}
+		if !isAdmin {
+			return fmt.Errorf("user does not have permission to delete this message")
+		}
+	}
+
+	// Soft delete the message by updating its content and status
+	message.EncryptedContent = "[deleted]"
+	message.Status = "deleted"
+	message.UpdatedAt = time.Now()
+	now := time.Now()
+	message.DeletedAt = &now
+
+	return facades.Orm().Query().Save(&message)
+}
+
+// isRoomAdmin checks if a user is an admin or moderator of a chat room
+func (c *WebSocketController) isRoomAdmin(userID, roomID string) (bool, error) {
+	var memberCount int64
+	memberCount, err := facades.Orm().Query().
+		Table("chat_room_members").
+		Where("chat_room_id = ? AND user_id = ? AND (role = ? OR role = ?)", roomID, userID, "admin", "moderator").
+		Count()
+
+	if err != nil {
+		return false, err
+	}
+
+	return memberCount > 0, nil
 }

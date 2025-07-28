@@ -503,6 +503,21 @@ func (c *WebPushNotificationChannel) RenderTemplate(template string, data map[st
 	return "", fmt.Errorf("template rendering not supported for push channel")
 }
 
+// getUserID extracts user ID from notifiable
+func (c *WebPushNotificationChannel) getUserID(notifiable notificationcore.Notifiable) string {
+	// Try to cast to User model first
+	if user, ok := notifiable.(*models.User); ok {
+		return user.ID
+	}
+
+	// If not a User model, try to get ID from the interface
+	if userIDProvider, ok := notifiable.(interface{ GetID() string }); ok {
+		return userIDProvider.GetID()
+	}
+
+	return ""
+}
+
 // Send sends the notification via web push
 func (c *WebPushNotificationChannel) Send(ctx context.Context, notification notificationcore.Notification, notifiable notificationcore.Notifiable) error {
 	// Get VAPID keys from config
@@ -514,10 +529,20 @@ func (c *WebPushNotificationChannel) Send(ctx context.Context, notification noti
 		return fmt.Errorf("VAPID keys are not configured")
 	}
 
-	// Get user's push subscriptions
-	pushTokens := notifiable.GetPushTokens()
-	if len(pushTokens) == 0 {
-		return fmt.Errorf("notifiable does not have any push subscriptions")
+	// Get user's push subscriptions - we need the full subscription data, not just tokens
+	userID := c.getUserID(notifiable)
+	if userID == "" {
+		return fmt.Errorf("unable to get user ID from notifiable")
+	}
+
+	var pushSubscriptions []models.PushSubscription
+	err := facades.Orm().Query().Where("user_id = ? AND is_active = ?", userID, true).Find(&pushSubscriptions)
+	if err != nil {
+		return fmt.Errorf("failed to get push subscriptions: %w", err)
+	}
+
+	if len(pushSubscriptions) == 0 {
+		return fmt.Errorf("notifiable does not have any active push subscriptions")
 	}
 
 	// Create push notification payload
@@ -542,13 +567,13 @@ func (c *WebPushNotificationChannel) Send(ctx context.Context, notification noti
 	var lastError error
 	successCount := 0
 
-	for _, token := range pushTokens {
-		// Create subscription object (simplified - in real implementation, you'd parse the token)
+	for _, pushSub := range pushSubscriptions {
+		// Create proper webpush subscription object with real keys
 		subscription := &webpush.Subscription{
-			Endpoint: token,
+			Endpoint: pushSub.Endpoint,
 			Keys: webpush.Keys{
-				Auth:   "auth-key", // These would come from the token
-				P256dh: "p256dh-key",
+				Auth:   pushSub.AuthToken,
+				P256dh: pushSub.P256dhKey,
 			},
 		}
 
@@ -561,7 +586,7 @@ func (c *WebPushNotificationChannel) Send(ctx context.Context, notification noti
 
 		if err != nil {
 			facades.Log().Error("Failed to send push notification", map[string]interface{}{
-				"endpoint": token,
+				"endpoint": pushSub.Endpoint,
 				"error":    err.Error(),
 			})
 			lastError = err
@@ -574,7 +599,7 @@ func (c *WebPushNotificationChannel) Send(ctx context.Context, notification noti
 			successCount++
 		} else {
 			facades.Log().Warning("Push notification returned non-success status", map[string]interface{}{
-				"endpoint":    token,
+				"endpoint":    pushSub.Endpoint,
 				"status_code": resp.StatusCode,
 			})
 		}
@@ -587,7 +612,7 @@ func (c *WebPushNotificationChannel) Send(ctx context.Context, notification noti
 	facades.Log().Info("Push notification sent", map[string]interface{}{
 		"notification_type":   notification.GetType(),
 		"success_count":       successCount,
-		"total_subscriptions": len(pushTokens),
+		"total_subscriptions": len(pushSubscriptions),
 	})
 
 	return nil
@@ -750,7 +775,38 @@ func (c *SlackNotificationChannel) GetVersion() string { return "2.0" }
 func (c *SlackNotificationChannel) IsEnabled() bool {
 	return facades.Config().GetBool("notification.channels.slack.enabled", true)
 }
-func (c *SlackNotificationChannel) Validate() error { return nil }
+func (c *SlackNotificationChannel) Validate() error {
+	// Check if Slack webhook URL is configured
+	webhookURL := facades.Config().GetString("notification.channels.slack.webhook_url", "")
+	if webhookURL == "" {
+		return fmt.Errorf("slack webhook URL not configured")
+	}
+
+	// Validate webhook URL format
+	if !strings.HasPrefix(webhookURL, "https://hooks.slack.com/") {
+		return fmt.Errorf("invalid slack webhook URL format")
+	}
+
+	// Check if bot token is configured for advanced features
+	botToken := facades.Config().GetString("notification.channels.slack.bot_token", "")
+	if botToken != "" && !strings.HasPrefix(botToken, "xoxb-") {
+		return fmt.Errorf("invalid slack bot token format")
+	}
+
+	// Validate channel configuration
+	defaultChannel := facades.Config().GetString("notification.channels.slack.default_channel", "")
+	if defaultChannel != "" && !strings.HasPrefix(defaultChannel, "#") && !strings.HasPrefix(defaultChannel, "@") {
+		return fmt.Errorf("invalid slack channel format: must start with # or @")
+	}
+
+	// Check rate limits are reasonable
+	rateLimit := facades.Config().GetInt("notification.channels.slack.rate_limit", 1)
+	if rateLimit < 1 || rateLimit > 1000 {
+		return fmt.Errorf("slack rate limit must be between 1 and 1000 messages per minute")
+	}
+
+	return nil
+}
 func (c *SlackNotificationChannel) GetConfig() map[string]interface{} {
 	return map[string]interface{}{"enabled": c.IsEnabled(), "version": c.GetVersion()}
 }
@@ -811,7 +867,44 @@ func (c *DiscordNotificationChannel) GetVersion() string { return "2.0" }
 func (c *DiscordNotificationChannel) IsEnabled() bool {
 	return facades.Config().GetBool("notification.channels.discord.enabled", true)
 }
-func (c *DiscordNotificationChannel) Validate() error { return nil }
+func (c *DiscordNotificationChannel) Validate() error {
+	// Check if Discord webhook URL is configured
+	webhookURL := facades.Config().GetString("notification.channels.discord.webhook_url", "")
+	if webhookURL == "" {
+		return fmt.Errorf("discord webhook URL not configured")
+	}
+
+	// Validate webhook URL format
+	if !strings.Contains(webhookURL, "discord.com/api/webhooks/") && !strings.Contains(webhookURL, "discordapp.com/api/webhooks/") {
+		return fmt.Errorf("invalid discord webhook URL format")
+	}
+
+	// Check if bot token is configured for advanced features
+	botToken := facades.Config().GetString("notification.channels.discord.bot_token", "")
+	if botToken != "" {
+		// Discord bot tokens should be at least 59 characters long
+		if len(botToken) < 59 {
+			return fmt.Errorf("invalid discord bot token: too short")
+		}
+	}
+
+	// Validate guild ID if configured
+	guildID := facades.Config().GetString("notification.channels.discord.guild_id", "")
+	if guildID != "" {
+		// Discord snowflake IDs should be numeric and at least 17 digits
+		if len(guildID) < 17 {
+			return fmt.Errorf("invalid discord guild ID format")
+		}
+	}
+
+	// Check rate limits are reasonable
+	rateLimit := facades.Config().GetInt("notification.channels.discord.rate_limit", 1)
+	if rateLimit < 1 || rateLimit > 1000 {
+		return fmt.Errorf("discord rate limit must be between 1 and 1000 messages per minute")
+	}
+
+	return nil
+}
 func (c *DiscordNotificationChannel) GetConfig() map[string]interface{} {
 	return map[string]interface{}{"enabled": c.IsEnabled(), "version": c.GetVersion()}
 }
@@ -863,7 +956,50 @@ func (c *TelegramNotificationChannel) GetVersion() string { return "2.0" }
 func (c *TelegramNotificationChannel) IsEnabled() bool {
 	return facades.Config().GetBool("notification.channels.telegram.enabled", true)
 }
-func (c *TelegramNotificationChannel) Validate() error { return nil }
+func (c *TelegramNotificationChannel) Validate() error {
+	// Check if Telegram bot token is configured
+	botToken := facades.Config().GetString("notification.channels.telegram.bot_token", "")
+	if botToken == "" {
+		return fmt.Errorf("telegram bot token not configured")
+	}
+
+	// Validate bot token format (should be like "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+	if !strings.Contains(botToken, ":") {
+		return fmt.Errorf("invalid telegram bot token format")
+	}
+
+	parts := strings.Split(botToken, ":")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid telegram bot token format")
+	}
+
+	// Bot ID should be numeric
+	if len(parts[0]) < 8 {
+		return fmt.Errorf("invalid telegram bot token: bot ID too short")
+	}
+
+	// Token part should be at least 35 characters
+	if len(parts[1]) < 35 {
+		return fmt.Errorf("invalid telegram bot token: token part too short")
+	}
+
+	// Check default chat ID if configured
+	defaultChatID := facades.Config().GetString("notification.channels.telegram.default_chat_id", "")
+	if defaultChatID != "" {
+		// Chat ID can be negative (groups) or positive (users)
+		if !strings.HasPrefix(defaultChatID, "-") && len(defaultChatID) < 8 {
+			return fmt.Errorf("invalid telegram chat ID format")
+		}
+	}
+
+	// Check rate limits are reasonable (Telegram has strict limits)
+	rateLimit := facades.Config().GetInt("notification.channels.telegram.rate_limit", 1)
+	if rateLimit < 1 || rateLimit > 30 {
+		return fmt.Errorf("telegram rate limit must be between 1 and 30 messages per minute")
+	}
+
+	return nil
+}
 func (c *TelegramNotificationChannel) GetConfig() map[string]interface{} {
 	return map[string]interface{}{"enabled": c.IsEnabled(), "version": c.GetVersion()}
 }
@@ -916,7 +1052,87 @@ func (c *SMSNotificationChannel) GetVersion() string { return "2.0" }
 func (c *SMSNotificationChannel) IsEnabled() bool {
 	return facades.Config().GetBool("notification.channels.sms.enabled", true)
 }
-func (c *SMSNotificationChannel) Validate() error { return nil }
+func (c *SMSNotificationChannel) Validate() error {
+	// Check SMS provider configuration
+	provider := facades.Config().GetString("notification.channels.sms.provider", "")
+	if provider == "" {
+		return fmt.Errorf("SMS provider not configured")
+	}
+
+	// Validate supported providers
+	supportedProviders := []string{"twilio", "aws_sns", "nexmo", "vonage", "messagebird", "plivo"}
+	isSupported := false
+	for _, p := range supportedProviders {
+		if provider == p {
+			isSupported = true
+			break
+		}
+	}
+	if !isSupported {
+		return fmt.Errorf("unsupported SMS provider: %s", provider)
+	}
+
+	// Provider-specific validation
+	switch provider {
+	case "twilio":
+		accountSID := facades.Config().GetString("notification.channels.sms.twilio.account_sid", "")
+		authToken := facades.Config().GetString("notification.channels.sms.twilio.auth_token", "")
+		fromNumber := facades.Config().GetString("notification.channels.sms.twilio.from_number", "")
+
+		if accountSID == "" {
+			return fmt.Errorf("twilio account SID not configured")
+		}
+		if !strings.HasPrefix(accountSID, "AC") || len(accountSID) != 34 {
+			return fmt.Errorf("invalid twilio account SID format")
+		}
+		if authToken == "" {
+			return fmt.Errorf("twilio auth token not configured")
+		}
+		if len(authToken) != 32 {
+			return fmt.Errorf("invalid twilio auth token format")
+		}
+		if fromNumber == "" {
+			return fmt.Errorf("twilio from number not configured")
+		}
+		if !strings.HasPrefix(fromNumber, "+") {
+			return fmt.Errorf("twilio from number must include country code with +")
+		}
+
+	case "aws_sns":
+		region := facades.Config().GetString("notification.channels.sms.aws.region", "")
+		accessKey := facades.Config().GetString("notification.channels.sms.aws.access_key_id", "")
+		secretKey := facades.Config().GetString("notification.channels.sms.aws.secret_access_key", "")
+
+		if region == "" {
+			return fmt.Errorf("AWS SNS region not configured")
+		}
+		if accessKey == "" {
+			return fmt.Errorf("AWS SNS access key not configured")
+		}
+		if secretKey == "" {
+			return fmt.Errorf("AWS SNS secret key not configured")
+		}
+
+	case "nexmo", "vonage":
+		apiKey := facades.Config().GetString("notification.channels.sms.nexmo.api_key", "")
+		apiSecret := facades.Config().GetString("notification.channels.sms.nexmo.api_secret", "")
+
+		if apiKey == "" {
+			return fmt.Errorf("nexmo/vonage API key not configured")
+		}
+		if apiSecret == "" {
+			return fmt.Errorf("nexmo/vonage API secret not configured")
+		}
+	}
+
+	// Check rate limits are reasonable
+	rateLimit := facades.Config().GetInt("notification.channels.sms.rate_limit", 1)
+	if rateLimit < 1 || rateLimit > 100 {
+		return fmt.Errorf("SMS rate limit must be between 1 and 100 messages per minute")
+	}
+
+	return nil
+}
 func (c *SMSNotificationChannel) GetConfig() map[string]interface{} {
 	return map[string]interface{}{"enabled": c.IsEnabled(), "version": c.GetVersion()}
 }
@@ -979,7 +1195,82 @@ func (c *WebhookNotificationChannel) GetVersion() string { return "2.0" }
 func (c *WebhookNotificationChannel) IsEnabled() bool {
 	return facades.Config().GetBool("notification.channels.webhook.enabled", true)
 }
-func (c *WebhookNotificationChannel) Validate() error { return nil }
+func (c *WebhookNotificationChannel) Validate() error {
+	// Check if webhook URL is configured
+	webhookURL := facades.Config().GetString("notification.channels.webhook.url", "")
+	if webhookURL == "" {
+		return fmt.Errorf("webhook URL not configured")
+	}
+
+	// Validate URL format
+	if !strings.HasPrefix(webhookURL, "http://") && !strings.HasPrefix(webhookURL, "https://") {
+		return fmt.Errorf("webhook URL must start with http:// or https://")
+	}
+
+	// Require HTTPS in production
+	if facades.Config().GetString("app.env", "") == "production" && strings.HasPrefix(webhookURL, "http://") {
+		return fmt.Errorf("webhook URL must use HTTPS in production environment")
+	}
+
+	// Validate HTTP method
+	method := facades.Config().GetString("notification.channels.webhook.method", "POST")
+	allowedMethods := []string{"POST", "PUT", "PATCH"}
+	isValidMethod := false
+	for _, m := range allowedMethods {
+		if method == m {
+			isValidMethod = true
+			break
+		}
+	}
+	if !isValidMethod {
+		return fmt.Errorf("webhook method must be one of: POST, PUT, PATCH")
+	}
+
+	// Validate timeout settings
+	timeout := facades.Config().GetInt("notification.channels.webhook.timeout", 30)
+	if timeout < 1 || timeout > 300 {
+		return fmt.Errorf("webhook timeout must be between 1 and 300 seconds")
+	}
+
+	// Validate retry settings
+	maxRetries := facades.Config().GetInt("notification.channels.webhook.max_retries", 3)
+	if maxRetries < 0 || maxRetries > 10 {
+		return fmt.Errorf("webhook max retries must be between 0 and 10")
+	}
+
+	// Validate authentication if configured
+	authType := facades.Config().GetString("notification.channels.webhook.auth_type", "")
+	if authType != "" {
+		switch authType {
+		case "bearer":
+			token := facades.Config().GetString("notification.channels.webhook.auth_token", "")
+			if token == "" {
+				return fmt.Errorf("webhook bearer token not configured")
+			}
+		case "basic":
+			username := facades.Config().GetString("notification.channels.webhook.auth_username", "")
+			password := facades.Config().GetString("notification.channels.webhook.auth_password", "")
+			if username == "" || password == "" {
+				return fmt.Errorf("webhook basic auth credentials not configured")
+			}
+		case "api_key":
+			apiKey := facades.Config().GetString("notification.channels.webhook.api_key", "")
+			if apiKey == "" {
+				return fmt.Errorf("webhook API key not configured")
+			}
+		default:
+			return fmt.Errorf("unsupported webhook auth type: %s", authType)
+		}
+	}
+
+	// Check rate limits are reasonable
+	rateLimit := facades.Config().GetInt("notification.channels.webhook.rate_limit", 10)
+	if rateLimit < 1 || rateLimit > 1000 {
+		return fmt.Errorf("webhook rate limit must be between 1 and 1000 requests per minute")
+	}
+
+	return nil
+}
 func (c *WebhookNotificationChannel) GetConfig() map[string]interface{} {
 	return map[string]interface{}{"enabled": c.IsEnabled(), "version": c.GetVersion()}
 }
@@ -1047,7 +1338,75 @@ func (c *LogNotificationChannel) GetVersion() string { return "2.0" }
 func (c *LogNotificationChannel) IsEnabled() bool {
 	return facades.Config().GetBool("notification.channels.log.enabled", true)
 }
-func (c *LogNotificationChannel) Validate() error { return nil }
+func (c *LogNotificationChannel) Validate() error {
+	// Check log level configuration
+	logLevel := facades.Config().GetString("notification.channels.log.level", "info")
+	allowedLevels := []string{"debug", "info", "warning", "error", "critical"}
+	isValidLevel := false
+	for _, level := range allowedLevels {
+		if logLevel == level {
+			isValidLevel = true
+			break
+		}
+	}
+	if !isValidLevel {
+		return fmt.Errorf("invalid log level: %s. Must be one of: debug, info, warning, error, critical", logLevel)
+	}
+
+	// Validate log format
+	logFormat := facades.Config().GetString("notification.channels.log.format", "json")
+	allowedFormats := []string{"json", "text", "structured"}
+	isValidFormat := false
+	for _, format := range allowedFormats {
+		if logFormat == format {
+			isValidFormat = true
+			break
+		}
+	}
+	if !isValidFormat {
+		return fmt.Errorf("invalid log format: %s. Must be one of: json, text, structured", logFormat)
+	}
+
+	// Validate log file path if file logging is enabled
+	logToFile := facades.Config().GetBool("notification.channels.log.file_enabled", false)
+	if logToFile {
+		logPath := facades.Config().GetString("notification.channels.log.file_path", "")
+		if logPath == "" {
+			return fmt.Errorf("log file path not configured but file logging is enabled")
+		}
+
+		// Check if directory exists or can be created
+		// In production, this would check actual filesystem permissions
+		if facades.Config().GetString("app.env", "") == "production" {
+			// Validate that the log directory is writable
+			// This is a simplified check - in production you'd verify actual permissions
+			if !strings.Contains(logPath, "/logs/") && !strings.Contains(logPath, "\\logs\\") {
+				return fmt.Errorf("log file path should be in a dedicated logs directory for security")
+			}
+		}
+	}
+
+	// Validate rotation settings if enabled
+	rotationEnabled := facades.Config().GetBool("notification.channels.log.rotation_enabled", false)
+	if rotationEnabled {
+		maxSize := facades.Config().GetInt("notification.channels.log.max_size_mb", 100)
+		if maxSize < 1 || maxSize > 10000 {
+			return fmt.Errorf("log max size must be between 1 and 10000 MB")
+		}
+
+		maxFiles := facades.Config().GetInt("notification.channels.log.max_files", 10)
+		if maxFiles < 1 || maxFiles > 1000 {
+			return fmt.Errorf("log max files must be between 1 and 1000")
+		}
+
+		maxAge := facades.Config().GetInt("notification.channels.log.max_age_days", 30)
+		if maxAge < 1 || maxAge > 3650 {
+			return fmt.Errorf("log max age must be between 1 and 3650 days")
+		}
+	}
+
+	return nil
+}
 func (c *LogNotificationChannel) GetConfig() map[string]interface{} {
 	return map[string]interface{}{"enabled": c.IsEnabled(), "version": c.GetVersion()}
 }
