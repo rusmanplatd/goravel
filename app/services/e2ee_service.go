@@ -15,8 +15,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -28,29 +26,461 @@ import (
 	"goravel/app/models"
 
 	"github.com/goravel/framework/facades"
+	"github.com/hashicorp/vault/api"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
 )
 
 // E2EEService handles end-to-end encryption for chat messages
 type E2EEService struct {
-	keyStorage *SecureKeyStorage
+	vaultStorage *VaultKeyStorage
+}
+
+// safeLog safely logs a message if facades.Log() is available
+func safeLog(level string, message string, data map[string]interface{}) {
+	if facades.Log() == nil {
+		return
+	}
+
+	switch level {
+	case "error":
+		safeLog("error", message, data)
+	case "warning":
+		safeLog("warning", message, data)
+	case "info":
+		safeLog("info", message, data)
+	case "debug":
+		safeLog("debug", message, data)
+	}
 }
 
 // NewE2EEService creates a new E2EE service instance
 func NewE2EEService() *E2EEService {
-	keyStorage, err := NewSecureKeyStorage()
+	vaultStorage, err := NewVaultKeyStorage()
 	if err != nil {
-		facades.Log().Error("Failed to initialize secure key storage", map[string]interface{}{
+		safeLog("error", "Failed to initialize Vault key storage", map[string]interface{}{
 			"error": err.Error(),
 		})
-		// Fallback to basic service without secure storage
-		return &E2EEService{keyStorage: nil}
+		panic(fmt.Sprintf("Failed to initialize Vault storage: %v", err))
 	}
 
 	return &E2EEService{
-		keyStorage: keyStorage,
+		vaultStorage: vaultStorage,
 	}
+}
+
+// VaultKeyStorage provides secure storage for encryption keys using HashiCorp Vault
+type VaultKeyStorage struct {
+	client     *api.Client
+	secretPath string
+	namespace  string
+	monitor    *VaultMonitor
+	cache      *VaultCache
+	versioning *VaultVersioning
+	mu         sync.RWMutex
+}
+
+// NewVaultKeyStorage creates a new Vault key storage instance
+func NewVaultKeyStorage() (*VaultKeyStorage, error) {
+	// Handle test environment or missing configuration
+	if facades.Config() == nil {
+		return NewMockVaultKeyStorage()
+	}
+
+	vaultAddr := facades.Config().GetString("vault.addr", "")
+	vaultToken := facades.Config().GetString("vault.token", "")
+	secretPath := facades.Config().GetString("vault.secret_path", "secret/data/e2ee")
+	namespace := facades.Config().GetString("vault.namespace", "")
+
+	if vaultAddr == "" {
+		// For testing or development, use mock implementation
+		if facades.Log() != nil {
+			facades.Log().Warning("Vault address not configured, using mock implementation", nil)
+		}
+		return NewMockVaultKeyStorage()
+	}
+
+	// Create Vault client configuration
+	config := api.DefaultConfig()
+	config.Address = vaultAddr
+
+	client, err := api.NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Vault client: %v", err)
+	}
+
+	// Set namespace if provided
+	if namespace != "" {
+		client.SetNamespace(namespace)
+	}
+
+	// Authenticate with Vault
+	if vaultToken != "" {
+		// Token authentication
+		client.SetToken(vaultToken)
+	} else {
+		// AppRole authentication
+		roleID := facades.Config().GetString("vault.role_id", "")
+		secretID := facades.Config().GetString("vault.secret_id", "")
+
+		if roleID == "" || secretID == "" {
+			return nil, fmt.Errorf("HashiCorp Vault authentication not configured: need either vault_token or both vault_role_id and vault_secret_id")
+		}
+
+		// Authenticate using AppRole
+		data := map[string]interface{}{
+			"role_id":   roleID,
+			"secret_id": secretID,
+		}
+
+		resp, err := client.Logical().Write("auth/approle/login", data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to authenticate with Vault using AppRole: %v", err)
+		}
+
+		if resp.Auth == nil {
+			return nil, fmt.Errorf("no authentication information returned from Vault")
+		}
+
+		client.SetToken(resp.Auth.ClientToken)
+	}
+
+	// Test the connection
+	_, err = client.Sys().Health()
+	if err != nil {
+		safeLog("warning", "Vault health check failed, but continuing", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	// Initialize monitoring and caching
+	monitor := NewVaultMonitor(client)
+	cache := NewVaultCache(15 * time.Minute) // 15 minute cache TTL
+	versioning := NewVaultVersioning(client, secretPath, monitor)
+
+	safeLog("info", "Successfully connected to HashiCorp Vault", map[string]interface{}{
+		"vault_addr":  vaultAddr,
+		"secret_path": secretPath,
+		"namespace":   namespace,
+		"cache_ttl":   cache.GetTTL().String(),
+		"versioning":  "enabled",
+	})
+
+	return &VaultKeyStorage{
+		client:     client,
+		secretPath: secretPath,
+		namespace:  namespace,
+		monitor:    monitor,
+		cache:      cache,
+		versioning: versioning,
+	}, nil
+}
+
+// GetMasterKey retrieves or generates a master key from Vault
+func (v *VaultKeyStorage) GetMasterKey(userID string) ([]byte, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+
+	// Handle mock implementation for testing
+	if v.isMock() {
+		return v.getMockMasterKey(userID)
+	}
+
+	cacheKey := fmt.Sprintf("master_key:%s", userID)
+
+	// Try cache first
+	if cachedKey, found := v.cache.Get(cacheKey); found {
+		safeLog("debug", "Master key retrieved from cache", map[string]interface{}{
+			"user_id": userID,
+		})
+		return cachedKey, nil
+	}
+
+	start := time.Now()
+	keyPath := fmt.Sprintf("%s/master-keys", v.secretPath)
+	keyName := fmt.Sprintf("user_%s", userID)
+
+	// Try to read existing key from Vault
+	secret, err := v.client.Logical().Read(keyPath)
+	duration := time.Since(start)
+
+	// Record metrics
+	v.monitor.RecordRequest(duration, err == nil)
+
+	if err != nil {
+		v.monitor.RecordError(err)
+		return nil, fmt.Errorf("failed to read from Vault: %v", err)
+	}
+
+	if secret != nil && secret.Data != nil {
+		if data, ok := secret.Data["data"].(map[string]interface{}); ok {
+			if keyData, exists := data[keyName].(string); exists {
+				// Decode the stored key
+				masterKey, err := base64.StdEncoding.DecodeString(keyData)
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode master key: %v", err)
+				}
+
+				// Cache the key
+				v.cache.Set(cacheKey, masterKey)
+
+				safeLog("info", "Retrieved master key from Vault", map[string]interface{}{
+					"user_id":  userID,
+					"key_size": len(masterKey),
+					"duration": duration.String(),
+				})
+
+				return masterKey, nil
+			}
+		}
+	}
+
+	// Generate new master key if not found
+	return v.GenerateAndStoreMasterKey(userID)
+}
+
+// GenerateAndStoreMasterKey generates a new master key and stores it in Vault
+func (v *VaultKeyStorage) GenerateAndStoreMasterKey(userID string) ([]byte, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	// Handle mock implementation for testing
+	if v.isMock() {
+		return v.generateAndStoreMockMasterKey(userID)
+	}
+
+	// Generate a new 256-bit master key
+	masterKey := make([]byte, 32)
+	if _, err := rand.Read(masterKey); err != nil {
+		return nil, fmt.Errorf("failed to generate master key: %v", err)
+	}
+
+	// Store in Vault
+	start := time.Now()
+	err := v.storeMasterKey(userID, masterKey)
+	duration := time.Since(start)
+
+	// Record metrics
+	v.monitor.RecordRequest(duration, err == nil)
+
+	if err != nil {
+		v.monitor.RecordError(err)
+		return nil, fmt.Errorf("failed to store master key: %v", err)
+	}
+
+	// Cache the key
+	cacheKey := fmt.Sprintf("master_key:%s", userID)
+	v.cache.Set(cacheKey, masterKey)
+
+	safeLog("info", "Generated and stored new master key in Vault", map[string]interface{}{
+		"user_id":  userID,
+		"key_size": len(masterKey),
+		"duration": duration.String(),
+	})
+
+	return masterKey, nil
+}
+
+// GetMonitor returns the Vault monitor instance
+func (v *VaultKeyStorage) GetMonitor() *VaultMonitor {
+	return v.monitor
+}
+
+// GetCache returns the cache instance
+func (v *VaultKeyStorage) GetCache() *VaultCache {
+	return v.cache
+}
+
+// ClearCache clears all cached keys
+func (v *VaultKeyStorage) ClearCache() {
+	if v.cache != nil {
+		v.cache.Clear()
+	}
+}
+
+// GetHealthStatus returns the current Vault health status
+func (v *VaultKeyStorage) GetHealthStatus() map[string]interface{} {
+	if v.isMock() {
+		return map[string]interface{}{
+			"status": "mock",
+			"type":   "test_implementation",
+		}
+	}
+
+	if v.monitor == nil {
+		return map[string]interface{}{
+			"status": "unknown",
+			"error":  "monitor not initialized",
+		}
+	}
+
+	return v.monitor.GetHealthSummary()
+}
+
+// storeMasterKey stores a master key in Vault
+func (v *VaultKeyStorage) storeMasterKey(userID string, masterKey []byte) error {
+	keyPath := fmt.Sprintf("%s/master-keys", v.secretPath)
+	keyName := fmt.Sprintf("user_%s", userID)
+
+	// Read existing data to preserve other keys
+	var existingData map[string]interface{}
+	secret, err := v.client.Logical().Read(keyPath)
+	if err == nil && secret != nil && secret.Data != nil {
+		if data, ok := secret.Data["data"].(map[string]interface{}); ok {
+			existingData = data
+		}
+	}
+
+	if existingData == nil {
+		existingData = make(map[string]interface{})
+	}
+
+	// Add the new key
+	existingData[keyName] = base64.StdEncoding.EncodeToString(masterKey)
+
+	// Store back to Vault
+	data := map[string]interface{}{
+		"data": existingData,
+	}
+
+	_, err = v.client.Logical().Write(keyPath, data)
+	if err != nil {
+		return fmt.Errorf("failed to write to Vault: %v", err)
+	}
+
+	return nil
+}
+
+// StoreEncryptedData stores encrypted data in Vault
+func (v *VaultKeyStorage) StoreEncryptedData(key string, data []byte) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	dataPath := fmt.Sprintf("%s/encrypted-data", v.secretPath)
+
+	// Read existing data
+	var existingData map[string]interface{}
+	secret, err := v.client.Logical().Read(dataPath)
+	if err == nil && secret != nil && secret.Data != nil {
+		if secretData, ok := secret.Data["data"].(map[string]interface{}); ok {
+			existingData = secretData
+		}
+	}
+
+	if existingData == nil {
+		existingData = make(map[string]interface{})
+	}
+
+	// Store the encrypted data
+	existingData[key] = base64.StdEncoding.EncodeToString(data)
+
+	vaultData := map[string]interface{}{
+		"data": existingData,
+	}
+
+	_, err = v.client.Logical().Write(dataPath, vaultData)
+	if err != nil {
+		return fmt.Errorf("failed to store encrypted data in Vault: %v", err)
+	}
+
+	return nil
+}
+
+// RetrieveEncryptedData retrieves encrypted data from Vault
+func (v *VaultKeyStorage) RetrieveEncryptedData(key string) ([]byte, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+
+	dataPath := fmt.Sprintf("%s/encrypted-data", v.secretPath)
+
+	secret, err := v.client.Logical().Read(dataPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read from Vault: %v", err)
+	}
+
+	if secret == nil || secret.Data == nil {
+		return nil, fmt.Errorf("no data found in Vault")
+	}
+
+	data, ok := secret.Data["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid data format in Vault")
+	}
+
+	encryptedData, exists := data[key].(string)
+	if !exists {
+		return nil, fmt.Errorf("key not found in Vault: %s", key)
+	}
+
+	// Decode the stored data
+	decodedData, err := base64.StdEncoding.DecodeString(encryptedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode encrypted data: %v", err)
+	}
+
+	return decodedData, nil
+}
+
+// NewMockVaultKeyStorage creates a mock Vault storage for testing
+func NewMockVaultKeyStorage() (*VaultKeyStorage, error) {
+	return &VaultKeyStorage{
+		client:     nil, // Mock doesn't need a real client
+		secretPath: "mock/data/e2ee",
+		namespace:  "",
+		mu:         sync.RWMutex{},
+	}, nil
+}
+
+// Mock implementations for VaultKeyStorage methods when client is nil
+func (v *VaultKeyStorage) isMock() bool {
+	return v.client == nil
+}
+
+// Mock storage for testing - using in-memory map
+var mockKeys = make(map[string][]byte)
+var mockMutex = sync.RWMutex{}
+
+func (v *VaultKeyStorage) getMockMasterKey(userID string) ([]byte, error) {
+	mockMutex.RLock()
+	defer mockMutex.RUnlock()
+
+	keyName := fmt.Sprintf("user_%s", userID)
+	if key, exists := mockKeys[keyName]; exists {
+		if facades.Log() != nil {
+			safeLog("info", "Retrieved mock master key", map[string]interface{}{
+				"user_id":  userID,
+				"key_size": len(key),
+			})
+		}
+		return key, nil
+	}
+
+	// Generate new key if not found
+	return v.generateAndStoreMockMasterKey(userID)
+}
+
+func (v *VaultKeyStorage) generateAndStoreMockMasterKey(userID string) ([]byte, error) {
+	mockMutex.Lock()
+	defer mockMutex.Unlock()
+
+	// Generate a new 256-bit master key
+	masterKey := make([]byte, 32)
+	if _, err := rand.Read(masterKey); err != nil {
+		return nil, fmt.Errorf("failed to generate mock master key: %v", err)
+	}
+
+	// Store in mock storage
+	keyName := fmt.Sprintf("user_%s", userID)
+	mockKeys[keyName] = masterKey
+
+	if facades.Log() != nil {
+		safeLog("info", "Generated and stored mock master key", map[string]interface{}{
+			"user_id":  userID,
+			"key_size": len(masterKey),
+		})
+	}
+
+	return masterKey, nil
 }
 
 // KeyPair represents a public/private key pair
@@ -79,7 +509,7 @@ type PrekeyBundle struct {
 	DeviceID       int              `json:"device_id"`
 }
 
-// SignedPrekey represents a signed prekey for PFS
+// SignedPrekey represents a signed prekey
 type SignedPrekey struct {
 	KeyID     int    `json:"key_id"`
 	PublicKey string `json:"public_key"`
@@ -87,7 +517,7 @@ type SignedPrekey struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-// OneTimePrekey represents a one-time prekey for PFS
+// OneTimePrekey represents a one-time prekey
 type OneTimePrekey struct {
 	KeyID     int    `json:"key_id"`
 	PublicKey string `json:"public_key"`
@@ -100,10 +530,9 @@ type EncryptedFile struct {
 	FileSize      int64             `json:"file_size"`
 	MimeType      string            `json:"mime_type"`
 	EncryptedData string            `json:"encrypted_data"`
-	KeyID         string            `json:"key_id"`
 	Algorithm     string            `json:"algorithm"`
 	Version       int               `json:"version"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
+	Metadata      map[string]string `json:"metadata"`
 	Timestamp     time.Time         `json:"timestamp"`
 	Signature     string            `json:"signature,omitempty"`
 }
@@ -127,159 +556,6 @@ type SearchableMessage struct {
 	MatchScore  float64   `json:"match_score,omitempty"` // Relevance score for search results
 }
 
-// SecureKeyStorage provides secure storage for encryption keys
-type SecureKeyStorage struct {
-	masterKey []byte
-}
-
-// NewSecureKeyStorage creates a new secure key storage instance
-func NewSecureKeyStorage() (*SecureKeyStorage, error) {
-	// Get master key from environment or generate one
-	masterKeyEnv := facades.Config().GetString("app.master_key", "")
-	var masterKey []byte
-
-	if masterKeyEnv != "" {
-		// Use provided master key
-		var err error
-		masterKey, err = base64.StdEncoding.DecodeString(masterKeyEnv)
-		if err != nil {
-			return nil, fmt.Errorf("invalid master key format: %v", err)
-		}
-		if len(masterKey) != 32 {
-			return nil, fmt.Errorf("master key must be 32 bytes (256 bits)")
-		}
-	} else {
-		// Production-ready master key management
-		// Check if we can load from secure key storage first
-		if storedKey, err := loadMasterKeyFromSecureStorage(); err == nil && len(storedKey) == 32 {
-			facades.Log().Info("Loaded master key from secure storage", nil)
-			masterKey = storedKey
-		} else {
-			// Generate a new master key and store it securely
-			facades.Log().Warning("Generating new master key - ensure this is properly stored in production", map[string]interface{}{
-				"storage_error": err,
-			})
-
-			masterKey = make([]byte, 32)
-			if _, err := rand.Read(masterKey); err != nil {
-				return nil, fmt.Errorf("failed to generate master key: %v", err)
-			}
-
-			// Store the generated key securely for future use
-			if err := storeMasterKeySecurely(masterKey); err != nil {
-				facades.Log().Error("Failed to store master key securely", map[string]interface{}{
-					"error": err.Error(),
-				})
-				// Continue anyway but log the issue
-			} else {
-				facades.Log().Info("Master key stored securely for future use", nil)
-			}
-		}
-
-		// Log key fingerprint for verification (safe for production)
-		keyHash := sha256.Sum256(masterKey)
-		encodedKey := base64.StdEncoding.EncodeToString(keyHash[:8]) // Only first 8 bytes of hash
-		facades.Log().Info("Generated master key (store this in APP_MASTER_KEY environment variable)", map[string]interface{}{
-			"master_key": encodedKey,
-		})
-	}
-
-	return &SecureKeyStorage{
-		masterKey: masterKey,
-	}, nil
-}
-
-// EncryptForStorage encrypts data for secure storage
-func (s *SecureKeyStorage) EncryptForStorage(data []byte) (string, error) {
-	// Generate a random nonce
-	nonce := make([]byte, 12)
-	if _, err := rand.Read(nonce); err != nil {
-		return "", fmt.Errorf("failed to generate nonce: %v", err)
-	}
-
-	// Encrypt with AES-256-GCM
-	block, err := aes.NewCipher(s.masterKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %v", err)
-	}
-
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %v", err)
-	}
-
-	ciphertext := aesGCM.Seal(nil, nonce, data, nil)
-
-	// Combine nonce and ciphertext
-	encryptedData := append(nonce, ciphertext...)
-	return base64.StdEncoding.EncodeToString(encryptedData), nil
-}
-
-// DecryptFromStorage decrypts data from secure storage
-func (s *SecureKeyStorage) DecryptFromStorage(encryptedData string) ([]byte, error) {
-	// Decode base64
-	data, err := base64.StdEncoding.DecodeString(encryptedData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode encrypted data: %v", err)
-	}
-
-	// Extract nonce and ciphertext
-	if len(data) < 12 {
-		return nil, fmt.Errorf("invalid encrypted data: too short")
-	}
-	nonce := data[:12]
-	ciphertext := data[12:]
-
-	// Decrypt with AES-256-GCM
-	block, err := aes.NewCipher(s.masterKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cipher: %v", err)
-	}
-
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %v", err)
-	}
-
-	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt data: %v", err)
-	}
-
-	return plaintext, nil
-}
-
-// GenerateKeyPair generates a new RSA key pair for a user
-func (s *E2EEService) GenerateKeyPair() (*KeyPair, error) {
-	s.recordKeyGeneration()
-
-	// Generate RSA key pair
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		s.recordError()
-		return nil, fmt.Errorf("failed to generate RSA key pair: %v", err)
-	}
-
-	// Encode private key
-	privateKeyPEM := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-	}
-	privateKeyStr := string(pem.EncodeToMemory(privateKeyPEM))
-
-	// Encode public key
-	publicKeyPEM := &pem.Block{
-		Type:  "RSA PUBLIC KEY",
-		Bytes: x509.MarshalPKCS1PublicKey(&privateKey.PublicKey),
-	}
-	publicKeyStr := string(pem.EncodeToMemory(publicKeyPEM))
-
-	return &KeyPair{
-		PublicKey:  publicKeyStr,
-		PrivateKey: privateKeyStr,
-	}, nil
-}
-
 // EncryptMessage encrypts a message using AES-256-GCM with a random key
 func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []string) (*EncryptedMessage, error) {
 	startTime := time.Now()
@@ -289,7 +565,7 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 	}()
 
 	// Security audit log
-	facades.Log().Info("E2EE message encryption initiated", map[string]interface{}{
+	safeLog("info", "E2EE message encryption initiated", map[string]interface{}{
 		"recipients_count": len(recipientPublicKeys),
 		"message_size":     len(message),
 		"timestamp":        time.Now().Unix(),
@@ -298,27 +574,27 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 	// Input validation
 	if len(message) == 0 {
 		s.recordError()
-		facades.Log().Warning("E2EE encryption failed: empty message", map[string]interface{}{
+		safeLog("warning", "E2EE encryption failed: empty message", map[string]interface{}{
 			"error": "message cannot be empty",
 		})
 		return nil, fmt.Errorf("message cannot be empty")
 	}
 	if len(message) > 64*1024 { // 64KB limit
 		s.recordError()
-		facades.Log().Warning("E2EE encryption failed: message too large", map[string]interface{}{
+		safeLog("warning", "E2EE encryption failed: message too large", map[string]interface{}{
 			"message_size": len(message),
 			"max_size":     64 * 1024,
 		})
 		return nil, fmt.Errorf("message too large: maximum size is 64KB")
 	}
 	if len(recipientPublicKeys) == 0 {
-		facades.Log().Warning("E2EE encryption failed: no recipients", map[string]interface{}{
+		safeLog("warning", "E2EE encryption failed: no recipients", map[string]interface{}{
 			"error": "no recipients provided",
 		})
 		return nil, fmt.Errorf("at least one recipient public key is required")
 	}
 	if len(recipientPublicKeys) > 100 { // Reasonable limit
-		facades.Log().Warning("E2EE encryption failed: too many recipients", map[string]interface{}{
+		safeLog("warning", "E2EE encryption failed: too many recipients", map[string]interface{}{
 			"recipients_count": len(recipientPublicKeys),
 			"max_recipients":   100,
 		})
@@ -328,14 +604,14 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 	// Validate all public keys before proceeding
 	for i, publicKeyStr := range recipientPublicKeys {
 		if len(strings.TrimSpace(publicKeyStr)) == 0 {
-			facades.Log().Warning("E2EE encryption failed: empty public key", map[string]interface{}{
+			safeLog("warning", "E2EE encryption failed: empty public key", map[string]interface{}{
 				"recipient_index": i,
 			})
 			return nil, fmt.Errorf("recipient public key %d is empty", i)
 		}
 		// Validate key format
 		if err := s.ValidatePublicKey(publicKeyStr); err != nil {
-			facades.Log().Warning("E2EE encryption failed: invalid public key", map[string]interface{}{
+			safeLog("warning", "E2EE encryption failed: invalid public key", map[string]interface{}{
 				"recipient_index": i,
 				"error":           err.Error(),
 			})
@@ -379,7 +655,7 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 	for i, publicKeyStr := range recipientPublicKeys {
 		encryptedKey, err := s.encryptAESKeyWithRSA(aesKey, publicKeyStr)
 		if err != nil {
-			facades.Log().Error("Failed to encrypt AES key for recipient", map[string]interface{}{
+			safeLog("error", "Failed to encrypt AES key for recipient", map[string]interface{}{
 				"recipient_index": i,
 				"error":           err.Error(),
 			})
@@ -390,7 +666,7 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 	}
 
 	if successfulEncryptions == 0 {
-		facades.Log().Error("E2EE encryption failed: no successful recipient encryptions", map[string]interface{}{
+		safeLog("error", "E2EE encryption failed: no successful recipient encryptions", map[string]interface{}{
 			"total_recipients": len(recipientPublicKeys),
 		})
 		return nil, fmt.Errorf("failed to encrypt message for any recipient")
@@ -408,7 +684,7 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 	// Add message authentication (HMAC signature)
 	signature, err := s.generateMessageSignature(encryptedMsg, aesKey)
 	if err != nil {
-		facades.Log().Error("E2EE signature generation failed", map[string]interface{}{
+		safeLog("error", "E2EE signature generation failed", map[string]interface{}{
 			"error": err.Error(),
 		})
 		return nil, fmt.Errorf("failed to generate message signature: %v", err)
@@ -416,7 +692,7 @@ func (s *E2EEService) EncryptMessage(message string, recipientPublicKeys []strin
 	encryptedMsg.Signature = signature
 
 	// Security audit log for successful encryption
-	facades.Log().Info("E2EE message encryption completed successfully", map[string]interface{}{
+	safeLog("info", "E2EE message encryption completed successfully", map[string]interface{}{
 		"successful_recipients": successfulEncryptions,
 		"total_recipients":      len(recipientPublicKeys),
 		"has_signature":         encryptedMsg.Signature != "",
@@ -436,7 +712,7 @@ func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivate
 	}()
 
 	// Security audit log
-	facades.Log().Info("E2EE message decryption initiated", map[string]interface{}{
+	safeLog("info", "E2EE message decryption initiated", map[string]interface{}{
 		"algorithm":     encryptedMsg.Algorithm,
 		"version":       encryptedMsg.Version,
 		"has_signature": encryptedMsg.Signature != "",
@@ -446,7 +722,7 @@ func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivate
 	// Decode the encrypted content
 	encryptedData, err := base64.StdEncoding.DecodeString(encryptedMsg.Content)
 	if err != nil {
-		facades.Log().Warning("E2EE decryption failed: invalid base64 content", map[string]interface{}{
+		safeLog("warning", "E2EE decryption failed: invalid base64 content", map[string]interface{}{
 			"error": err.Error(),
 		})
 		return "", fmt.Errorf("failed to decode encrypted content: %v", err)
@@ -454,7 +730,7 @@ func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivate
 
 	// Extract nonce and ciphertext
 	if len(encryptedData) < 12 {
-		facades.Log().Warning("E2EE decryption failed: invalid data length", map[string]interface{}{
+		safeLog("warning", "E2EE decryption failed: invalid data length", map[string]interface{}{
 			"data_length": len(encryptedData),
 			"min_length":  12,
 		})
@@ -477,7 +753,7 @@ func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivate
 	}
 
 	if decryptionError != nil {
-		facades.Log().Warning("E2EE decryption failed: no valid encrypted key found", map[string]interface{}{
+		safeLog("warning", "E2EE decryption failed: no valid encrypted key found", map[string]interface{}{
 			"available_keys": len(encryptedMsg.Metadata),
 			"error":          decryptionError.Error(),
 		})
@@ -487,12 +763,12 @@ func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivate
 	// Verify message signature if present
 	if encryptedMsg.Signature != "" {
 		if err := s.verifyMessageSignature(encryptedMsg, aesKey, encryptedMsg.Signature); err != nil {
-			facades.Log().Error("E2EE message integrity verification failed", map[string]interface{}{
+			safeLog("error", "E2EE message integrity verification failed", map[string]interface{}{
 				"error": err.Error(),
 			})
 			return "", fmt.Errorf("message integrity verification failed: %v", err)
 		}
-		facades.Log().Info("E2EE message signature verified successfully", nil)
+		safeLog("info", "E2EE message signature verified successfully", nil)
 	}
 
 	// Decrypt the message
@@ -508,14 +784,14 @@ func (s *E2EEService) DecryptMessage(encryptedMsg *EncryptedMessage, userPrivate
 
 	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		facades.Log().Error("E2EE decryption failed: GCM decryption error", map[string]interface{}{
+		safeLog("error", "E2EE decryption failed: GCM decryption error", map[string]interface{}{
 			"error": err.Error(),
 		})
 		return "", fmt.Errorf("failed to decrypt message: %v", err)
 	}
 
 	// Security audit log for successful decryption
-	facades.Log().Info("E2EE message decryption completed successfully", map[string]interface{}{
+	safeLog("info", "E2EE message decryption completed successfully", map[string]interface{}{
 		"message_length": len(plaintext),
 		"algorithm":      encryptedMsg.Algorithm,
 		"version":        encryptedMsg.Version,
@@ -560,7 +836,7 @@ func (s *E2EEService) EncryptFile(fileData []byte, fileName, mimeType string, re
 	for i, publicKeyStr := range recipientPublicKeys {
 		encryptedKey, err := s.encryptAESKeyWithRSA(aesKey, publicKeyStr)
 		if err != nil {
-			facades.Log().Error("Failed to encrypt AES key for recipient", map[string]interface{}{
+			safeLog("error", "Failed to encrypt AES key for recipient", map[string]interface{}{
 				"recipient_index": i,
 				"error":           err.Error(),
 			})
@@ -999,7 +1275,7 @@ func (s *E2EEService) RotateRoomKey(roomID string) error {
 
 	for _, member := range members {
 		if member.PublicKey == "" {
-			facades.Log().Warning("Member has no public key, skipping", map[string]interface{}{
+			safeLog("warning", "Member has no public key, skipping", map[string]interface{}{
 				"member_id": member.UserID,
 				"room_id":   roomID,
 			})
@@ -1009,7 +1285,7 @@ func (s *E2EEService) RotateRoomKey(roomID string) error {
 		// Encrypt room key for this member
 		encryptedKey, err := s.EncryptRoomKey(newRoomKey, member.PublicKey)
 		if err != nil {
-			facades.Log().Error("Failed to encrypt room key for member", map[string]interface{}{
+			safeLog("error", "Failed to encrypt room key for member", map[string]interface{}{
 				"member_id": member.UserID,
 				"room_id":   roomID,
 				"error":     err.Error(),
@@ -1029,7 +1305,7 @@ func (s *E2EEService) RotateRoomKey(roomID string) error {
 
 		err = tx.Create(roomKey)
 		if err != nil {
-			facades.Log().Error("Failed to save room key for member", map[string]interface{}{
+			safeLog("error", "Failed to save room key for member", map[string]interface{}{
 				"member_id": member.UserID,
 				"room_id":   roomID,
 				"error":     err.Error(),
@@ -1051,7 +1327,7 @@ func (s *E2EEService) RotateRoomKey(roomID string) error {
 		return fmt.Errorf("failed to commit key rotation transaction: %v", err)
 	}
 
-	facades.Log().Info("Room key rotated successfully", map[string]interface{}{
+	safeLog("info", "Room key rotated successfully", map[string]interface{}{
 		"room_id":         roomID,
 		"new_version":     nextVersion,
 		"members_updated": successfulKeys,
@@ -1062,7 +1338,7 @@ func (s *E2EEService) RotateRoomKey(roomID string) error {
 
 // GeneratePrekeyBundle generates a complete prekey bundle for PFS
 func (s *E2EEService) GeneratePrekeyBundle(userID string, deviceID int) (*PrekeyBundle, error) {
-	facades.Log().Info("Generating prekey bundle for PFS", map[string]interface{}{
+	safeLog("info", "Generating prekey bundle for PFS", map[string]interface{}{
 		"user_id":   userID,
 		"device_id": deviceID,
 	})
@@ -1070,7 +1346,7 @@ func (s *E2EEService) GeneratePrekeyBundle(userID string, deviceID int) (*Prekey
 	// Generate identity key
 	identityKeyPair, err := s.GenerateKeyPair()
 	if err != nil {
-		facades.Log().Error("Failed to generate identity key for prekey bundle", map[string]interface{}{
+		safeLog("error", "Failed to generate identity key for prekey bundle", map[string]interface{}{
 			"user_id": userID,
 			"error":   err.Error(),
 		})
@@ -1080,7 +1356,7 @@ func (s *E2EEService) GeneratePrekeyBundle(userID string, deviceID int) (*Prekey
 	// Generate signed prekey
 	signedPrekey, err := s.GenerateSignedPrekey(identityKeyPair.PrivateKey)
 	if err != nil {
-		facades.Log().Error("Failed to generate signed prekey", map[string]interface{}{
+		safeLog("error", "Failed to generate signed prekey", map[string]interface{}{
 			"user_id": userID,
 			"error":   err.Error(),
 		})
@@ -1092,7 +1368,7 @@ func (s *E2EEService) GeneratePrekeyBundle(userID string, deviceID int) (*Prekey
 	for i := 0; i < 100; i++ {
 		prekey, err := s.GenerateOneTimePrekey()
 		if err != nil {
-			facades.Log().Warning("Failed to generate one-time prekey", map[string]interface{}{
+			safeLog("warning", "Failed to generate one-time prekey", map[string]interface{}{
 				"user_id": userID,
 				"index":   i,
 				"error":   err.Error(),
@@ -1103,7 +1379,7 @@ func (s *E2EEService) GeneratePrekeyBundle(userID string, deviceID int) (*Prekey
 	}
 
 	if len(oneTimePrekeys) < 50 {
-		facades.Log().Error("Insufficient one-time prekeys generated", map[string]interface{}{
+		safeLog("error", "Insufficient one-time prekeys generated", map[string]interface{}{
 			"user_id":   userID,
 			"generated": len(oneTimePrekeys),
 			"minimum":   50,
@@ -1124,14 +1400,14 @@ func (s *E2EEService) GeneratePrekeyBundle(userID string, deviceID int) (*Prekey
 
 	// Store the prekey bundle in database
 	if err := s.StorePrekeyBundle(userID, bundle, identityKeyPair.PrivateKey); err != nil {
-		facades.Log().Error("Failed to store prekey bundle", map[string]interface{}{
+		safeLog("error", "Failed to store prekey bundle", map[string]interface{}{
 			"user_id": userID,
 			"error":   err.Error(),
 		})
 		return nil, fmt.Errorf("failed to store prekey bundle: %v", err)
 	}
 
-	facades.Log().Info("Prekey bundle generated successfully", map[string]interface{}{
+	safeLog("info", "Prekey bundle generated successfully", map[string]interface{}{
 		"user_id":          userID,
 		"device_id":        deviceID,
 		"registration_id":  registrationID,
@@ -1257,7 +1533,7 @@ func (s *E2EEService) SearchMessages(userID string, searchTerms []string, roomID
 	cacheKey := s.generateSearchCacheKey(userID, validTerms, roomIDs)
 	var cachedResults []SearchableMessage
 	if err := facades.Cache().Get(cacheKey, &cachedResults); err == nil {
-		facades.Log().Debug("Returning cached search results", map[string]interface{}{
+		safeLog("debug", "Returning cached search results", map[string]interface{}{
 			"user_id":      userID,
 			"cache_key":    cacheKey,
 			"result_count": len(cachedResults),
@@ -1289,7 +1565,7 @@ func (s *E2EEService) SearchMessages(userID string, searchTerms []string, roomID
 	// Cache results for 5 minutes
 	facades.Cache().Put(cacheKey, matchingMessages, 5*time.Minute)
 
-	facades.Log().Info("Encrypted search completed", map[string]interface{}{
+	safeLog("info", "Encrypted search completed", map[string]interface{}{
 		"user_id":           userID,
 		"search_terms":      len(validTerms),
 		"total_messages":    len(messages),
@@ -1357,7 +1633,7 @@ func (s *E2EEService) buildSearchIndexCached(messages []models.ChatMessage, user
 		batch := messages[i:end]
 		batchIndex, err := s.processBatch(batch, userID, searchKey)
 		if err != nil {
-			facades.Log().Warning("Failed to process message batch", map[string]interface{}{
+			safeLog("warning", "Failed to process message batch", map[string]interface{}{
 				"user_id":     userID,
 				"batch_start": i,
 				"batch_end":   end,
@@ -1464,7 +1740,7 @@ func (s *E2EEService) generateSearchTokens(userID string, searchTerms []string) 
 		// Generate encrypted token for the term
 		token, err := s.generateEncryptedToken(searchKey, normalizedTerm)
 		if err != nil {
-			facades.Log().Warning("Failed to generate search token", map[string]interface{}{
+			safeLog("warning", "Failed to generate search token", map[string]interface{}{
 				"user_id": userID,
 				"term":    normalizedTerm,
 				"error":   err.Error(),
@@ -1617,7 +1893,7 @@ func (s *E2EEService) decryptMessageForSearch(message models.ChatMessage, userID
 	// Verify user has access to the room
 	hasAccess, err := s.verifyRoomAccess(message.ChatRoomID, userID)
 	if err != nil {
-		facades.Log().Error("Failed to verify room access for search", map[string]interface{}{
+		safeLog("error", "Failed to verify room access for search", map[string]interface{}{
 			"room_id":    message.ChatRoomID,
 			"user_id":    userID,
 			"message_id": message.ID,
@@ -1627,7 +1903,7 @@ func (s *E2EEService) decryptMessageForSearch(message models.ChatMessage, userID
 	}
 
 	if !hasAccess {
-		facades.Log().Warning("User attempted to search messages in unauthorized room", map[string]interface{}{
+		safeLog("warning", "User attempted to search messages in unauthorized room", map[string]interface{}{
 			"room_id":    message.ChatRoomID,
 			"user_id":    userID,
 			"message_id": message.ID,
@@ -1638,7 +1914,7 @@ func (s *E2EEService) decryptMessageForSearch(message models.ChatMessage, userID
 	// Get the room key for decryption
 	roomKey, err := s.getRoomKeyForUser(message.ChatRoomID, userID)
 	if err != nil {
-		facades.Log().Error("Failed to get room key for search decryption", map[string]interface{}{
+		safeLog("error", "Failed to get room key for search decryption", map[string]interface{}{
 			"room_id":    message.ChatRoomID,
 			"user_id":    userID,
 			"message_id": message.ID,
@@ -1648,7 +1924,7 @@ func (s *E2EEService) decryptMessageForSearch(message models.ChatMessage, userID
 	}
 
 	if roomKey == nil {
-		facades.Log().Warning("No room key available for search decryption", map[string]interface{}{
+		safeLog("warning", "No room key available for search decryption", map[string]interface{}{
 			"room_id":    message.ChatRoomID,
 			"user_id":    userID,
 			"message_id": message.ID,
@@ -1659,7 +1935,7 @@ func (s *E2EEService) decryptMessageForSearch(message models.ChatMessage, userID
 	// Decrypt the message content
 	decryptedContent, err := s.decryptMessageContent(message.EncryptedContent, roomKey)
 	if err != nil {
-		facades.Log().Error("Failed to decrypt message for search", map[string]interface{}{
+		safeLog("error", "Failed to decrypt message for search", map[string]interface{}{
 			"room_id":    message.ChatRoomID,
 			"user_id":    userID,
 			"message_id": message.ID,
@@ -1668,7 +1944,7 @@ func (s *E2EEService) decryptMessageForSearch(message models.ChatMessage, userID
 		return "", fmt.Errorf("failed to decrypt message: %w", err)
 	}
 
-	facades.Log().Debug("Successfully decrypted message for search", map[string]interface{}{
+	safeLog("debug", "Successfully decrypted message for search", map[string]interface{}{
 		"room_id":        message.ChatRoomID,
 		"user_id":        userID,
 		"message_id":     message.ID,
@@ -1719,7 +1995,7 @@ func (s *E2EEService) getRoomKeyForUser(roomID, userID string) (*RoomKey, error)
 		First(&roomKey)
 
 	if err != nil {
-		facades.Log().Warning("No active room key found for user", map[string]interface{}{
+		safeLog("warning", "No active room key found for user", map[string]interface{}{
 			"room_id": roomID,
 			"user_id": userID,
 		})
@@ -1904,61 +2180,8 @@ func (s *E2EEService) generateSearchResultHash(entry SearchIndexEntry, matchCoun
 }
 
 func (s *E2EEService) getUserMasterKey(userID string) ([]byte, error) {
-	// Production key management with secure storage
-
-	// First, try to retrieve existing master key from secure storage
-	keyID := fmt.Sprintf("user_master_key:%s", userID)
-
-	// Check if key exists in encrypted storage
-	if encryptedKey := facades.Cache().GetString(keyID); encryptedKey != "" {
-		// Decrypt the stored master key
-		decryptedKey, err := facades.Crypt().DecryptString(encryptedKey)
-		if err != nil {
-			facades.Log().Error("Failed to decrypt user master key", map[string]interface{}{
-				"user_id": userID,
-				"error":   err.Error(),
-			})
-			return nil, fmt.Errorf("failed to decrypt master key: %w", err)
-		}
-
-		// Decode from base64
-		masterKey, err := base64.StdEncoding.DecodeString(decryptedKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode master key: %w", err)
-		}
-
-		return masterKey, nil
-	}
-
-	// If no existing key, generate a new one
-	masterKey := make([]byte, 32) // 256-bit key
-	if _, err := rand.Read(masterKey); err != nil {
-		return nil, fmt.Errorf("failed to generate master key: %w", err)
-	}
-
-	// Encrypt and store the master key
-	encodedKey := base64.StdEncoding.EncodeToString(masterKey)
-	encryptedKey, err := facades.Crypt().EncryptString(encodedKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt master key: %w", err)
-	}
-
-	// Store encrypted key with expiration (24 hours for security)
-	facades.Cache().Put(keyID, encryptedKey, 24*time.Hour)
-
-	// Also store in database for persistence
-	if err := s.storeMasterKeyInDatabase(userID, encryptedKey); err != nil {
-		facades.Log().Warning("Failed to store master key in database", map[string]interface{}{
-			"user_id": userID,
-			"error":   err.Error(),
-		})
-	}
-
-	facades.Log().Info("Generated new master key for user", map[string]interface{}{
-		"user_id": userID,
-	})
-
-	return masterKey, nil
+	// Use Vault for key management
+	return s.vaultStorage.GetMasterKey(userID)
 }
 
 func (s *E2EEService) deriveKey(masterKey []byte, info []byte, length int) []byte {
@@ -1971,7 +2194,7 @@ func (s *E2EEService) deriveKey(masterKey []byte, info []byte, length int) []byt
 	// Expand phase: derive the required key length
 	derivedKey := make([]byte, length)
 	if _, err := io.ReadFull(hkdf, derivedKey); err != nil {
-		facades.Log().Error("HKDF key derivation failed", map[string]interface{}{
+		safeLog("error", "HKDF key derivation failed", map[string]interface{}{
 			"error":  err.Error(),
 			"length": length,
 		})
@@ -2015,51 +2238,15 @@ func (s *E2EEService) deriveKeyFallback(masterKey []byte, info []byte, length in
 	return result
 }
 
-// storeMasterKeyInDatabase stores the encrypted master key in the database for persistence
-func (s *E2EEService) storeMasterKeyInDatabase(userID, encryptedKey string) error {
-	// Create or update user key record
-	var userKey models.UserKey
-	err := facades.Orm().Query().Where("user_id", userID).Where("key_type", "master").First(&userKey)
-
-	if err != nil {
-		// Create new record
-		userKey = models.UserKey{
-			UserID:              userID,
-			KeyType:             "master",
-			EncryptedPrivateKey: encryptedKey,
-		}
-		return facades.Orm().Query().Create(&userKey)
-	} else {
-		// Update existing record
-		userKey.EncryptedPrivateKey = encryptedKey
-		userKey.UpdatedAt = time.Now()
-		return facades.Orm().Query().Save(&userKey)
-	}
-}
-
-// retrieveMasterKeyFromDatabase retrieves the encrypted master key from the database
-func (s *E2EEService) retrieveMasterKeyFromDatabase(userID string) (string, error) {
-	var userKey models.UserKey
-	err := facades.Orm().Query().Where("user_id", userID).Where("key_type", "master").First(&userKey)
-	if err != nil {
-		return "", err
-	}
-	return userKey.EncryptedPrivateKey, nil
-}
-
 // rotateMasterKey rotates a user's master key for security
 func (s *E2EEService) rotateMasterKey(userID string) error {
-	// Remove old key from cache
-	keyID := fmt.Sprintf("user_master_key:%s", userID)
-	facades.Cache().Forget(keyID)
-
-	// Generate new master key (getUserMasterKey will create a new one)
-	_, err := s.getUserMasterKey(userID)
+	// Generate new master key using Vault
+	_, err := s.vaultStorage.GenerateAndStoreMasterKey(userID)
 	if err != nil {
 		return fmt.Errorf("failed to rotate master key: %w", err)
 	}
 
-	facades.Log().Info("Master key rotated successfully", map[string]interface{}{
+	safeLog("info", "Master key rotated successfully", map[string]interface{}{
 		"user_id": userID,
 	})
 
@@ -2243,7 +2430,7 @@ func (s *E2EEService) recordKeyRotation() {
 
 // StorePrekeyBundle stores a prekey bundle in the database for Perfect Forward Secrecy
 func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, identityPrivateKey string) error {
-	facades.Log().Info("Storing prekey bundle", map[string]interface{}{
+	safeLog("info", "Storing prekey bundle", map[string]interface{}{
 		"user_id":          userID,
 		"device_id":        bundle.DeviceID,
 		"registration_id":  bundle.RegistrationID,
@@ -2253,7 +2440,7 @@ func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, ide
 	// Start database transaction
 	tx, err := facades.Orm().Query().Begin()
 	if err != nil {
-		facades.Log().Error("Failed to begin transaction", map[string]interface{}{
+		safeLog("error", "Failed to begin transaction", map[string]interface{}{
 			"user_id": userID,
 			"error":   err.Error(),
 		})
@@ -2294,7 +2481,7 @@ func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, ide
 
 	if err := tx.Create(activityLog); err != nil {
 		tx.Rollback()
-		facades.Log().Error("Failed to store prekey bundle activity log", map[string]interface{}{
+		safeLog("error", "Failed to store prekey bundle activity log", map[string]interface{}{
 			"user_id":   userID,
 			"device_id": bundle.DeviceID,
 			"error":     err.Error(),
@@ -2308,7 +2495,7 @@ func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, ide
 
 	// Cache for 24 hours
 	if err := facades.Cache().Put(cacheKey, bundleJSON, 24*time.Hour); err != nil {
-		facades.Log().Warning("Failed to cache prekey bundle", map[string]interface{}{
+		safeLog("warning", "Failed to cache prekey bundle", map[string]interface{}{
 			"user_id":   userID,
 			"device_id": bundle.DeviceID,
 			"error":     err.Error(),
@@ -2318,7 +2505,7 @@ func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, ide
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		facades.Log().Error("Failed to commit prekey bundle transaction", map[string]interface{}{
+		safeLog("error", "Failed to commit prekey bundle transaction", map[string]interface{}{
 			"user_id":   userID,
 			"device_id": bundle.DeviceID,
 			"error":     err.Error(),
@@ -2326,7 +2513,7 @@ func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, ide
 		return fmt.Errorf("failed to commit prekey bundle: %w", err)
 	}
 
-	facades.Log().Info("Prekey bundle stored successfully", map[string]interface{}{
+	safeLog("info", "Prekey bundle stored successfully", map[string]interface{}{
 		"user_id":          userID,
 		"device_id":        bundle.DeviceID,
 		"registration_id":  bundle.RegistrationID,
@@ -2343,7 +2530,7 @@ func (s *E2EEService) StorePrekeyBundle(userID string, bundle *PrekeyBundle, ide
 func (s *E2EEService) toJSONString(data map[string]interface{}) string {
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		facades.Log().Error("Failed to marshal JSON", map[string]interface{}{
+		safeLog("error", "Failed to marshal JSON", map[string]interface{}{
 			"data":  data,
 			"error": err.Error(),
 		})
@@ -2356,7 +2543,7 @@ func (s *E2EEService) toJSONString(data map[string]interface{}) string {
 func (s *E2EEService) toJSONRawMessage(data map[string]interface{}) json.RawMessage {
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		facades.Log().Error("Failed to marshal JSON to RawMessage", map[string]interface{}{
+		safeLog("error", "Failed to marshal JSON to RawMessage", map[string]interface{}{
 			"data":  data,
 			"error": err.Error(),
 		})
@@ -2365,725 +2552,148 @@ func (s *E2EEService) toJSONRawMessage(data map[string]interface{}) json.RawMess
 	return json.RawMessage(jsonBytes)
 }
 
-// loadMasterKeyFromSecureStorage loads the master key from secure storage
-func loadMasterKeyFromSecureStorage() ([]byte, error) {
-	// Production implementation would use:
-	// 1. Hardware Security Module (HSM)
-	// 2. Cloud Key Management Service (AWS KMS, Azure Key Vault, GCP KMS)
-	// 3. HashiCorp Vault
-	// 4. Encrypted file storage with proper access controls
+// GenerateKeyPair generates a new RSA key pair for a user
+func (s *E2EEService) GenerateKeyPair() (*KeyPair, error) {
+	s.recordKeyGeneration()
 
-	// Try to load from encrypted file storage first
-	keyPath := facades.Config().GetString("e2ee.master_key_file", "/etc/goravel/master.key")
-	if keyData, err := loadEncryptedKeyFile(keyPath); err == nil {
-		return keyData, nil
-	}
-
-	// Try to load from database with encryption
-	if keyData, err := loadMasterKeyFromDatabase(); err == nil {
-		return keyData, nil
-	}
-
-	// Try to load from cloud key management service
-	if keyData, err := loadMasterKeyFromCloudKMS(); err == nil {
-		return keyData, nil
-	}
-
-	return nil, fmt.Errorf("no secure master key storage found")
-}
-
-// storeMasterKeySecurely stores the master key in secure storage
-func storeMasterKeySecurely(masterKey []byte) error {
-	var errors []error
-
-	// Store in encrypted file storage
-	keyPath := facades.Config().GetString("e2ee.master_key_file", "/etc/goravel/master.key")
-	if err := storeEncryptedKeyFile(keyPath, masterKey); err != nil {
-		errors = append(errors, fmt.Errorf("file storage failed: %w", err))
-	} else {
-		facades.Log().Info("Master key stored in encrypted file", map[string]interface{}{
-			"path": keyPath,
-		})
-	}
-
-	// Store in database with encryption
-	if err := storeMasterKeyInDatabase(masterKey); err != nil {
-		errors = append(errors, fmt.Errorf("database storage failed: %w", err))
-	} else {
-		facades.Log().Info("Master key stored in encrypted database", nil)
-	}
-
-	// Store in cloud key management service if configured
-	if err := storeMasterKeyInCloudKMS(masterKey); err != nil {
-		errors = append(errors, fmt.Errorf("cloud KMS storage failed: %w", err))
-	} else {
-		facades.Log().Info("Master key stored in cloud KMS", nil)
-	}
-
-	// If at least one storage method succeeded, consider it successful
-	if len(errors) < 3 {
-		return nil
-	}
-
-	// All storage methods failed
-	return fmt.Errorf("all storage methods failed: %v", errors)
-}
-
-// loadEncryptedKeyFile loads a key from an encrypted file
-func loadEncryptedKeyFile(keyPath string) ([]byte, error) {
-	// Check if file exists
-	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("key file does not exist: %s", keyPath)
-	}
-
-	// Read encrypted file
-	encryptedData, err := os.ReadFile(keyPath)
+	// Generate RSA key pair
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read key file: %w", err)
+		s.recordError()
+		return nil, fmt.Errorf("failed to generate RSA key pair: %v", err)
 	}
 
-	// Decrypt using a file encryption key (derived from system or config)
-	fileKey := deriveFileEncryptionKey()
-
-	// Decrypt the data
-	decryptedData, err := decryptWithAES(encryptedData, fileKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt key file: %w", err)
+	// Encode private key
+	privateKeyPEM := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	}
+	privateKeyStr := string(pem.EncodeToMemory(privateKeyPEM))
 
-	return decryptedData, nil
+	// Encode public key
+	publicKeyPEM := &pem.Block{
+		Type:  "RSA PUBLIC KEY",
+		Bytes: x509.MarshalPKCS1PublicKey(&privateKey.PublicKey),
+	}
+	publicKeyStr := string(pem.EncodeToMemory(publicKeyPEM))
+
+	return &KeyPair{
+		PublicKey:  publicKeyStr,
+		PrivateKey: privateKeyStr,
+	}, nil
 }
 
-// storeEncryptedKeyFile stores a key in an encrypted file
-func storeEncryptedKeyFile(keyPath string, masterKey []byte) error {
-	// Create directory if it doesn't exist
-	dir := filepath.Dir(keyPath)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("failed to create key directory: %w", err)
-	}
-
-	// Encrypt the master key using a file encryption key
-	fileKey := deriveFileEncryptionKey()
-	encryptedData, err := encryptWithAES(masterKey, fileKey)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt master key: %w", err)
-	}
-
-	// Write encrypted data to file with restricted permissions
-	err = os.WriteFile(keyPath, encryptedData, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to write key file: %w", err)
-	}
-
-	return nil
+// GetVaultStorage returns the Vault storage instance for monitoring
+func (s *E2EEService) GetVaultStorage() *VaultKeyStorage {
+	return s.vaultStorage
 }
 
-// loadMasterKeyFromDatabase loads the master key from database
-func loadMasterKeyFromDatabase() ([]byte, error) {
-	var keyRecord struct {
-		ID           string    `gorm:"primaryKey"`
-		EncryptedKey string    `gorm:"column:encrypted_key"`
-		CreatedAt    time.Time `gorm:"column:created_at"`
-	}
-
-	err := facades.Orm().Query().
-		Table("master_keys").
-		Where("id = ?", "primary").
-		First(&keyRecord)
-
-	if err != nil {
-		return nil, fmt.Errorf("master key not found in database: %w", err)
-	}
-
-	// Decode and decrypt the key
-	encryptedData, err := base64.StdEncoding.DecodeString(keyRecord.EncryptedKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode encrypted key: %w", err)
-	}
-
-	// Decrypt using database encryption key
-	dbKey := deriveDatabaseEncryptionKey()
-	decryptedKey, err := decryptWithAES(encryptedData, dbKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt database key: %w", err)
-	}
-
-	return decryptedKey, nil
+// GetVersioning returns the versioning service instance
+func (v *VaultKeyStorage) GetVersioning() *VaultVersioning {
+	return v.versioning
 }
 
-// storeMasterKeyInDatabase stores the master key in database
-func storeMasterKeyInDatabase(masterKey []byte) error {
-	// Encrypt the master key
-	dbKey := deriveDatabaseEncryptionKey()
-	encryptedData, err := encryptWithAES(masterKey, dbKey)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt master key: %w", err)
+// CreateMasterKeyVersion creates a new version of a master key
+func (v *VaultKeyStorage) CreateMasterKeyVersion(userID, description, createdBy string) (*KeyVersion, error) {
+	if v.isMock() {
+		return nil, fmt.Errorf("versioning not supported in mock mode")
 	}
 
-	// Encode for storage
-	encodedKey := base64.StdEncoding.EncodeToString(encryptedData)
-
-	// Store in database
-	keyRecord := struct {
-		ID           string    `gorm:"primaryKey"`
-		EncryptedKey string    `gorm:"column:encrypted_key"`
-		CreatedAt    time.Time `gorm:"column:created_at"`
-		UpdatedAt    time.Time `gorm:"column:updated_at"`
-	}{
-		ID:           "primary",
-		EncryptedKey: encodedKey,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-	}
-
-	// Upsert the key record
-	err = facades.Orm().Query().
-		Table("master_keys").
-		Where("id = ?", "primary").
-		FirstOrCreate(&keyRecord)
-
-	if err != nil {
-		return fmt.Errorf("failed to store master key in database: %w", err)
-	}
-
-	return nil
-}
-
-// loadMasterKeyFromCloudKMS loads the master key from cloud KMS
-func loadMasterKeyFromCloudKMS() ([]byte, error) {
-	// This would integrate with cloud providers:
-	// - AWS KMS
-	// - Azure Key Vault
-	// - Google Cloud KMS
-	// - HashiCorp Vault
-
-	provider := facades.Config().GetString("e2ee.kms_provider", "")
-	if provider == "" {
-		return nil, fmt.Errorf("no KMS provider configured")
-	}
-
-	switch provider {
-	case "aws":
-		return loadFromAWSKMS()
-	case "azure":
-		return loadFromAzureKeyVault()
-	case "gcp":
-		return loadFromGoogleKMS()
-	case "vault":
-		return loadFromHashiCorpVault()
-	default:
-		return nil, fmt.Errorf("unsupported KMS provider: %s", provider)
-	}
-}
-
-// storeMasterKeyInCloudKMS stores the master key in cloud KMS
-func storeMasterKeyInCloudKMS(masterKey []byte) error {
-	provider := facades.Config().GetString("e2ee.kms_provider", "")
-	if provider == "" {
-		return fmt.Errorf("no KMS provider configured")
-	}
-
-	switch provider {
-	case "aws":
-		return storeInAWSKMS(masterKey)
-	case "azure":
-		return storeInAzureKeyVault(masterKey)
-	case "gcp":
-		return storeInGoogleKMS(masterKey)
-	case "vault":
-		return storeInHashiCorpVault(masterKey)
-	default:
-		return fmt.Errorf("unsupported KMS provider: %s", provider)
-	}
-}
-
-// Helper functions for key derivation
-func deriveFileEncryptionKey() []byte {
-	// Derive a key from system information and configuration
-	// This is a simplified approach - in production use proper key derivation
-	salt := facades.Config().GetString("app.key", "default-salt")
-	hash := sha256.Sum256([]byte("file-encryption-" + salt))
-	return hash[:]
-}
-
-func deriveDatabaseEncryptionKey() []byte {
-	// Derive a key for database encryption
-	salt := facades.Config().GetString("app.key", "default-salt")
-	hash := sha256.Sum256([]byte("db-encryption-" + salt))
-	return hash[:]
-}
-
-// Placeholder functions for cloud KMS integration
-func loadFromAWSKMS() ([]byte, error) {
-	// Production AWS KMS integration
-	region := facades.Config().GetString("e2ee.aws_kms_region", "")
-	keyID := facades.Config().GetString("e2ee.aws_kms_key_id", "")
-	accessKey := facades.Config().GetString("e2ee.aws_access_key", "")
-	secretKey := facades.Config().GetString("e2ee.aws_secret_key", "")
-
-	if region == "" || keyID == "" {
-		return nil, fmt.Errorf("AWS KMS configuration incomplete: missing region or key_id")
-	}
-
-	if accessKey == "" || secretKey == "" {
-		return nil, fmt.Errorf("AWS KMS credentials not configured")
-	}
-
-	// Production AWS KMS integration
-	// In production, you would use the AWS SDK for proper KMS integration:
-	// import "github.com/aws/aws-sdk-go/aws"
-	// import "github.com/aws/aws-sdk-go/aws/credentials"
-	// import "github.com/aws/aws-sdk-go/aws/session"
-	// import "github.com/aws/aws-sdk-go/service/kms"
-
-	facades.Log().Info("AWS KMS integration - loading master key", map[string]interface{}{
-		"region": region,
-		"key_id": keyID,
-	})
-
-	// Production implementation would:
-	// 1. Create AWS session with proper credentials
-	// 2. Use KMS Decrypt API to decrypt the data encryption key
-	// 3. Return the decrypted key for use
-
-	masterKey, err := loadFromAWSKMSImpl(region, keyID, accessKey, secretKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load master key from AWS KMS: %w", err)
-	}
-
-	facades.Log().Info("Master key loaded from AWS KMS", map[string]interface{}{
-		"region":   region,
-		"key_id":   keyID,
-		"key_size": len(masterKey),
-	})
-
-	return masterKey, nil
-}
-
-// loadFromAWSKMSImpl loads a master key from AWS KMS (production-ready implementation)
-func loadFromAWSKMSImpl(region, keyID, accessKey, secretKey string) ([]byte, error) {
-	// Create AWS KMS API request to decrypt the data encryption key
-	// In production, this would use the actual AWS SDK
-
-	// For demonstration, we'll simulate the KMS API call
-	kmsRequest := map[string]interface{}{
-		"KeyId":             keyID,
-		"EncryptionContext": map[string]string{"purpose": "e2ee_master_key"},
-		"GrantTokens":       []string{},
-	}
-
-	// Simulate KMS Decrypt API call
-	decryptedKey, err := simulateKMSDecrypt(region, kmsRequest, accessKey, secretKey)
-	if err != nil {
-		return nil, fmt.Errorf("KMS decrypt operation failed: %w", err)
-	}
-
-	// Validate key size (should be 256 bits for AES-256)
-	if len(decryptedKey) != 32 {
-		return nil, fmt.Errorf("invalid key size from KMS: expected 32 bytes, got %d", len(decryptedKey))
-	}
-
-	return decryptedKey, nil
-}
-
-// simulateKMSDecrypt simulates AWS KMS Decrypt API call
-func simulateKMSDecrypt(region string, request map[string]interface{}, accessKey, secretKey string) ([]byte, error) {
-	// This simulates what would be done with the AWS SDK:
-	// sess := session.Must(session.NewSession(&aws.Config{
-	//     Region: aws.String(region),
-	//     Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
-	// }))
-	// svc := kms.New(sess)
-	//
-	// result, err := svc.Decrypt(&kms.DecryptInput{
-	//     CiphertextBlob: encryptedKey,
-	//     KeyId:          aws.String(keyID),
-	//     EncryptionContext: map[string]*string{
-	//         "purpose": aws.String("e2ee_master_key"),
-	//     },
-	// })
-	//
-	// if err != nil {
-	//     return nil, err
-	// }
-	//
-	// return result.Plaintext, nil
-
-	facades.Log().Debug("Simulating AWS KMS Decrypt API call", map[string]interface{}{
-		"region":     region,
-		"request":    request,
-		"access_key": accessKey[:8] + "...", // Log partial key for debugging
-	})
-
-	// For demonstration, generate a deterministic key based on KMS parameters
-	keyData := fmt.Sprintf("aws_kms:%s:%s:%s", region, request["KeyId"], accessKey)
-	hash := sha256.Sum256([]byte(keyData))
-
-	// Return the first 32 bytes as the decrypted key
-	return hash[:32], nil
-}
-
-func storeInAWSKMS(masterKey []byte) error {
-	// Production AWS KMS integration for storing encrypted data
-	region := facades.Config().GetString("e2ee.aws_kms_region", "")
-	keyID := facades.Config().GetString("e2ee.aws_kms_key_id", "")
-	accessKey := facades.Config().GetString("e2ee.aws_access_key", "")
-	secretKey := facades.Config().GetString("e2ee.aws_secret_key", "")
-
-	if region == "" || keyID == "" {
-		return fmt.Errorf("AWS KMS configuration incomplete: missing region or key_id")
-	}
-
-	if accessKey == "" || secretKey == "" {
-		return fmt.Errorf("AWS KMS credentials not configured")
-	}
-
-	// TODO: in production implementation:
-	// 1. Create AWS session with credentials
-	// 2. Use KMS Encrypt API to encrypt the master key with the KMS key
-	// 3. Store the encrypted data in S3 or Parameter Store
-	// 4. Return success/error
-
-	facades.Log().Info("AWS KMS integration would store master key", map[string]interface{}{
-		"region":   region,
-		"key_id":   keyID,
-		"key_size": len(masterKey),
-	})
-
-	// Production implementation would use AWS SDK to store encrypted master key
-	facades.Log().Info("Master key stored in AWS KMS", map[string]interface{}{
-		"region":   region,
-		"key_id":   keyID,
-		"key_size": len(masterKey),
-	})
-
-	return nil
-}
-
-func loadFromAzureKeyVault() ([]byte, error) {
-	// Production Azure Key Vault integration
-	vaultURL := facades.Config().GetString("e2ee.azure_vault_url", "")
-	keyName := facades.Config().GetString("e2ee.azure_key_name", "")
-	tenantID := facades.Config().GetString("e2ee.azure_tenant_id", "")
-	clientID := facades.Config().GetString("e2ee.azure_client_id", "")
-	clientSecret := facades.Config().GetString("e2ee.azure_client_secret", "")
-
-	if vaultURL == "" || keyName == "" {
-		return nil, fmt.Errorf("Azure Key Vault configuration incomplete: missing vault_url or key_name")
-	}
-
-	if tenantID == "" || clientID == "" || clientSecret == "" {
-		return nil, fmt.Errorf("Azure Key Vault credentials not configured")
-	}
-
-	// TODO: in production, you would use Azure SDK:
-	// import "github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
-	// import "github.com/Azure/go-autorest/autorest/azure/auth"
-
-	facades.Log().Info("Azure Key Vault integration would load master key", map[string]interface{}{
-		"vault_url": vaultURL,
-		"key_name":  keyName,
-		"tenant_id": tenantID,
-	})
-
-	// Production Azure Key Vault implementation
-	// Generate a 32-byte encryption key for AES-256
+	// Generate new master key
 	masterKey := make([]byte, 32)
+	if _, err := rand.Read(masterKey); err != nil {
+		return nil, fmt.Errorf("failed to generate master key: %v", err)
+	}
 
-	// Production implementation would retrieve and decrypt the master key from Azure Key Vault
-	// Using Azure SDK and proper authentication
-	keyData := fmt.Sprintf("azure_kv:%s:%s:%s", vaultURL, keyName, clientID)
-	hash := sha256.Sum256([]byte(keyData))
-	copy(masterKey, hash[:])
+	keyID := fmt.Sprintf("master_key_%s", userID)
+	version, err := v.versioning.CreateKeyVersion(keyID, masterKey, description, createdBy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create key version: %v", err)
+	}
 
-	facades.Log().Info("Master key loaded from Azure Key Vault", map[string]interface{}{
-		"vault_url": vaultURL,
-		"key_name":  keyName,
-		"key_size":  len(masterKey),
+	// Update cache with new version
+	cacheKey := fmt.Sprintf("master_key:%s", userID)
+	v.cache.Set(cacheKey, masterKey)
+
+	safeLog("info", "Created new master key version", map[string]interface{}{
+		"user_id":    userID,
+		"version":    version.Version,
+		"created_by": createdBy,
 	})
 
-	return masterKey, nil
+	return version, nil
 }
 
-func storeInAzureKeyVault(masterKey []byte) error {
-	// Production Azure Key Vault integration for storing secrets
-	vaultURL := facades.Config().GetString("e2ee.azure_vault_url", "")
-	secretName := facades.Config().GetString("e2ee.azure_secret_name", "master-key")
-	tenantID := facades.Config().GetString("e2ee.azure_tenant_id", "")
-	clientID := facades.Config().GetString("e2ee.azure_client_id", "")
-	clientSecret := facades.Config().GetString("e2ee.azure_client_secret", "")
-
-	if vaultURL == "" {
-		return fmt.Errorf("Azure Key Vault configuration incomplete: missing vault_url")
+// GetMasterKeyVersion retrieves a specific version of a master key
+func (v *VaultKeyStorage) GetMasterKeyVersion(userID string, version int) ([]byte, error) {
+	if v.isMock() {
+		return v.getMockMasterKey(userID)
 	}
 
-	if tenantID == "" || clientID == "" || clientSecret == "" {
-		return fmt.Errorf("Azure Key Vault credentials not configured")
+	keyID := fmt.Sprintf("master_key_%s", userID)
+	keyVersion, err := v.versioning.GetKeyVersion(keyID, version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key version: %v", err)
 	}
 
-	// TODO: in production implementation:
-	// 1. Create Azure authentication client
-	// 2. Create Key Vault client
-	// 3. Store the master key as a secret
-	// 4. Set appropriate access policies
+	if keyVersion.Key == nil {
+		return nil, fmt.Errorf("key version %d has been deleted", version)
+	}
 
-	facades.Log().Info("Azure Key Vault integration would store master key", map[string]interface{}{
-		"vault_url":   vaultURL,
-		"secret_name": secretName,
-		"tenant_id":   tenantID,
-		"key_size":    len(masterKey),
-	})
+	return keyVersion.Key, nil
+}
 
-	// Production implementation would use Azure SDK to store encrypted master key
-	facades.Log().Info("Master key stored in Azure Key Vault", map[string]interface{}{
-		"vault_url":   vaultURL,
-		"secret_name": secretName,
-		"key_size":    len(masterKey),
+// RollbackMasterKey rolls back a user's master key to a previous version
+func (v *VaultKeyStorage) RollbackMasterKey(userID string, targetVersion int, rollbackBy string) error {
+	if v.isMock() {
+		return fmt.Errorf("versioning not supported in mock mode")
+	}
+
+	keyID := fmt.Sprintf("master_key_%s", userID)
+	err := v.versioning.RollbackToVersion(keyID, targetVersion, rollbackBy)
+	if err != nil {
+		return fmt.Errorf("failed to rollback key: %v", err)
+	}
+
+	// Clear cache to force reload of rolled-back key
+	cacheKey := fmt.Sprintf("master_key:%s", userID)
+	v.cache.Delete(cacheKey)
+
+	safeLog("info", "Rolled back master key", map[string]interface{}{
+		"user_id":        userID,
+		"target_version": targetVersion,
+		"rollback_by":    rollbackBy,
 	})
 
 	return nil
 }
 
-func loadFromGoogleKMS() ([]byte, error) {
-	// Production Google Cloud KMS integration
-	projectID := facades.Config().GetString("e2ee.gcp_project_id", "")
-	location := facades.Config().GetString("e2ee.gcp_location", "global")
-	keyRing := facades.Config().GetString("e2ee.gcp_key_ring", "")
-	keyName := facades.Config().GetString("e2ee.gcp_key_name", "")
-	credentialsPath := facades.Config().GetString("e2ee.gcp_credentials_path", "")
-
-	if projectID == "" || keyRing == "" || keyName == "" {
-		return nil, fmt.Errorf("Google KMS configuration incomplete: missing project_id, key_ring, or key_name")
+// ListMasterKeyVersions returns all versions of a user's master key
+func (v *VaultKeyStorage) ListMasterKeyVersions(userID string) ([]*KeyVersion, error) {
+	if v.isMock() {
+		return nil, fmt.Errorf("versioning not supported in mock mode")
 	}
 
-	if credentialsPath == "" {
-		// Check for service account key in environment
-		if facades.Config().GetString("GOOGLE_APPLICATION_CREDENTIALS", "") == "" {
-			return nil, fmt.Errorf("Google KMS credentials not configured")
-		}
-	}
-
-	// Production implementation would use Google Cloud KMS SDK:
-	// import "cloud.google.com/go/kms/apiv1"
-	// import "google.golang.org/api/option"
-
-	facades.Log().Info("Google KMS integration - loading master key", map[string]interface{}{
-		"project_id": projectID,
-		"location":   location,
-		"key_ring":   keyRing,
-		"key_name":   keyName,
-	})
-
-	// Production Google KMS implementation
-	// Generate a 32-byte encryption key for AES-256
-	masterKey := make([]byte, 32)
-
-	// TODO: in production, this would retrieve an encrypted master key from Google KMS
-	// For now, derive a key from the project ID and key name
-	keyData := fmt.Sprintf("%s:%s:%s", projectID, location, keyName)
-	hash := sha256.Sum256([]byte(keyData))
-	copy(masterKey, hash[:])
-
-	facades.Log().Info("Master key loaded from Google KMS", map[string]interface{}{
-		"project_id": projectID,
-		"location":   location,
-		"key_name":   keyName,
-		"key_size":   len(masterKey),
-	})
-
-	return masterKey, nil
+	keyID := fmt.Sprintf("master_key_%s", userID)
+	return v.versioning.ListKeyVersions(keyID)
 }
 
-func storeInGoogleKMS(masterKey []byte) error {
-	// Production Google Cloud KMS integration for encrypting and storing data
-	projectID := facades.Config().GetString("e2ee.gcp_project_id", "")
-	location := facades.Config().GetString("e2ee.gcp_location", "global")
-	keyRing := facades.Config().GetString("e2ee.gcp_key_ring", "")
-	keyName := facades.Config().GetString("e2ee.gcp_key_name", "")
-	credentialsPath := facades.Config().GetString("e2ee.gcp_credentials_path", "")
-
-	if projectID == "" || keyRing == "" || keyName == "" {
-		return fmt.Errorf("Google KMS configuration incomplete: missing project_id, key_ring, or key_name")
+// DeleteMasterKeyVersion soft-deletes a specific version of a master key
+func (v *VaultKeyStorage) DeleteMasterKeyVersion(userID string, version int, deletedBy string) error {
+	if v.isMock() {
+		return fmt.Errorf("versioning not supported in mock mode")
 	}
 
-	if credentialsPath == "" {
-		if facades.Config().GetString("GOOGLE_APPLICATION_CREDENTIALS", "") == "" {
-			return fmt.Errorf("Google KMS credentials not configured")
-		}
-	}
-
-	// TODO: in production implementation:
-	// 1. Create KMS client with credentials
-	// 2. Use the specified key to encrypt the master key
-	// 3. Store encrypted data in Cloud Storage or Firestore
-	// 4. Return success/error
-
-	facades.Log().Info("Google KMS integration would store master key", map[string]interface{}{
-		"project_id": projectID,
-		"location":   location,
-		"key_ring":   keyRing,
-		"key_name":   keyName,
-		"key_size":   len(masterKey),
-	})
-
-	// Production implementation would use Google Cloud KMS SDK to store encrypted master key
-	facades.Log().Info("Master key stored in Google KMS", map[string]interface{}{
-		"project_id": projectID,
-		"location":   location,
-		"key_ring":   keyRing,
-		"key_name":   keyName,
-		"key_size":   len(masterKey),
-	})
-
-	return nil
+	keyID := fmt.Sprintf("master_key_%s", userID)
+	return v.versioning.DeleteKeyVersion(keyID, version, deletedBy)
 }
 
-func loadFromHashiCorpVault() ([]byte, error) {
-	// Production HashiCorp Vault integration
-	vaultAddr := facades.Config().GetString("e2ee.vault_addr", "")
-	vaultToken := facades.Config().GetString("e2ee.vault_token", "")
-	secretPath := facades.Config().GetString("e2ee.vault_secret_path", "secret/master-key")
-	namespace := facades.Config().GetString("e2ee.vault_namespace", "")
-
-	if vaultAddr == "" {
-		return nil, fmt.Errorf("HashiCorp Vault configuration incomplete: missing vault_addr")
+// GetMasterKeyHistory returns the complete version history for a user's master key
+func (v *VaultKeyStorage) GetMasterKeyHistory(userID string) (*KeyVersionHistory, error) {
+	if v.isMock() {
+		return nil, fmt.Errorf("versioning not supported in mock mode")
 	}
 
-	if vaultToken == "" {
-		// Check for other authentication methods
-		roleID := facades.Config().GetString("e2ee.vault_role_id", "")
-		secretID := facades.Config().GetString("e2ee.vault_secret_id", "")
-
-		if roleID == "" || secretID == "" {
-			return nil, fmt.Errorf("HashiCorp Vault authentication not configured")
-		}
-	}
-
-	// Production implementation would use HashiCorp Vault API:
-	// import "github.com/hashicorp/vault/api"
-
-	facades.Log().Info("HashiCorp Vault integration would load master key", map[string]interface{}{
-		"vault_addr":  vaultAddr,
-		"secret_path": secretPath,
-		"namespace":   namespace,
-	})
-
-	// Production HashiCorp Vault implementation
-	// Generate a 32-byte encryption key for AES-256
-	masterKey := make([]byte, 32)
-
-	// Production implementation would retrieve and decrypt the master key from HashiCorp Vault
-	// Using Vault API client with proper authentication
-	keyData := fmt.Sprintf("vault:%s:%s:%s", vaultAddr, secretPath, vaultToken[:8])
-	hash := sha256.Sum256([]byte(keyData))
-	copy(masterKey, hash[:])
-
-	facades.Log().Info("Master key loaded from HashiCorp Vault", map[string]interface{}{
-		"vault_addr":  vaultAddr,
-		"secret_path": secretPath,
-		"key_size":    len(masterKey),
-	})
-
-	return masterKey, nil
-}
-
-func storeInHashiCorpVault(masterKey []byte) error {
-	// Production HashiCorp Vault integration for storing secrets
-	vaultAddr := facades.Config().GetString("e2ee.vault_addr", "")
-	vaultToken := facades.Config().GetString("e2ee.vault_token", "")
-	secretPath := facades.Config().GetString("e2ee.vault_secret_path", "secret/master-key")
-	namespace := facades.Config().GetString("e2ee.vault_namespace", "")
-
-	if vaultAddr == "" {
-		return fmt.Errorf("HashiCorp Vault configuration incomplete: missing vault_addr")
-	}
-
-	if vaultToken == "" {
-		// Check for other authentication methods
-		roleID := facades.Config().GetString("e2ee.vault_role_id", "")
-		secretID := facades.Config().GetString("e2ee.vault_secret_id", "")
-
-		if roleID == "" || secretID == "" {
-			return fmt.Errorf("HashiCorp Vault authentication not configured")
-		}
-	}
-
-	// TODO: in production implementation:
-	// 1. Create Vault client with authentication
-	// 2. Write the master key to the specified secret path
-	// 3. Set appropriate policies and TTL
-	// 4. Enable audit logging for the operation
-
-	facades.Log().Info("HashiCorp Vault integration would store master key", map[string]interface{}{
-		"vault_addr":  vaultAddr,
-		"secret_path": secretPath,
-		"namespace":   namespace,
-		"key_size":    len(masterKey),
-	})
-
-	// Production implementation would use HashiCorp Vault API to store encrypted master key
-	facades.Log().Info("Master key stored in HashiCorp Vault", map[string]interface{}{
-		"vault_addr":  vaultAddr,
-		"secret_path": secretPath,
-		"key_size":    len(masterKey),
-	})
-
-	return nil
-}
-
-// Helper functions for AES encryption/decryption
-func encryptWithAES(data, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate a random IV
-	iv := make([]byte, aes.BlockSize)
-	if _, err := rand.Read(iv); err != nil {
-		return nil, err
-	}
-
-	// Encrypt using AES-GCM
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	ciphertext := aesGCM.Seal(nil, iv, data, nil)
-
-	// Prepend IV to ciphertext
-	result := make([]byte, len(iv)+len(ciphertext))
-	copy(result[:len(iv)], iv)
-	copy(result[len(iv):], ciphertext)
-
-	return result, nil
-}
-
-func decryptWithAES(encryptedData, key []byte) ([]byte, error) {
-	if len(encryptedData) < aes.BlockSize {
-		return nil, fmt.Errorf("encrypted data too short")
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract IV from the beginning
-	iv := encryptedData[:aes.BlockSize]
-	ciphertext := encryptedData[aes.BlockSize:]
-
-	// Decrypt using AES-GCM
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	plaintext, err := aesGCM.Open(nil, iv, ciphertext, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return plaintext, nil
+	keyID := fmt.Sprintf("master_key_%s", userID)
+	return v.versioning.GetKeyHistory(keyID)
 }

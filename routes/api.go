@@ -646,4 +646,21 @@ func Api() {
 
 	// Public file download (for shared files)
 	facades.Route().Get("/api/v1/drive/public/files/{id}/download", driveController.DownloadFile)
+
+	// Vault monitoring and management routes
+	vaultController := v1.NewVaultController()
+	facades.Route().Prefix("api/v1/vault").Group(func(router route.Router) {
+		router.Get("/health", vaultController.Health)
+		router.Get("/metrics", vaultController.Metrics)
+		router.Get("/status", vaultController.Status)
+		router.Post("/cache/clear", vaultController.ClearCache)
+		router.Post("/token/renew", vaultController.RenewToken)
+
+		// Key versioning routes
+		router.Post("/keys/{user_id}/versions", vaultController.CreateKeyVersion)
+		router.Get("/keys/{user_id}/versions", vaultController.ListKeyVersions)
+		router.Post("/keys/{user_id}/rollback", vaultController.RollbackKey)
+		router.Delete("/keys/{user_id}/versions/{version}", vaultController.DeleteKeyVersion)
+		router.Get("/keys/{user_id}/history", vaultController.GetKeyHistory)
+	})
 }
