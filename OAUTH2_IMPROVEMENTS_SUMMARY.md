@@ -91,7 +91,7 @@ The existing OAuth configuration (`config/oauth.go`) already includes Google-lik
 - JARM (JWT Secured Authorization Response Mode)
 - Suspicious activity detection
 - Rate limiting
-- Multi-tenant support
+- Multi-organization support
 
 ## 🌟 Google-like Features Achieved
 
@@ -122,7 +122,7 @@ The existing OAuth configuration (`config/oauth.go`) already includes Google-lik
 - Rate limiting and abuse prevention
 
 ### 5. **Enterprise Features**
-- Multi-tenant support
+- Multi-organization support
 - Audit logging
 - Webhook notifications (configured)
 - Advanced client management

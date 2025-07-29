@@ -81,13 +81,16 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 	}
 
 	// Get comprehensive stats for all features
-	tenantCount, _ := facades.Orm().Query().Model(&models.Tenant{}).Count()
+	organizationCount, _ := facades.Orm().Query().Model(&models.Organization{}).Count()
 	roleCount, _ := facades.Orm().Query().Model(&models.Role{}).Count()
 	permissionCount, _ := facades.Orm().Query().Model(&models.Permission{}).Count()
 	userCount, _ := facades.Orm().Query().Model(&models.User{}).Count()
 
 	// Organization stats
-	organizationCount, _ := facades.Orm().Query().Model(&models.Organization{}).Count()
+	organizationCount, err := facades.Orm().Query().Model(&models.Organization{}).Count()
+	if err != nil {
+		organizationCount = 0
+	}
 
 	// Chat system stats
 	chatRoomCount, _ := facades.Orm().Query().Table("chat_rooms").Count()
@@ -128,7 +131,6 @@ func (c *AuthController) ShowDashboard(ctx http.Context) http.Response {
 		Count()
 
 	stats := map[string]interface{}{
-		"tenants":              tenantCount,
 		"roles":                roleCount,
 		"permissions":          permissionCount,
 		"users":                userCount,

@@ -206,13 +206,13 @@ type AttackPattern struct {
 }
 
 // GetDashboardMetrics returns comprehensive dashboard metrics
-func (aas *AuditAnalyticsService) GetDashboardMetrics(tenantID string, timeRange TimeRange) (*DashboardMetrics, error) {
+func (aas *AuditAnalyticsService) GetDashboardMetrics(organizationID string, timeRange TimeRange) (*DashboardMetrics, error) {
 	metrics := &DashboardMetrics{}
 
 	// Get total activities
 	totalCount, err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?", tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?", organizationID, timeRange.StartTime, timeRange.EndTime).
 		Count()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get total activities: %w", err)
@@ -222,8 +222,8 @@ func (aas *AuditAnalyticsService) GetDashboardMetrics(tenantID string, timeRange
 	// Get high-risk activities
 	highRiskCount, err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND (risk_score > 70 OR severity IN (?, ?))",
-			tenantID, timeRange.StartTime, timeRange.EndTime, string(models.SeverityHigh), string(models.SeverityCritical)).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND (risk_score > 70 OR severity IN (?, ?))",
+			organizationID, timeRange.StartTime, timeRange.EndTime, string(models.SeverityHigh), string(models.SeverityCritical)).
 		Count()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get high-risk activities: %w", err)
@@ -233,8 +233,8 @@ func (aas *AuditAnalyticsService) GetDashboardMetrics(tenantID string, timeRange
 	// Get security incidents
 	securityCount, err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND category IN (?, ?, ?)",
-			tenantID, timeRange.StartTime, timeRange.EndTime,
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND category IN (?, ?, ?)",
+			organizationID, timeRange.StartTime, timeRange.EndTime,
 			string(models.CategorySecurity), string(models.CategoryAuthentication), string(models.CategoryAuthorization)).
 		Count()
 	if err != nil {
@@ -245,8 +245,8 @@ func (aas *AuditAnalyticsService) GetDashboardMetrics(tenantID string, timeRange
 	// Get compliance violations
 	complianceCount, err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND category = ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime, string(models.CategoryCompliance)).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND category = ?",
+			organizationID, timeRange.StartTime, timeRange.EndTime, string(models.CategoryCompliance)).
 		Count()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get compliance violations: %w", err)
@@ -254,56 +254,56 @@ func (aas *AuditAnalyticsService) GetDashboardMetrics(tenantID string, timeRange
 	metrics.ComplianceViolations = complianceCount
 
 	// Get top users
-	topUsers, err := aas.getTopUsers(tenantID, timeRange, 10)
+	topUsers, err := aas.getTopUsers(organizationID, timeRange, 10)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get top users: %w", err)
 	}
 	metrics.TopUsers = topUsers
 
 	// Get top IPs
-	topIPs, err := aas.getTopIPs(tenantID, timeRange, 10)
+	topIPs, err := aas.getTopIPs(organizationID, timeRange, 10)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get top IPs: %w", err)
 	}
 	metrics.TopIPs = topIPs
 
 	// Get activity trends
-	trends, err := aas.getActivityTrends(tenantID, timeRange)
+	trends, err := aas.getActivityTrends(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get activity trends: %w", err)
 	}
 	metrics.ActivityTrends = trends
 
 	// Get category breakdown
-	categoryBreakdown, err := aas.getCategoryBreakdown(tenantID, timeRange)
+	categoryBreakdown, err := aas.getCategoryBreakdown(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get category breakdown: %w", err)
 	}
 	metrics.CategoryBreakdown = categoryBreakdown
 
 	// Get severity breakdown
-	severityBreakdown, err := aas.getSeverityBreakdown(tenantID, timeRange)
+	severityBreakdown, err := aas.getSeverityBreakdown(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get severity breakdown: %w", err)
 	}
 	metrics.SeverityBreakdown = severityBreakdown
 
 	// Get recent alerts
-	recentAlerts, err := aas.getRecentSecurityAlerts(tenantID, 20)
+	recentAlerts, err := aas.getRecentSecurityAlerts(organizationID, 20)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent alerts: %w", err)
 	}
 	metrics.RecentAlerts = recentAlerts
 
 	// Get compliance status
-	complianceStatus, err := aas.getComplianceStatus(tenantID, timeRange)
+	complianceStatus, err := aas.getComplianceStatus(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get compliance status: %w", err)
 	}
 	metrics.ComplianceStatus = complianceStatus
 
 	// Get performance metrics
-	performanceMetrics, err := aas.getPerformanceMetrics(tenantID, timeRange)
+	performanceMetrics, err := aas.getPerformanceMetrics(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get performance metrics: %w", err)
 	}
@@ -313,18 +313,18 @@ func (aas *AuditAnalyticsService) GetDashboardMetrics(tenantID string, timeRange
 }
 
 // DetectAnomalies detects anomalous patterns in audit logs
-func (aas *AuditAnalyticsService) DetectAnomalies(tenantID string, timeRange TimeRange) ([]AnomalyDetectionResult, error) {
+func (aas *AuditAnalyticsService) DetectAnomalies(organizationID string, timeRange TimeRange) ([]AnomalyDetectionResult, error) {
 	var anomalies []AnomalyDetectionResult
 
 	// Detect unusual login patterns
-	loginAnomalies, err := aas.detectUnusualLoginPatterns(tenantID, timeRange)
+	loginAnomalies, err := aas.detectUnusualLoginPatterns(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect login anomalies: %w", err)
 	}
 	anomalies = append(anomalies, loginAnomalies...)
 
 	// Detect unusual access patterns
-	accessAnomalies, err := aas.detectUnusualAccessPatterns(tenantID, timeRange)
+	accessAnomalies, err := aas.detectUnusualAccessPatterns(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect access anomalies: %w", err)
 	}
@@ -334,7 +334,7 @@ func (aas *AuditAnalyticsService) DetectAnomalies(tenantID string, timeRange Tim
 }
 
 // GenerateThreatIntelligenceReport generates a comprehensive threat intelligence report
-func (aas *AuditAnalyticsService) GenerateThreatIntelligenceReport(tenantID string, timeRange TimeRange) (*ThreatIntelligenceReport, error) {
+func (aas *AuditAnalyticsService) GenerateThreatIntelligenceReport(organizationID string, timeRange TimeRange) (*ThreatIntelligenceReport, error) {
 	report := &ThreatIntelligenceReport{
 		ReportID:    fmt.Sprintf("threat_report_%d", time.Now().Unix()),
 		GeneratedAt: time.Now(),
@@ -342,14 +342,14 @@ func (aas *AuditAnalyticsService) GenerateThreatIntelligenceReport(tenantID stri
 	}
 
 	// Get threat summary
-	threatSummary, err := aas.getThreatSummary(tenantID, timeRange)
+	threatSummary, err := aas.getThreatSummary(organizationID, timeRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get threat summary: %w", err)
 	}
 	report.ThreatSummary = threatSummary
 
 	// Get top threats
-	topThreats, err := aas.getTopThreatInfo(tenantID, timeRange, 20)
+	topThreats, err := aas.getTopThreatInfo(organizationID, timeRange, 20)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get top threats: %w", err)
 	}
@@ -364,7 +364,7 @@ func (aas *AuditAnalyticsService) GenerateThreatIntelligenceReport(tenantID stri
 
 // Helper methods
 
-func (aas *AuditAnalyticsService) getTopUsers(tenantID string, timeRange TimeRange, limit int) ([]UserActivitySummary, error) {
+func (aas *AuditAnalyticsService) getTopUsers(organizationID string, timeRange TimeRange, limit int) ([]UserActivitySummary, error) {
 	var results []struct {
 		SubjectID      string    `json:"subject_id"`
 		ActivityCount  int64     `json:"activity_count"`
@@ -384,8 +384,8 @@ func (aas *AuditAnalyticsService) getTopUsers(tenantID string, timeRange TimeRan
 			SUM(CASE WHEN category IN (?, ?, ?) THEN 1 ELSE 0 END) as security_events,
 			SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as failed_attempts
 		`, string(models.CategorySecurity), string(models.CategoryAuthentication), string(models.CategoryAuthorization), string(models.StatusFailed)).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("subject_id").
 		OrderBy("activity_count DESC").
 		Limit(limit).
@@ -410,7 +410,7 @@ func (aas *AuditAnalyticsService) getTopUsers(tenantID string, timeRange TimeRan
 	return users, nil
 }
 
-func (aas *AuditAnalyticsService) getTopIPs(tenantID string, timeRange TimeRange, limit int) ([]IPActivitySummary, error) {
+func (aas *AuditAnalyticsService) getTopIPs(organizationID string, timeRange TimeRange, limit int) ([]IPActivitySummary, error) {
 	var results []struct {
 		IPAddress     string    `json:"ip_address"`
 		ActivityCount int64     `json:"activity_count"`
@@ -428,8 +428,8 @@ func (aas *AuditAnalyticsService) getTopIPs(tenantID string, timeRange TimeRange
 			AVG(risk_score) as avg_risk_score,
 			MAX(event_timestamp) as last_activity
 		`).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND ip_address IS NOT NULL",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND ip_address IS NOT NULL",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("ip_address").
 		OrderBy("activity_count DESC").
 		Limit(limit).
@@ -461,7 +461,7 @@ func (aas *AuditAnalyticsService) getTopIPs(tenantID string, timeRange TimeRange
 	return ips, nil
 }
 
-func (aas *AuditAnalyticsService) getActivityTrends(tenantID string, timeRange TimeRange) ([]ActivityTrend, error) {
+func (aas *AuditAnalyticsService) getActivityTrends(organizationID string, timeRange TimeRange) ([]ActivityTrend, error) {
 	var results []struct {
 		TimeGroup      string  `json:"time_group"`
 		ActivityCount  int64   `json:"activity_count"`
@@ -481,8 +481,8 @@ func (aas *AuditAnalyticsService) getActivityTrends(tenantID string, timeRange T
 			SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as failed_attempts,
 			AVG(risk_score) as avg_risk_score
 		`, groupBy), string(models.CategorySecurity), string(models.CategoryAuthentication), string(models.CategoryAuthorization), string(models.StatusFailed)).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("time_group").
 		OrderBy("time_group ASC").
 		Find(&results)
@@ -506,7 +506,7 @@ func (aas *AuditAnalyticsService) getActivityTrends(tenantID string, timeRange T
 	return trends, nil
 }
 
-func (aas *AuditAnalyticsService) getCategoryBreakdown(tenantID string, timeRange TimeRange) ([]CategorySummary, error) {
+func (aas *AuditAnalyticsService) getCategoryBreakdown(organizationID string, timeRange TimeRange) ([]CategorySummary, error) {
 	var results []struct {
 		Category     string  `json:"category"`
 		Count        int64   `json:"count"`
@@ -516,8 +516,8 @@ func (aas *AuditAnalyticsService) getCategoryBreakdown(tenantID string, timeRang
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("category, COUNT(*) as count, AVG(risk_score) as avg_risk_score").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("category").
 		OrderBy("count DESC").
 		Find(&results)
@@ -536,7 +536,7 @@ func (aas *AuditAnalyticsService) getCategoryBreakdown(tenantID string, timeRang
 	for _, result := range results {
 		percentage := float64(result.Count) / float64(total) * 100
 		// Calculate trend change compared to previous period
-		trendChange := aas.calculateCategoryTrendChange(tenantID, result.Category, timeRange)
+		trendChange := aas.calculateCategoryTrendChange(organizationID, result.Category, timeRange)
 
 		categories = append(categories, CategorySummary{
 			Category:     result.Category,
@@ -550,7 +550,7 @@ func (aas *AuditAnalyticsService) getCategoryBreakdown(tenantID string, timeRang
 	return categories, nil
 }
 
-func (aas *AuditAnalyticsService) getSeverityBreakdown(tenantID string, timeRange TimeRange) ([]SeveritySummary, error) {
+func (aas *AuditAnalyticsService) getSeverityBreakdown(organizationID string, timeRange TimeRange) ([]SeveritySummary, error) {
 	var results []struct {
 		Severity string `json:"severity"`
 		Count    int64  `json:"count"`
@@ -559,8 +559,8 @@ func (aas *AuditAnalyticsService) getSeverityBreakdown(tenantID string, timeRang
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("severity, COUNT(*) as count").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("severity").
 		OrderBy("count DESC").
 		Find(&results)
@@ -579,7 +579,7 @@ func (aas *AuditAnalyticsService) getSeverityBreakdown(tenantID string, timeRang
 	for _, result := range results {
 		percentage := float64(result.Count) / float64(total) * 100
 		// Calculate trend change compared to previous period
-		trendChange := aas.calculateSeverityTrendChange(tenantID, result.Severity, timeRange)
+		trendChange := aas.calculateSeverityTrendChange(organizationID, result.Severity, timeRange)
 
 		severities = append(severities, SeveritySummary{
 			Severity:    result.Severity,
@@ -592,12 +592,12 @@ func (aas *AuditAnalyticsService) getSeverityBreakdown(tenantID string, timeRang
 	return severities, nil
 }
 
-func (aas *AuditAnalyticsService) getRecentSecurityAlerts(tenantID string, limit int) ([]AlertSummary, error) {
+func (aas *AuditAnalyticsService) getRecentSecurityAlerts(organizationID string, limit int) ([]AlertSummary, error) {
 	var activities []models.ActivityLog
 
 	err := facades.Orm().Query().
-		Where("tenant_id = ? AND (risk_score > 70 OR severity IN (?, ?) OR category = ?)",
-			tenantID, string(models.SeverityHigh), string(models.SeverityCritical), string(models.CategorySecurity)).
+		Where("organization_id = ? AND (risk_score > 70 OR severity IN (?, ?) OR category = ?)",
+			organizationID, string(models.SeverityHigh), string(models.SeverityCritical), string(models.CategorySecurity)).
 		OrderBy("event_timestamp DESC").
 		Limit(limit).
 		Find(&activities)
@@ -624,7 +624,7 @@ func (aas *AuditAnalyticsService) getRecentSecurityAlerts(tenantID string, limit
 	return alerts, nil
 }
 
-func (aas *AuditAnalyticsService) getComplianceStatus(tenantID string, timeRange TimeRange) (ComplianceStatus, error) {
+func (aas *AuditAnalyticsService) getComplianceStatus(organizationID string, timeRange TimeRange) (ComplianceStatus, error) {
 	// Simplified compliance status
 	return ComplianceStatus{
 		GDPRCompliance: ComplianceMetric{
@@ -656,11 +656,11 @@ func (aas *AuditAnalyticsService) getComplianceStatus(tenantID string, timeRange
 	}, nil
 }
 
-func (aas *AuditAnalyticsService) getPerformanceMetrics(tenantID string, timeRange TimeRange) (PerformanceMetrics, error) {
+func (aas *AuditAnalyticsService) getPerformanceMetrics(organizationID string, timeRange TimeRange) (PerformanceMetrics, error) {
 	totalLogs, _ := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Count()
 
 	duration := timeRange.EndTime.Sub(timeRange.StartTime).Seconds()
@@ -675,7 +675,7 @@ func (aas *AuditAnalyticsService) getPerformanceMetrics(tenantID string, timeRan
 	}, nil
 }
 
-func (aas *AuditAnalyticsService) detectUnusualLoginPatterns(tenantID string, timeRange TimeRange) ([]AnomalyDetectionResult, error) {
+func (aas *AuditAnalyticsService) detectUnusualLoginPatterns(organizationID string, timeRange TimeRange) ([]AnomalyDetectionResult, error) {
 	var anomalies []AnomalyDetectionResult
 
 	var results []struct {
@@ -691,8 +691,8 @@ func (aas *AuditAnalyticsService) detectUnusualLoginPatterns(tenantID string, ti
 			SUM(CASE WHEN log_name LIKE '%login.failed%' THEN 1 ELSE 0 END) as failed_count,
 			SUM(CASE WHEN log_name LIKE '%login.success%' THEN 1 ELSE 0 END) as success_count
 		`).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND log_name LIKE '%login%'",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND log_name LIKE '%login%'",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("subject_id").
 		Having("failed_count > 5 AND success_count > 0").
 		Find(&results)
@@ -726,7 +726,7 @@ func (aas *AuditAnalyticsService) detectUnusualLoginPatterns(tenantID string, ti
 	return anomalies, nil
 }
 
-func (aas *AuditAnalyticsService) detectUnusualAccessPatterns(tenantID string, timeRange TimeRange) ([]AnomalyDetectionResult, error) {
+func (aas *AuditAnalyticsService) detectUnusualAccessPatterns(organizationID string, timeRange TimeRange) ([]AnomalyDetectionResult, error) {
 	var anomalies []AnomalyDetectionResult
 
 	var results []struct {
@@ -737,8 +737,8 @@ func (aas *AuditAnalyticsService) detectUnusualAccessPatterns(tenantID string, t
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("subject_id, COUNT(*) as count").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND (HOUR(event_timestamp) < 6 OR HOUR(event_timestamp) > 22)",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND (HOUR(event_timestamp) < 6 OR HOUR(event_timestamp) > 22)",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("subject_id").
 		Having("count > 10").
 		Find(&results)
@@ -769,7 +769,7 @@ func (aas *AuditAnalyticsService) detectUnusualAccessPatterns(tenantID string, t
 	return anomalies, nil
 }
 
-func (aas *AuditAnalyticsService) getThreatSummary(tenantID string, timeRange TimeRange) (ThreatSummary, error) {
+func (aas *AuditAnalyticsService) getThreatSummary(organizationID string, timeRange TimeRange) (ThreatSummary, error) {
 	var results []struct {
 		Severity string `json:"severity"`
 		Count    int64  `json:"count"`
@@ -778,8 +778,8 @@ func (aas *AuditAnalyticsService) getThreatSummary(tenantID string, timeRange Ti
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("severity, COUNT(*) as count").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND category = ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime, string(models.CategorySecurity)).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND category = ?",
+			organizationID, timeRange.StartTime, timeRange.EndTime, string(models.CategorySecurity)).
 		Group("severity").
 		Find(&results)
 
@@ -807,8 +807,8 @@ func (aas *AuditAnalyticsService) getThreatSummary(tenantID string, timeRange Ti
 	facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("AVG(risk_score)").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND category = ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime, string(models.CategorySecurity)).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND category = ?",
+			organizationID, timeRange.StartTime, timeRange.EndTime, string(models.CategorySecurity)).
 		Pluck("avg_risk_score", &avgRisk)
 
 	summary.AverageRiskScore = avgRisk
@@ -817,7 +817,7 @@ func (aas *AuditAnalyticsService) getThreatSummary(tenantID string, timeRange Ti
 	return summary, nil
 }
 
-func (aas *AuditAnalyticsService) getTopThreatInfo(tenantID string, timeRange TimeRange, limit int) ([]ThreatInfo, error) {
+func (aas *AuditAnalyticsService) getTopThreatInfo(organizationID string, timeRange TimeRange, limit int) ([]ThreatInfo, error) {
 	var results []struct {
 		IPAddress string    `json:"ip_address"`
 		Count     int64     `json:"count"`
@@ -828,8 +828,8 @@ func (aas *AuditAnalyticsService) getTopThreatInfo(tenantID string, timeRange Ti
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("ip_address, COUNT(*) as count, MIN(event_timestamp) as first_seen, MAX(event_timestamp) as last_seen").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND risk_score > 50",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND risk_score > 50",
+			organizationID, timeRange.StartTime, timeRange.EndTime).
 		Group("ip_address").
 		OrderBy("count DESC").
 		Limit(limit).
@@ -897,12 +897,12 @@ func calculateComplianceScore(logged, required int64) float64 {
 }
 
 // calculateCategoryTrendChange calculates the trend change for a category compared to the previous period
-func (aas *AuditAnalyticsService) calculateCategoryTrendChange(tenantID, category string, timeRange TimeRange) float64 {
+func (aas *AuditAnalyticsService) calculateCategoryTrendChange(organizationID, category string, timeRange TimeRange) float64 {
 	facades.Log().Info("Calculating category trend change", map[string]interface{}{
-		"tenant_id":  tenantID,
-		"category":   category,
-		"start_time": timeRange.StartTime,
-		"end_time":   timeRange.EndTime,
+		"organization_id": organizationID,
+		"category":        category,
+		"start_time":      timeRange.StartTime,
+		"end_time":        timeRange.EndTime,
 	})
 
 	// Calculate previous period dates
@@ -913,16 +913,16 @@ func (aas *AuditAnalyticsService) calculateCategoryTrendChange(tenantID, categor
 	// Get current period count
 	currentCount, err := facades.Orm().Query().
 		Table("activity_logs").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("category = ?", category).
 		Where("created_at BETWEEN ? AND ?", timeRange.StartTime, timeRange.EndTime).
 		Count()
 
 	if err != nil {
 		facades.Log().Error("Failed to get current period count", map[string]interface{}{
-			"tenant_id": tenantID,
-			"category":  category,
-			"error":     err.Error(),
+			"organization_id": organizationID,
+			"category":        category,
+			"error":           err.Error(),
 		})
 		return 0
 	}
@@ -930,16 +930,16 @@ func (aas *AuditAnalyticsService) calculateCategoryTrendChange(tenantID, categor
 	// Get previous period count
 	prevCount, err := facades.Orm().Query().
 		Table("activity_logs").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("category = ?", category).
 		Where("created_at BETWEEN ? AND ?", prevStartTime, prevEndTime).
 		Count()
 
 	if err != nil {
 		facades.Log().Error("Failed to get previous period count", map[string]interface{}{
-			"tenant_id": tenantID,
-			"category":  category,
-			"error":     err.Error(),
+			"organization_id": organizationID,
+			"category":        category,
+			"error":           err.Error(),
 		})
 		return 0
 	}
@@ -955,23 +955,23 @@ func (aas *AuditAnalyticsService) calculateCategoryTrendChange(tenantID, categor
 	trendChange := float64(currentCount-prevCount) / float64(prevCount) * 100
 
 	facades.Log().Info("Category trend change calculated", map[string]interface{}{
-		"tenant_id":     tenantID,
-		"category":      category,
-		"current_count": currentCount,
-		"prev_count":    prevCount,
-		"trend_change":  trendChange,
+		"organization_id": organizationID,
+		"category":        category,
+		"current_count":   currentCount,
+		"prev_count":      prevCount,
+		"trend_change":    trendChange,
 	})
 
 	return math.Round(trendChange*100) / 100
 }
 
 // calculateSeverityTrendChange calculates the trend change for a severity level compared to the previous period
-func (aas *AuditAnalyticsService) calculateSeverityTrendChange(tenantID, severity string, timeRange TimeRange) float64 {
+func (aas *AuditAnalyticsService) calculateSeverityTrendChange(organizationID, severity string, timeRange TimeRange) float64 {
 	facades.Log().Info("Calculating severity trend change", map[string]interface{}{
-		"tenant_id":  tenantID,
-		"severity":   severity,
-		"start_time": timeRange.StartTime,
-		"end_time":   timeRange.EndTime,
+		"organization_id": organizationID,
+		"severity":        severity,
+		"start_time":      timeRange.StartTime,
+		"end_time":        timeRange.EndTime,
 	})
 
 	// Calculate previous period dates
@@ -982,16 +982,16 @@ func (aas *AuditAnalyticsService) calculateSeverityTrendChange(tenantID, severit
 	// Get current period count
 	currentCount, err := facades.Orm().Query().
 		Table("activity_logs").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("severity = ?", severity).
 		Where("created_at BETWEEN ? AND ?", timeRange.StartTime, timeRange.EndTime).
 		Count()
 
 	if err != nil {
 		facades.Log().Error("Failed to get current period severity count", map[string]interface{}{
-			"tenant_id": tenantID,
-			"severity":  severity,
-			"error":     err.Error(),
+			"organization_id": organizationID,
+			"severity":        severity,
+			"error":           err.Error(),
 		})
 		return 0
 	}
@@ -999,16 +999,16 @@ func (aas *AuditAnalyticsService) calculateSeverityTrendChange(tenantID, severit
 	// Get previous period count
 	prevCount, err := facades.Orm().Query().
 		Table("activity_logs").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("severity = ?", severity).
 		Where("created_at BETWEEN ? AND ?", prevStartTime, prevEndTime).
 		Count()
 
 	if err != nil {
 		facades.Log().Error("Failed to get previous period severity count", map[string]interface{}{
-			"tenant_id": tenantID,
-			"severity":  severity,
-			"error":     err.Error(),
+			"organization_id": organizationID,
+			"severity":        severity,
+			"error":           err.Error(),
 		})
 		return 0
 	}
@@ -1024,11 +1024,11 @@ func (aas *AuditAnalyticsService) calculateSeverityTrendChange(tenantID, severit
 	trendChange := float64(currentCount-prevCount) / float64(prevCount) * 100
 
 	facades.Log().Info("Severity trend change calculated", map[string]interface{}{
-		"tenant_id":     tenantID,
-		"severity":      severity,
-		"current_count": currentCount,
-		"prev_count":    prevCount,
-		"trend_change":  trendChange,
+		"organization_id": organizationID,
+		"severity":        severity,
+		"current_count":   currentCount,
+		"prev_count":      prevCount,
+		"trend_change":    trendChange,
 	})
 
 	return math.Round(trendChange*100) / 100

@@ -519,20 +519,6 @@ func (s *NotificationSchedulerService) createNotifiable(notifiableID, notifiable
 			Phone: "", // Organization model doesn't have direct phone field
 		}, nil
 
-	case "tenant", "tenants", "App\\Models\\Tenant":
-		// Get tenant from database to populate generic notifiable
-		var tenant models.Tenant
-		err := facades.Orm().Query().Where("id = ?", notifiableID).First(&tenant)
-		if err != nil {
-			return nil, fmt.Errorf("tenant not found with ID %s: %w", notifiableID, err)
-		}
-		return &GenericNotifiable{
-			ID:    tenant.ID,
-			Type:  "tenant",
-			Email: "", // Tenant model doesn't have direct email field
-			Phone: "", // Tenant model doesn't have direct phone field
-		}, nil
-
 	default:
 		// For unknown types, we can try to create a generic notifiable wrapper
 		facades.Log().Warning("Unknown notifiable type, creating generic wrapper", map[string]interface{}{

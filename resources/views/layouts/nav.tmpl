@@ -21,7 +21,7 @@
                             <i class="fas fa-cogs me-2"></i>System
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="systemDropdown">
-                            <li><a class="dropdown-item" href="/tenants"><i class="fas fa-building me-2"></i>Tenants</a></li>
+                            <li><a class="dropdown-item" href="/organizations"><i class="fas fa-building me-2"></i>Organizations</a></li>
                             <li><a class="dropdown-item" href="/roles"><i class="fas fa-user-tag me-2"></i>Roles</a></li>
                             <li><a class="dropdown-item" href="/permissions"><i class="fas fa-key me-2"></i>Permissions</a></li>
                             <li><hr class="dropdown-divider"></li>
@@ -104,17 +104,17 @@
                         </ul>
                     </li>
 
-                    <!-- Tenant Switcher -->
+                    <!-- Organization Switcher -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="tenantDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle" href="#" id="organizationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-building me-1"></i>
-                            <span class="d-none d-lg-inline">Tenant</span>
+                            <span class="d-none d-lg-inline">Organization</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="tenantDropdown" id="tenantDropdownMenu">
-                            <li><h6 class="dropdown-header">Switch Tenant</h6></li>
-                            <li id="tenantLoadingItem"><span class="dropdown-item-text text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Loading...</span></li>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="organizationDropdown" id="organizationDropdownMenu">
+                            <li><h6 class="dropdown-header">Switch Organization</h6></li>
+                            <li id="organizationLoadingItem"><span class="dropdown-item-text text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Loading...</span></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/tenants"><i class="fas fa-cogs me-2"></i>Manage Tenants</a></li>
+                            <li><a class="dropdown-item" href="/organizations"><i class="fas fa-cogs me-2"></i>Manage Organizations</a></li>
                         </ul>
                     </li>
                     
@@ -151,99 +151,99 @@
         </div>
     </nav>
 
-    <!-- Tenant Switcher JavaScript -->
+    <!-- Organization Switcher JavaScript -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const tenantDropdown = document.getElementById('tenantDropdown');
-        const tenantDropdownMenu = document.getElementById('tenantDropdownMenu');
-        const tenantLoadingItem = document.getElementById('tenantLoadingItem');
+        const organizationDropdown = document.getElementById('organizationDropdown');
+        const organizationDropdownMenu = document.getElementById('organizationDropdownMenu');
+        const organizationLoadingItem = document.getElementById('organizationLoadingItem');
         
-        let tenantsLoaded = false;
-        let userTenants = [];
-        let currentTenantId = null;
+        let organizationsLoaded = false;
+        let userOrganizations = [];
+        let currentorganizationId = null;
 
-        // Load tenants when dropdown is clicked
-        tenantDropdown.addEventListener('click', function(e) {
-            if (!tenantsLoaded) {
-                loadUserTenants();
+        // Load organizations when dropdown is clicked
+        organizationDropdown.addEventListener('click', function(e) {
+            if (!organizationsLoaded) {
+                loadUserOrganizations();
             }
         });
 
-        async function loadUserTenants() {
+        async function loadUserOrganizations() {
             try {
-                // Load user tenants
-                const tenantsResponse = await fetch('/tenants/user/list');
-                const tenantsData = await tenantsResponse.json();
+                // Load user organizations
+                const organizationsResponse = await fetch('/organizations/user/list');
+                const organizationsData = await organizationsResponse.json();
                 
-                // Load current tenant
-                const currentResponse = await fetch('/tenants/current');
+                // Load current organization
+                const currentResponse = await fetch('/organizations/current');
                 const currentData = await currentResponse.json();
                 
-                userTenants = tenantsData.tenants || [];
-                currentTenantId = currentData.current_tenant?.id || null;
+                userOrganizations = organizationsData.organizations || [];
+                currentorganizationId = currentData.current_organization?.id || null;
                 
-                renderTenantDropdown();
-                tenantsLoaded = true;
+                renderOrganizationDropdown();
+                organizationsLoaded = true;
             } catch (error) {
-                console.error('Failed to load tenants:', error);
-                tenantLoadingItem.innerHTML = '<span class="dropdown-item-text text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load tenants</span>';
+                console.error('Failed to load organizations:', error);
+                organizationLoadingItem.innerHTML = '<span class="dropdown-item-text text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load organizations</span>';
             }
         }
 
-        function renderTenantDropdown() {
+        function renderOrganizationDropdown() {
             // Clear loading item
-            tenantLoadingItem.remove();
+            organizationLoadingItem.remove();
             
-            // Find the divider before "Manage Tenants"
-            const divider = tenantDropdownMenu.querySelector('hr');
+            // Find the divider before "Manage Organizations"
+            const divider = organizationDropdownMenu.querySelector('hr');
             
-            if (userTenants.length === 0) {
-                const noTenantsItem = document.createElement('li');
-                noTenantsItem.innerHTML = '<span class="dropdown-item-text text-muted">No tenants available</span>';
-                tenantDropdownMenu.insertBefore(noTenantsItem, divider);
+            if (userOrganizations.length === 0) {
+                const noOrganizationsItem = document.createElement('li');
+                noOrganizationsItem.innerHTML = '<span class="dropdown-item-text text-muted">No organizations available</span>';
+                organizationDropdownMenu.insertBefore(noOrganizationsItem, divider);
             } else {
-                userTenants.forEach(tenant => {
-                    const tenantItem = document.createElement('li');
-                    const isActive = tenant.id === currentTenantId;
+                userOrganizations.forEach(organization => {
+                    const organizationItem = document.createElement('li');
+                    const isActive = organization.id === currentorganizationId;
                     
-                    tenantItem.innerHTML = `
-                        <button type="button" class="dropdown-item ${isActive ? 'active' : ''}" onclick="switchTenant('${tenant.id}')">
-                            <i class="fas fa-building me-2"></i>${tenant.name}
+                    organizationItem.innerHTML = `
+                        <button type="button" class="dropdown-item ${isActive ? 'active' : ''}" onclick="switchOrganization('${organization.id}')">
+                            <i class="fas fa-building me-2"></i>${organization.name}
                             ${isActive ? '<i class="fas fa-check ms-2"></i>' : ''}
                         </button>
                     `;
                     
-                    tenantDropdownMenu.insertBefore(tenantItem, divider);
+                    organizationDropdownMenu.insertBefore(organizationItem, divider);
                 });
             }
         }
 
-        // Make switchTenant function global
-        window.switchTenant = async function(tenantId) {
-            if (tenantId === currentTenantId) {
+        // Make switchOrganization function global
+        window.switchOrganization = async function(organizationId) {
+            if (organizationId === currentorganizationId) {
                 return; // Already active
             }
 
             try {
-                const response = await fetch('/tenants/switch', {
+                const response = await fetch('/organizations/switch', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ tenant_id: tenantId })
+                    body: JSON.stringify({ organization_id: organizationId })
                 });
 
                 const data = await response.json();
                 
                 if (data.success) {
                     // Show success message and reload page
-                    window.location.href = '/dashboard?message=Tenant switched successfully';
+                    window.location.href = '/dashboard?message=Organization switched successfully';
                 } else {
-                    throw new Error(data.message || 'Failed to switch tenant');
+                    throw new Error(data.message || 'Failed to switch organization');
                 }
             } catch (error) {
-                console.error('Tenant switch error:', error);
-                alert('Failed to switch tenant: ' + error.message);
+                console.error('Organization switch error:', error);
+                alert('Failed to switch organization: ' + error.message);
             }
         };
     });

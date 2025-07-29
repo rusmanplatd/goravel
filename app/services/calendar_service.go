@@ -269,7 +269,7 @@ func (cs *CalendarService) GenerateRecurringEvents(event *models.CalendarEvent) 
 
 		// Create new instance
 		instance.ParentEventID = &event.ID
-		instance.TenantID = event.TenantID
+		instance.OrganizationID = event.OrganizationID
 		instance.CreatedBy = event.CreatedBy
 
 		if err := facades.Orm().Query().Create(&instance); err != nil {
@@ -346,7 +346,7 @@ func (cs *CalendarService) parseRRULE(event *models.CalendarEvent) []models.Cale
 			IsRecurring:    false, // Instances are not recurring themselves
 			RecurrenceRule: "",    // Clear recurrence rule for instances
 			ParentEventID:  &event.ID,
-			TenantID:       event.TenantID,
+			OrganizationID: event.OrganizationID,
 			Status:         event.Status,
 			Timezone:       event.Timezone,
 		}
@@ -499,4 +499,132 @@ func (cs *CalendarService) GenerateRRULE(frequency string, interval int, count i
 	}
 
 	return rruleStr, nil
+}
+
+// CreateRecurringEventException creates an exception for a recurring event
+func (cs *CalendarService) CreateRecurringEventException(parentEventID string, exceptionDate time.Time, modificationType string, newData map[string]interface{}) (*models.CalendarEvent, error) {
+	// Get parent event
+	var parentEvent models.CalendarEvent
+	err := facades.Orm().Query().Where("id = ?", parentEventID).First(&parentEvent)
+	if err != nil {
+		return nil, fmt.Errorf("parent event not found: %v", err)
+	}
+
+	switch modificationType {
+	case "cancel":
+		// Create a cancelled instance
+		exception := models.CalendarEvent{
+			Title:          parentEvent.Title + " (Cancelled)",
+			Description:    parentEvent.Description,
+			StartTime:      exceptionDate,
+			EndTime:        exceptionDate.Add(parentEvent.EndTime.Sub(parentEvent.StartTime)),
+			Location:       parentEvent.Location,
+			Color:          parentEvent.Color,
+			Type:           parentEvent.Type,
+			Status:         "cancelled",
+			ParentEventID:  &parentEvent.ID,
+			OrganizationID: parentEvent.OrganizationID,
+			CalendarType:   parentEvent.CalendarType,
+			Visibility:     parentEvent.Visibility,
+			Priority:       parentEvent.Priority,
+		}
+
+		if err := facades.Orm().Query().Create(&exception); err != nil {
+			return nil, fmt.Errorf("failed to create exception: %v", err)
+		}
+
+		return &exception, nil
+
+	case "modify":
+		// Create a modified instance
+		exception := models.CalendarEvent{
+			Title:          parentEvent.Title,
+			Description:    parentEvent.Description,
+			StartTime:      exceptionDate,
+			EndTime:        exceptionDate.Add(parentEvent.EndTime.Sub(parentEvent.StartTime)),
+			Location:       parentEvent.Location,
+			Color:          parentEvent.Color,
+			Type:           parentEvent.Type,
+			Status:         "scheduled",
+			ParentEventID:  &parentEvent.ID,
+			OrganizationID: parentEvent.OrganizationID,
+			CalendarType:   parentEvent.CalendarType,
+			Visibility:     parentEvent.Visibility,
+			Priority:       parentEvent.Priority,
+		}
+
+		// Apply modifications
+		if title, ok := newData["title"]; ok {
+			exception.Title = title.(string)
+		}
+		if description, ok := newData["description"]; ok {
+			exception.Description = description.(string)
+		}
+		if location, ok := newData["location"]; ok {
+			exception.Location = location.(string)
+		}
+		if startTime, ok := newData["start_time"]; ok {
+			if t, ok := startTime.(time.Time); ok {
+				exception.StartTime = t
+			}
+		}
+		if endTime, ok := newData["end_time"]; ok {
+			if t, ok := endTime.(time.Time); ok {
+				exception.EndTime = t
+			}
+		}
+
+		if err := facades.Orm().Query().Create(&exception); err != nil {
+			return nil, fmt.Errorf("failed to create modified exception: %v", err)
+		}
+
+		return &exception, nil
+
+	default:
+		return nil, fmt.Errorf("invalid modification type: %s", modificationType)
+	}
+}
+
+// UpdateRecurringSeries updates an entire recurring series
+func (cs *CalendarService) UpdateRecurringSeries(parentEventID string, updateData map[string]interface{}, updateFuture bool) error {
+	// Get parent event
+	var parentEvent models.CalendarEvent
+	err := facades.Orm().Query().Where("id = ?", parentEventID).First(&parentEvent)
+	if err != nil {
+		return fmt.Errorf("parent event not found: %v", err)
+	}
+
+	// Update parent event
+	if title, ok := updateData["title"]; ok {
+		_, err = facades.Orm().Query().Model(&parentEvent).Where("id = ?", parentEventID).Update("title", title)
+		if err != nil {
+			return err
+		}
+	}
+	if description, ok := updateData["description"]; ok {
+		_, err = facades.Orm().Query().Model(&parentEvent).Where("id = ?", parentEventID).Update("description", description)
+		if err != nil {
+			return err
+		}
+	}
+	if location, ok := updateData["location"]; ok {
+		_, err = facades.Orm().Query().Model(&parentEvent).Where("id = ?", parentEventID).Update("location", location)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Update future instances if requested
+	if updateFuture {
+		if title, ok := updateData["title"]; ok {
+			_, err = facades.Orm().Query().Model(&models.CalendarEvent{}).
+				Where("parent_event_id = ? AND start_time >= ?", parentEventID, time.Now()).
+				Update("title", title)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

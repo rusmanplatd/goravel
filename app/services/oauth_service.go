@@ -657,16 +657,16 @@ func (s *OAuthService) storeKeysInAzure(privateKeyPEM, publicKeyPEM string) erro
 	}
 
 	// Get Azure credentials
-	tenantID := facades.Config().GetString("azure.tenant_id")
+	organizationID := facades.Config().GetString("azure.organization_id")
 	clientID := facades.Config().GetString("azure.client_id")
 	clientSecret := facades.Config().GetString("azure.client_secret")
 
-	if tenantID == "" || clientID == "" || clientSecret == "" {
+	if organizationID == "" || clientID == "" || clientSecret == "" {
 		return fmt.Errorf("Azure credentials not properly configured")
 	}
 
 	// Get access token for Key Vault
-	token, err := s.getAzureAccessToken(tenantID, clientID, clientSecret)
+	token, err := s.getAzureAccessToken(organizationID, clientID, clientSecret)
 	if err != nil {
 		return fmt.Errorf("failed to get Azure access token: %w", err)
 	}
@@ -691,8 +691,8 @@ func (s *OAuthService) storeKeysInAzure(privateKeyPEM, publicKeyPEM string) erro
 }
 
 // getAzureAccessToken gets an access token for Azure Key Vault
-func (s *OAuthService) getAzureAccessToken(tenantID, clientID, clientSecret string) (string, error) {
-	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", tenantID)
+func (s *OAuthService) getAzureAccessToken(organizationID, clientID, clientSecret string) (string, error) {
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", organizationID)
 
 	data := url.Values{}
 	data.Set("grant_type", "client_credentials")

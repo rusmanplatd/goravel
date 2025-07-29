@@ -36,7 +36,7 @@ func (r *M20250115000085CreateFoldersTable) Up() error {
 		// Relationships
 		table.Ulid("owner_id").Comment("Owner of the folder")
 		table.Ulid("parent_id").Nullable().Comment("Parent folder ID")
-		table.Ulid("tenant_id").Nullable().Comment("Tenant/Organization ID")
+		table.Ulid("organization_id").Nullable().Comment("Organization ID")
 
 		// Timestamps
 		table.TimestampsTz()
@@ -44,7 +44,7 @@ func (r *M20250115000085CreateFoldersTable) Up() error {
 		// Indexes
 		table.Index("owner_id")
 		table.Index("parent_id")
-		table.Index("tenant_id")
+		table.Index("organization_id")
 		table.Index("is_trashed")
 		table.Index("level")
 		table.Index("sort_order")
@@ -53,7 +53,7 @@ func (r *M20250115000085CreateFoldersTable) Up() error {
 		// Foreign key constraints
 		table.Foreign("owner_id").References("id").On("users")
 		table.Foreign("parent_id").References("id").On("folders")
-		table.Foreign("tenant_id").References("id").On("tenants")
+		table.Foreign("organization_id").References("id").On("organizations")
 	})
 }
 

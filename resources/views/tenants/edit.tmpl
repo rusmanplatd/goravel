@@ -1,4 +1,4 @@
-{{define "tenants/edit.tmpl"}}
+{{define "organizations/edit.tmpl"}}
     {{template "layouts/header.tmpl" .}}
     {{template "layouts/nav.tmpl" .}}
 
@@ -8,12 +8,12 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item">
-                        <a href="/tenants" class="text-decoration-none">
-                            <i class="fas fa-building me-1"></i>Tenants
+                        <a href="/organizations" class="text-decoration-none">
+                            <i class="fas fa-building me-1"></i>Organizations
                         </a>
                     </li>
                     <li class="breadcrumb-item">
-                        <a href="/tenants/{{.tenant.ID}}" class="text-decoration-none">{{.tenant.Name}}</a>
+                        <a href="/organizations/{{.organization.ID}}" class="text-decoration-none">{{.organization.Name}}</a>
                     </li>
                     <li class="breadcrumb-item active" aria-current="page">Edit</li>
                 </ol>
@@ -24,9 +24,9 @@
             <div class="col-lg-3">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title">Edit Tenant</h5>
+                        <h5 class="card-title">Edit Organization</h5>
                         <p class="card-text text-muted small">
-                            Update the tenant organization information.
+                            Update the organization organization information.
                         </p>
                     </div>
                 </div>
@@ -34,7 +34,7 @@
             <div class="col-lg-9">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <form method="POST" action="/tenants/{{.tenant.ID}}">
+                        <form method="POST" action="/organizations/{{.organization.ID}}">
                             <input type="hidden" name="_method" value="PUT">
                             
                             {{if .error}}
@@ -46,41 +46,41 @@
 
                             <div class="row g-3">
                                 <div class="col-12">
-                                    <label for="name" class="form-label">Tenant Name <span class="text-danger">*</span></label>
+                                    <label for="name" class="form-label">Organization Name <span class="text-danger">*</span></label>
                                     <input type="text" name="name" id="name" class="form-control" 
-                                           value="{{.tenant.Name}}" placeholder="Enter tenant name" required>
+                                           value="{{.organization.Name}}" placeholder="Enter organization name" required>
                                 </div>
 
                                 <div class="col-12">
                                     <label for="domain" class="form-label">Domain</label>
                                     <input type="text" name="domain" id="domain" class="form-control" 
-                                           value="{{.tenant.Domain}}" placeholder="Enter domain (e.g., company.com)">
+                                           value="{{.organization.Domain}}" placeholder="Enter domain (e.g., company.com)">
                                 </div>
 
                                 <div class="col-12">
                                     <label for="description" class="form-label">Description</label>
                                     <textarea name="description" id="description" rows="3" class="form-control" 
-                                              placeholder="Enter description">{{.tenant.Description}}</textarea>
+                                              placeholder="Enter description">{{.organization.Description}}</textarea>
                                 </div>
 
                                 <div class="col-12">
                                     <div class="form-check">
                                         <input type="checkbox" name="is_active" id="is_active" value="true" 
-                                               class="form-check-input" {{if .tenant.IsActive}}checked{{end}}>
+                                               class="form-check-input" {{if .organization.IsActive}}checked{{end}}>
                                         <label for="is_active" class="form-check-label">
                                             Active
                                         </label>
                                     </div>
                                     <div class="form-text">
-                                        Active tenants can access the system. Inactive tenants are suspended.
+                                        Active organizations can access the system. Inactive organizations are suspended.
                                     </div>
                                 </div>
                             </div>
 
                             <div class="d-flex justify-content-end gap-2 mt-4">
-                                <a href="/tenants/{{.tenant.ID}}" class="btn btn-secondary">Cancel</a>
+                                <a href="/organizations/{{.organization.ID}}" class="btn btn-secondary">Cancel</a>
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-save me-2"></i>Update Tenant
+                                    <i class="fas fa-save me-2"></i>Update Organization
                                 </button>
                             </div>
                         </form>

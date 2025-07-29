@@ -68,8 +68,8 @@ if ! grep -q "/users" docs/openapi.yaml; then
     echo "Warning: Users endpoints not found in YAML"
 fi
 
-if ! grep -q "/tenants" docs/openapi.yaml; then
-    echo "Warning: Tenants endpoints not found in YAML"
+if ! grep -q "/organizations" docs/openapi.yaml; then
+    echo "Warning: Organizations endpoints not found in YAML"
 fi
 
 if ! grep -q "/roles" docs/openapi.yaml; then
@@ -90,8 +90,8 @@ if ! grep -q "User:" docs/openapi.yaml; then
     echo "Warning: User schema not found in YAML"
 fi
 
-if ! grep -q "Tenant:" docs/openapi.yaml; then
-    echo "Warning: Tenant schema not found in YAML"
+if ! grep -q "Organization:" docs/openapi.yaml; then
+    echo "Warning: Organization schema not found in YAML"
 fi
 
 echo "OpenAPI 3.0 specification validation completed successfully!"

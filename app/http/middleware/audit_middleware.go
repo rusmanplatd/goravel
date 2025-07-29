@@ -511,10 +511,10 @@ func (am *AuditMiddleware) buildAuditContext(ctx http.Context, requestData Reque
 		}
 	}
 
-	// Add tenant context if available
-	if tenantID := ctx.Value("tenant_id"); tenantID != nil {
-		if id, ok := tenantID.(string); ok {
-			auditContext.TenantID = id
+	// Add organization context if available
+	if organizationId := ctx.Value("organization_id"); organizationId != nil {
+		if id, ok := organizationId.(string); ok {
+			auditContext.OrganizationID = id
 		}
 	}
 

@@ -1,14 +1,14 @@
-{{define "tenants/index.tmpl"}}
+{{define "organizations/index.tmpl"}}
     {{template "layouts/header.tmpl" .}}
     {{template "layouts/nav.tmpl" .}}
 
     <!-- Page Content -->
     <main class="container py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h2 fw-bold text-dark">Tenants</h1>
-            <a href="/tenants/create" class="btn btn-primary">
+            <h1 class="h2 fw-bold text-dark">Organizations</h1>
+            <a href="/organizations/create" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>
-                Create Tenant
+                Create Organization
             </a>
         </div>
 
@@ -22,11 +22,11 @@
         <!-- Filters -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <form method="GET" action="/tenants" class="row g-3">
+                <form method="GET" action="/organizations" class="row g-3">
                     <div class="col-12 col-md-4">
                         <label for="search" class="form-label">Search</label>
                         <input type="text" name="search" id="search" value="{{.filters.search}}" 
-                               class="form-control" placeholder="Search tenants...">
+                               class="form-control" placeholder="Search organizations...">
                     </div>
                     <div class="col-12 col-md-4">
                         <label for="is_active" class="form-label">Status</label>
@@ -46,12 +46,12 @@
             </div>
         </div>
 
-        <!-- Tenants List -->
+        <!-- Organizations List -->
         <div class="card shadow-sm">
             <div class="card-body p-0">
-                {{if .tenants}}
+                {{if .organizations}}
                 <div class="list-group list-group-flush">
-                    {{range .tenants}}
+                    {{range .organizations}}
                     <div class="list-group-item">
                         <div class="d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center">
@@ -61,7 +61,7 @@
                                 <div>
                                     <div class="d-flex align-items-center mb-1">
                                         <h5 class="mb-0 me-2">
-                                            <a href="/tenants/{{.ID}}" class="text-decoration-none">{{.Name}}</a>
+                                            <a href="/organizations/{{.ID}}" class="text-decoration-none">{{.Name}}</a>
                                         </h5>
                                         {{if .IsActive}}
                                         <span class="badge bg-success">Active</span>
@@ -81,14 +81,14 @@
                                 </div>
                             </div>
                             <div class="btn-group" role="group">
-                                <a href="/tenants/{{.ID}}" class="btn btn-sm btn-outline-primary" title="View">
+                                <a href="/organizations/{{.ID}}" class="btn btn-sm btn-outline-primary" title="View">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="/tenants/{{.ID}}/edit" class="btn btn-sm btn-outline-warning" title="Edit">
+                                <a href="/organizations/{{.ID}}/edit" class="btn btn-sm btn-outline-warning" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <button type="button" class="btn btn-sm btn-outline-danger" title="Delete" 
-                                        onclick="deleteTenant('{{.ID}}', '{{.Name}}')">
+                                        onclick="deleteOrganization('{{.ID}}', '{{.Name}}')">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -100,11 +100,11 @@
                 <div class="text-center py-5">
                     <div class="text-muted">
                         <i class="fas fa-building fs-1 mb-3"></i>
-                        <h5 class="mb-2">No tenants found</h5>
-                        <p class="mb-3">Get started by creating your first tenant.</p>
-                        <a href="/tenants/create" class="btn btn-primary">
+                        <h5 class="mb-2">No organizations found</h5>
+                        <p class="mb-3">Get started by creating your first organization.</p>
+                        <a href="/organizations/create" class="btn btn-primary">
                             <i class="fas fa-plus me-2"></i>
-                            Create Tenant
+                            Create Organization
                         </a>
                     </div>
                 </div>
@@ -116,20 +116,20 @@
         {{if .pagination.hasMore}}
         <div class="d-flex justify-content-between align-items-center mt-4">
             <div class="text-muted small">
-                Showing {{len .tenants}} results
+                Showing {{len .organizations}} results
             </div>
             <nav>
                 <ul class="pagination pagination-sm mb-0">
                     {{if .pagination.cursor}}
                     <li class="page-item">
-                        <a class="page-link" href="/tenants?cursor={{.pagination.cursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}">
+                        <a class="page-link" href="/organizations?cursor={{.pagination.cursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                     </li>
                     {{end}}
                     {{if .pagination.nextCursor}}
                     <li class="page-item">
-                        <a class="page-link" href="/tenants?cursor={{.pagination.nextCursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}">
+                        <a class="page-link" href="/organizations?cursor={{.pagination.nextCursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&is_active={{.filters.is_active}}">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </li>
@@ -149,7 +149,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    Are you sure you want to delete tenant "<span id="tenantName"></span>"?
+                    Are you sure you want to delete organization "<span id="organizationName"></span>"?
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -163,9 +163,9 @@
     </div>
 
     <script>
-        function deleteTenant(id, name) {
-            document.getElementById('tenantName').textContent = name;
-            document.getElementById('deleteForm').action = '/tenants/' + id;
+        function deleteOrganization(id, name) {
+            document.getElementById('organizationName').textContent = name;
+            document.getElementById('deleteForm').action = '/organizations/' + id;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         }
     </script>

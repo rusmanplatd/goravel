@@ -28,9 +28,9 @@ func NewActivityLogController() *ActivityLogController {
 	}
 }
 
-// Index returns all activity logs for the current tenant
+// Index returns all activity logs for the current organization
 // @Summary Get all activity logs
-// @Description Retrieve a list of all activity logs for the current tenant with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
+// @Description Retrieve a list of all activity logs for the current organization with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags activity-logs
 // @Accept json
 // @Produce json
@@ -53,24 +53,24 @@ func NewActivityLogController() *ActivityLogController {
 // @Param filter[date_to] query string false "End date (YYYY-MM-DD)"
 // @Param search query string false "Search in description and properties"
 // @Param sort query string false "Sort by field (prefix with - for desc)" default("-event_timestamp")
-// @Param include query string false "Include relationships (comma-separated): causer_user,subject_user,tenant"
+// @Param include query string false "Include relationships (comma-separated): causer_user,subject_user,organization"
 // @Success 200 {object} responses.QueryBuilderResponse{data=[]models.ActivityLog}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /activity-logs [get]
 func (alc *ActivityLogController) Index(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant context required",
+			Message:   "Organization context required",
 			Timestamp: time.Now(),
 		})
 	}
 
 	var activities []models.ActivityLog
 
-	// Create query builder with tenant context and allowed filters, sorts, and includes
+	// Create query builder with organization context and allowed filters, sorts, and includes
 	qb := querybuilder.For(&models.ActivityLog{}).
 		WithRequest(ctx).
 		AllowedFilters(
@@ -83,14 +83,14 @@ func (alc *ActivityLogController) Index(ctx http.Context) http.Response {
 			querybuilder.Exact("causer_type"),
 			querybuilder.Exact("causer_id"),
 			querybuilder.Exact("ip_address"),
-			querybuilder.Exact("tenant_id"),
+			querybuilder.Exact("organization_id"),
 		).
 		AllowedSorts("log_name", "category", "severity", "status", "subject_type", "causer_type", "event_timestamp", "created_at", "risk_score").
-		AllowedIncludes("causer_user", "subject_user", "tenant").
+		AllowedIncludes("causer_user", "subject_user", "organization").
 		DefaultSort("-event_timestamp")
 
-	// Apply tenant constraint to the base query
-	query := qb.Build().Where("tenant_id = ?", tenantID)
+	// Apply organization constraint to the base query
+	query := qb.Build().Where("organization_id = ?", organizationId)
 
 	// Apply search if provided
 	if searchTerm := ctx.Request().Query("search", ""); searchTerm != "" {
@@ -125,14 +125,14 @@ func (alc *ActivityLogController) Index(ctx http.Context) http.Response {
 // @Router /activity-logs/{id} [get]
 func (alc *ActivityLogController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	var activity models.ActivityLog
 	err := facades.Orm().Query().
-		Where("id = ? AND tenant_id = ?", id, tenantID).
+		Where("id = ? AND organization_id = ?", id, organizationId).
 		With("CauserUser").
 		With("SubjectUser").
-		With("Tenant").
+		With("Organization").
 		First(&activity)
 
 	if err != nil {
@@ -158,11 +158,11 @@ func (alc *ActivityLogController) Show(ctx http.Context) http.Response {
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /activity-logs/dashboard [get]
 func (alc *ActivityLogController) Dashboard(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant context required",
+			Message:   "Organization context required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -179,7 +179,7 @@ func (alc *ActivityLogController) Dashboard(ctx http.Context) http.Response {
 	}
 
 	// Get dashboard metrics
-	metrics, err := alc.analyticsService.GetDashboardMetrics(tenantID.(string), timeRange)
+	metrics, err := alc.analyticsService.GetDashboardMetrics(organizationId.(string), timeRange)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
@@ -208,11 +208,11 @@ func (alc *ActivityLogController) Dashboard(ctx http.Context) http.Response {
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /activity-logs/analytics [get]
 func (alc *ActivityLogController) Analytics(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant context required",
+			Message:   "Organization context required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -235,7 +235,7 @@ func (alc *ActivityLogController) Analytics(ctx http.Context) http.Response {
 
 	switch analysisType {
 	case "anomalies":
-		anomalies, err := alc.analyticsService.DetectAnomalies(tenantID.(string), timeRange)
+		anomalies, err := alc.analyticsService.DetectAnomalies(organizationId.(string), timeRange)
 		if err != nil {
 			return ctx.Response().Status(500).Json(responses.ErrorResponse{
 				Status:    "error",
@@ -247,7 +247,7 @@ func (alc *ActivityLogController) Analytics(ctx http.Context) http.Response {
 		analysisName = "Anomaly Detection Results"
 
 	case "threats":
-		report, err := alc.analyticsService.GenerateThreatIntelligenceReport(tenantID.(string), timeRange)
+		report, err := alc.analyticsService.GenerateThreatIntelligenceReport(organizationId.(string), timeRange)
 		if err != nil {
 			return ctx.Response().Status(500).Json(responses.ErrorResponse{
 				Status:    "error",
@@ -259,7 +259,7 @@ func (alc *ActivityLogController) Analytics(ctx http.Context) http.Response {
 		analysisName = "Threat Intelligence Report"
 
 	case "patterns":
-		patterns, err := alc.getActivityPatterns(tenantID.(string), timeRange)
+		patterns, err := alc.getActivityPatterns(organizationId.(string), timeRange)
 		if err != nil {
 			return ctx.Response().Status(500).Json(responses.ErrorResponse{
 				Status:    "error",
@@ -273,7 +273,7 @@ func (alc *ActivityLogController) Analytics(ctx http.Context) http.Response {
 	case "trends":
 		fallthrough
 	default:
-		trends, err := alc.getActivityTrends(tenantID.(string), timeRange)
+		trends, err := alc.getActivityTrends(organizationId.(string), timeRange)
 		if err != nil {
 			return ctx.Response().Status(500).Json(responses.ErrorResponse{
 				Status:    "error",
@@ -308,11 +308,11 @@ func (alc *ActivityLogController) Analytics(ctx http.Context) http.Response {
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /activity-logs/security-alerts [get]
 func (alc *ActivityLogController) SecurityAlerts(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant context required",
+			Message:   "Organization context required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -325,8 +325,8 @@ func (alc *ActivityLogController) SecurityAlerts(ctx http.Context) http.Response
 	// Build query for security alerts
 	query := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ? AND (risk_score > 70 OR severity IN (?, ?) OR category = ?)",
-			tenantID, models.SeverityHigh, models.SeverityCritical, models.CategorySecurity)
+		Where("organization_id = ? AND (risk_score > 70 OR severity IN (?, ?) OR category = ?)",
+			organizationId, models.SeverityHigh, models.SeverityCritical, models.CategorySecurity)
 
 	// Apply filters
 	if severity != "" {
@@ -395,11 +395,11 @@ func (alc *ActivityLogController) SecurityAlerts(ctx http.Context) http.Response
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /activity-logs/stats [get]
 func (alc *ActivityLogController) Stats(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant context required",
+			Message:   "Organization context required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -416,7 +416,7 @@ func (alc *ActivityLogController) Stats(ctx http.Context) http.Response {
 	}
 
 	// Get statistics from activity logger
-	stats, err := alc.activityLogger.GetActivityStats(tenantID.(string), timeRange.StartTime)
+	stats, err := alc.activityLogger.GetActivityStats(organizationId.(string), timeRange.StartTime)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
@@ -426,7 +426,7 @@ func (alc *ActivityLogController) Stats(ctx http.Context) http.Response {
 	}
 
 	// Add additional computed statistics
-	additionalStats, err := alc.getAdditionalStats(tenantID.(string), timeRange)
+	additionalStats, err := alc.getAdditionalStats(organizationId.(string), timeRange)
 	if err == nil {
 		for key, value := range additionalStats {
 			stats[key] = value
@@ -459,11 +459,11 @@ func (alc *ActivityLogController) Stats(ctx http.Context) http.Response {
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /activity-logs/export [get]
 func (alc *ActivityLogController) Export(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant context required",
+			Message:   "Organization context required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -495,8 +495,8 @@ func (alc *ActivityLogController) Export(ctx http.Context) http.Response {
 	// Build query
 	query := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime)
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?",
+			organizationId, timeRange.StartTime, timeRange.EndTime)
 
 	if category != "" {
 		query = query.Where("category = ?", category)
@@ -568,7 +568,7 @@ func (alc *ActivityLogController) Export(ctx http.Context) http.Response {
 func (alc *ActivityLogController) GetActivitiesForSubject(ctx http.Context) http.Response {
 	subjectType := ctx.Request().Query("subject_type", "")
 	subjectID := ctx.Request().Query("subject_id", "")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	if subjectType == "" || subjectID == "" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
@@ -584,7 +584,7 @@ func (alc *ActivityLogController) GetActivitiesForSubject(ctx http.Context) http
 
 	// Build query
 	query := facades.Orm().Query().
-		Where("subject_type = ? AND subject_id = ? AND tenant_id = ?", subjectType, subjectID, tenantID)
+		Where("subject_type = ? AND subject_id = ? AND organization_id = ?", subjectType, subjectID, organizationId)
 
 	// Apply cursor-based pagination
 	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
@@ -646,7 +646,7 @@ func (alc *ActivityLogController) GetActivitiesForSubject(ctx http.Context) http
 func (alc *ActivityLogController) GetActivitiesForCauser(ctx http.Context) http.Response {
 	causerType := ctx.Request().Query("causer_type", "")
 	causerID := ctx.Request().Query("causer_id", "")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	if causerType == "" || causerID == "" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
@@ -662,7 +662,7 @@ func (alc *ActivityLogController) GetActivitiesForCauser(ctx http.Context) http.
 
 	// Build query
 	query := facades.Orm().Query().
-		Where("causer_type = ? AND causer_id = ? AND tenant_id = ?", causerType, causerID, tenantID)
+		Where("causer_type = ? AND causer_id = ? AND organization_id = ?", causerType, causerID, organizationId)
 
 	// Apply cursor-based pagination
 	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
@@ -722,7 +722,7 @@ func (alc *ActivityLogController) GetActivitiesForCauser(ctx http.Context) http.
 // @Router /activity-logs/log-name [get]
 func (alc *ActivityLogController) GetActivitiesByLogName(ctx http.Context) http.Response {
 	logName := ctx.Request().Query("log_name", "")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	if logName == "" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
@@ -738,7 +738,7 @@ func (alc *ActivityLogController) GetActivitiesByLogName(ctx http.Context) http.
 
 	// Build query
 	query := facades.Orm().Query().
-		Where("log_name = ? AND tenant_id = ?", logName, tenantID)
+		Where("log_name = ? AND organization_id = ?", logName, organizationId)
 
 	// Apply cursor-based pagination
 	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
@@ -800,7 +800,7 @@ func (alc *ActivityLogController) GetActivitiesByLogName(ctx http.Context) http.
 func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) http.Response {
 	startDateStr := ctx.Request().Query("start_date", "")
 	endDateStr := ctx.Request().Query("end_date", "")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	if startDateStr == "" || endDateStr == "" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
@@ -834,7 +834,7 @@ func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) htt
 
 	// Build query
 	query := facades.Orm().Query().
-		Where("event_timestamp BETWEEN ? AND ? AND tenant_id = ?", startDate, endDate, tenantID)
+		Where("event_timestamp BETWEEN ? AND ? AND organization_id = ?", startDate, endDate, organizationId)
 
 	// Apply cursor-based pagination
 	query, err = helpers.ApplyCursorPagination(query, cursor, limit, false)
@@ -882,7 +882,7 @@ func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) htt
 
 // Store creates a new activity log entry
 // @Summary Create a new activity log
-// @Description Create a new activity log entry for a tenant
+// @Description Create a new activity log entry for a organization
 // @Tags activity-logs
 // @Accept json
 // @Produce json
@@ -892,10 +892,10 @@ func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) htt
 // @Failure 500 {object} http.Json{error=string}
 // @Router /activity-logs [post]
 func (alc *ActivityLogController) Store(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(http.Json{
-			"error": "Tenant context required",
+			"error": "Organization context required",
 		})
 	}
 
@@ -932,7 +932,7 @@ func (alc *ActivityLogController) Store(ctx http.Context) http.Response {
 		CauserID:       request.CauserID,
 		RiskScore:      request.RiskScore,
 		EventTimestamp: time.Now(),
-		TenantID:       tenantID.(string),
+		OrganizationID: organizationId.(string),
 	}
 
 	// Set properties if provided
@@ -991,7 +991,7 @@ func (alc *ActivityLogController) parseTimeRange(timeRangeStr string) (services.
 	}, nil
 }
 
-func (alc *ActivityLogController) getActivityTrends(tenantID string, timeRange services.TimeRange) (map[string]interface{}, error) {
+func (alc *ActivityLogController) getActivityTrends(organizationId string, timeRange services.TimeRange) (map[string]interface{}, error) {
 	// This would implement trend analysis
 	// For now, return basic trend data
 	var results []struct {
@@ -1002,8 +1002,8 @@ func (alc *ActivityLogController) getActivityTrends(tenantID string, timeRange s
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("HOUR(event_timestamp) as hour, COUNT(*) as count").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?",
+			organizationId, timeRange.StartTime, timeRange.EndTime).
 		Group("HOUR(event_timestamp)").
 		OrderBy("hour ASC").
 		Find(&results)
@@ -1019,7 +1019,7 @@ func (alc *ActivityLogController) getActivityTrends(tenantID string, timeRange s
 	}, nil
 }
 
-func (alc *ActivityLogController) getActivityPatterns(tenantID string, timeRange services.TimeRange) (map[string]interface{}, error) {
+func (alc *ActivityLogController) getActivityPatterns(organizationId string, timeRange services.TimeRange) (map[string]interface{}, error) {
 	// This would implement pattern analysis
 	// For now, return basic pattern data
 	var userPatterns []struct {
@@ -1031,8 +1031,8 @@ func (alc *ActivityLogController) getActivityPatterns(tenantID string, timeRange
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("subject_id, COUNT(*) as count, 'frequent_user' as pattern").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
+			organizationId, timeRange.StartTime, timeRange.EndTime).
 		Group("subject_id").
 		Having("count > 100").
 		OrderBy("count DESC").
@@ -1050,7 +1050,7 @@ func (alc *ActivityLogController) getActivityPatterns(tenantID string, timeRange
 	}, nil
 }
 
-func (alc *ActivityLogController) getAdditionalStats(tenantID string, timeRange services.TimeRange) (map[string]interface{}, error) {
+func (alc *ActivityLogController) getAdditionalStats(organizationId string, timeRange services.TimeRange) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Unique users count
@@ -1058,8 +1058,8 @@ func (alc *ActivityLogController) getAdditionalStats(tenantID string, timeRange 
 	facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("COUNT(DISTINCT subject_id)").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND subject_id IS NOT NULL",
+			organizationId, timeRange.StartTime, timeRange.EndTime).
 		Pluck("unique_users", &uniqueUsers)
 	stats["unique_users"] = uniqueUsers
 
@@ -1068,8 +1068,8 @@ func (alc *ActivityLogController) getAdditionalStats(tenantID string, timeRange 
 	facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("COUNT(DISTINCT ip_address)").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ? AND ip_address IS NOT NULL",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ? AND ip_address IS NOT NULL",
+			organizationId, timeRange.StartTime, timeRange.EndTime).
 		Pluck("unique_ips", &uniqueIPs)
 	stats["unique_ips"] = uniqueIPs
 
@@ -1078,8 +1078,8 @@ func (alc *ActivityLogController) getAdditionalStats(tenantID string, timeRange 
 	facades.Orm().Query().
 		Model(&models.ActivityLog{}).
 		Select("AVG(risk_score)").
-		Where("tenant_id = ? AND event_timestamp BETWEEN ? AND ?",
-			tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND event_timestamp BETWEEN ? AND ?",
+			organizationId, timeRange.StartTime, timeRange.EndTime).
 		Pluck("avg_risk_score", &avgRiskScore)
 	stats["average_risk_score"] = avgRiskScore
 

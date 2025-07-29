@@ -9,15 +9,15 @@ import (
 	"goravel/app/models"
 )
 
-type TenantMiddleware struct{}
+type OrganizationMiddleware struct{}
 
-func NewTenantMiddleware() *TenantMiddleware {
-	return &TenantMiddleware{}
+func NewOrganizationMiddleware() *OrganizationMiddleware {
+	return &OrganizationMiddleware{}
 }
 
-func (m *TenantMiddleware) Handle(ctx http.Context) http.Response {
-	// Try to get tenant from various sources
-	var tenant *models.Tenant
+func (m *OrganizationMiddleware) Handle(ctx http.Context) http.Response {
+	// Try to get organization from various sources
+	var organization *models.Organization
 	var err error
 
 	// 1. Try from subdomain
@@ -25,10 +25,10 @@ func (m *TenantMiddleware) Handle(ctx http.Context) http.Response {
 	if host != "" {
 		subdomain := strings.Split(host, ".")[0]
 		if subdomain != "www" && subdomain != "" {
-			tenant, err = m.getTenantBySlug(subdomain)
-			if err == nil && tenant != nil {
-				ctx.WithValue("tenant", tenant)
-				ctx.WithValue("tenant_id", tenant.ID)
+			organization, err = m.getOrganizationBySlug(subdomain)
+			if err == nil && organization != nil {
+				ctx.WithValue("organization", organization)
+				ctx.WithValue("organization_id", organization.ID)
 				ctx.Request().Next()
 				return nil
 			}
@@ -37,68 +37,68 @@ func (m *TenantMiddleware) Handle(ctx http.Context) http.Response {
 
 	// 2. Try from custom domain
 	if host != "" {
-		tenant, err = m.getTenantByDomain(host)
-		if err == nil && tenant != nil {
-			ctx.WithValue("tenant", tenant)
-			ctx.WithValue("tenant_id", tenant.ID)
+		organization, err = m.getOrganizationByDomain(host)
+		if err == nil && organization != nil {
+			ctx.WithValue("organization", organization)
+			ctx.WithValue("organization_id", organization.ID)
 			ctx.Request().Next()
 			return nil
 		}
 	}
 
 	// 3. Try from header
-	tenantHeader := ctx.Request().Header("X-Tenant-ID", "")
-	if tenantHeader != "" {
-		tenant, err = m.getTenantByID(tenantHeader)
-		if err == nil && tenant != nil {
-			ctx.WithValue("tenant", tenant)
-			ctx.WithValue("tenant_id", tenant.ID)
+	organizationHeader := ctx.Request().Header("X-Organization-ID", "")
+	if organizationHeader != "" {
+		organization, err = m.getOrganizationByID(organizationHeader)
+		if err == nil && organization != nil {
+			ctx.WithValue("organization", organization)
+			ctx.WithValue("organization_id", organization.ID)
 			ctx.Request().Next()
 			return nil
 		}
 	}
 
 	// 4. Try from query parameter
-	tenantParam := ctx.Request().Query("tenant_id", "")
-	if tenantParam != "" {
-		tenant, err = m.getTenantByID(tenantParam)
-		if err == nil && tenant != nil {
-			ctx.WithValue("tenant", tenant)
-			ctx.WithValue("tenant_id", tenant.ID)
+	organizationParam := ctx.Request().Query("organization_id", "")
+	if organizationParam != "" {
+		organization, err = m.getOrganizationByID(organizationParam)
+		if err == nil && organization != nil {
+			ctx.WithValue("organization", organization)
+			ctx.WithValue("organization_id", organization.ID)
 			ctx.Request().Next()
 			return nil
 		}
 	}
 
-	// If no tenant found, return error
+	// If no organization found, return error
 	return ctx.Response().Status(400).Json(http.Json{
-		"error": "Tenant not found or not specified",
+		"error": "Organization not found or not specified",
 	})
 }
 
-func (m *TenantMiddleware) getTenantBySlug(slug string) (*models.Tenant, error) {
-	var tenant models.Tenant
-	err := facades.Orm().Query().Where("slug = ? AND is_active = ?", slug, true).First(&tenant)
+func (m *OrganizationMiddleware) getOrganizationBySlug(slug string) (*models.Organization, error) {
+	var organization models.Organization
+	err := facades.Orm().Query().Where("slug = ? AND is_active = ?", slug, true).First(&organization)
 	if err != nil {
 		return nil, err
 	}
-	return &tenant, nil
+	return &organization, nil
 }
 
-func (m *TenantMiddleware) getTenantByDomain(domain string) (*models.Tenant, error) {
-	var tenant models.Tenant
-	err := facades.Orm().Query().Where("domain = ? AND is_active = ?", domain, true).First(&tenant)
+func (m *OrganizationMiddleware) getOrganizationByDomain(domain string) (*models.Organization, error) {
+	var organization models.Organization
+	err := facades.Orm().Query().Where("domain = ? AND is_active = ?", domain, true).First(&organization)
 	if err != nil {
 		return nil, err
 	}
-	return &tenant, nil
+	return &organization, nil
 }
 
-func (m *TenantMiddleware) getTenantByID(id string) (*models.Tenant, error) {
-	var tenant models.Tenant
-	err := facades.Orm().Query().Where("id = ? AND is_active = ?", id, true).First(&tenant)
+func (m *OrganizationMiddleware) getOrganizationByID(id string) (*models.Organization, error) {
+	var organization models.Organization
+	err := facades.Orm().Query().Where("id = ? AND is_active = ?", id, true).First(&organization)
 	if err != nil {
 		return nil, err
 	}
-	return &tenant, nil
+	return &organization, nil
 }

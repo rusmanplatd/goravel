@@ -15,13 +15,13 @@ func NewPermissionController() *PermissionController {
 	return &PermissionController{}
 }
 
-// Index displays the permissions list page for a tenant
+// Index displays the permissions list page for a organization
 func (c *PermissionController) Index(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
-	if tenantID == "" {
+	organizationId := ctx.Request().Input("organization_id", "")
+	if organizationId == "" {
 		return ctx.Response().View().Make("permissions/index.tmpl", map[string]interface{}{
 			"title":       "Permissions",
-			"error":       "Tenant ID is required",
+			"error":       "Organization ID is required",
 			"permissions": []models.Permission{},
 		})
 	}
@@ -33,7 +33,7 @@ func (c *PermissionController) Index(ctx http.Context) http.Response {
 	guard := ctx.Request().Input("guard", "")
 
 	// Build query
-	query := facades.Orm().Query().Where("tenant_id = ?", tenantID)
+	query := facades.Orm().Query().Where("organization_id = ?", organizationId)
 
 	// Apply search filter
 	if search != "" {
@@ -75,14 +75,14 @@ func (c *PermissionController) Index(ctx http.Context) http.Response {
 
 	// Get unique guards for filter
 	var guards []string
-	facades.Orm().Query().Where("tenant_id = ?", tenantID).
+	facades.Orm().Query().Where("organization_id = ?", organizationId).
 		Distinct("guard").
 		Pluck("guard", &guards)
 
 	return ctx.Response().View().Make("permissions/index.tmpl", map[string]interface{}{
-		"title":       "Permissions",
-		"tenantID":    tenantID,
-		"permissions": permissions,
+		"title":          "Permissions",
+		"organizationId": organizationId,
+		"permissions":    permissions,
 		"pagination": map[string]interface{}{
 			"cursor":     cursor,
 			"nextCursor": nextCursor,
@@ -99,22 +99,22 @@ func (c *PermissionController) Index(ctx http.Context) http.Response {
 
 // Create displays the create permission page
 func (c *PermissionController) Create(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
-	if tenantID == "" {
-		return ctx.Response().Redirect(302, "/tenants")
+	organizationId := ctx.Request().Input("organization_id", "")
+	if organizationId == "" {
+		return ctx.Response().Redirect(302, "/organizations")
 	}
 
 	return ctx.Response().View().Make("permissions/create.tmpl", map[string]interface{}{
-		"title":    "Create Permission",
-		"tenantID": tenantID,
+		"title":          "Create Permission",
+		"organizationId": organizationId,
 	})
 }
 
 // Store creates a new permission
 func (c *PermissionController) Store(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
-	if tenantID == "" {
-		return ctx.Response().Redirect(302, "/tenants")
+	organizationId := ctx.Request().Input("organization_id", "")
+	if organizationId == "" {
+		return ctx.Response().Redirect(302, "/organizations")
 	}
 
 	// Validate input
@@ -124,89 +124,89 @@ func (c *PermissionController) Store(ctx http.Context) http.Response {
 
 	if name == "" {
 		return ctx.Response().View().Make("permissions/create.tmpl", map[string]interface{}{
-			"title":       "Create Permission",
-			"tenantID":    tenantID,
-			"error":       "Name is required",
-			"name":        name,
-			"description": description,
-			"guard":       guard,
+			"title":          "Create Permission",
+			"organizationId": organizationId,
+			"error":          "Name is required",
+			"name":           name,
+			"description":    description,
+			"guard":          guard,
 		})
 	}
 
 	// Check if permission already exists
 	var existingPermission models.Permission
-	err := facades.Orm().Query().Where("tenant_id = ? AND name = ?", tenantID, name).First(&existingPermission)
+	err := facades.Orm().Query().Where("organization_id = ? AND name = ?", organizationId, name).First(&existingPermission)
 	if err == nil {
 		return ctx.Response().View().Make("permissions/create.tmpl", map[string]interface{}{
-			"title":       "Create Permission",
-			"tenantID":    tenantID,
-			"error":       "Permission with this name already exists",
-			"name":        name,
-			"description": description,
-			"guard":       guard,
+			"title":          "Create Permission",
+			"organizationId": organizationId,
+			"error":          "Permission with this name already exists",
+			"name":           name,
+			"description":    description,
+			"guard":          guard,
 		})
 	}
 
 	// Create permission
 	permission := models.Permission{
-		TenantID:    &tenantID,
-		Name:        name,
-		Description: description,
-		Guard:       guard,
+		OrganizationID: &organizationId,
+		Name:           name,
+		Description:    description,
+		Guard:          guard,
 	}
 
 	err = facades.Orm().Query().Create(&permission)
 	if err != nil {
 		return ctx.Response().View().Make("permissions/create.tmpl", map[string]interface{}{
-			"title":       "Create Permission",
-			"tenantID":    tenantID,
-			"error":       "Failed to create permission",
-			"name":        name,
-			"description": description,
-			"guard":       guard,
+			"title":          "Create Permission",
+			"organizationId": organizationId,
+			"error":          "Failed to create permission",
+			"name":           name,
+			"description":    description,
+			"guard":          guard,
 		})
 	}
 
-	return ctx.Response().Redirect(302, "/permissions?tenant_id="+tenantID)
+	return ctx.Response().Redirect(302, "/permissions?organization_id="+organizationId)
 }
 
 // Edit displays the edit permission page
 func (c *PermissionController) Edit(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
+	organizationId := ctx.Request().Input("organization_id", "")
 	permissionID := ctx.Request().Input("id", "")
 
-	if tenantID == "" || permissionID == "" {
-		return ctx.Response().Redirect(302, "/tenants")
+	if organizationId == "" || permissionID == "" {
+		return ctx.Response().Redirect(302, "/organizations")
 	}
 
 	// Get permission
 	var permission models.Permission
-	err := facades.Orm().Query().Where("id = ? AND tenant_id = ?", permissionID, tenantID).First(&permission)
+	err := facades.Orm().Query().Where("id = ? AND organization_id = ?", permissionID, organizationId).First(&permission)
 	if err != nil {
-		return ctx.Response().Redirect(302, "/permissions?tenant_id="+tenantID)
+		return ctx.Response().Redirect(302, "/permissions?organization_id="+organizationId)
 	}
 
 	return ctx.Response().View().Make("permissions/edit.tmpl", map[string]interface{}{
-		"title":      "Edit Permission",
-		"tenantID":   tenantID,
-		"permission": permission,
+		"title":          "Edit Permission",
+		"organizationId": organizationId,
+		"permission":     permission,
 	})
 }
 
 // Update updates an existing permission
 func (c *PermissionController) Update(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
+	organizationId := ctx.Request().Input("organization_id", "")
 	permissionID := ctx.Request().Input("id", "")
 
-	if tenantID == "" || permissionID == "" {
-		return ctx.Response().Redirect(302, "/tenants")
+	if organizationId == "" || permissionID == "" {
+		return ctx.Response().Redirect(302, "/organizations")
 	}
 
 	// Get permission
 	var permission models.Permission
-	err := facades.Orm().Query().Where("id = ? AND tenant_id = ?", permissionID, tenantID).First(&permission)
+	err := facades.Orm().Query().Where("id = ? AND organization_id = ?", permissionID, organizationId).First(&permission)
 	if err != nil {
-		return ctx.Response().Redirect(302, "/permissions?tenant_id="+tenantID)
+		return ctx.Response().Redirect(302, "/permissions?organization_id="+organizationId)
 	}
 
 	// Validate input
@@ -216,22 +216,22 @@ func (c *PermissionController) Update(ctx http.Context) http.Response {
 
 	if name == "" {
 		return ctx.Response().View().Make("permissions/edit.tmpl", map[string]interface{}{
-			"title":      "Edit Permission",
-			"tenantID":   tenantID,
-			"permission": permission,
-			"error":      "Name is required",
+			"title":          "Edit Permission",
+			"organizationId": organizationId,
+			"permission":     permission,
+			"error":          "Name is required",
 		})
 	}
 
 	// Check if name already exists (excluding current permission)
 	var existingPermission models.Permission
-	err = facades.Orm().Query().Where("tenant_id = ? AND name = ? AND id != ?", tenantID, name, permissionID).First(&existingPermission)
+	err = facades.Orm().Query().Where("organization_id = ? AND name = ? AND id != ?", organizationId, name, permissionID).First(&existingPermission)
 	if err == nil {
 		return ctx.Response().View().Make("permissions/edit.tmpl", map[string]interface{}{
-			"title":      "Edit Permission",
-			"tenantID":   tenantID,
-			"permission": permission,
-			"error":      "Permission with this name already exists",
+			"title":          "Edit Permission",
+			"organizationId": organizationId,
+			"permission":     permission,
+			"error":          "Permission with this name already exists",
 		})
 	}
 
@@ -244,42 +244,42 @@ func (c *PermissionController) Update(ctx http.Context) http.Response {
 	err = facades.Orm().Query().Save(&permission)
 	if err != nil {
 		return ctx.Response().View().Make("permissions/edit.tmpl", map[string]interface{}{
-			"title":      "Edit Permission",
-			"tenantID":   tenantID,
-			"permission": permission,
-			"error":      "Failed to update permission",
+			"title":          "Edit Permission",
+			"organizationId": organizationId,
+			"permission":     permission,
+			"error":          "Failed to update permission",
 		})
 	}
 
-	return ctx.Response().Redirect(302, "/permissions?tenant_id="+tenantID)
+	return ctx.Response().Redirect(302, "/permissions?organization_id="+organizationId)
 }
 
 // Destroy deletes a permission
 func (c *PermissionController) Destroy(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
+	organizationId := ctx.Request().Input("organization_id", "")
 	permissionID := ctx.Request().Input("id", "")
 
-	if tenantID == "" || permissionID == "" {
-		return ctx.Response().Redirect(302, "/tenants")
+	if organizationId == "" || permissionID == "" {
+		return ctx.Response().Redirect(302, "/organizations")
 	}
 
 	// Get permission
 	var permission models.Permission
-	err := facades.Orm().Query().Where("id = ? AND tenant_id = ?", permissionID, tenantID).First(&permission)
+	err := facades.Orm().Query().Where("id = ? AND organization_id = ?", permissionID, organizationId).First(&permission)
 	if err != nil {
-		return ctx.Response().Redirect(302, "/permissions?tenant_id="+tenantID)
+		return ctx.Response().Redirect(302, "/permissions?organization_id="+organizationId)
 	}
 
 	// Delete permission
 	_, err = facades.Orm().Query().Delete(&permission)
 	if err != nil {
 		return ctx.Response().View().Make("permissions/index.tmpl", map[string]interface{}{
-			"title":       "Permissions",
-			"tenantID":    tenantID,
-			"error":       "Failed to delete permission",
-			"permissions": []models.Permission{},
+			"title":          "Permissions",
+			"organizationId": organizationId,
+			"error":          "Failed to delete permission",
+			"permissions":    []models.Permission{},
 		})
 	}
 
-	return ctx.Response().Redirect(302, "/permissions?tenant_id="+tenantID)
+	return ctx.Response().Redirect(302, "/permissions?organization_id="+organizationId)
 }

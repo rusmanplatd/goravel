@@ -41,9 +41,9 @@ func NewOrganizationController() *OrganizationController {
 // @Param filter[is_active] query bool false "Filter by active status"
 // @Param filter[is_verified] query bool false "Filter by verification status"
 // @Param filter[parent_organization_id] query string false "Filter by parent organization"
-// @Param filter[tenant_id] query string false "Filter by tenant ID"
+// @Param filter[organization_id] query string false "Filter by organization ID"
 // @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
-// @Param include query string false "Include relationships (comma-separated): tenant,parent,children,users,departments,teams,projects"
+// @Param include query string false "Include relationships (comma-separated): organization,parent,children,users,departments,teams,projects"
 // @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Organization}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
@@ -64,10 +64,10 @@ func (oc *OrganizationController) Index(ctx http.Context) http.Response {
 			querybuilder.Exact("is_active"),
 			querybuilder.Exact("is_verified"),
 			querybuilder.Exact("parent_organization_id"),
-			querybuilder.Exact("tenant_id"),
+			querybuilder.Exact("organization_id"),
 		).
 		AllowedSorts("name", "domain", "type", "industry", "size", "created_at", "updated_at").
-		AllowedIncludes("tenant", "parent", "children", "users", "departments", "teams", "projects").
+		AllowedIncludes("organization", "parent", "children", "users", "departments", "teams", "projects").
 		DefaultSort("-created_at")
 
 	// Use AutoPaginate for unified pagination support
@@ -153,7 +153,7 @@ func (oc *OrganizationController) Store(ctx http.Context) http.Response {
 		"city_id":                req.CityID,
 		"district_id":            req.DistrictID,
 		"postal_code":            req.PostalCode,
-		"tenant_id":              req.TenantID,
+		"organization_id":        req.OrganizationID,
 		"parent_organization_id": req.ParentOrganizationID,
 		"settings":               req.Settings,
 	}
@@ -225,7 +225,7 @@ func (oc *OrganizationController) Update(ctx http.Context) http.Response {
 		"city_id":                req.CityID,
 		"district_id":            req.DistrictID,
 		"postal_code":            req.PostalCode,
-		"tenant_id":              req.TenantID,
+		"organization_id":        req.OrganizationID,
 		"parent_organization_id": req.ParentOrganizationID,
 		"settings":               req.Settings,
 	}

@@ -22,7 +22,7 @@ func (r *M20250115000021CreateChatRoomsTable) Up() error {
 		table.String("type").Comment("Chat room type (direct, group, channel)")
 		table.Boolean("is_active").Comment("Whether chat room is active")
 		table.String("avatar").Comment("Chat room avatar URL")
-		table.Ulid("tenant_id").Comment("Tenant reference")
+		table.Ulid("organization_id").Comment("Organization reference")
 		table.Timestamp("last_activity_at").Comment("Last activity timestamp")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
@@ -34,10 +34,10 @@ func (r *M20250115000021CreateChatRoomsTable) Up() error {
 		table.Primary("id")
 
 		// Add indexes
-		table.Index("tenant_id")
+		table.Index("organization_id")
 		table.Index("type")
 		table.Index("last_activity_at")
-		table.Index("tenant_id", "is_active")
+		table.Index("organization_id", "is_active")
 		table.Index("created_by")
 		table.Index("updated_by")
 		table.Index("deleted_by")

@@ -1,6 +1,6 @@
 # Database Seeders
 
-This directory contains database seeders for populating the application with initial data. The seeders are designed to create a complete development environment with users, roles, permissions, tenants, and sample data.
+This directory contains database seeders for populating the application with initial data. The seeders are designed to create a complete development environment with users, roles, permissions, organizations, and sample data.
 
 ## Seeder Overview
 
@@ -8,9 +8,9 @@ This directory contains database seeders for populating the application with ini
 The main seeder that orchestrates all other seeders in the correct order:
 - OAuthSeeder
 - RolePermissionSeeder
-- TenantSeeder
+- OrganizationSeeder
 - UserSeeder
-- UserTenantSeeder
+- UserOrganizationSeeder
 - ActivityLogSeeder
 - GeographicSeeder
 
@@ -22,7 +22,7 @@ Creates comprehensive roles and permissions:
 
 #### Roles:
 - **super-admin**: Full system access with all permissions
-- **admin**: Tenant-level administrative access
+- **admin**: Organization-level administrative access
 - **manager**: Limited administrative access
 - **user**: Basic user access
 - **guest**: Read-only access
@@ -31,13 +31,13 @@ Creates comprehensive roles and permissions:
 - **User Management**: view, create, edit, delete, export, import
 - **Role Management**: view, create, edit, delete, assign
 - **Permission Management**: view, create, edit, delete, assign
-- **Tenant Management**: view, create, edit, delete, manage
+- **Organization Management**: view, create, edit, delete, manage
 - **Activity Logs**: view, export
 - **Geographic Data**: view, manage for countries, provinces, cities, districts
 - **System**: settings, backup, logs
 
-### 4. TenantSeeder
-Creates default tenants:
+### 4. OrganizationSeeder
+Creates default organizations:
 - **Goravel Corporation** (goravel-corp, goravel.com)
 - **Demo Company** (demo-company, demo.com)
 - **Test Organization** (test-org, test.org)
@@ -53,8 +53,8 @@ Creates default users with different roles:
 
 All users have the password: `password123`
 
-### 6. UserTenantSeeder
-Assigns users to tenants with appropriate roles:
+### 6. UserOrganizationSeeder
+Assigns users to organizations with appropriate roles:
 
 #### Goravel Corporation:
 - superadmin (super-admin)
@@ -78,12 +78,12 @@ Creates sample activity logs demonstrating the audit functionality:
 - User login/logout events
 - Profile updates
 - User creation
-- Tenant settings changes
+- Organization settings changes
 - Role permission updates
 - Permission creation
 - Password changes
 - MFA enablement
-- Tenant creation
+- Organization creation
 
 ### 8. GeographicSeeder
 Populates geographic data (countries, provinces, cities, districts).
@@ -104,9 +104,9 @@ go run artisan.go db:seed --class=UserSeeder
 - `DatabaseSeeder` (default)
 - `OAuthSeeder`
 - `RolePermissionSeeder`
-- `TenantSeeder`
+- `OrganizationSeeder`
 - `UserSeeder`
-- `UserTenantSeeder`
+- `UserOrganizationSeeder`
 - `ActivityLogSeeder`
 - `GeographicSeeder`
 
@@ -123,20 +123,20 @@ go run artisan.go db:seed --class=UserSeeder
 - The super-admin user has full system access and should be secured with strong authentication
 - **PRODUCTION DEPLOYMENT**: Remove or secure sensitive seed data before production deployment. Consider using environment-specific seeders that exclude default accounts in production
 
-## Multi-Tenant Structure
+## Multi-Organization Structure
 
-The seeders create a multi-tenant environment where:
-- Users can belong to multiple tenants
-- Roles are assigned per tenant
-- Activity logs are tenant-scoped
-- Permissions can be tenant-specific
+The seeders create a multi-organization environment where:
+- Users can belong to multiple organizations
+- Roles are assigned per organization
+- Activity logs are organization-scoped
+- Permissions can be organization-specific
 
 ## Testing with Seeded Data
 
 ### API Testing
 Use the seeded users to test API endpoints:
 - **Super Admin**: Full access to all endpoints
-- **Admin**: Tenant-level administrative access
+- **Admin**: Organization-level administrative access
 - **Manager**: Limited administrative access
 - **User**: Basic user access
 - **Guest**: Read-only access
@@ -145,7 +145,7 @@ Use the seeded users to test API endpoints:
 Test different authentication scenarios:
 - Login with seeded users
 - Test role-based access control
-- Verify tenant isolation
+- Verify organization isolation
 - Test permission-based authorization
 
 ## Customization

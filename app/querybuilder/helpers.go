@@ -379,7 +379,7 @@ func UserConfig() QueryConfig {
 		},
 		AllowedIncludes: []AllowedInclude{
 			Include("roles"),
-			Include("tenants"),
+			Include("organizations"),
 			Include("permissions"),
 		},
 		AllowedFields: []AllowedField{

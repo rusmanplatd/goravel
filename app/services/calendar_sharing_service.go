@@ -22,10 +22,10 @@ func NewCalendarSharingService() *CalendarSharingService {
 }
 
 // ShareCalendar creates a new calendar share
-func (css *CalendarSharingService) ShareCalendar(ownerID, sharedWithID, tenantID string, request *ShareCalendarRequest) (*models.CalendarShare, error) {
+func (css *CalendarSharingService) ShareCalendar(ownerID, sharedWithID, organizationID string, request *ShareCalendarRequest) (*models.CalendarShare, error) {
 	// Check if share already exists
 	var existingShare models.CalendarShare
-	err := facades.Orm().Query().Where("owner_id = ? AND shared_with_id = ? AND tenant_id = ?", ownerID, sharedWithID, tenantID).First(&existingShare)
+	err := facades.Orm().Query().Where("owner_id = ? AND shared_with_id = ? AND organization_id = ?", ownerID, sharedWithID, organizationID).First(&existingShare)
 	if err == nil {
 		return nil, fmt.Errorf("calendar is already shared with this user")
 	}
@@ -43,7 +43,7 @@ func (css *CalendarSharingService) ShareCalendar(ownerID, sharedWithID, tenantID
 		TimeRestrictions:     request.TimeRestrictions,
 		ExpiresAt:            request.ExpiresAt,
 		NotificationSettings: request.NotificationSettings,
-		TenantID:             tenantID,
+		OrganizationID:       organizationID,
 		BaseModel: models.BaseModel{
 			CreatedBy: &ownerID,
 		},
@@ -115,10 +115,10 @@ func (css *CalendarSharingService) AcceptCalendarShare(shareID, userID string) e
 }
 
 // CreateDelegation creates a new calendar delegation
-func (css *CalendarSharingService) CreateDelegation(principalID, delegateID, tenantID string, request *CreateDelegationRequest) (*models.CalendarDelegate, error) {
+func (css *CalendarSharingService) CreateDelegation(principalID, delegateID, organizationID string, request *CreateDelegationRequest) (*models.CalendarDelegate, error) {
 	// Check if delegation already exists
 	var existingDelegation models.CalendarDelegate
-	err := facades.Orm().Query().Where("principal_id = ? AND delegate_id = ? AND tenant_id = ? AND is_active = ?", principalID, delegateID, tenantID, true).First(&existingDelegation)
+	err := facades.Orm().Query().Where("principal_id = ? AND delegate_id = ? AND organization_id = ? AND is_active = ?", principalID, delegateID, organizationID, true).First(&existingDelegation)
 	if err == nil {
 		return nil, fmt.Errorf("active delegation already exists between these users")
 	}
@@ -139,7 +139,7 @@ func (css *CalendarSharingService) CreateDelegation(principalID, delegateID, ten
 		StartDate:            request.StartDate,
 		EndDate:              request.EndDate,
 		NotificationSettings: request.NotificationSettings,
-		TenantID:             tenantID,
+		OrganizationID:       organizationID,
 		BaseModel: models.BaseModel{
 			CreatedBy: &principalID,
 		},
@@ -349,15 +349,15 @@ func (css *CalendarSharingService) createSharePermissions(share *models.Calendar
 
 	for _, permission := range permissions {
 		calendarPermission := models.CalendarPermission{
-			ResourceType: "calendar",
-			ResourceID:   share.OwnerID, // Using owner ID as calendar resource ID
-			UserID:       share.SharedWithID,
-			Permission:   permission,
-			IsGranted:    true,
-			Source:       "shared",
-			SourceID:     &share.ID,
-			ExpiresAt:    share.ExpiresAt,
-			TenantID:     share.TenantID,
+			ResourceType:   "calendar",
+			ResourceID:     share.OwnerID, // Using owner ID as calendar resource ID
+			UserID:         share.SharedWithID,
+			Permission:     permission,
+			IsGranted:      true,
+			Source:         "shared",
+			SourceID:       &share.ID,
+			ExpiresAt:      share.ExpiresAt,
+			OrganizationID: share.OrganizationID,
 		}
 
 		if err := facades.Orm().Query().Create(&calendarPermission); err != nil {
@@ -373,15 +373,15 @@ func (css *CalendarSharingService) createDelegationPermissions(delegation *model
 
 	for _, permission := range permissions {
 		calendarPermission := models.CalendarPermission{
-			ResourceType: "calendar",
-			ResourceID:   delegation.PrincipalID, // Using principal ID as calendar resource ID
-			UserID:       delegation.DelegateID,
-			Permission:   permission,
-			IsGranted:    true,
-			Source:       "delegated",
-			SourceID:     &delegation.ID,
-			ExpiresAt:    delegation.EndDate,
-			TenantID:     delegation.TenantID,
+			ResourceType:   "calendar",
+			ResourceID:     delegation.PrincipalID, // Using principal ID as calendar resource ID
+			UserID:         delegation.DelegateID,
+			Permission:     permission,
+			IsGranted:      true,
+			Source:         "delegated",
+			SourceID:       &delegation.ID,
+			ExpiresAt:      delegation.EndDate,
+			OrganizationID: delegation.OrganizationID,
 		}
 
 		if err := facades.Orm().Query().Create(&calendarPermission); err != nil {

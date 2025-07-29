@@ -47,7 +47,7 @@ err := querybuilder.For(&models.User{}).
     WithRequest(ctx).
     AllowedFilters("name", "email").
     AllowedSorts("name", "created_at").
-    AllowedIncludes("roles", "tenants").
+    AllowedIncludes("roles", "organizations").
     Get(&users)
 ```
 
@@ -509,7 +509,7 @@ GET /users?pagination_type=offset&page=1&limit=10
 ### Including Relationships
 ```bash
 # Includes
-GET /users?include=roles,tenants
+GET /users?include=roles,organizations
 
 # Include with counts
 GET /users?include=rolesCount,posts

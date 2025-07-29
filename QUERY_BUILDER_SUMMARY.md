@@ -154,7 +154,7 @@ GET /api/v1/users?sort=name,-created_at
 GET /api/v1/users?include=roles
 
 # Include multiple relationships
-GET /api/v1/users?include=roles,tenants
+GET /api/v1/users?include=roles,organizations
 ```
 
 ### Field Selection
@@ -183,7 +183,7 @@ func (uc *UserController) Index(ctx http.Context) http.Response {
             querybuilder.Exact("is_active"),
         ).
         AllowedSorts("id", "name", "created_at").
-        AllowedIncludes("roles", "tenants").
+        AllowedIncludes("roles", "organizations").
         DefaultSort("-created_at").
         Get(&users)
 

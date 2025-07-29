@@ -21,11 +21,11 @@ func (m *PermissionMiddleware) Handle(ctx http.Context) http.Response {
 	// For now, we'll implement a basic version without full auth integration
 	// This can be enhanced once proper auth is set up
 
-	// Get tenant from context
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	// Get organization from context
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(http.Json{
-			"error": "Tenant context required",
+			"error": "Organization context required",
 		})
 	}
 
@@ -34,13 +34,13 @@ func (m *PermissionMiddleware) Handle(ctx http.Context) http.Response {
 	return nil
 }
 
-func (m *PermissionMiddleware) userHasPermission(user *models.User, permission string, tenantID uint) bool {
-	// Check if user has permission through roles in this tenant
+func (m *PermissionMiddleware) userHasPermission(user *models.User, permission string, organizationId uint) bool {
+	// Check if user has permission through roles in this organization
 	var count int64
 	err := facades.Orm().Query().
 		Table("user_roles ur").
 		Select("count(*)").
-		Where("ur.user_id = ? AND ur.tenant_id = ?", user.ID, tenantID).
+		Where("ur.user_id = ? AND ur.organization_id = ?", user.ID, organizationId).
 		Where("EXISTS (SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ur.role_id AND p.name = ?)", permission).
 		Scan(&count)
 
@@ -59,11 +59,11 @@ func Permission(permission string) func(ctx http.Context) http.Response {
 
 func HasRole(role string) func(ctx http.Context) http.Response {
 	return func(ctx http.Context) http.Response {
-		// Get tenant from context
-		tenantID := ctx.Value("tenant_id")
-		if tenantID == nil {
+		// Get organization from context
+		organizationId := ctx.Value("organization_id")
+		if organizationId == nil {
 			return ctx.Response().Status(400).Json(http.Json{
-				"error": "Tenant context required",
+				"error": "Organization context required",
 			})
 		}
 

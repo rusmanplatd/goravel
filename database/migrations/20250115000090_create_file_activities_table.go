@@ -27,7 +27,7 @@ func (r *M20250115000090CreateFileActivitiesTable) Up() error {
 		// Relationships
 		table.Ulid("file_id").Comment("File ID the activity belongs to")
 		table.Ulid("user_id").Nullable().Comment("User who performed the activity")
-		table.Ulid("tenant_id").Nullable().Comment("Tenant/Organization ID")
+		table.Ulid("organization_id").Nullable().Comment("Organization ID")
 
 		// Timestamps
 		table.TimestampsTz()
@@ -35,14 +35,14 @@ func (r *M20250115000090CreateFileActivitiesTable) Up() error {
 		// Indexes
 		table.Index("file_id")
 		table.Index("user_id")
-		table.Index("tenant_id")
+		table.Index("organization_id")
 		table.Index("action")
 		table.Index("created_at")
 
 		// Foreign key constraints
 		table.Foreign("file_id").References("id").On("files")
 		table.Foreign("user_id").References("id").On("users")
-		table.Foreign("tenant_id").References("id").On("tenants")
+		table.Foreign("organization_id").References("id").On("organizations")
 	})
 }
 

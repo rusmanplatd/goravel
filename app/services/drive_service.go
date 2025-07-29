@@ -257,7 +257,7 @@ func (ds *DriveService) generatePreview(ctx context.Context, file *models.File) 
 }
 
 // UploadFile uploads a file to the drive
-func (ds *DriveService) UploadFile(ctx context.Context, userID string, folderID *string, filename string, content io.Reader, size int64, tenantID *string) (*models.File, error) {
+func (ds *DriveService) UploadFile(ctx context.Context, userID string, folderID *string, filename string, content io.Reader, size int64, organizationID *string) (*models.File, error) {
 	// Check storage quota before upload
 	if err := ds.CheckStorageQuota(ctx, userID, size); err != nil {
 		return nil, fmt.Errorf("storage quota exceeded: %v", err)
@@ -306,7 +306,7 @@ func (ds *DriveService) UploadFile(ctx context.Context, userID string, folderID 
 		Status:          "active",
 		OwnerID:         userID,
 		FolderID:        folderID,
-		TenantID:        tenantID,
+		OrganizationID:  organizationID,
 	}
 
 	if err := facades.Orm().Query().Create(&file); err != nil {
@@ -332,7 +332,7 @@ func (ds *DriveService) UploadFile(ctx context.Context, userID string, folderID 
 }
 
 // CreateFolder creates a new folder
-func (ds *DriveService) CreateFolder(ctx context.Context, userID string, parentID *string, name string, tenantID *string) (*models.Folder, error) {
+func (ds *DriveService) CreateFolder(ctx context.Context, userID string, parentID *string, name string, organizationID *string) (*models.Folder, error) {
 	// Check if folder with same name exists in parent
 	query := facades.Orm().Query().Where("owner_id", userID).Where("name", name)
 	if parentID != nil {
@@ -360,12 +360,12 @@ func (ds *DriveService) CreateFolder(ctx context.Context, userID string, parentI
 
 	// Create folder record
 	folder := &models.Folder{
-		Name:     name,
-		Path:     path,
-		Level:    level,
-		OwnerID:  userID,
-		ParentID: parentID,
-		TenantID: tenantID,
+		Name:           name,
+		Path:           path,
+		Level:          level,
+		OwnerID:        userID,
+		ParentID:       parentID,
+		OrganizationID: organizationID,
 	}
 
 	if err := facades.Orm().Query().Create(&folder); err != nil {

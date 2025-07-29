@@ -6,13 +6,13 @@ import (
 	"github.com/goravel/framework/facades"
 )
 
-// HasRole checks if user has a specific role in a tenant
-func (u *User) HasRole(roleName string, tenantID string) bool {
+// HasRole checks if user has a specific role in an organization
+func (u *User) HasRole(roleName string, organizationID string) bool {
 	var count int64
 	err := facades.Orm().Query().
 		Table("user_roles ur").
 		Select("count(*)").
-		Where("ur.user_id = ? AND ur.tenant_id = ?", u.ID, tenantID).
+		Where("ur.user_id = ? AND ur.organization_id = ?", u.ID, organizationID).
 		Where("EXISTS (SELECT 1 FROM roles r WHERE r.id = ur.role_id AND r.name = ?)", roleName).
 		Scan(&count)
 
@@ -23,13 +23,13 @@ func (u *User) HasRole(roleName string, tenantID string) bool {
 	return count > 0
 }
 
-// HasPermission checks if user has a specific permission in a tenant
-func (u *User) HasPermission(permissionName string, tenantID string) bool {
+// HasPermission checks if user has a specific permission in an organization
+func (u *User) HasPermission(permissionName string, organizationID string) bool {
 	var count int64
 	err := facades.Orm().Query().
 		Table("user_roles ur").
 		Select("count(*)").
-		Where("ur.user_id = ? AND ur.tenant_id = ?", u.ID, tenantID).
+		Where("ur.user_id = ? AND ur.organization_id = ?", u.ID, organizationID).
 		Where("EXISTS (SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ur.role_id AND p.name = ?)", permissionName).
 		Scan(&count)
 
@@ -40,73 +40,75 @@ func (u *User) HasPermission(permissionName string, tenantID string) bool {
 	return count > 0
 }
 
-// GetRolesForTenant returns all roles for user in a specific tenant
-func (u *User) GetRolesForTenant(tenantID string) ([]Role, error) {
+// GetRolesForOrganization returns all roles for user in a specific organization
+func (u *User) GetRolesForOrganization(organizationID string) ([]Role, error) {
 	var roles []Role
 	err := facades.Orm().Query().
-		Where("id IN (SELECT role_id FROM user_roles WHERE user_id = ? AND tenant_id = ?)", u.ID, tenantID).
+		Where("id IN (SELECT role_id FROM user_roles WHERE user_id = ? AND organization_id = ?)", u.ID, organizationID).
 		Find(&roles)
 
 	return roles, err
 }
 
-// GetPermissionsForTenant returns all permissions for user in a specific tenant
-func (u *User) GetPermissionsForTenant(tenantID string) ([]Permission, error) {
+// GetPermissionsForOrganization returns all permissions for user in a specific organization
+func (u *User) GetPermissionsForOrganization(organizationID string) ([]Permission, error) {
 	var permissions []Permission
 	err := facades.Orm().Query().
-		Where("id IN (SELECT permission_id FROM role_permissions rp JOIN user_roles ur ON rp.role_id = ur.role_id WHERE ur.user_id = ? AND ur.tenant_id = ?)", u.ID, tenantID).
+		Where("id IN (SELECT permission_id FROM role_permissions rp JOIN user_roles ur ON rp.role_id = ur.role_id WHERE ur.user_id = ? AND ur.organization_id = ?)", u.ID, organizationID).
 		Find(&permissions)
 
 	return permissions, err
 }
 
-// BelongsToTenant checks if user belongs to a specific tenant
-func (u *User) BelongsToTenant(tenantID string) bool {
+// BelongsToOrganization checks if user belongs to a specific organization
+func (u *User) BelongsToOrganization(organizationID string) bool {
 	var count int64
 	facades.Orm().Query().
-		Raw("SELECT COUNT(*) FROM user_tenants WHERE user_id = ? AND tenant_id = ? AND is_active = ?", u.ID, tenantID, true).
+		Raw("SELECT COUNT(*) FROM user_organizations WHERE user_id = ? AND organization_id = ? AND is_active = ?", u.ID, organizationID, true).
 		Scan(&count)
 
 	return count > 0
 }
 
-// AssignRole assigns a role to user in a specific tenant
-func (u *User) AssignRole(roleID string, tenantID string) error {
+// AssignRole assigns a role to user in a specific organization
+func (u *User) AssignRole(roleID string, organizationID string) error {
 	userRole := UserRole{
-		UserID:   u.ID,
-		RoleID:   roleID,
-		TenantID: &tenantID,
+		UserID:         u.ID,
+		RoleID:         roleID,
+		OrganizationID: &organizationID,
 	}
 
 	return facades.Orm().Query().Create(&userRole)
 }
 
-// RemoveRole removes a role from user in a specific tenant
-func (u *User) RemoveRole(roleID string, tenantID string) error {
+// RemoveRole removes a role from user in a specific organization
+func (u *User) RemoveRole(roleID string, organizationID string) error {
 	_, err := facades.Orm().Query().
-		Where("user_id = ? AND role_id = ? AND tenant_id = ?", u.ID, roleID, tenantID).
+		Where("user_id = ? AND role_id = ? AND organization_id = ?", u.ID, roleID, organizationID).
 		Delete(&UserRole{})
 
 	return err
 }
 
-// AddToTenant adds user to a tenant
-func (u *User) AddToTenant(tenantID string) error {
-	userTenant := UserTenant{
-		UserID:   u.ID,
-		TenantID: tenantID,
-		IsActive: true,
-		JoinedAt: time.Now(),
+// AddToOrganization adds user to an organization
+func (u *User) AddToOrganization(organizationID string) error {
+	userOrg := UserOrganization{
+		UserID:         u.ID,
+		OrganizationID: organizationID,
+		IsActive:       true,
+		JoinedAt:       time.Now(),
+		Role:           "member",
+		Status:         "active",
 	}
 
-	return facades.Orm().Query().Create(&userTenant)
+	return facades.Orm().Query().Create(&userOrg)
 }
 
-// RemoveFromTenant removes user from a tenant
-func (u *User) RemoveFromTenant(tenantID string) error {
+// RemoveFromOrganization removes user from an organization
+func (u *User) RemoveFromOrganization(organizationID string) error {
 	_, err := facades.Orm().Query().
-		Where("user_id = ? AND tenant_id = ?", u.ID, tenantID).
-		Delete(&UserTenant{})
+		Where("user_id = ? AND organization_id = ?", u.ID, organizationID).
+		Delete(&UserOrganization{})
 
 	return err
 }

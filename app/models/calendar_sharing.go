@@ -56,9 +56,9 @@ type CalendarShare struct {
 	// @example {"email_on_changes": true, "push_notifications": false}
 	NotificationSettings string `json:"notification_settings" example:"{\"email_on_changes\": true, \"push_notifications\": false}"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Calendar owner
@@ -67,8 +67,8 @@ type CalendarShare struct {
 	// @Description User with shared access
 	SharedWith *User `gorm:"foreignKey:SharedWithID" json:"shared_with,omitempty"`
 
-	// @Description Associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 }
 
 // CalendarDelegate represents a delegation relationship
@@ -135,9 +135,9 @@ type CalendarDelegate struct {
 	// @example {"notify_on_changes": true, "daily_summary": true}
 	NotificationSettings string `json:"notification_settings" example:"{\"notify_on_changes\": true, \"daily_summary\": true}"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Principal user (calendar owner)
@@ -146,8 +146,8 @@ type CalendarDelegate struct {
 	// @Description Delegate user
 	Delegate *User `gorm:"foreignKey:DelegateID" json:"delegate,omitempty"`
 
-	// @Description Associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description Delegation activities log
 	Activities []DelegationActivity `gorm:"foreignKey:DelegationID" json:"activities,omitempty"`
@@ -233,16 +233,16 @@ type CalendarPermission struct {
 	// @example 2024-12-31T23:59:59Z
 	ExpiresAt *time.Time `json:"expires_at,omitempty" example:"2024-12-31T23:59:59Z"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description User with the permission
 	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 
-	// @Description Associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 }
 
 // SharedCalendarView represents a view of shared calendars for a user

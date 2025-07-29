@@ -38,7 +38,7 @@ func NewEventTemplateController() *EventTemplateController {
 // @Param filter[type] query string false "Filter by template type"
 // @Param filter[is_active] query bool false "Filter by active status"
 // @Param filter[is_public] query bool false "Filter by public status"
-// @Param filter[tenant_id] query string false "Filter by tenant ID"
+// @Param filter[organization_id] query string false "Filter by organization ID"
 // @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
 // @Success 200 {object} responses.QueryBuilderResponse{data=[]models.EventTemplate}
 // @Failure 400 {object} responses.ErrorResponse
@@ -56,10 +56,10 @@ func (etc *EventTemplateController) Index(ctx http.Context) http.Response {
 			querybuilder.Exact("type"),
 			querybuilder.Exact("is_active"),
 			querybuilder.Exact("is_public"),
-			querybuilder.Exact("tenant_id"),
+			querybuilder.Exact("organization_id"),
 		).
 		AllowedSorts("name", "category", "type", "usage_count", "last_used_at", "created_at", "updated_at").
-		AllowedIncludes("creator", "tenant").
+		AllowedIncludes("creator", "organization").
 		DefaultSort("-created_at")
 
 	// Use AutoPaginate for unified pagination support
@@ -89,7 +89,7 @@ func (etc *EventTemplateController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 
 	var template models.EventTemplate
-	err := facades.Orm().Query().With("Creator").With("Tenant").
+	err := facades.Orm().Query().With("Creator").With("Organization").
 		Where("id = ?", id).First(&template)
 	if err != nil {
 		return ctx.Response().Status(404).Json(responses.ErrorResponse{
@@ -153,7 +153,7 @@ func (etc *EventTemplateController) Store(ctx http.Context) http.Response {
 		Tags:                    request.Tags,
 		IsActive:                request.IsActive,
 		IsPublic:                request.IsPublic,
-		TenantID:                request.TenantID,
+		OrganizationID:          request.OrganizationID,
 		BaseModel: models.BaseModel{
 			CreatedBy: &userID,
 		},
@@ -168,7 +168,7 @@ func (etc *EventTemplateController) Store(ctx http.Context) http.Response {
 	}
 
 	// Reload with relationships
-	facades.Orm().Query().With("Creator").With("Tenant").
+	facades.Orm().Query().With("Creator").With("Organization").
 		Where("id = ?", template.ID).First(&template)
 
 	return ctx.Response().Status(201).Json(responses.APIResponse{
@@ -263,7 +263,7 @@ func (etc *EventTemplateController) Update(ctx http.Context) http.Response {
 	}
 
 	// Reload with relationships
-	facades.Orm().Query().With("Creator").With("Tenant").
+	facades.Orm().Query().With("Creator").With("Organization").
 		Where("id = ?", template.ID).First(&template)
 
 	return ctx.Response().Success().Json(responses.APIResponse{
@@ -471,7 +471,7 @@ func (etc *EventTemplateController) createEventFromTemplate(template *models.Eve
 		Timezone:         request.Timezone,
 		Status:           "scheduled",
 		ReminderSettings: reminderSettings,
-		TenantID:         template.TenantID,
+		OrganizationID:   template.OrganizationID,
 		TemplateID:       &template.ID,
 		BaseModel: models.BaseModel{
 			CreatedBy: &userID,
@@ -522,7 +522,7 @@ func (etc *EventTemplateController) createEventFromTemplate(template *models.Eve
 	tx.Commit()
 
 	// Reload with relationships
-	facades.Orm().Query().With("Creator").With("Tenant").
+	facades.Orm().Query().With("Creator").With("Organization").
 		With("Participants.User").With("Template").
 		Where("id = ?", event.ID).First(&event)
 

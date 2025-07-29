@@ -275,7 +275,7 @@ code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
 ## 🔮 Future Enhancements Enabled
 
 ### Advanced Use Cases
-1. **Multi-Tenant Scopes**: Organization-specific permissions
+1. **Multi-Organization Scopes**: Organization-specific permissions
 2. **Dynamic Scope Generation**: Runtime permission creation
 3. **Scope Analytics**: Usage pattern analysis
 4. **Federated Scopes**: Cross-domain permission mapping

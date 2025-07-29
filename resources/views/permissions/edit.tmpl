@@ -8,7 +8,7 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item">
-                        <a href="/permissions?tenant_id={{.tenantID}}" class="text-decoration-none">
+                        <a href="/permissions?organization_id={{.organizationId}}" class="text-decoration-none">
                             <i class="fas fa-key me-1"></i>Permissions
                         </a>
                     </li>
@@ -23,7 +23,7 @@
                     <div class="card-body">
                         <h5 class="card-title">Edit Permission</h5>
                         <p class="card-text text-muted small">
-                            Update the permission information for the tenant.
+                            Update the permission information for the organization.
                         </p>
                     </div>
                 </div>
@@ -33,7 +33,7 @@
                     <div class="card-body">
                         <form method="POST" action="/permissions/{{.permission.ID}}">
                             <input type="hidden" name="_method" value="PUT">
-                            <input type="hidden" name="tenant_id" value="{{.tenantID}}">
+                            <input type="hidden" name="organization_id" value="{{.organizationId}}">
                             <input type="hidden" name="id" value="{{.permission.ID}}">
                             
                             {{if .error}}
@@ -66,7 +66,7 @@
                             </div>
 
                             <div class="d-flex justify-content-end gap-2 mt-4">
-                                <a href="/permissions?tenant_id={{.tenantID}}" class="btn btn-secondary">Cancel</a>
+                                <a href="/permissions?organization_id={{.organizationId}}" class="btn btn-secondary">Cancel</a>
                                 <button type="submit" class="btn btn-primary">
                                     <i class="fas fa-save me-2"></i>Update Permission
                                 </button>

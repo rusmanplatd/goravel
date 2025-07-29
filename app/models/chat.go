@@ -28,19 +28,19 @@ type ChatRoom struct {
 	// @example https://example.com/avatar.jpg
 	Avatar string `json:"avatar,omitempty" example:"https://example.com/avatar.jpg"`
 
-	// Tenant ID for multi-tenant support
+	// Organization ID for multi-organization support
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"index;type:char(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"index;type:char(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Last activity timestamp
 	// @example 2024-01-15T10:30:00Z
 	LastActivityAt *time.Time `json:"last_activity_at,omitempty" example:"2024-01-15T10:30:00Z"`
 
 	// Relationships
-	Tenant   *Tenant          `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Members  []ChatRoomMember `gorm:"foreignKey:ChatRoomID" json:"members,omitempty"`
-	Messages []ChatMessage    `gorm:"foreignKey:ChatRoomID" json:"messages,omitempty"`
-	Keys     []ChatRoomKey    `gorm:"foreignKey:ChatRoomID" json:"keys,omitempty"`
+	Organization *Organization    `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
+	Members      []ChatRoomMember `gorm:"foreignKey:ChatRoomID" json:"members,omitempty"`
+	Messages     []ChatMessage    `gorm:"foreignKey:ChatRoomID" json:"messages,omitempty"`
+	Keys         []ChatRoomKey    `gorm:"foreignKey:ChatRoomID" json:"keys,omitempty"`
 }
 
 // ChatRoomMember represents a member of a chat room

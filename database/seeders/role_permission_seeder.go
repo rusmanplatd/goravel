@@ -47,12 +47,12 @@ func (s *RolePermissionSeeder) Run() error {
 		{"name": "permissions.delete", "guard": "api", "description": "Delete permissions"},
 		{"name": "permissions.assign", "guard": "api", "description": "Assign permissions to roles"},
 
-		// Tenant permissions
-		{"name": "tenants.view", "guard": "api", "description": "View tenants"},
-		{"name": "tenants.create", "guard": "api", "description": "Create tenants"},
-		{"name": "tenants.edit", "guard": "api", "description": "Edit tenants"},
-		{"name": "tenants.delete", "guard": "api", "description": "Delete tenants"},
-		{"name": "tenants.manage", "guard": "api", "description": "Manage tenants"},
+		// Organization permissions (expanded from organization permissions)
+		{"name": "organizations.view", "guard": "api", "description": "View organizations"},
+		{"name": "organizations.create", "guard": "api", "description": "Create organizations"},
+		{"name": "organizations.edit", "guard": "api", "description": "Edit organizations"},
+		{"name": "organizations.delete", "guard": "api", "description": "Delete organizations"},
+		{"name": "organizations.manage", "guard": "api", "description": "Manage organizations"},
 
 		// Activity log permissions
 		{"name": "activity-logs.view", "guard": "api", "description": "View activity logs"},
@@ -158,7 +158,7 @@ func (s *RolePermissionSeeder) Run() error {
 				"users.view", "users.create", "users.edit", "users.delete", "users.export", "users.import",
 				"roles.view", "roles.create", "roles.edit", "roles.delete", "roles.assign",
 				"permissions.view", "permissions.create", "permissions.edit", "permissions.delete", "permissions.assign",
-				"tenants.view", "tenants.create", "tenants.edit", "tenants.delete", "tenants.manage",
+				"organizations.view", "organizations.create", "organizations.edit", "organizations.delete", "organizations.manage",
 				"activity-logs.view", "activity-logs.export",
 				"countries.view", "countries.manage",
 				"provinces.view", "provinces.manage",
@@ -170,12 +170,12 @@ func (s *RolePermissionSeeder) Run() error {
 		{
 			"name":        "admin",
 			"guard":       "api",
-			"description": "Administrator with tenant-level access",
+			"description": "Administrator with organization-level access",
 			"permissions": []string{
 				"users.view", "users.create", "users.edit", "users.delete", "users.export",
 				"roles.view", "roles.create", "roles.edit", "roles.assign",
 				"permissions.view", "permissions.assign",
-				"tenants.view", "tenants.edit",
+				"organizations.view", "organizations.edit",
 				"activity-logs.view",
 				"countries.view", "provinces.view", "cities.view", "districts.view",
 			},

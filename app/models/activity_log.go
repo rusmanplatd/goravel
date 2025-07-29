@@ -152,13 +152,13 @@ type ActivityLog struct {
 	// @example 2024-01-15T10:30:00Z
 	EventTimestamp time.Time `gorm:"index;not null;default:CURRENT_TIMESTAMP" json:"event_timestamp" example:"2024-01-15T10:30:00Z"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"index;type:char(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK" validate:"max:26"`
+	OrganizationID string `gorm:"index;type:char(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK" validate:"max:26"`
 
 	// Relationships
-	// @Description Tenant this activity belongs to
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Organization this activity belongs to
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description User who performed the action (if causer is a user)
 	CauserUser *User `gorm:"foreignKey:CauserID;references:ID" json:"causer_user,omitempty"`
@@ -277,13 +277,13 @@ func (al *ActivityLogger) LogActivity(activity *ActivityLog) error {
 }
 
 // Log creates a new activity log entry
-func (al *ActivityLogger) Log(description string, subject interface{}, causer interface{}, properties map[string]interface{}, tenantID string) error {
+func (al *ActivityLogger) Log(description string, subject interface{}, causer interface{}, properties map[string]interface{}, organizationId string) error {
 	activity := &ActivityLog{
-		Description: description,
-		TenantID:    tenantID,
-		Category:    CategorySystem,
-		Severity:    SeverityInfo,
-		Status:      StatusSuccess,
+		Description:    description,
+		OrganizationID: organizationId,
+		Category:       CategorySystem,
+		Severity:       SeverityInfo,
+		Status:         StatusSuccess,
 	}
 
 	// Set subject information
@@ -311,14 +311,14 @@ func (al *ActivityLogger) Log(description string, subject interface{}, causer in
 }
 
 // LogWithName creates a new activity log entry with a specific log name
-func (al *ActivityLogger) LogWithName(logName, description string, subject interface{}, causer interface{}, properties map[string]interface{}, tenantID string) error {
+func (al *ActivityLogger) LogWithName(logName, description string, subject interface{}, causer interface{}, properties map[string]interface{}, organizationId string) error {
 	activity := &ActivityLog{
-		LogName:     logName,
-		Description: description,
-		TenantID:    tenantID,
-		Category:    CategorySystem,
-		Severity:    SeverityInfo,
-		Status:      StatusSuccess,
+		LogName:        logName,
+		Description:    description,
+		OrganizationID: organizationId,
+		Category:       CategorySystem,
+		Severity:       SeverityInfo,
+		Status:         StatusSuccess,
 	}
 
 	// Set subject information
@@ -346,14 +346,14 @@ func (al *ActivityLogger) LogWithName(logName, description string, subject inter
 }
 
 // LogSecurityEvent creates a security-related activity log entry
-func (al *ActivityLogger) LogSecurityEvent(logName, description string, severity ActivityLogSeverity, properties map[string]interface{}, tenantID string) error {
+func (al *ActivityLogger) LogSecurityEvent(logName, description string, severity ActivityLogSeverity, properties map[string]interface{}, organizationId string) error {
 	activity := &ActivityLog{
-		LogName:     logName,
-		Description: description,
-		Category:    CategorySecurity,
-		Severity:    severity,
-		Status:      StatusWarning,
-		TenantID:    tenantID,
+		LogName:        logName,
+		Description:    description,
+		Category:       CategorySecurity,
+		Severity:       severity,
+		Status:         StatusWarning,
+		OrganizationID: organizationId,
 	}
 
 	if err := activity.SetPropertiesMap(properties); err != nil {
@@ -364,7 +364,7 @@ func (al *ActivityLogger) LogSecurityEvent(logName, description string, severity
 }
 
 // GetActivitiesForSubject retrieves activities for a specific subject
-func (al *ActivityLogger) GetActivitiesForSubject(subject interface{}, tenantID string) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetActivitiesForSubject(subject interface{}, organizationId string) ([]ActivityLog, error) {
 	var activities []ActivityLog
 	subjectType := reflect.TypeOf(subject).String()
 
@@ -374,7 +374,7 @@ func (al *ActivityLogger) GetActivitiesForSubject(subject interface{}, tenantID 
 	}
 
 	err := facades.Orm().Query().
-		Where("subject_type = ? AND subject_id = ? AND tenant_id = ?", subjectType, subjectID, tenantID).
+		Where("subject_type = ? AND subject_id = ? AND organization_id = ?", subjectType, subjectID, organizationId).
 		Order("event_timestamp DESC").
 		Find(&activities)
 
@@ -382,7 +382,7 @@ func (al *ActivityLogger) GetActivitiesForSubject(subject interface{}, tenantID 
 }
 
 // GetActivitiesForCauser retrieves activities caused by a specific user
-func (al *ActivityLogger) GetActivitiesForCauser(causer interface{}, tenantID string) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetActivitiesForCauser(causer interface{}, organizationId string) ([]ActivityLog, error) {
 	var activities []ActivityLog
 	causerType := reflect.TypeOf(causer).String()
 
@@ -392,7 +392,7 @@ func (al *ActivityLogger) GetActivitiesForCauser(causer interface{}, tenantID st
 	}
 
 	err := facades.Orm().Query().
-		Where("causer_type = ? AND causer_id = ? AND tenant_id = ?", causerType, causerID, tenantID).
+		Where("causer_type = ? AND causer_id = ? AND organization_id = ?", causerType, causerID, organizationId).
 		Order("event_timestamp DESC").
 		Find(&activities)
 
@@ -400,11 +400,11 @@ func (al *ActivityLogger) GetActivitiesForCauser(causer interface{}, tenantID st
 }
 
 // GetActivitiesByLogName retrieves activities by log name
-func (al *ActivityLogger) GetActivitiesByLogName(logName, tenantID string) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetActivitiesByLogName(logName, organizationId string) ([]ActivityLog, error) {
 	var activities []ActivityLog
 
 	err := facades.Orm().Query().
-		Where("log_name = ? AND tenant_id = ?", logName, tenantID).
+		Where("log_name = ? AND organization_id = ?", logName, organizationId).
 		Order("event_timestamp DESC").
 		Find(&activities)
 
@@ -412,11 +412,11 @@ func (al *ActivityLogger) GetActivitiesByLogName(logName, tenantID string) ([]Ac
 }
 
 // GetActivitiesInDateRange retrieves activities within a date range
-func (al *ActivityLogger) GetActivitiesInDateRange(startDate, endDate time.Time, tenantID string) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetActivitiesInDateRange(startDate, endDate time.Time, organizationId string) ([]ActivityLog, error) {
 	var activities []ActivityLog
 
 	err := facades.Orm().Query().
-		Where("event_timestamp BETWEEN ? AND ? AND tenant_id = ?", startDate, endDate, tenantID).
+		Where("event_timestamp BETWEEN ? AND ? AND organization_id = ?", startDate, endDate, organizationId).
 		Order("event_timestamp DESC").
 		Find(&activities)
 
@@ -424,11 +424,11 @@ func (al *ActivityLogger) GetActivitiesInDateRange(startDate, endDate time.Time,
 }
 
 // GetActivitiesByCategory retrieves activities by category
-func (al *ActivityLogger) GetActivitiesByCategory(category ActivityLogCategory, tenantID string) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetActivitiesByCategory(category ActivityLogCategory, organizationId string) ([]ActivityLog, error) {
 	var activities []ActivityLog
 
 	err := facades.Orm().Query().
-		Where("category = ? AND tenant_id = ?", category, tenantID).
+		Where("category = ? AND organization_id = ?", category, organizationId).
 		Order("event_timestamp DESC").
 		Find(&activities)
 
@@ -436,11 +436,11 @@ func (al *ActivityLogger) GetActivitiesByCategory(category ActivityLogCategory, 
 }
 
 // GetActivitiesBySeverity retrieves activities by severity level
-func (al *ActivityLogger) GetActivitiesBySeverity(severity ActivityLogSeverity, tenantID string) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetActivitiesBySeverity(severity ActivityLogSeverity, organizationId string) ([]ActivityLog, error) {
 	var activities []ActivityLog
 
 	err := facades.Orm().Query().
-		Where("severity = ? AND tenant_id = ?", severity, tenantID).
+		Where("severity = ? AND organization_id = ?", severity, organizationId).
 		Order("event_timestamp DESC").
 		Find(&activities)
 
@@ -448,11 +448,11 @@ func (al *ActivityLogger) GetActivitiesBySeverity(severity ActivityLogSeverity, 
 }
 
 // GetHighRiskActivities retrieves high-risk activities
-func (al *ActivityLogger) GetHighRiskActivities(tenantID string, limit int) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetHighRiskActivities(organizationId string, limit int) ([]ActivityLog, error) {
 	var activities []ActivityLog
 
 	query := facades.Orm().Query().
-		Where("tenant_id = ? AND (risk_score > 70 OR severity IN (?, ?))", tenantID, SeverityHigh, SeverityCritical).
+		Where("organization_id = ? AND (risk_score > 70 OR severity IN (?, ?))", organizationId, SeverityHigh, SeverityCritical).
 		Order("event_timestamp DESC")
 
 	if limit > 0 {
@@ -464,12 +464,12 @@ func (al *ActivityLogger) GetHighRiskActivities(tenantID string, limit int) ([]A
 }
 
 // GetSecurityActivities retrieves security-related activities
-func (al *ActivityLogger) GetSecurityActivities(tenantID string, since time.Time, limit int) ([]ActivityLog, error) {
+func (al *ActivityLogger) GetSecurityActivities(organizationId string, since time.Time, limit int) ([]ActivityLog, error) {
 	var activities []ActivityLog
 
 	query := facades.Orm().Query().
-		Where("tenant_id = ? AND category IN (?, ?, ?) AND event_timestamp >= ?",
-			tenantID, CategorySecurity, CategoryAuthentication, CategoryAuthorization, since).
+		Where("organization_id = ? AND category IN (?, ?, ?) AND event_timestamp >= ?",
+			organizationId, CategorySecurity, CategoryAuthentication, CategoryAuthorization, since).
 		Order("event_timestamp DESC")
 
 	if limit > 0 {
@@ -481,13 +481,13 @@ func (al *ActivityLogger) GetSecurityActivities(tenantID string, since time.Time
 }
 
 // GetActivityStats returns activity statistics
-func (al *ActivityLogger) GetActivityStats(tenantID string, since time.Time) (map[string]interface{}, error) {
+func (al *ActivityLogger) GetActivityStats(organizationId string, since time.Time) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Total activities
 	totalCount, err := facades.Orm().Query().
 		Model(&ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp >= ?", tenantID, since).
+		Where("organization_id = ? AND event_timestamp >= ?", organizationId, since).
 		Count()
 	if err != nil {
 		return nil, err
@@ -502,7 +502,7 @@ func (al *ActivityLogger) GetActivityStats(tenantID string, since time.Time) (ma
 	err = facades.Orm().Query().
 		Model(&ActivityLog{}).
 		Select("category, COUNT(*) as count").
-		Where("tenant_id = ? AND event_timestamp >= ?", tenantID, since).
+		Where("organization_id = ? AND event_timestamp >= ?", organizationId, since).
 		Group("category").
 		Find(&categoryStats)
 	if err != nil {
@@ -518,7 +518,7 @@ func (al *ActivityLogger) GetActivityStats(tenantID string, since time.Time) (ma
 	err = facades.Orm().Query().
 		Model(&ActivityLog{}).
 		Select("severity, COUNT(*) as count").
-		Where("tenant_id = ? AND event_timestamp >= ?", tenantID, since).
+		Where("organization_id = ? AND event_timestamp >= ?", organizationId, since).
 		Group("severity").
 		Find(&severityStats)
 	if err != nil {
@@ -529,8 +529,8 @@ func (al *ActivityLogger) GetActivityStats(tenantID string, since time.Time) (ma
 	// High-risk activities count
 	highRiskCount, err := facades.Orm().Query().
 		Model(&ActivityLog{}).
-		Where("tenant_id = ? AND event_timestamp >= ? AND (risk_score > 70 OR severity IN (?, ?))",
-			tenantID, since, SeverityHigh, SeverityCritical).
+		Where("organization_id = ? AND event_timestamp >= ? AND (risk_score > 70 OR severity IN (?, ?))",
+			organizationId, since, SeverityHigh, SeverityCritical).
 		Count()
 	if err != nil {
 		return nil, err

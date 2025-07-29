@@ -63,7 +63,7 @@ type ArchivalService struct {
 // ArchiveMetadata contains metadata about archived logs
 type ArchiveMetadata struct {
 	ArchiveID        string                 `json:"archive_id"`
-	TenantID         string                 `json:"tenant_id"`
+	OrganizationID  string                 `json:"organization_id"`
 	ArchivePath      string                 `json:"archive_path"`
 	StartDate        time.Time              `json:"start_date"`
 	EndDate          time.Time              `json:"end_date"`
@@ -84,7 +84,7 @@ type ArchiveMetadata struct {
 // RetentionReport provides information about retention activities
 type RetentionReport struct {
 	ReportID         string                 `json:"report_id"`
-	TenantID         string                 `json:"tenant_id"`
+	OrganizationID  string                 `json:"organization_id"`
 	GeneratedAt      time.Time              `json:"generated_at"`
 	Period           string                 `json:"period"`
 	TotalRecords     int64                  `json:"total_records"`
@@ -218,10 +218,10 @@ func (ars *AuditRetentionService) GetAllRetentionPolicies() []*RetentionPolicy {
 }
 
 // ExecuteRetentionPolicies executes all active retention policies
-func (ars *AuditRetentionService) ExecuteRetentionPolicies(ctx context.Context, tenantID string) (*RetentionReport, error) {
+func (ars *AuditRetentionService) ExecuteRetentionPolicies(ctx context.Context, organizationID string) (*RetentionReport, error) {
 	report := &RetentionReport{
 		ReportID:         fmt.Sprintf("retention_report_%d", time.Now().UnixNano()),
-		TenantID:         tenantID,
+		OrganizationID:   organizationID,
 		GeneratedAt:      time.Now(),
 		Period:           "manual",
 		PolicyExecutions: []PolicyExecution{},
@@ -245,7 +245,7 @@ func (ars *AuditRetentionService) ExecuteRetentionPolicies(ctx context.Context, 
 		startTime := time.Now()
 
 		// Execute policy
-		affected, err := ars.executePolicy(ctx, tenantID, policy)
+		affected, err := ars.executePolicy(ctx, organizationID, policy)
 		execution.Duration = time.Since(startTime).String()
 		execution.RecordsAffected = affected
 
@@ -271,14 +271,14 @@ func (ars *AuditRetentionService) ExecuteRetentionPolicies(ctx context.Context, 
 	// Calculate totals
 	totalCount, _ := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Count()
 
 	report.TotalRecords = totalCount
 	report.RetainedRecords = totalCount - report.DeletedRecords
 
 	facades.Log().Info("Retention policies executed", map[string]interface{}{
-		"tenant_id":        tenantID,
+		"organization_id":  organizationID,
 		"total_records":    report.TotalRecords,
 		"archived_records": report.ArchivedRecords,
 		"deleted_records":  report.DeletedRecords,
@@ -298,20 +298,20 @@ func (ars *AuditRetentionService) ScheduleRetentionExecution(ctx context.Context
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// Get all tenants and execute retention policies
+			// Get all organizations and execute retention policies
 			ars.executeScheduledRetention(ctx)
 		}
 	}
 }
 
 // ArchiveAuditLogs archives audit logs based on policy
-func (ars *AuditRetentionService) ArchiveAuditLogs(tenantID string, policy *RetentionPolicy) (*ArchiveMetadata, error) {
+func (ars *AuditRetentionService) ArchiveAuditLogs(organizationID string, policy *RetentionPolicy) (*ArchiveMetadata, error) {
 	cutoffDate := time.Now().Add(-policy.ArchivalPeriod)
 
 	// Get logs to archive
 	var logsToArchive []models.ActivityLog
 	query := facades.Orm().Query().
-		Where("tenant_id = ? AND event_timestamp < ?", tenantID, cutoffDate)
+		Where("organization_id = ? AND event_timestamp < ?", organizationID, cutoffDate)
 
 	// Apply policy filters
 	if len(policy.Categories) > 0 {
@@ -339,10 +339,10 @@ func (ars *AuditRetentionService) ArchiveAuditLogs(tenantID string, policy *Rete
 	}
 
 	// Create archive
-	archiveID := fmt.Sprintf("archive_%s_%d", tenantID, time.Now().Unix())
+	archiveID := fmt.Sprintf("archive_%s_%d", organizationID, time.Now().Unix())
 	archiveMetadata := &ArchiveMetadata{
 		ArchiveID:       archiveID,
-		TenantID:        tenantID,
+		OrganizationID:  organizationID,
 		StartDate:       logsToArchive[len(logsToArchive)-1].EventTimestamp,
 		EndDate:         logsToArchive[0].EventTimestamp,
 		RecordCount:     int64(len(logsToArchive)),
@@ -387,7 +387,7 @@ func (ars *AuditRetentionService) ArchiveAuditLogs(tenantID string, policy *Rete
 
 	facades.Log().Info("Audit logs archived", map[string]interface{}{
 		"archive_id":      archiveID,
-		"tenant_id":       tenantID,
+		"organization_id": organizationID,
 		"record_count":    archiveMetadata.RecordCount,
 		"archive_path":    archivePath,
 		"compressed_size": archiveMetadata.CompressedSize,
@@ -504,33 +504,33 @@ func (ars *AuditRetentionService) GetArchiveMetadata(archiveID string) (*Archive
 	return &metadata, nil
 }
 
-// ListArchives returns a list of all archives for a tenant
-func (ars *AuditRetentionService) ListArchives(tenantID string) ([]*ArchiveMetadata, error) {
-	// Production implementation that lists all archives for a tenant
+// ListArchives returns a list of all archives for a organization
+func (ars *AuditRetentionService) ListArchives(organizationID string) ([]*ArchiveMetadata, error) {
+	// Production implementation that lists all archives for a organization
 	var archives []*ArchiveMetadata
 
 	// Query from database
 	err := facades.Orm().Query().
 		Table("audit_archives").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		OrderBy("created_at DESC").
 		Find(&archives)
 
 	if err != nil {
 		facades.Log().Error("Failed to list archives from database", map[string]interface{}{
-			"tenant_id": tenantID,
-			"error":     err.Error(),
+			"organization_id": organizationID,
+			"error":           err.Error(),
 		})
 
 		// Fallback to file system scan
-		return ars.scanArchiveDirectory(tenantID)
+		return ars.scanArchiveDirectory(organizationID)
 	}
 
 	return archives, nil
 }
 
 // DeleteExpiredLogs deletes logs that have exceeded their retention period
-func (ars *AuditRetentionService) DeleteExpiredLogs(tenantID string, policy *RetentionPolicy) (int64, error) {
+func (ars *AuditRetentionService) DeleteExpiredLogs(organizationID string, policy *RetentionPolicy) (int64, error) {
 	if policy.LegalHold {
 		return 0, fmt.Errorf("cannot delete logs under legal hold")
 	}
@@ -538,7 +538,7 @@ func (ars *AuditRetentionService) DeleteExpiredLogs(tenantID string, policy *Ret
 	cutoffDate := time.Now().Add(-policy.DeleteAfter)
 
 	query := facades.Orm().Query().
-		Where("tenant_id = ? AND event_timestamp < ?", tenantID, cutoffDate)
+		Where("organization_id = ? AND event_timestamp < ?", organizationID, cutoffDate)
 
 	// Apply policy filters
 	if len(policy.Categories) > 0 {
@@ -568,7 +568,7 @@ func (ars *AuditRetentionService) DeleteExpiredLogs(tenantID string, policy *Ret
 
 	// Send notification before deletion if required
 	if policy.NotifyBeforeDelete {
-		ars.sendDeletionNotification(tenantID, policy, count)
+		ars.sendDeletionNotification(organizationID, policy, count)
 	}
 
 	// Delete the logs
@@ -578,10 +578,10 @@ func (ars *AuditRetentionService) DeleteExpiredLogs(tenantID string, policy *Ret
 	}
 
 	facades.Log().Info("Expired audit logs deleted", map[string]interface{}{
-		"tenant_id":   tenantID,
-		"policy_id":   policy.PolicyID,
-		"count":       count,
-		"cutoff_date": cutoffDate,
+		"organization_id": organizationID,
+		"policy_id":       policy.PolicyID,
+		"count":           count,
+		"cutoff_date":     cutoffDate,
 	})
 
 	return count, nil
@@ -644,12 +644,12 @@ func (ars *AuditRetentionService) loadDefaultPolicies() {
 	})
 }
 
-func (ars *AuditRetentionService) executePolicy(ctx context.Context, tenantID string, policy *RetentionPolicy) (int64, error) {
+func (ars *AuditRetentionService) executePolicy(ctx context.Context, organizationID string, policy *RetentionPolicy) (int64, error) {
 	var totalAffected int64
 
 	// Archive logs if auto-archive is enabled
 	if policy.AutoArchive {
-		_, err := ars.ArchiveAuditLogs(tenantID, policy)
+		_, err := ars.ArchiveAuditLogs(organizationID, policy)
 		if err != nil {
 			return 0, fmt.Errorf("archival failed: %w", err)
 		}
@@ -657,7 +657,7 @@ func (ars *AuditRetentionService) executePolicy(ctx context.Context, tenantID st
 
 	// Delete expired logs if auto-delete is enabled
 	if policy.AutoDelete {
-		deleted, err := ars.DeleteExpiredLogs(tenantID, policy)
+		deleted, err := ars.DeleteExpiredLogs(organizationID, policy)
 		if err != nil {
 			return 0, fmt.Errorf("deletion failed: %w", err)
 		}
@@ -668,48 +668,48 @@ func (ars *AuditRetentionService) executePolicy(ctx context.Context, tenantID st
 }
 
 func (ars *AuditRetentionService) executeScheduledRetention(ctx context.Context) {
-	// Get all tenants from the tenant management system
-	tenants, err := ars.getAllTenants(ctx)
+	// Get all organizations from the organization management system
+	organizations, err := ars.getAllOrganizations(ctx)
 	if err != nil {
-		facades.Log().Error("Failed to retrieve tenants for scheduled retention", map[string]interface{}{
+		facades.Log().Error("Failed to retrieve organizations for scheduled retention", map[string]interface{}{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	if len(tenants) == 0 {
-		facades.Log().Warning("No tenants found for scheduled retention", nil)
+	if len(organizations) == 0 {
+		facades.Log().Warning("No organizations found for scheduled retention", nil)
 		return
 	}
 
-	facades.Log().Info("Starting scheduled retention for all tenants", map[string]interface{}{
-		"tenant_count": len(tenants),
+	facades.Log().Info("Starting scheduled retention for all organizations", map[string]interface{}{
+		"organization_count": len(organizations),
 	})
 
-	for _, tenantID := range tenants {
-		report, err := ars.ExecuteRetentionPolicies(ctx, tenantID)
+	for _, organizationID := range organizations {
+		report, err := ars.ExecuteRetentionPolicies(ctx, organizationID)
 		if err != nil {
 			facades.Log().Error("Scheduled retention execution failed", map[string]interface{}{
-				"tenant_id": tenantID,
-				"error":     err.Error(),
+				"organization_id": organizationID,
+				"error":           err.Error(),
 			})
 			continue
 		}
 
 		facades.Log().Info("Scheduled retention executed", map[string]interface{}{
-			"tenant_id":        tenantID,
+			"organization_id":  organizationID,
 			"archived_records": report.ArchivedRecords,
 			"deleted_records":  report.DeletedRecords,
 		})
 	}
 }
 
-func (ars *AuditRetentionService) sendDeletionNotification(tenantID string, policy *RetentionPolicy, count int64) {
+func (ars *AuditRetentionService) sendDeletionNotification(organizationID string, policy *RetentionPolicy, count int64) {
 	// This would send a notification before deleting logs
 	facades.Log().Info("Deletion notification sent", map[string]interface{}{
-		"tenant_id":   tenantID,
-		"policy_name": policy.Name,
-		"count":       count,
+		"organization_id": organizationID,
+		"policy_name":     policy.Name,
+		"count":           count,
 	})
 }
 
@@ -904,10 +904,10 @@ func (ars *AuditRetentionService) validateLogsForRestore(logs []models.ActivityL
 		return fmt.Errorf("log count mismatch: expected %d, got %d", metadata.RecordCount, len(logs))
 	}
 
-	// Validate tenant ID consistency
+	// Validate organization ID consistency
 	for i, log := range logs {
-		if log.TenantID != metadata.TenantID {
-			return fmt.Errorf("tenant ID mismatch at log %d: expected %s, got %s", i, metadata.TenantID, log.TenantID)
+		if log.OrganizationID != metadata.OrganizationID {
+			return fmt.Errorf("organization ID mismatch at log %d: expected %s, got %s", i, metadata.OrganizationID, log.OrganizationID)
 		}
 	}
 
@@ -981,7 +981,7 @@ func (ars *AuditRetentionService) loadArchiveMetadataFromFile(archiveID string) 
 	return &metadata, nil
 }
 
-func (ars *AuditRetentionService) scanArchiveDirectory(tenantID string) ([]*ArchiveMetadata, error) {
+func (ars *AuditRetentionService) scanArchiveDirectory(organizationID string) ([]*ArchiveMetadata, error) {
 	// Scan file system for archives when database is unavailable
 	archiveDir := facades.Config().GetString("audit.archive_directory", "/var/lib/goravel/archives")
 
@@ -1003,7 +1003,7 @@ func (ars *AuditRetentionService) scanArchiveDirectory(tenantID string) ([]*Arch
 				continue
 			}
 
-			if metadata.TenantID == tenantID {
+			if metadata.OrganizationID == organizationID {
 				archives = append(archives, metadata)
 			}
 		}
@@ -1012,127 +1012,127 @@ func (ars *AuditRetentionService) scanArchiveDirectory(tenantID string) ([]*Arch
 	return archives, nil
 }
 
-// getAllTenants retrieves all active tenants from the tenant management system
-func (ars *AuditRetentionService) getAllTenants(ctx context.Context) ([]string, error) {
-	var tenants []string
+// getAllOrganizations retrieves all active organizations from the organization management system
+func (ars *AuditRetentionService) getAllOrganizations(ctx context.Context) ([]string, error) {
+	var organizations []string
 
-	// Query the tenants table to get all active tenants
-	var tenantRecords []map[string]interface{}
+	// Query the organizations table to get all active organizations
+	var organizationRecords []map[string]interface{}
 	err := facades.Orm().Query().
-		Table("tenants").
+		Table("organizations").
 		Where("status", "active").
 		Where("deleted_at IS NULL").
 		Select("id", "name", "domain", "status", "created_at").
-		Get(&tenantRecords)
+		Get(&organizationRecords)
 
 	if err != nil {
-		facades.Log().Error("Failed to query tenants table", map[string]interface{}{
+		facades.Log().Error("Failed to query organizations table", map[string]interface{}{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("failed to query tenants: %v", err)
+		return nil, fmt.Errorf("failed to query organizations: %v", err)
 	}
 
-	// Extract tenant IDs
-	for _, record := range tenantRecords {
-		if tenantID, ok := record["id"].(string); ok && tenantID != "" {
-			tenants = append(tenants, tenantID)
-		} else if tenantIDInt, ok := record["id"].(int64); ok {
-			tenants = append(tenants, fmt.Sprintf("%d", tenantIDInt))
-		} else if tenantIDUint, ok := record["id"].(uint64); ok {
-			tenants = append(tenants, fmt.Sprintf("%d", tenantIDUint))
+	// Extract organization IDs
+	for _, record := range organizationRecords {
+		if organizationID, ok := record["id"].(string); ok && organizationID != "" {
+			organizations = append(organizations, organizationID)
+		} else if organizationIDInt, ok := record["id"].(int64); ok {
+			organizations = append(organizations, fmt.Sprintf("%d", organizationIDInt))
+		} else if organizationIDUint, ok := record["id"].(uint64); ok {
+			organizations = append(organizations, fmt.Sprintf("%d", organizationIDUint))
 		}
 	}
 
-	// If no tenants found in database, include default tenant
-	if len(tenants) == 0 {
-		facades.Log().Info("No tenants found in database, using default tenant", nil)
-		tenants = append(tenants, "default")
+	// If no organizations found in database, include default organization
+	if len(organizations) == 0 {
+		facades.Log().Info("No organizations found in database, using default organization", nil)
+		organizations = append(organizations, "default")
 	}
 
-	// Add multi-tenant validation
-	validatedTenants, err := ars.validateTenants(ctx, tenants)
+	// Add multi-organization validation
+	validatedOrganizations, err := ars.validateOrganizations(ctx, organizations)
 	if err != nil {
-		facades.Log().Warning("Tenant validation failed, using all discovered tenants", map[string]interface{}{
+		facades.Log().Warning("Organization validation failed, using all discovered organizations", map[string]interface{}{
 			"error": err.Error(),
 		})
-		validatedTenants = tenants
+		validatedOrganizations = organizations
 	}
 
-	facades.Log().Info("Retrieved tenants for retention processing", map[string]interface{}{
-		"total_discovered": len(tenants),
-		"validated_count":  len(validatedTenants),
-		"tenants":          validatedTenants,
+	facades.Log().Info("Retrieved organizations for retention processing", map[string]interface{}{
+		"total_discovered": len(organizations),
+		"validated_count":  len(validatedOrganizations),
+		"organizations":    validatedOrganizations,
 	})
 
-	return validatedTenants, nil
+	return validatedOrganizations, nil
 }
 
-// validateTenants validates that tenants have audit logs and are properly configured
-func (ars *AuditRetentionService) validateTenants(ctx context.Context, tenants []string) ([]string, error) {
-	var validTenants []string
+// validateOrganizations validates that organizations have audit logs and are properly configured
+func (ars *AuditRetentionService) validateOrganizations(ctx context.Context, organizations []string) ([]string, error) {
+	var validOrganizations []string
 
-	for _, tenantID := range tenants {
-		// Check if tenant has audit logs
+	for _, organizationID := range organizations {
+		// Check if organization has audit logs
 		count, err := facades.Orm().Query().
 			Table("activity_logs").
-			Where("tenant_id = ? OR tenant_id IS NULL", tenantID).
+			Where("organization_id = ? OR organization_id IS NULL", organizationID).
 			Count()
 
 		if err != nil {
-			facades.Log().Warning("Failed to check audit logs for tenant", map[string]interface{}{
-				"tenant_id": tenantID,
-				"error":     err.Error(),
+			facades.Log().Warning("Failed to check audit logs for organization", map[string]interface{}{
+				"organization_id": organizationID,
+				"error":           err.Error(),
 			})
 			continue
 		}
 
-		// Check if tenant has retention policies configured
-		hasPolicies, err := ars.tenantHasRetentionPolicies(ctx, tenantID)
+		// Check if organization has retention policies configured
+		hasPolicies, err := ars.organizationHasRetentionPolicies(ctx, organizationID)
 		if err != nil {
-			facades.Log().Warning("Failed to check retention policies for tenant", map[string]interface{}{
-				"tenant_id": tenantID,
-				"error":     err.Error(),
+			facades.Log().Warning("Failed to check retention policies for organization", map[string]interface{}{
+				"organization_id": organizationID,
+				"error":           err.Error(),
 			})
-			// Include tenant anyway if it has audit logs
+			// Include organization anyway if it has audit logs
 			if count > 0 {
-				validTenants = append(validTenants, tenantID)
+				validOrganizations = append(validOrganizations, organizationID)
 			}
 			continue
 		}
 
-		// Include tenant if it has audit logs or retention policies
+		// Include organization if it has audit logs or retention policies
 		if count > 0 || hasPolicies {
-			validTenants = append(validTenants, tenantID)
-			facades.Log().Debug("Validated tenant for retention", map[string]interface{}{
-				"tenant_id":       tenantID,
+			validOrganizations = append(validOrganizations, organizationID)
+			facades.Log().Debug("Validated organization for retention", map[string]interface{}{
+				"organization_id": organizationID,
 				"audit_log_count": count,
 				"has_policies":    hasPolicies,
 			})
 		} else {
-			facades.Log().Debug("Skipping tenant with no audit logs or policies", map[string]interface{}{
-				"tenant_id": tenantID,
+			facades.Log().Debug("Skipping organization with no audit logs or policies", map[string]interface{}{
+				"organization_id": organizationID,
 			})
 		}
 	}
 
-	return validTenants, nil
+	return validOrganizations, nil
 }
 
-// tenantHasRetentionPolicies checks if a tenant has retention policies configured
-func (ars *AuditRetentionService) tenantHasRetentionPolicies(ctx context.Context, tenantID string) (bool, error) {
-	// Check if tenant has custom retention policies in configuration or database
+// organizationHasRetentionPolicies checks if a organization has retention policies configured
+func (ars *AuditRetentionService) organizationHasRetentionPolicies(ctx context.Context, organizationID string) (bool, error) {
+	// Check if organization has custom retention policies in configuration or database
 
-	// First check if there are tenant-specific retention policies in the database
+	// First check if there are organization-specific retention policies in the database
 	count, err := facades.Orm().Query().
 		Table("audit_retention_policies").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("active = ?", true).
 		Count()
 
 	if err != nil {
 		// If the table doesn't exist, that's okay - use default policies
 		facades.Log().Debug("Audit retention policies table not found, using default policies", map[string]interface{}{
-			"tenant_id": tenantID,
+			"organization_id": organizationID,
 		})
 		return true, nil // Assume default policies apply
 	}
@@ -1141,22 +1141,22 @@ func (ars *AuditRetentionService) tenantHasRetentionPolicies(ctx context.Context
 		return true, nil
 	}
 
-	// Check if tenant has configuration-based policies
-	configKey := fmt.Sprintf("audit.retention.tenants.%s", tenantID)
-	tenantConfig := facades.Config().GetString(configKey, "")
-	if tenantConfig != "" {
+	// Check if organization has configuration-based policies
+	configKey := fmt.Sprintf("audit.retention.organizations.%s", organizationID)
+	organizationConfig := facades.Config().GetString(configKey, "")
+	if organizationConfig != "" {
 		return true, nil
 	}
 
-	// Check for default policies that apply to all tenants
+	// Check for default policies that apply to all organizations
 	defaultPolicies := facades.Config().GetString("audit.retention.default_policies", "")
 	return defaultPolicies != "", nil
 }
 
-// getTenantRetentionConfig gets retention configuration for a specific tenant
-func (ars *AuditRetentionService) getTenantRetentionConfig(ctx context.Context, tenantID string) (*TenantRetentionConfig, error) {
-	config := &TenantRetentionConfig{
-		TenantID:             tenantID,
+// getOrganizationRetentionConfig gets retention configuration for a specific organization
+func (ars *AuditRetentionService) getOrganizationRetentionConfig(ctx context.Context, organizationID string) (*OrganizationRetentionConfig, error) {
+	config := &OrganizationRetentionConfig{
+		OrganizationID:       organizationID,
 		DefaultRetentionDays: 365, // Default 1 year retention
 		ComplianceMode:       false,
 		ArchiveEnabled:       true,
@@ -1165,16 +1165,16 @@ func (ars *AuditRetentionService) getTenantRetentionConfig(ctx context.Context, 
 		Categories:           make(map[string]CategoryRetentionConfig),
 	}
 
-	// Load tenant-specific configuration from database
+	// Load organization-specific configuration from database
 	var policyRecords []map[string]interface{}
 	err := facades.Orm().Query().
 		Table("audit_retention_policies").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("active = ?", true).
 		Get(&policyRecords)
 
 	if err != nil && !strings.Contains(err.Error(), "doesn't exist") {
-		return nil, fmt.Errorf("failed to load tenant retention policies: %v", err)
+		return nil, fmt.Errorf("failed to load organization retention policies: %v", err)
 	}
 
 	// Apply database policies
@@ -1192,13 +1192,13 @@ func (ars *AuditRetentionService) getTenantRetentionConfig(ctx context.Context, 
 	}
 
 	// Load configuration from config files
-	configKey := fmt.Sprintf("audit.retention.tenants.%s", tenantID)
-	if tenantConfigStr := facades.Config().GetString(configKey, ""); tenantConfigStr != "" {
-		// Parse tenant-specific configuration
+	configKey := fmt.Sprintf("audit.retention.organizations.%s", organizationID)
+	if organizationConfigStr := facades.Config().GetString(configKey, ""); organizationConfigStr != "" {
+		// Parse organization-specific configuration
 		// TODO: In production, you would implement proper config parsing
-		facades.Log().Debug("Loading tenant-specific retention config", map[string]interface{}{
-			"tenant_id": tenantID,
-			"config":    tenantConfigStr,
+		facades.Log().Debug("Loading organization-specific retention config", map[string]interface{}{
+			"organization_id": organizationID,
+			"config":          organizationConfigStr,
 		})
 	}
 
@@ -1218,9 +1218,9 @@ func (ars *AuditRetentionService) getTenantRetentionConfig(ctx context.Context, 
 	return config, nil
 }
 
-// TenantRetentionConfig represents retention configuration for a tenant
-type TenantRetentionConfig struct {
-	TenantID             string                             `json:"tenant_id"`
+// OrganizationRetentionConfig represents retention configuration for a organization
+type OrganizationRetentionConfig struct {
+	OrganizationID      string                             `json:"organization_id"`
 	DefaultRetentionDays int                                `json:"default_retention_days"`
 	ComplianceMode       bool                               `json:"compliance_mode"`
 	ArchiveEnabled       bool                               `json:"archive_enabled"`

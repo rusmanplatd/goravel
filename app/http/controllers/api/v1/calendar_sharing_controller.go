@@ -39,7 +39,7 @@ func NewCalendarSharingController() *CalendarSharingController {
 // @Router /calendar-sharing/share/{shared_with_id} [post]
 func (csc *CalendarSharingController) ShareCalendar(ctx http.Context) http.Response {
 	userID := ctx.Value("user_id").(string)
-	tenantID := ctx.Value("tenant_id").(string)
+	organizationId := ctx.Value("organization_id").(string)
 	sharedWithID := ctx.Request().Route("shared_with_id")
 
 	if sharedWithID == userID {
@@ -76,7 +76,7 @@ func (csc *CalendarSharingController) ShareCalendar(ctx http.Context) http.Respo
 		})
 	}
 
-	share, err := csc.sharingService.ShareCalendar(userID, sharedWithID, tenantID, &request)
+	share, err := csc.sharingService.ShareCalendar(userID, sharedWithID, organizationId, &request)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
@@ -138,7 +138,7 @@ func (csc *CalendarSharingController) AcceptCalendarShare(ctx http.Context) http
 // @Router /calendar-delegation/create/{delegate_id} [post]
 func (csc *CalendarSharingController) CreateDelegation(ctx http.Context) http.Response {
 	userID := ctx.Value("user_id").(string)
-	tenantID := ctx.Value("tenant_id").(string)
+	organizationId := ctx.Value("organization_id").(string)
 	delegateID := ctx.Request().Route("delegate_id")
 
 	if delegateID == userID {
@@ -175,7 +175,7 @@ func (csc *CalendarSharingController) CreateDelegation(ctx http.Context) http.Re
 		})
 	}
 
-	delegation, err := csc.sharingService.CreateDelegation(userID, delegateID, tenantID, &request)
+	delegation, err := csc.sharingService.CreateDelegation(userID, delegateID, organizationId, &request)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",

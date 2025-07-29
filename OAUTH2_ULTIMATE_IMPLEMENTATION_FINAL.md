@@ -370,7 +370,7 @@ POST /api/v1/oauth/cae/events
 - **Custom Grants**: Domain-specific authorization flows
 - **Policy Engine**: Business rule enforcement system
 - **Analytics Platform**: Custom metrics and reporting
-- **Multi-tenancy**: Isolated tenant configurations
+- **Multi-tenancy**: Isolated organization configurations
 - **API Gateway**: Centralized API management
 - **Microservices**: Containerized deployment ready
 

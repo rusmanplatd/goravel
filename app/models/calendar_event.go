@@ -117,9 +117,9 @@ type CalendarEvent struct {
 	// @example 2024-01-15T09:00:00Z
 	RemindersSentAt *time.Time `json:"reminders_sent_at,omitempty" example:"2024-01-15T09:00:00Z"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Parent event ID for recurring event instances
 	// @example 01HXYZ123456789ABCDEFGHIJK
@@ -134,8 +134,8 @@ type CalendarEvent struct {
 	CalendarID *string `json:"calendar_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
-	// @Description Event's associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Event's associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description Event's associated calendar
 	Calendar *UserCalendar `gorm:"foreignKey:CalendarID" json:"calendar,omitempty"`
@@ -922,13 +922,13 @@ type EventTemplate struct {
 	// @example 2024-01-15T10:00:00Z
 	LastUsedAt *time.Time `json:"last_used_at,omitempty" example:"2024-01-15T10:00:00Z"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
-	// @Description Template's associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Template's associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description Events created from this template
 	Events []CalendarEvent `gorm:"foreignKey:TemplateID" json:"events,omitempty"`

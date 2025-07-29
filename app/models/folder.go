@@ -59,10 +59,10 @@ type Folder struct {
 	ParentID *string `gorm:"index" json:"parent_id,omitempty" example:"01HQZX1VQZX1VQZX1VQZX1VQZX"`
 	Parent   *Folder `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
 
-	// Tenant/Organization ID for multi-tenancy
+	// Organization/Organization ID for multi-tenancy
 	// @example 01HQZX1VQZX1VQZX1VQZX1VQZX
-	TenantID *string `gorm:"index" json:"tenant_id,omitempty" example:"01HQZX1VQZX1VQZX1VQZX1VQZX"`
-	Tenant   *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	OrganizationID *string       `gorm:"index" json:"organization_id,omitempty" example:"01HQZX1VQZX1VQZX1VQZX1VQZX"`
+	Organization   *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// Relationships
 	// Child folders

@@ -13,7 +13,7 @@ import (
 func Web() {
 	// Get web controller instances
 	authController := web.NewAuthController()
-	tenantController := web.NewTenantController()
+
 	roleController := web.NewRoleController()
 	permissionController := web.NewPermissionController()
 	organizationController := web.NewOrganizationController()
@@ -63,23 +63,17 @@ func Web() {
 		// Protected routes (authentication required) - Apply middleware individually
 		// Dashboard
 		facades.Route().Middleware(middleware.WebAuth()).Get("/dashboard", authController.ShowDashboard)
+
+		// Calendar
+		facades.Route().Middleware(middleware.WebAuth()).Get("/calendar", func(ctx http.Context) http.Response {
+			return ctx.Response().View().Make("calendar/index.tmpl", map[string]interface{}{
+				"app_name": "Goravel Calendar",
+				"user":     ctx.Value("user"),
+			})
+		})
 		facades.Route().Middleware(middleware.WebAuth()).Post("/logout", authController.Logout)
 
-		// Tenant management
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants", tenantController.Index)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/create", tenantController.Create)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/tenants", tenantController.Store)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/{id}", tenantController.Show)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/{id}/edit", tenantController.Edit)
-		facades.Route().Middleware(middleware.WebAuth()).Put("/tenants/{id}", tenantController.Update)
-		facades.Route().Middleware(middleware.WebAuth()).Delete("/tenants/{id}", tenantController.Delete)
-
-		// Tenant switching
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/user/list", tenantController.GetUserTenants)
-		facades.Route().Middleware(middleware.WebAuth()).Post("/tenants/switch", tenantController.SwitchTenant)
-		facades.Route().Middleware(middleware.WebAuth()).Get("/tenants/current", tenantController.GetCurrentTenant)
-
-		// Role management (within tenant context)
+		// Role management (within organization context)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/roles", roleController.Index)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/roles/create", roleController.Create)
 		facades.Route().Middleware(middleware.WebAuth()).Post("/roles", roleController.Store)
@@ -88,7 +82,7 @@ func Web() {
 		facades.Route().Middleware(middleware.WebAuth()).Put("/roles/{id}", roleController.Update)
 		facades.Route().Middleware(middleware.WebAuth()).Delete("/roles/{id}", roleController.Delete)
 
-		// Permission management (within tenant context)
+		// Permission management (within organization context)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/permissions", permissionController.Index)
 		facades.Route().Middleware(middleware.WebAuth()).Get("/permissions/create", permissionController.Create)
 		facades.Route().Middleware(middleware.WebAuth()).Post("/permissions", permissionController.Store)

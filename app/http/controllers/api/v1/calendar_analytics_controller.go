@@ -67,21 +67,21 @@ func (cac *CalendarAnalyticsController) GetUserAnalytics(ctx http.Context) http.
 	})
 }
 
-// GetTenantAnalytics returns analytics for a tenant/organization
-// @Summary Get tenant calendar analytics
-// @Description Retrieve comprehensive analytics for a tenant's calendar usage
+// GetOrganizationAnalytics returns analytics for a organization/organization
+// @Summary Get organization calendar analytics
+// @Description Retrieve comprehensive analytics for a organization's calendar usage
 // @Tags calendar-analytics
 // @Accept json
 // @Produce json
-// @Param tenant_id path string true "Tenant ID"
+// @Param organization_id path string true "Organization ID"
 // @Param start_date query string false "Start date (YYYY-MM-DD)" default(30 days ago)
 // @Param end_date query string false "End date (YYYY-MM-DD)" default(today)
 // @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
-// @Router /calendar-analytics/tenants/{tenant_id} [get]
-func (cac *CalendarAnalyticsController) GetTenantAnalytics(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Route("tenant_id")
+// @Router /calendar-analytics/organizations/{organization_id} [get]
+func (cac *CalendarAnalyticsController) GetOrganizationAnalytics(ctx http.Context) http.Response {
+	organizationId := ctx.Request().Route("organization_id")
 
 	// Parse date parameters
 	startDate, endDate, err := cac.parseDateRange(ctx)
@@ -94,11 +94,11 @@ func (cac *CalendarAnalyticsController) GetTenantAnalytics(ctx http.Context) htt
 	}
 
 	// Get analytics
-	analytics, err := cac.analyticsService.GetTenantAnalytics(tenantID, startDate, endDate)
+	analytics, err := cac.analyticsService.GetOrganizationAnalytics(organizationId, startDate, endDate)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve tenant analytics: " + err.Error(),
+			Message:   "Failed to retrieve organization analytics: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
@@ -112,12 +112,12 @@ func (cac *CalendarAnalyticsController) GetTenantAnalytics(ctx http.Context) htt
 
 // GenerateReport generates a comprehensive calendar report
 // @Summary Generate calendar report
-// @Description Generate a detailed calendar report for users or tenants
+// @Description Generate a detailed calendar report for users or organizations
 // @Tags calendar-analytics
 // @Accept json
 // @Produce json
-// @Param report_type query string true "Report type: user or tenant" Enums(user,tenant)
-// @Param target_id query string true "Target ID (user ID or tenant ID)"
+// @Param report_type query string true "Report type: user or organization" Enums(user,organization)
+// @Param target_id query string true "Target ID (user ID or organization ID)"
 // @Param start_date query string false "Start date (YYYY-MM-DD)" default(30 days ago)
 // @Param end_date query string false "End date (YYYY-MM-DD)" default(today)
 // @Param format query string false "Report format: json or pdf" Enums(json,pdf) default(json)
@@ -138,10 +138,10 @@ func (cac *CalendarAnalyticsController) GenerateReport(ctx http.Context) http.Re
 		})
 	}
 
-	if reportType != "user" && reportType != "tenant" {
+	if reportType != "user" && reportType != "organization" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "report_type must be 'user' or 'tenant'",
+			Message:   "report_type must be 'user' or 'organization'",
 			Timestamp: time.Now(),
 		})
 	}
@@ -211,7 +211,7 @@ func (cac *CalendarAnalyticsController) GenerateReport(ctx http.Context) http.Re
 // @Accept json
 // @Produce json
 // @Param user_id query string false "User ID for user-specific report"
-// @Param tenant_id query string false "Tenant ID for organization-wide report"
+// @Param organization_id query string false "Organization ID for organization-wide report"
 // @Param start_date query string false "Start date (YYYY-MM-DD)" default(30 days ago)
 // @Param end_date query string false "End date (YYYY-MM-DD)" default(today)
 // @Success 200 {object} responses.APIResponse{data=map[string]interface{}}
@@ -220,12 +220,12 @@ func (cac *CalendarAnalyticsController) GenerateReport(ctx http.Context) http.Re
 // @Router /calendar-analytics/meeting-effectiveness [get]
 func (cac *CalendarAnalyticsController) GetMeetingEffectivenessReport(ctx http.Context) http.Response {
 	userID := ctx.Request().Input("user_id", "")
-	tenantID := ctx.Request().Input("tenant_id", "")
+	organizationId := ctx.Request().Input("organization_id", "")
 
-	if userID == "" && tenantID == "" {
+	if userID == "" && organizationId == "" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Either user_id or tenant_id is required",
+			Message:   "Either user_id or organization_id is required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -260,8 +260,8 @@ func (cac *CalendarAnalyticsController) GetMeetingEffectivenessReport(ctx http.C
 			"period_end":      endDate,
 		}
 	} else {
-		// Get tenant-wide meeting effectiveness
-		analytics, err := cac.analyticsService.GetTenantAnalytics(tenantID, startDate, endDate)
+		// Get organization-wide meeting effectiveness
+		analytics, err := cac.analyticsService.GetOrganizationAnalytics(organizationId, startDate, endDate)
 		if err != nil {
 			return ctx.Response().Status(500).Json(responses.ErrorResponse{
 				Status:    "error",
@@ -270,8 +270,8 @@ func (cac *CalendarAnalyticsController) GetMeetingEffectivenessReport(ctx http.C
 			})
 		}
 		report = map[string]interface{}{
-			"type":             "tenant",
-			"target_id":        tenantID,
+			"type":             "organization",
+			"target_id":        organizationId,
 			"meeting_patterns": analytics["meeting_patterns"],
 			"overview":         analytics["overview"],
 			"period_start":     startDate,

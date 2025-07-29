@@ -64,7 +64,7 @@ func (r *M20250115000007CreateActivityLogsTable) Up() error {
 		table.TimestampsTz()
 
 		// Multi-tenancy
-		table.Ulid("tenant_id").Nullable().Comment("Tenant reference")
+		table.Ulid("organization_id").Nullable().Comment("Organization reference")
 
 		// Audit fields from BaseModel
 		table.Ulid("created_by").Nullable().Comment("Creator reference")
@@ -93,17 +93,17 @@ func (r *M20250115000007CreateActivityLogsTable) Up() error {
 		table.Index("risk_score")
 		table.Index("threat_level")
 		table.Index("event_timestamp")
-		table.Index("tenant_id")
+		table.Index("organization_id")
 
 		// Composite indexes for common query patterns
-		table.Index("tenant_id", "category")
-		table.Index("tenant_id", "severity")
-		table.Index("tenant_id", "event_timestamp")
+		table.Index("organization_id", "category")
+		table.Index("organization_id", "severity")
+		table.Index("organization_id", "event_timestamp")
 		table.Index("subject_id", "event_timestamp")
 		table.Index("causer_id", "event_timestamp")
 		table.Index("ip_address", "event_timestamp")
 		table.Index("category", "severity", "event_timestamp")
-		table.Index("tenant_id", "risk_score", "event_timestamp")
+		table.Index("organization_id", "risk_score", "event_timestamp")
 
 		// Security-focused indexes
 		table.Index("log_name", "subject_id", "event_timestamp")
@@ -111,14 +111,14 @@ func (r *M20250115000007CreateActivityLogsTable) Up() error {
 		table.Index("threat_level", "event_timestamp")
 
 		// Performance indexes for analytics
-		table.Index("tenant_id", "category", "event_timestamp")
-		table.Index("created_at", "tenant_id")
+		table.Index("organization_id", "category", "event_timestamp")
+		table.Index("created_at", "organization_id")
 
 		// Soft delete index
-		table.Index("deleted_at", "tenant_id")
+		table.Index("deleted_at", "organization_id")
 
 		// Foreign key constraints (commented out due to potential circular dependencies)
-		// table.Foreign("tenant_id").References("id").On("tenants").OnDelete("cascade")
+		// table.Foreign("organization_id").References("id").On("organizations").OnDelete("cascade")
 		// table.Foreign("subject_id").References("id").On("users").OnDelete("set null")
 		// table.Foreign("causer_id").References("id").On("users").OnDelete("set null")
 		// table.Foreign("created_by").References("id").On("users").OnDelete("set null")

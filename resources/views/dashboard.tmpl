@@ -220,8 +220,8 @@
                             <div class="stat-icon" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
                                 <i class="fas fa-building"></i>
                             </div>
-                            <div class="stat-label">Total Tenants</div>
-                            <div class="stat-number" id="tenants-count">{{.stats.tenants}}</div>
+                            <div class="stat-label">Total Organizations</div>
+                            <div class="stat-number" id="organizations-count">{{.stats.organizations}}</div>
                             <div class="metric-trend">
                                 <span class="stat-change positive">
                                     <i class="fas fa-arrow-up trend-arrow"></i> +12%
@@ -230,8 +230,8 @@
                             </div>
                         </div>
                         <div class="card-footer bg-light p-3">
-                            <a href="/tenants" class="text-info text-decoration-none small fw-semibold">
-                                <i class="fas fa-arrow-right me-1"></i> Manage tenants
+                            <a href="/organizations" class="text-info text-decoration-none small fw-semibold">
+                                <i class="fas fa-arrow-right me-1"></i> Manage organizations
                             </a>
                         </div>
                     </div>
@@ -424,8 +424,8 @@
                     <h3 class="h5 fw-medium mb-3">Quick Actions</h3>
                     <div class="row g-3">
                         <div class="col-12 col-sm-6 col-lg-3">
-                            <a href="/tenants/create" class="btn btn-outline-info w-100 d-flex align-items-center justify-content-center">
-                                <i class="fas fa-plus me-2"></i> Create Tenant
+                            <a href="/organizations/create" class="btn btn-outline-info w-100 d-flex align-items-center justify-content-center">
+                                <i class="fas fa-plus me-2"></i> Create Organization
                             </a>
                         </div>
                         <div class="col-12 col-sm-6 col-lg-3">
@@ -779,7 +779,7 @@
          // Update statistics with simulated data
          function updateStatistics() {
              const stats = {
-                 'tenants-count': Math.floor(Math.random() * 50) + 20,
+                 'organizations-count': Math.floor(Math.random() * 50) + 20,
                  'users-count': Math.floor(Math.random() * 200) + 100,
                  'permissions-count': Math.floor(Math.random() * 30) + 15,
                  'oauth-clients-count': Math.floor(Math.random() * 20) + 5,

@@ -41,17 +41,17 @@ The generated OpenAPI specification includes:
 
 ### User Management
 - CRUD operations for users
-- User-tenant relationships
+- User-organization relationships
 - User-role assignments
 - Pagination and search capabilities
 
-### Tenant Management
-- Multi-tenant organization support
-- Tenant creation and management
-- Tenant-user relationships
+### Organization Management
+- Multi-organization organization support
+- Organization creation and management
+- Organization-user relationships
 
 ### Role-Based Access Control
-- Role management within tenants
+- Role management within organizations
 - Permission management
 - Role-permission assignments
 - User-role assignments
@@ -100,7 +100,7 @@ The generator automatically reads Go struct tags and comments for documentation:
 
 ```go
 // User represents a user in the system
-// @Description User model with multi-tenant support
+// @Description User model with multi-organization support
 type User struct {
     // User's full name
     // @example John Doe

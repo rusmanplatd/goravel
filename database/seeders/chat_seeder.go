@@ -23,19 +23,19 @@ func (s *ChatSeeder) Run() error {
 	facades.Log().Info(fmt.Sprintf("%s started", s.Signature()))
 	defer facades.Log().Info(fmt.Sprintf("%s completed", s.Signature()))
 
-	// Get or create a tenant
-	var tenant models.Tenant
-	err := facades.Orm().Query().Where("slug", "default").First(&tenant)
+	// Get or create a organization
+	var organization models.Organization
+	err := facades.Orm().Query().Where("slug", "default").First(&organization)
 	if err != nil {
-		// Create default tenant if it doesn't exist
-		tenant = models.Tenant{
-			Name:        "Default Tenant",
+		// Create default organization if it doesn't exist
+		organization = models.Organization{
+			Name:        "Default Organization",
 			Slug:        "default",
 			Domain:      "localhost",
-			Description: "Default tenant for chat system",
+			Description: "Default organization for chat system",
 			IsActive:    true,
 		}
-		err = facades.Orm().Query().Create(&tenant)
+		err = facades.Orm().Query().Create(&organization)
 		if err != nil {
 			return err
 		}
@@ -120,25 +120,25 @@ func (s *ChatSeeder) Run() error {
 	// Create some chat rooms
 	chatRooms := []models.ChatRoom{
 		{
-			TenantID:    tenant.ID,
-			Name:        "General",
-			Description: "General discussion room",
-			Type:        "public",
-			IsActive:    true,
+			OrganizationID: organization.ID,
+			Name:           "General",
+			Description:    "General discussion room",
+			Type:           "public",
+			IsActive:       true,
 		},
 		{
-			TenantID:    tenant.ID,
-			Name:        "Development",
-			Description: "Development team discussions",
-			Type:        "private",
-			IsActive:    true,
+			OrganizationID: organization.ID,
+			Name:           "Development",
+			Description:    "Development team discussions",
+			Type:           "private",
+			IsActive:       true,
 		},
 		{
-			TenantID:    tenant.ID,
-			Name:        "Random",
-			Description: "Random conversations",
-			Type:        "public",
-			IsActive:    true,
+			OrganizationID: organization.ID,
+			Name:           "Random",
+			Description:    "Random conversations",
+			Type:           "public",
+			IsActive:       true,
 		},
 	}
 

@@ -512,16 +512,16 @@ func init() {
 			"retry_attempts": config.Env("OAUTH_WEBHOOK_RETRY_ATTEMPTS", 3),
 		},
 
-		// Multi-tenant Settings
-		"multi_tenant": map[string]interface{}{
-			// Enable multi-tenant OAuth2 (default: false)
+		// Multi-organization Settings
+		"multi_organization": map[string]interface{}{
+			// Enable multi-organization OAuth2 (default: false)
 			"enabled": config.Env("OAUTH_MULTI_TENANT_ENABLED", false),
 
-			// Tenant isolation mode: "strict" or "shared"
+			// Organization isolation mode: "strict" or "shared"
 			"isolation_mode": config.Env("OAUTH_TENANT_ISOLATION_MODE", "strict"),
 
-			// Enable cross-tenant access (default: false)
-			"enable_cross_tenant_access": config.Env("OAUTH_ENABLE_CROSS_TENANT_ACCESS", false),
+			// Enable cross-organization access (default: false)
+			"enable_cross_organization_access": config.Env("OAUTH_ENABLE_CROSS_TENANT_ACCESS", false),
 		},
 
 		// Logging Settings

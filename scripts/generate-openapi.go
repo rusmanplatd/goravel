@@ -668,7 +668,7 @@ func main() {
 		OpenAPI: "3.0.3",
 		Info: Info{
 			Title:       "Goravel API",
-			Description: "Multi-tenant API with role-based access control and activity logging",
+			Description: "Multi-organization API with role-based access control and activity logging",
 			Version:     "1.0.0",
 			Contact: Contact{
 				Name:  "Goravel Team",

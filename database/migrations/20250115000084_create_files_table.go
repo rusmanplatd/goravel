@@ -52,7 +52,7 @@ func (r *M20250115000084CreateFilesTable) Up() error {
 		// Relationships
 		table.Ulid("owner_id").Comment("Owner of the file")
 		table.Ulid("folder_id").Nullable().Comment("Parent folder ID")
-		table.Ulid("tenant_id").Nullable().Comment("Tenant/Organization ID")
+		table.Ulid("organization_id").Nullable().Comment("Organization ID")
 
 		// Timestamps
 		table.TimestampsTz()
@@ -60,7 +60,7 @@ func (r *M20250115000084CreateFilesTable) Up() error {
 		// Indexes
 		table.Index("owner_id")
 		table.Index("folder_id")
-		table.Index("tenant_id")
+		table.Index("organization_id")
 		table.Index("hash")
 		table.Index("is_trashed")
 		table.Index("status")
@@ -70,7 +70,7 @@ func (r *M20250115000084CreateFilesTable) Up() error {
 		// Foreign key constraints
 		table.Foreign("owner_id").References("id").On("users")
 		table.Foreign("folder_id").References("id").On("folders")
-		table.Foreign("tenant_id").References("id").On("tenants")
+		table.Foreign("organization_id").References("id").On("organizations")
 	})
 }
 

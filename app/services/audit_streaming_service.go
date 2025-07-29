@@ -22,14 +22,14 @@ type AuditStreamingService struct {
 
 // AuditSubscriber represents a subscriber to audit log streams
 type AuditSubscriber struct {
-	ID          string                 `json:"id"`
-	TenantID    string                 `json:"tenant_id"`
-	UserID      string                 `json:"user_id"`
-	Filters     *AuditStreamFilters    `json:"filters"`
-	EventChan   chan *AuditStreamEvent `json:"-"`
-	LastSeen    time.Time              `json:"last_seen"`
-	IsActive    bool                   `json:"is_active"`
-	Permissions []string               `json:"permissions"`
+	ID             string                 `json:"id"`
+	OrganizationID string                 `json:"organization_id"`
+	UserID         string                 `json:"user_id"`
+	Filters        *AuditStreamFilters    `json:"filters"`
+	EventChan      chan *AuditStreamEvent `json:"-"`
+	LastSeen       time.Time              `json:"last_seen"`
+	IsActive       bool                   `json:"is_active"`
+	Permissions    []string               `json:"permissions"`
 }
 
 // AuditStreamFilters defines filters for audit log streaming
@@ -49,16 +49,16 @@ type AuditStreamFilters struct {
 
 // AuditStreamEvent represents a streamed audit event
 type AuditStreamEvent struct {
-	ID            string                 `json:"id"`
-	Type          string                 `json:"type"`
-	ActivityLog   *models.ActivityLog    `json:"activity_log"`
-	Timestamp     time.Time              `json:"timestamp"`
-	TenantID      string                 `json:"tenant_id"`
-	Priority      string                 `json:"priority"`
-	SecurityAlert *SecurityAlert         `json:"security_alert,omitempty"`
-	Correlation   *AuditEventCorrelation `json:"correlation,omitempty"`
-	Enrichment    *AuditEventEnrichment  `json:"enrichment,omitempty"`
-	Metadata      map[string]interface{} `json:"metadata"`
+	ID             string                 `json:"id"`
+	Type           string                 `json:"type"`
+	ActivityLog    *models.ActivityLog    `json:"activity_log"`
+	Timestamp      time.Time              `json:"timestamp"`
+	OrganizationID string                 `json:"organization_id"`
+	Priority       string                 `json:"priority"`
+	SecurityAlert  *SecurityAlert         `json:"security_alert,omitempty"`
+	Correlation    *AuditEventCorrelation `json:"correlation,omitempty"`
+	Enrichment     *AuditEventEnrichment  `json:"enrichment,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata"`
 }
 
 // SecurityAlert represents a security alert for streaming
@@ -254,30 +254,30 @@ func NewAuditStreamingService() *AuditStreamingService {
 }
 
 // Subscribe adds a new subscriber to the audit stream
-func (ass *AuditStreamingService) Subscribe(tenantID, userID string, filters *AuditStreamFilters, permissions []string) (*AuditSubscriber, error) {
+func (ass *AuditStreamingService) Subscribe(organizationID, userID string, filters *AuditStreamFilters, permissions []string) (*AuditSubscriber, error) {
 	ass.subscribersMux.Lock()
 	defer ass.subscribersMux.Unlock()
 
-	subscriberID := fmt.Sprintf("%s_%s_%d", tenantID, userID, time.Now().UnixNano())
+	subscriberID := fmt.Sprintf("%s_%s_%d", organizationID, userID, time.Now().UnixNano())
 
 	subscriber := &AuditSubscriber{
-		ID:          subscriberID,
-		TenantID:    tenantID,
-		UserID:      userID,
-		Filters:     filters,
-		EventChan:   make(chan *AuditStreamEvent, 100),
-		LastSeen:    time.Now(),
-		IsActive:    true,
-		Permissions: permissions,
+		ID:             subscriberID,
+		OrganizationID: organizationID,
+		UserID:         userID,
+		Filters:        filters,
+		EventChan:      make(chan *AuditStreamEvent, 100),
+		LastSeen:       time.Now(),
+		IsActive:       true,
+		Permissions:    permissions,
 	}
 
 	ass.subscribers[subscriberID] = subscriber
 
 	facades.Log().Info("New audit stream subscriber", map[string]interface{}{
-		"subscriber_id": subscriberID,
-		"tenant_id":     tenantID,
-		"user_id":       userID,
-		"filters":       filters,
+		"subscriber_id":   subscriberID,
+		"organization_id": organizationID,
+		"user_id":         userID,
+		"filters":         filters,
 	})
 
 	// Send historical events if requested
@@ -303,9 +303,9 @@ func (ass *AuditStreamingService) Unsubscribe(subscriberID string) error {
 	delete(ass.subscribers, subscriberID)
 
 	facades.Log().Info("Audit stream subscriber unsubscribed", map[string]interface{}{
-		"subscriber_id": subscriberID,
-		"tenant_id":     subscriber.TenantID,
-		"user_id":       subscriber.UserID,
+		"subscriber_id":   subscriberID,
+		"organization_id": subscriber.OrganizationID,
+		"user_id":         subscriber.UserID,
 	})
 
 	return nil
@@ -314,13 +314,13 @@ func (ass *AuditStreamingService) Unsubscribe(subscriberID string) error {
 // StreamEvent streams an audit event to all relevant subscribers
 func (ass *AuditStreamingService) StreamEvent(activityLog *models.ActivityLog) {
 	event := &AuditStreamEvent{
-		ID:          fmt.Sprintf("stream_%d", time.Now().UnixNano()),
-		Type:        "audit_log",
-		ActivityLog: activityLog,
-		Timestamp:   time.Now(),
-		TenantID:    activityLog.TenantID,
-		Priority:    ass.determinePriority(activityLog),
-		Metadata:    make(map[string]interface{}),
+		ID:             fmt.Sprintf("stream_%d", time.Now().UnixNano()),
+		Type:           "audit_log",
+		ActivityLog:    activityLog,
+		Timestamp:      time.Now(),
+		OrganizationID: activityLog.OrganizationID,
+		Priority:       ass.determinePriority(activityLog),
+		Metadata:       make(map[string]interface{}),
 	}
 
 	// Add security alert if high risk
@@ -438,8 +438,8 @@ func (ass *AuditStreamingService) distributeEvent(event *AuditStreamEvent) {
 			continue
 		}
 
-		// Check tenant access
-		if subscriber.TenantID != event.TenantID {
+		// Check organization access
+		if subscriber.OrganizationID != event.OrganizationID {
 			continue
 		}
 
@@ -591,7 +591,7 @@ func (ass *AuditStreamingService) sendHistoricalEvents(subscriber *AuditSubscrib
 
 	var activities []models.ActivityLog
 	query := facades.Orm().Query().
-		Where("tenant_id = ? AND event_timestamp >= ?", subscriber.TenantID, since).
+		Where("organization_id = ? AND event_timestamp >= ?", subscriber.OrganizationID, since).
 		OrderBy("event_timestamp DESC").
 		Limit(100)
 
@@ -607,12 +607,12 @@ func (ass *AuditStreamingService) sendHistoricalEvents(subscriber *AuditSubscrib
 	// Send historical events
 	for _, activity := range activities {
 		event := &AuditStreamEvent{
-			ID:          fmt.Sprintf("historical_%s", activity.ID),
-			Type:        "historical_audit_log",
-			ActivityLog: &activity,
-			Timestamp:   activity.EventTimestamp,
-			TenantID:    activity.TenantID,
-			Priority:    ass.determinePriority(&activity),
+			ID:             fmt.Sprintf("historical_%s", activity.ID),
+			Type:           "historical_audit_log",
+			ActivityLog:    &activity,
+			Timestamp:      activity.EventTimestamp,
+			OrganizationID: activity.OrganizationID,
+			Priority:       ass.determinePriority(&activity),
 			Metadata: map[string]interface{}{
 				"historical": true,
 			},

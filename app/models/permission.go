@@ -1,6 +1,6 @@
 package models
 
-// Permission represents a system permission within a tenant
+// Permission represents a system permission within a organization
 // @Description Permission model for permission-based access control
 type Permission struct {
 	BaseModel
@@ -13,17 +13,17 @@ type Permission struct {
 	// @example web
 	Guard string `gorm:"not null;default:'api'" json:"guard" example:"web"`
 
-	// Tenant ID for permission scope
+	// Organization ID for permission scope
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID *string `gorm:"index;type:char(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID *string `gorm:"index;type:char(26)" json:"organization_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Permission description
 	// @example Create new users
 	Description string `json:"description" example:"Create new users"`
 
 	// Relationships
-	// @Description Tenant this permission belongs to
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Organization this permission belongs to
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description Roles that have this permission
 	Roles []Role `gorm:"many2many:role_permissions;" json:"roles,omitempty"`

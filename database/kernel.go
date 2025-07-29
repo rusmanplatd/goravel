@@ -15,10 +15,8 @@ func (kernel Kernel) Migrations() []schema.Migration {
 	return []schema.Migration{
 		&migrations.M20210101000001CreateUsersTable{},
 		&migrations.M20210101000002CreateJobsTable{},
-		&migrations.M20250115000001CreateTenantsTable{},
 		&migrations.M20250115000002CreateRolesTable{},
 		&migrations.M20250115000003CreatePermissionsTable{},
-		&migrations.M20250115000004CreateUserTenantsTable{},
 		&migrations.M20250115000005CreateUserRolesTable{},
 		&migrations.M20250115000006CreateRolePermissionsTable{},
 		&migrations.M20250115000007CreateActivityLogsTable{},
@@ -108,9 +106,7 @@ func (kernel Kernel) Seeders() []seeder.Seeder {
 		&seeders.OAuthClientSeeder{},
 		&seeders.OAuthIdentityProviderSeeder{},
 		&seeders.RolePermissionSeeder{},
-		&seeders.TenantSeeder{},
-		&seeders.UserTenantSeeder{},
-		&seeders.TenantUserSeeder{},
+
 		&seeders.ActivityLogSeeder{},
 		&seeders.CountrySeeder{},
 		&seeders.ProvinceSeeder{},

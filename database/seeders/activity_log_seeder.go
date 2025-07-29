@@ -32,15 +32,15 @@ func (s *ActivityLogSeeder) Run() error {
 		return nil
 	}
 
-	// Get some tenants for activity logs
-	var tenants []models.Tenant
-	err = facades.Orm().Query().Limit(3).Find(&tenants)
+	// Get some organizations for activity logs
+	var organizations []models.Organization
+	err = facades.Orm().Query().Limit(3).Find(&organizations)
 	if err != nil {
 		return err
 	}
 
-	if len(tenants) == 0 {
-		facades.Log().Info("No tenants found for activity logs")
+	if len(organizations) == 0 {
+		facades.Log().Info("No organizations found for activity logs")
 		return nil
 	}
 
@@ -65,9 +65,9 @@ func (s *ActivityLogSeeder) Run() error {
 			"properties":   map[string]interface{}{"attributes": map[string]interface{}{"name": "Jane Smith", "email": "jane.smith@example.com"}},
 		},
 		{
-			"log_name":     "tenant",
-			"description":  "Tenant settings updated",
-			"subject_type": "goravel/app/models.Tenant",
+			"log_name":     "organization",
+			"description":  "Organization settings updated",
+			"subject_type": "goravel/app/models.Organization",
 			"properties":   map[string]interface{}{"changes": map[string]interface{}{"settings": "{\"theme\":\"dark\",\"timezone\":\"UTC\"}"}},
 		},
 		{
@@ -101,17 +101,17 @@ func (s *ActivityLogSeeder) Run() error {
 			"properties":   map[string]interface{}{"method": "totp", "enabled_at": "2024-01-15T10:30:00Z"},
 		},
 		{
-			"log_name":     "tenant",
-			"description":  "New tenant created",
-			"subject_type": "goravel/app/models.Tenant",
+			"log_name":     "organization",
+			"description":  "New organization created",
+			"subject_type": "goravel/app/models.Organization",
 			"properties":   map[string]interface{}{"attributes": map[string]interface{}{"name": "New Company", "slug": "new-company", "domain": "newcompany.com"}},
 		},
 	}
 
-	// Create activity logs with different users and tenants
+	// Create activity logs with different users and organizations
 	for i, activity := range activities {
 		user := users[i%len(users)]
-		tenant := tenants[i%len(tenants)]
+		organization := organizations[i%len(organizations)]
 
 		// Check if activity log already exists
 		var existingLog models.ActivityLog
@@ -125,14 +125,14 @@ func (s *ActivityLogSeeder) Run() error {
 
 			// Create activity log
 			log := models.ActivityLog{
-				LogName:     activity["log_name"].(string),
-				Description: activity["description"].(string),
-				SubjectType: activity["subject_type"].(string),
-				SubjectID:   user.ID, // Use user ID as subject ID for demo
-				CauserType:  "goravel/app/models.User",
-				CauserID:    user.ID,
-				Properties:  propertiesJSON,
-				TenantID:    tenant.ID,
+				LogName:        activity["log_name"].(string),
+				Description:    activity["description"].(string),
+				SubjectType:    activity["subject_type"].(string),
+				SubjectID:      user.ID, // Use user ID as subject ID for demo
+				CauserType:     "goravel/app/models.User",
+				CauserID:       user.ID,
+				Properties:     propertiesJSON,
+				OrganizationID: organization.ID,
 			}
 
 			err = facades.Orm().Query().Create(&log)

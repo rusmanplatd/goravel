@@ -57,33 +57,33 @@ func (cas *CalendarAnalyticsService) GetUserAnalytics(userID string, startDate, 
 	return analytics, nil
 }
 
-// GetTenantAnalytics returns analytics for an entire tenant/organization
-func (cas *CalendarAnalyticsService) GetTenantAnalytics(tenantID string, startDate, endDate time.Time) (map[string]interface{}, error) {
+// GetOrganizationAnalytics returns analytics for an entire organization/organization
+func (cas *CalendarAnalyticsService) GetOrganizationAnalytics(organizationID string, startDate, endDate time.Time) (map[string]interface{}, error) {
 	analytics := make(map[string]interface{})
 
-	// Get tenant overview
-	overview, err := cas.getTenantOverview(tenantID, startDate, endDate)
+	// Get organization overview
+	overview, err := cas.getOrganizationOverview(organizationID, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	analytics["overview"] = overview
 
 	// Get department/team analytics
-	teamAnalytics, err := cas.getTeamAnalytics(tenantID, startDate, endDate)
+	teamAnalytics, err := cas.getTeamAnalytics(organizationID, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	analytics["team_analytics"] = teamAnalytics
 
 	// Get resource utilization
-	resourceUtilization, err := cas.getResourceUtilization(tenantID, startDate, endDate)
+	resourceUtilization, err := cas.getResourceUtilization(organizationID, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	analytics["resource_utilization"] = resourceUtilization
 
 	// Get meeting patterns
-	meetingPatterns, err := cas.getMeetingPatterns(tenantID, startDate, endDate)
+	meetingPatterns, err := cas.getMeetingPatterns(organizationID, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
@@ -431,11 +431,11 @@ func (cas *CalendarAnalyticsService) getCollaborationMetrics(userID string, star
 	}, nil
 }
 
-// getTenantOverview provides high-level tenant analytics
-func (cas *CalendarAnalyticsService) getTenantOverview(tenantID string, startDate, endDate time.Time) (map[string]interface{}, error) {
-	// Total events in tenant
+// getOrganizationOverview provides high-level organization analytics
+func (cas *CalendarAnalyticsService) getOrganizationOverview(organizationID string, startDate, endDate time.Time) (map[string]interface{}, error) {
+	// Total events in organization
 	totalEvents, err := facades.Orm().Query().Model(&models.CalendarEvent{}).
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("start_time >= ? AND start_time <= ?", startDate, endDate).
 		Count()
 	if err != nil {
@@ -447,7 +447,7 @@ func (cas *CalendarAnalyticsService) getTenantOverview(tenantID string, startDat
 		Select("COUNT(DISTINCT ep.user_id) as count").
 		Table("event_participants ep").
 		Join("JOIN calendar_events ce ON ep.event_id = ce.id").
-		Where("ce.tenant_id = ?", tenantID).
+		Where("ce.organization_id = ?", organizationID).
 		Where("ce.start_time >= ? AND ce.start_time <= ?", startDate, endDate).
 		Count()
 	if err != nil {
@@ -458,7 +458,7 @@ func (cas *CalendarAnalyticsService) getTenantOverview(tenantID string, startDat
 	var totalHours float64
 	err = facades.Orm().Query().Model(&models.CalendarEvent{}).
 		Select("SUM(EXTRACT(EPOCH FROM (end_time - start_time))/3600) as total_hours").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("start_time >= ? AND start_time <= ?", startDate, endDate).
 		Pluck("total_hours", &totalHours)
 	if err != nil {
@@ -472,7 +472,7 @@ func (cas *CalendarAnalyticsService) getTenantOverview(tenantID string, startDat
 	}
 	err = facades.Orm().Query().Model(&models.CalendarEvent{}).
 		Select("EXTRACT(HOUR FROM start_time) as hour, COUNT(*) as count").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("start_time >= ? AND start_time <= ?", startDate, endDate).
 		Group("EXTRACT(HOUR FROM start_time)").
 		Order("count DESC").
@@ -492,8 +492,8 @@ func (cas *CalendarAnalyticsService) getTenantOverview(tenantID string, startDat
 }
 
 // getTeamAnalytics provides team-level analytics using department and team structure
-func (cas *CalendarAnalyticsService) getTeamAnalytics(tenantID string, startDate, endDate time.Time) (map[string]interface{}, error) {
-	// Get all teams for the tenant through organizations
+func (cas *CalendarAnalyticsService) getTeamAnalytics(organizationID string, startDate, endDate time.Time) (map[string]interface{}, error) {
+	// Get all teams for the organization through organizations
 	var teams []struct {
 		TeamID      string  `json:"team_id"`
 		TeamName    string  `json:"team_name"`
@@ -511,7 +511,7 @@ func (cas *CalendarAnalyticsService) getTeamAnalytics(tenantID string, startDate
 			"d.name as department_name, o.name as organization_name, t.team_lead_id, t.current_size").
 		Join("LEFT JOIN departments d ON t.department_id = d.id").
 		Join("LEFT JOIN organizations o ON t.organization_id = o.id").
-		Where("o.tenant_id = ? AND t.is_active = ?", tenantID, true).
+		Where("o.organization_id = ? AND t.is_active = ?", organizationID, true).
 		Scan(&teams)
 	if err != nil {
 		return nil, err
@@ -563,8 +563,8 @@ func (cas *CalendarAnalyticsService) getTeamAnalytics(tenantID string, startDate
 			Select("DISTINCT ce.id as event_id, ce.type, "+
 				"EXTRACT(EPOCH FROM (ce.end_time - ce.start_time))/3600 as duration, ce.start_time").
 			Join("INNER JOIN event_participants ep ON ce.id = ep.event_id").
-			Where("ce.tenant_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
-				tenantID, teamMemberIDs, startDate, endDate).
+			Where("ce.organization_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
+				organizationID, teamMemberIDs, startDate, endDate).
 			Where("ep.response_status IN ?", []string{"accepted", "tentative"}).
 			Scan(&eventStats)
 		if err != nil {
@@ -591,8 +591,8 @@ func (cas *CalendarAnalyticsService) getTeamAnalytics(tenantID string, startDate
 		totalInvitations, err = facades.Orm().Query().
 			Table("event_participants ep").
 			Join("INNER JOIN calendar_events ce ON ep.event_id = ce.id").
-			Where("ce.tenant_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
-				tenantID, teamMemberIDs, startDate, endDate).
+			Where("ce.organization_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
+				organizationID, teamMemberIDs, startDate, endDate).
 			Count()
 		if err != nil {
 			totalInvitations = 1 // Avoid division by zero
@@ -603,8 +603,8 @@ func (cas *CalendarAnalyticsService) getTeamAnalytics(tenantID string, startDate
 			acceptedInvitations, _ := facades.Orm().Query().
 				Table("event_participants ep").
 				Join("INNER JOIN calendar_events ce ON ep.event_id = ce.id").
-				Where("ce.tenant_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
-					tenantID, teamMemberIDs, startDate, endDate).
+				Where("ce.organization_id = ? AND ep.user_id IN ? AND ce.start_time >= ? AND ce.start_time <= ?",
+					organizationID, teamMemberIDs, startDate, endDate).
 				Where("ep.response_status IN ?", []string{"accepted", "tentative"}).
 				Count()
 			participationRate = float64(acceptedInvitations) / float64(totalInvitations) * 100
@@ -681,7 +681,7 @@ func (cas *CalendarAnalyticsService) getTeamAnalytics(tenantID string, startDate
 }
 
 // getResourceUtilization analyzes meeting room and resource usage
-func (cas *CalendarAnalyticsService) getResourceUtilization(tenantID string, startDate, endDate time.Time) (map[string]interface{}, error) {
+func (cas *CalendarAnalyticsService) getResourceUtilization(organizationID string, startDate, endDate time.Time) (map[string]interface{}, error) {
 	// Get location usage statistics
 	var locationUsage []struct {
 		Location string  `json:"location"`
@@ -691,7 +691,7 @@ func (cas *CalendarAnalyticsService) getResourceUtilization(tenantID string, sta
 
 	err := facades.Orm().Query().Model(&models.CalendarEvent{}).
 		Select("location, COUNT(*) as count, SUM(EXTRACT(EPOCH FROM (end_time - start_time))/3600) as hours").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("start_time >= ? AND start_time <= ?", startDate, endDate).
 		Where("location != ''").
 		Group("location").
@@ -708,7 +708,7 @@ func (cas *CalendarAnalyticsService) getResourceUtilization(tenantID string, sta
 }
 
 // getMeetingPatterns analyzes meeting patterns and trends
-func (cas *CalendarAnalyticsService) getMeetingPatterns(tenantID string, startDate, endDate time.Time) (map[string]interface{}, error) {
+func (cas *CalendarAnalyticsService) getMeetingPatterns(organizationID string, startDate, endDate time.Time) (map[string]interface{}, error) {
 	// Get daily meeting counts
 	var dailyPattern []struct {
 		Date  string `json:"date"`
@@ -717,7 +717,7 @@ func (cas *CalendarAnalyticsService) getMeetingPatterns(tenantID string, startDa
 
 	err := facades.Orm().Query().Model(&models.CalendarEvent{}).
 		Select("DATE(start_time) as date, COUNT(*) as count").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("start_time >= ? AND start_time <= ?", startDate, endDate).
 		Group("DATE(start_time)").
 		Order("date").
@@ -735,7 +735,7 @@ func (cas *CalendarAnalyticsService) getMeetingPatterns(tenantID string, startDa
 	err = facades.Orm().Query().Model(&models.CalendarEvent{}).
 		Select("SUM(CASE WHEN is_recurring = true THEN 1 ELSE 0 END) as recurring, "+
 			"SUM(CASE WHEN is_recurring = false THEN 1 ELSE 0 END) as one_time").
-		Where("tenant_id = ?", tenantID).
+		Where("organization_id = ?", organizationID).
 		Where("start_time >= ? AND start_time <= ?", startDate, endDate).
 		Scan(&eventTypes)
 	if err != nil {
@@ -766,8 +766,8 @@ func (cas *CalendarAnalyticsService) GenerateCalendarReport(reportType string, t
 		}
 		report["analytics"] = analytics
 
-	case "tenant":
-		analytics, err := cas.GetTenantAnalytics(targetID, startDate, endDate)
+	case "organization":
+		analytics, err := cas.GetOrganizationAnalytics(targetID, startDate, endDate)
 		if err != nil {
 			return nil, err
 		}

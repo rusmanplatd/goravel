@@ -47,9 +47,9 @@ func NewCalendarEventController() *CalendarEventController {
 // @Param filter[created_by] query string false "Filter by creator ID"
 // @Param filter[start_time] query string false "Filter by start time (date range)"
 // @Param filter[end_time] query string false "Filter by end time (date range)"
-// @Param filter[tenant_id] query string false "Filter by tenant ID"
+// @Param filter[organization_id] query string false "Filter by organization ID"
 // @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
-// @Param include query string false "Include relationships (comma-separated): creator,tenant,participants,meeting"
+// @Param include query string false "Include relationships (comma-separated): creator,organization,participants,meeting"
 // @Success 200 {object} responses.QueryBuilderResponse{data=[]models.CalendarEvent}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
@@ -67,10 +67,10 @@ func (cec *CalendarEventController) Index(ctx http.Context) http.Response {
 			querybuilder.Exact("created_by"),
 			querybuilder.DateRange("start_time"),
 			querybuilder.DateRange("end_time"),
-			querybuilder.Exact("tenant_id"),
+			querybuilder.Exact("organization_id"),
 		).
 		AllowedSorts("title", "type", "status", "start_time", "end_time", "created_at", "updated_at").
-		AllowedIncludes("creator", "tenant", "participants", "meeting").
+		AllowedIncludes("creator", "organization", "participants", "meeting").
 		DefaultSort("-created_at")
 
 	// Use AutoPaginate for unified pagination support
@@ -100,7 +100,7 @@ func (cec *CalendarEventController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 
 	var event models.CalendarEvent
-	err := facades.Orm().Query().With("Creator").With("Tenant").
+	err := facades.Orm().Query().With("Creator").With("Organization").
 		With("Participants.User").With("Meeting").
 		With("ParentEvent").With("RecurringInstances").
 		Where("id = ?", id).First(&event)
@@ -165,7 +165,7 @@ func (cec *CalendarEventController) Store(ctx http.Context) http.Response {
 		RecurrenceUntil: request.RecurrenceUntil,
 		Timezone:        request.Timezone,
 		Status:          request.Status,
-		TenantID:        request.TenantID,
+		OrganizationID:  request.OrganizationID,
 		BaseModel: models.BaseModel{
 			CreatedBy: &userID,
 		},
@@ -260,7 +260,7 @@ func (cec *CalendarEventController) Store(ctx http.Context) http.Response {
 	})
 
 	// Reload event with relationships
-	facades.Orm().Query().With("Creator").With("Tenant").
+	facades.Orm().Query().With("Creator").With("Organization").
 		With("Participants.User").With("Meeting").
 		Where("id = ?", event.ID).First(&event)
 
@@ -425,7 +425,7 @@ func (cec *CalendarEventController) Update(ctx http.Context) http.Response {
 	tx.Commit()
 
 	// Reload event with relationships
-	facades.Orm().Query().With("Creator").With("Tenant").
+	facades.Orm().Query().With("Creator").With("Organization").
 		With("Participants.User").With("Meeting").
 		Where("id = ?", event.ID).First(&event)
 
@@ -759,7 +759,7 @@ func (cec *CalendarEventController) GetMyEvents(ctx http.Context) http.Response 
 	}
 
 	// Preload relationships
-	query = query.With("Creator").With("Tenant").With("Participants.User").With("Meeting")
+	query = query.With("Creator").With("Organization").With("Participants.User").With("Meeting")
 
 	var events []models.CalendarEvent
 	err = query.Find(&events)

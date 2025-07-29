@@ -1,4 +1,4 @@
-{{define "tenants/show.tmpl"}}
+{{define "organizations/show.tmpl"}}
     {{template "layouts/header.tmpl" .}}
     {{template "layouts/nav.tmpl" .}}
 
@@ -8,11 +8,11 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item">
-                        <a href="/tenants" class="text-decoration-none">
-                            <i class="fas fa-building me-1"></i>Tenants
+                        <a href="/organizations" class="text-decoration-none">
+                            <i class="fas fa-building me-1"></i>Organizations
                         </a>
                     </li>
-                    <li class="breadcrumb-item active" aria-current="page">{{.tenant.Name}}</li>
+                    <li class="breadcrumb-item active" aria-current="page">{{.organization.Name}}</li>
                 </ol>
             </nav>
         </div>
@@ -29,7 +29,7 @@
                 <div class="card shadow-sm">
                     <div class="card-header">
                         <h5 class="card-title mb-0">
-                            <i class="fas fa-building me-2"></i>Tenant Information
+                            <i class="fas fa-building me-2"></i>Organization Information
                         </h5>
                     </div>
                     <div class="card-body">
@@ -38,28 +38,28 @@
                                 <p class="mb-0 fw-medium text-muted">Name</p>
                             </div>
                             <div class="col-sm-9">
-                                <p class="mb-0">{{.tenant.Name}}</p>
+                                <p class="mb-0">{{.organization.Name}}</p>
                             </div>
                         </div>
                         <hr>
-                        {{if .tenant.Domain}}
+                        {{if .organization.Domain}}
                         <div class="row">
                             <div class="col-sm-3">
                                 <p class="mb-0 fw-medium text-muted">Domain</p>
                             </div>
                             <div class="col-sm-9">
-                                <p class="mb-0">{{.tenant.Domain}}</p>
+                                <p class="mb-0">{{.organization.Domain}}</p>
                             </div>
                         </div>
                         <hr>
                         {{end}}
-                        {{if .tenant.Description}}
+                        {{if .organization.Description}}
                         <div class="row">
                             <div class="col-sm-3">
                                 <p class="mb-0 fw-medium text-muted">Description</p>
                             </div>
                             <div class="col-sm-9">
-                                <p class="mb-0">{{.tenant.Description}}</p>
+                                <p class="mb-0">{{.organization.Description}}</p>
                             </div>
                         </div>
                         <hr>
@@ -69,7 +69,7 @@
                                 <p class="mb-0 fw-medium text-muted">Status</p>
                             </div>
                             <div class="col-sm-9">
-                                {{if .tenant.IsActive}}
+                                {{if .organization.IsActive}}
                                 <span class="badge bg-success">Active</span>
                                 {{else}}
                                 <span class="badge bg-danger">Inactive</span>
@@ -82,17 +82,17 @@
                                 <p class="mb-0 fw-medium text-muted">Created</p>
                             </div>
                             <div class="col-sm-9">
-                                <p class="mb-0">{{.tenant.CreatedAt.Format "Jan 02, 2006 at 15:04"}}</p>
+                                <p class="mb-0">{{.organization.CreatedAt.Format "Jan 02, 2006 at 15:04"}}</p>
                             </div>
                         </div>
-                        {{if .tenant.UpdatedAt}}
+                        {{if .organization.UpdatedAt}}
                         <hr>
                         <div class="row">
                             <div class="col-sm-3">
                                 <p class="mb-0 fw-medium text-muted">Last Updated</p>
                             </div>
                             <div class="col-sm-9">
-                                <p class="mb-0">{{.tenant.UpdatedAt.Format "Jan 02, 2006 at 15:04"}}</p>
+                                <p class="mb-0">{{.organization.UpdatedAt.Format "Jan 02, 2006 at 15:04"}}</p>
                             </div>
                         </div>
                         {{end}}
@@ -106,18 +106,18 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <a href="/tenants/{{.tenant.ID}}/edit" class="btn btn-primary">
-                                <i class="fas fa-edit me-2"></i>Edit Tenant
+                            <a href="/organizations/{{.organization.ID}}/edit" class="btn btn-primary">
+                                <i class="fas fa-edit me-2"></i>Edit Organization
                             </a>
-                            <a href="/roles?tenant_id={{.tenant.ID}}" class="btn btn-outline-success">
+                            <a href="/roles?organization_id={{.organization.ID}}" class="btn btn-outline-success">
                                 <i class="fas fa-user-tag me-2"></i>Manage Roles
                             </a>
-                            <a href="/permissions?tenant_id={{.tenant.ID}}" class="btn btn-outline-info">
+                            <a href="/permissions?organization_id={{.organization.ID}}" class="btn btn-outline-info">
                                 <i class="fas fa-key me-2"></i>Manage Permissions
                             </a>
                             <button type="button" class="btn btn-outline-danger" 
-                                    onclick="deleteTenant('{{.tenant.ID}}', '{{.tenant.Name}}')">
-                                <i class="fas fa-trash me-2"></i>Delete Tenant
+                                    onclick="deleteOrganization('{{.organization.ID}}', '{{.organization.Name}}')">
+                                <i class="fas fa-trash me-2"></i>Delete Organization
                             </button>
                         </div>
                     </div>
@@ -126,8 +126,8 @@
         </div>
 
         <div class="d-flex justify-content-between mt-4">
-            <a href="/tenants" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Back to Tenants
+            <a href="/organizations" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Organizations
             </a>
         </div>
     </main>
@@ -141,7 +141,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    Are you sure you want to delete tenant "<span id="tenantName"></span>"? This action cannot be undone.
+                    Are you sure you want to delete organization "<span id="organizationName"></span>"? This action cannot be undone.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -155,9 +155,9 @@
     </div>
 
     <script>
-        function deleteTenant(id, name) {
-            document.getElementById('tenantName').textContent = name;
-            document.getElementById('deleteForm').action = '/tenants/' + id;
+        function deleteOrganization(id, name) {
+            document.getElementById('organizationName').textContent = name;
+            document.getElementById('deleteForm').action = '/organizations/' + id;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         }
     </script>

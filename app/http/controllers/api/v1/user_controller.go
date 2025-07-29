@@ -35,9 +35,9 @@ func NewUserController() *UserController {
 // @Param filter[name] query string false "Filter by name (partial match)"
 // @Param filter[email] query string false "Filter by email (partial match)"
 // @Param filter[is_active] query bool false "Filter by active status"
-// @Param filter[tenant_id] query string false "Filter by tenant ID"
+// @Param filter[organization_id] query string false "Filter by organization ID"
 // @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
-// @Param include query string false "Include relationships (comma-separated): roles,permissions,tenant"
+// @Param include query string false "Include relationships (comma-separated): roles,permissions,organization"
 // @Success 200 {object} responses.QueryBuilderResponse{data=[]models.User}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
@@ -52,10 +52,10 @@ func (uc *UserController) Index(ctx http.Context) http.Response {
 			querybuilder.Partial("name"),
 			querybuilder.Partial("email"),
 			querybuilder.Exact("is_active"),
-			querybuilder.Exact("tenant_id"),
+			querybuilder.Exact("organization_id"),
 		).
 		AllowedSorts("name", "email", "created_at", "updated_at").
-		AllowedIncludes("roles", "permissions", "tenant").
+		AllowedIncludes("roles", "permissions", "organization").
 		DefaultSort("-created_at")
 
 	// Use AutoPaginate for unified pagination support
@@ -281,17 +281,17 @@ func (uc *UserController) Delete(ctx http.Context) http.Response {
 	})
 }
 
-// Tenants returns all tenants for a user
-// @Summary Get user's tenants
-// @Description Retrieve all tenants associated with a user
+// Organizations returns all organizations for a user
+// @Summary Get user's organizations
+// @Description Retrieve all organizations associated with a user
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
-// @Success 200 {object} responses.APIResponse{data=[]models.Tenant}
+// @Success 200 {object} responses.APIResponse{data=[]models.Organization}
 // @Failure 404 {object} responses.ErrorResponse
-// @Router /users/{id}/tenants [get]
-func (uc *UserController) Tenants(ctx http.Context) http.Response {
+// @Router /users/{id}/organizations [get]
+func (uc *UserController) Organizations(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 
 	var user models.User
@@ -304,46 +304,46 @@ func (uc *UserController) Tenants(ctx http.Context) http.Response {
 		})
 	}
 
-	var tenants []models.Tenant
+	var organizations []models.Organization
 	err = facades.Orm().Query().
-		Where("id IN (SELECT tenant_id FROM user_tenants WHERE user_id = ? AND is_active = ?)", user.ID, true).
-		Find(&tenants)
+		Where("id IN (SELECT organization_id FROM user_organizations WHERE user_id = ? AND is_active = ?)", user.ID, true).
+		Find(&organizations)
 
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve user tenants",
+			Message:   "Failed to retrieve user organizations",
 			Timestamp: time.Now(),
 		})
 	}
 
 	return ctx.Response().Success().Json(responses.APIResponse{
 		Status:    "success",
-		Data:      tenants,
+		Data:      organizations,
 		Timestamp: time.Now(),
 	})
 }
 
 // Roles returns all roles for a user
 // @Summary Get user's roles
-// @Description Retrieve all roles associated with a user in a specific tenant
+// @Description Retrieve all roles associated with a user in a specific organization
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
-// @Param tenant_id query string true "Tenant ID"
+// @Param organization_id query string true "Organization ID"
 // @Success 200 {object} responses.APIResponse{data=[]models.Role}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 404 {object} responses.ErrorResponse
 // @Router /users/{id}/roles [get]
 func (uc *UserController) Roles(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
-	tenantID := ctx.Request().Query("tenant_id", "")
+	organizationId := ctx.Request().Query("organization_id", "")
 
-	if tenantID == "" {
+	if organizationId == "" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant ID is required",
+			Message:   "Organization ID is required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -358,7 +358,7 @@ func (uc *UserController) Roles(ctx http.Context) http.Response {
 		})
 	}
 
-	roles, err := user.GetRolesForTenant(tenantID)
+	roles, err := user.GetRolesForOrganization(organizationId)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
@@ -376,7 +376,7 @@ func (uc *UserController) Roles(ctx http.Context) http.Response {
 
 // AssignRole assigns a role to a user
 // @Summary Assign role to user
-// @Description Assign a specific role to a user in a tenant
+// @Description Assign a specific role to a user in a organization
 // @Tags users
 // @Accept json
 // @Produce json
@@ -409,7 +409,7 @@ func (uc *UserController) AssignRole(ctx http.Context) http.Response {
 		})
 	}
 
-	err = user.AssignRole(request.RoleID, request.TenantID)
+	err = user.AssignRole(request.RoleID, request.OrganizationID)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
@@ -427,13 +427,13 @@ func (uc *UserController) AssignRole(ctx http.Context) http.Response {
 
 // RevokeRole removes a role from a user
 // @Summary Revoke role from user
-// @Description Remove a specific role from a user in a tenant
+// @Description Remove a specific role from a user in a organization
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
 // @Param role_id path string true "Role ID"
-// @Param tenant_id query string true "Tenant ID"
+// @Param organization_id query string true "Organization ID"
 // @Success 200 {object} responses.APIResponse
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 404 {object} responses.ErrorResponse
@@ -441,12 +441,12 @@ func (uc *UserController) AssignRole(ctx http.Context) http.Response {
 func (uc *UserController) RevokeRole(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
 	roleID := ctx.Request().Route("role_id")
-	tenantID := ctx.Request().Query("tenant_id", "")
+	organizationId := ctx.Request().Query("organization_id", "")
 
-	if tenantID == "" {
+	if organizationId == "" {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant ID is required",
+			Message:   "Organization ID is required",
 			Timestamp: time.Now(),
 		})
 	}
@@ -461,7 +461,7 @@ func (uc *UserController) RevokeRole(ctx http.Context) http.Response {
 		})
 	}
 
-	err = user.RemoveRole(roleID, tenantID)
+	err = user.RemoveRole(roleID, organizationId)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",

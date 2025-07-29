@@ -63,9 +63,9 @@ type CreateEventTemplateRequest struct {
 	// @example false
 	IsPublic bool `json:"is_public" example:"false"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `json:"tenant_id" binding:"required" example:"01HXYZ123456789ABCDEFGHIJK" validate:"required"`
+	OrganizationID string `json:"organization_id" binding:"required" example:"01HXYZ123456789ABCDEFGHIJK" validate:"required"`
 }
 
 // UpdateEventTemplateRequest represents the request for updating an event template

@@ -83,18 +83,18 @@ func (mc *MeetingController) CreateOnlineMeeting(ctx http.Context) http.Response
 	}
 
 	// Create calendar event first
-	tenantID := "01HXYZ123456789ABCDEFGHIJK" // Default tenant - should be determined from user context
+	organizationId := "01HXYZ123456789ABCDEFGHIJK" // Default organization - should be determined from user context
 	event := &models.CalendarEvent{
-		TenantID:    tenantID,
-		Title:       request.Subject,
-		Description: request.Subject,
-		StartTime:   *request.StartDateTime,
-		EndTime:     *request.EndDateTime,
-		Type:        "meeting",
-		Status:      "confirmed",
-		IsAllDay:    false,
-		Location:    "Microsoft Teams Meeting",
-		Timezone:    "UTC",
+		OrganizationID: organizationId,
+		Title:          request.Subject,
+		Description:    request.Subject,
+		StartTime:      *request.StartDateTime,
+		EndTime:        *request.EndDateTime,
+		Type:           "meeting",
+		Status:         "confirmed",
+		IsAllDay:       false,
+		Location:       "Microsoft Teams Meeting",
+		Timezone:       "UTC",
 	}
 
 	if err := facades.Orm().Query().Create(event); err != nil {
@@ -109,7 +109,7 @@ func (mc *MeetingController) CreateOnlineMeeting(ctx http.Context) http.Response
 	// Generate Teams-compatible identifiers
 	now := time.Now()
 	joinUrl := fmt.Sprintf("https://teams.microsoft.com/l/meetup-join/19%%3ameeting_%s@thread.v2/0?context=%%7b%%22Tid%%22%%3a%%22%s%%22%%2c%%22Oid%%22%%3a%%22%s%%22%%7d",
-		event.ID, tenantID, user.ID)
+		event.ID, organizationId, user.ID)
 	videoTeleconferenceId := fmt.Sprintf("%d", now.Unix())
 	joinMeetingId := fmt.Sprintf("%d", (now.Unix() % 10000000000))
 

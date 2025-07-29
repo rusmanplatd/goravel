@@ -17,9 +17,9 @@ func NewRoleController() *RoleController {
 	return &RoleController{}
 }
 
-// Index returns all roles for the current tenant
+// Index returns all roles for the current organization
 // @Summary Get all roles
-// @Description Retrieve a list of all roles for the current tenant with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
+// @Description Retrieve a list of all roles for the current organization with filtering, sorting and pagination. Supports both offset and cursor pagination via pagination_type parameter.
 // @Tags roles
 // @Accept json
 // @Produce json
@@ -30,37 +30,37 @@ func NewRoleController() *RoleController {
 // @Param filter[name] query string false "Filter by name (partial match)"
 // @Param filter[is_active] query bool false "Filter by active status"
 // @Param sort query string false "Sort by field (prefix with - for desc)" default("-created_at")
-// @Param include query string false "Include relationships (comma-separated): permissions,users,tenant"
+// @Param include query string false "Include relationships (comma-separated): permissions,users,organization"
 // @Success 200 {object} responses.QueryBuilderResponse{data=[]models.Role}
 // @Failure 400 {object} responses.ErrorResponse
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /roles [get]
 func (rc *RoleController) Index(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Tenant context required",
+			Message:   "Organization context required",
 			Timestamp: time.Now(),
 		})
 	}
 
 	var roles []models.Role
 
-	// Create query builder with tenant context and allowed filters, sorts, and includes
+	// Create query builder with organization context and allowed filters, sorts, and includes
 	qb := querybuilder.For(&models.Role{}).
 		WithRequest(ctx).
 		AllowedFilters(
 			querybuilder.Partial("name"),
 			querybuilder.Exact("is_active"),
-			querybuilder.Exact("tenant_id"),
+			querybuilder.Exact("organization_id"),
 		).
 		AllowedSorts("name", "created_at", "updated_at").
-		AllowedIncludes("permissions", "users", "tenant").
+		AllowedIncludes("permissions", "users", "organization").
 		DefaultSort("-created_at")
 
-	// Apply tenant constraint to the base query
-	query := qb.Build().Where("tenant_id = ?", tenantID)
+	// Apply organization constraint to the base query
+	query := qb.Build().Where("organization_id = ?", organizationId)
 
 	// Create a new query builder with the constrained query
 	constrainedQB := querybuilder.For(query).WithRequest(ctx)
@@ -91,10 +91,10 @@ func (rc *RoleController) Index(ctx http.Context) http.Response {
 // @Router /roles/{id} [get]
 func (rc *RoleController) Show(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	var role models.Role
-	err := facades.Orm().Query().Where("id = ? AND tenant_id = ?", id, tenantID).First(&role)
+	err := facades.Orm().Query().Where("id = ? AND organization_id = ?", id, organizationId).First(&role)
 	if err != nil {
 		return ctx.Response().Status(404).Json(http.Json{
 			"error": "Role not found",
@@ -108,7 +108,7 @@ func (rc *RoleController) Show(ctx http.Context) http.Response {
 
 // Store creates a new role
 // @Summary Create a new role
-// @Description Create a new role for a tenant
+// @Description Create a new role for a organization
 // @Tags roles
 // @Accept json
 // @Produce json
@@ -118,10 +118,10 @@ func (rc *RoleController) Show(ctx http.Context) http.Response {
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /roles [post]
 func (rc *RoleController) Store(ctx http.Context) http.Response {
-	tenantID := ctx.Value("tenant_id")
-	if tenantID == nil {
+	organizationId := ctx.Value("organization_id")
+	if organizationId == nil {
 		return ctx.Response().Status(400).Json(http.Json{
-			"error": "Tenant context required",
+			"error": "Organization context required",
 		})
 	}
 
@@ -132,8 +132,8 @@ func (rc *RoleController) Store(ctx http.Context) http.Response {
 		})
 	}
 
-	// Set tenant ID
-	role.TenantID = &[]string{tenantID.(string)}[0]
+	// Set organization ID
+	role.OrganizationID = &[]string{organizationId.(string)}[0]
 
 	err := facades.Orm().Query().Create(&role)
 	if err != nil {
@@ -163,10 +163,10 @@ func (rc *RoleController) Store(ctx http.Context) http.Response {
 // @Router /roles/{id} [put]
 func (rc *RoleController) Update(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	var role models.Role
-	err := facades.Orm().Query().Where("id = ? AND tenant_id = ?", id, tenantID).First(&role)
+	err := facades.Orm().Query().Where("id = ? AND organization_id = ?", id, organizationId).First(&role)
 	if err != nil {
 		return ctx.Response().Status(404).Json(http.Json{
 			"error": "Role not found",
@@ -205,10 +205,10 @@ func (rc *RoleController) Update(ctx http.Context) http.Response {
 // @Router /roles/{id} [delete]
 func (rc *RoleController) Delete(ctx http.Context) http.Response {
 	id := ctx.Request().Route("id")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	var role models.Role
-	err := facades.Orm().Query().Where("id = ? AND tenant_id = ?", id, tenantID).First(&role)
+	err := facades.Orm().Query().Where("id = ? AND organization_id = ?", id, organizationId).First(&role)
 	if err != nil {
 		return ctx.Response().Status(404).Json(http.Json{
 			"error": "Role not found",
@@ -240,11 +240,11 @@ func (rc *RoleController) Delete(ctx http.Context) http.Response {
 // @Router /roles/{id}/permissions [get]
 func (rc *RoleController) Permissions(ctx http.Context) http.Response {
 	roleID := ctx.Request().Route("id")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	var permissions []models.Permission
 	err := facades.Orm().Query().
-		Where("id IN (SELECT permission_id FROM role_permissions rp JOIN roles r ON rp.role_id = r.id WHERE r.id = ? AND r.tenant_id = ?)", roleID, tenantID).
+		Where("id IN (SELECT permission_id FROM role_permissions rp JOIN roles r ON rp.role_id = r.id WHERE r.id = ? AND r.organization_id = ?)", roleID, organizationId).
 		Find(&permissions)
 
 	if err != nil {
@@ -274,7 +274,7 @@ func (rc *RoleController) Permissions(ctx http.Context) http.Response {
 func (rc *RoleController) AssignPermission(ctx http.Context) http.Response {
 	roleID := ctx.Request().Route("id")
 	permissionID := ctx.Request().Input("permission_id")
-	tenantID := ctx.Value("tenant_id")
+	organizationId := ctx.Value("organization_id")
 
 	if permissionID == "" {
 		return ctx.Response().Status(400).Json(http.Json{
@@ -282,9 +282,9 @@ func (rc *RoleController) AssignPermission(ctx http.Context) http.Response {
 		})
 	}
 
-	// Check if role exists and belongs to tenant
+	// Check if role exists and belongs to organization
 	var role models.Role
-	err := facades.Orm().Query().Where("id = ? AND tenant_id = ?", roleID, tenantID).First(&role)
+	err := facades.Orm().Query().Where("id = ? AND organization_id = ?", roleID, organizationId).First(&role)
 	if err != nil {
 		return ctx.Response().Status(404).Json(http.Json{
 			"error": "Role not found",

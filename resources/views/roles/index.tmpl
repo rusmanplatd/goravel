@@ -7,11 +7,11 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <h1 class="h4 fw-semibold text-dark">Roles</h1>
-                    {{if .tenantID}}
-                    <p class="text-muted small mb-0">Managing roles for tenant: {{.tenantID}}</p>
+                    {{if .organizationId}}
+                    <p class="text-muted small mb-0">Managing roles for organization: {{.organizationId}}</p>
                     {{end}}
                 </div>
-                <a href="/roles/create?tenant_id={{.tenantID}}" class="btn btn-success">
+                <a href="/roles/create?organization_id={{.organizationId}}" class="btn btn-success">
                     <i class="fas fa-plus me-2"></i> Create Role
                 </a>
             </div>
@@ -25,7 +25,7 @@
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <form method="GET" action="/roles" class="row g-3 align-items-end">
-                        <input type="hidden" name="tenant_id" value="{{.tenantID}}">
+                        <input type="hidden" name="organization_id" value="{{.organizationId}}">
                         <div class="col-md-4">
                             <label for="search" class="form-label">Search</label>
                             <input type="text" name="search" id="search" value="{{.filters.search}}" class="form-control" placeholder="Search roles...">
@@ -60,18 +60,18 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="fw-semibold text-success"><a href="/roles/{{.ID}}?tenant_id={{$.tenantID}}" class="text-success text-decoration-none">{{.Name}}</a></div>
+                                    <div class="fw-semibold text-success"><a href="/roles/{{.ID}}?organization_id={{$.organizationId}}" class="text-success text-decoration-none">{{.Name}}</a></div>
                                     <span class="badge bg-light text-dark border me-2">{{.Guard}}</span>
                                     <div class="text-muted small">{{.Description}}</div>
                                     <div class="text-muted small"><i class="fas fa-calendar me-1"></i>Created {{.CreatedAt.Format "Jan 02, 2006"}}</div>
                                 </div>
                             </div>
                             <div class="d-flex align-items-center gap-2">
-                                <a href="/roles/{{.ID}}?tenant_id={{$.tenantID}}" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>
-                                <a href="/roles/{{.ID}}/edit?tenant_id={{$.tenantID}}" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i></a>
+                                <a href="/roles/{{.ID}}?organization_id={{$.organizationId}}" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>
+                                <a href="/roles/{{.ID}}/edit?organization_id={{$.organizationId}}" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i></a>
                                 <form method="POST" action="/roles/{{.ID}}" class="d-inline delete-form">
                                     <input type="hidden" name="_method" value="DELETE">
-                                    <input type="hidden" name="tenant_id" value="{{$.tenantID}}">
+                                    <input type="hidden" name="organization_id" value="{{$.organizationId}}">
                                     <button type="submit" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>
                                 </form>
                             </div>
@@ -82,7 +82,7 @@
                         <i class="fas fa-user-tag fa-2x mb-2"></i>
                         <div class="fw-medium">No roles found</div>
                         <div class="small">Get started by creating your first role.</div>
-                        <a href="/roles/create?tenant_id={{.tenantID}}" class="btn btn-success mt-2"><i class="fas fa-plus me-2"></i> Create Role</a>
+                        <a href="/roles/create?organization_id={{.organizationId}}" class="btn btn-success mt-2"><i class="fas fa-plus me-2"></i> Create Role</a>
                     </li>
                     {{end}}
                 </ul>
@@ -92,10 +92,10 @@
             <nav>
                 <ul class="pagination justify-content-center">
                     {{if .pagination.cursor}}
-                    <li class="page-item"><a class="page-link" href="/roles?cursor={{.pagination.cursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&guard={{.filters.guard}}&tenant_id={{.tenantID}}">Previous</a></li>
+                    <li class="page-item"><a class="page-link" href="/roles?cursor={{.pagination.cursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&guard={{.filters.guard}}&organization_id={{.organizationId}}">Previous</a></li>
                     {{end}}
                     {{if .pagination.nextCursor}}
-                    <li class="page-item"><a class="page-link" href="/roles?cursor={{.pagination.nextCursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&guard={{.filters.guard}}&tenant_id={{.tenantID}}">Next</a></li>
+                    <li class="page-item"><a class="page-link" href="/roles?cursor={{.pagination.nextCursor}}&limit={{.pagination.limit}}&search={{.filters.search}}&guard={{.filters.guard}}&organization_id={{.organizationId}}">Next</a></li>
                     {{end}}
                 </ul>
             </nav>

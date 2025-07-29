@@ -35,74 +35,74 @@ func (s *UserRoleSeeder) Run() error {
 		return nil
 	}
 
-	// Get all tenants
-	var tenants []models.Tenant
-	err = facades.Orm().Query().Find(&tenants)
+	// Get all organizations
+	var organizations []models.Organization
+	err = facades.Orm().Query().Find(&organizations)
 	if err != nil {
-		facades.Log().Info("No tenants found, skipping UserRoleSeeder")
+		facades.Log().Info("No organizations found, skipping UserRoleSeeder")
 		return nil
 	}
 
 	// Create user-role assignments
 	userRoleAssignments := []struct {
-		userEmail   string
-		roleName    string
-		tenantName  string
-		description string
+		userEmail        string
+		roleName         string
+		organizationName string
+		description      string
 	}{
 		{
-			userEmail:   "superadmin@goravel.com",
-			roleName:    "super-admin",
-			tenantName:  "",
-			description: "Super admin with global access",
+			userEmail:        "superadmin@goravel.com",
+			roleName:         "super-admin",
+			organizationName: "",
+			description:      "Super admin with global access",
 		},
 		{
-			userEmail:   "admin@goravel.com",
-			roleName:    "admin",
-			tenantName:  "Default Company",
-			description: "Admin for default tenant",
+			userEmail:        "admin@goravel.com",
+			roleName:         "admin",
+			organizationName: "Default Company",
+			description:      "Admin for default organization",
 		},
 		{
-			userEmail:   "manager@goravel.com",
-			roleName:    "manager",
-			tenantName:  "Default Company",
-			description: "Manager for default tenant",
+			userEmail:        "manager@goravel.com",
+			roleName:         "manager",
+			organizationName: "Default Company",
+			description:      "Manager for default organization",
 		},
 		{
-			userEmail:   "user@goravel.com",
-			roleName:    "user",
-			tenantName:  "Default Company",
-			description: "Regular user for default tenant",
+			userEmail:        "user@goravel.com",
+			roleName:         "user",
+			organizationName: "Default Company",
+			description:      "Regular user for default organization",
 		},
 		{
-			userEmail:   "test@goravel.com",
-			roleName:    "user",
-			tenantName:  "Default Company",
-			description: "Test user for default tenant",
+			userEmail:        "test@goravel.com",
+			roleName:         "user",
+			organizationName: "Default Company",
+			description:      "Test user for default organization",
 		},
 		{
-			userEmail:   "guest@goravel.com",
-			roleName:    "guest",
-			tenantName:  "Default Company",
-			description: "Guest user for default tenant",
+			userEmail:        "guest@goravel.com",
+			roleName:         "guest",
+			organizationName: "Default Company",
+			description:      "Guest user for default organization",
 		},
 		{
-			userEmail:   "admin@example.com",
-			roleName:    "admin",
-			tenantName:  "Test Company 1",
-			description: "Admin for test company 1",
+			userEmail:        "admin@example.com",
+			roleName:         "admin",
+			organizationName: "Test Company 1",
+			description:      "Admin for test company 1",
 		},
 		{
-			userEmail:   "test1@example.com",
-			roleName:    "user",
-			tenantName:  "Test Company 1",
-			description: "User for test company 1",
+			userEmail:        "test1@example.com",
+			roleName:         "user",
+			organizationName: "Test Company 1",
+			description:      "User for test company 1",
 		},
 		{
-			userEmail:   "test2@example.com",
-			roleName:    "manager",
-			tenantName:  "Test Company 2",
-			description: "Manager for test company 2",
+			userEmail:        "test2@example.com",
+			roleName:         "manager",
+			organizationName: "Test Company 2",
+			description:      "Manager for test company 2",
 		},
 	}
 
@@ -124,16 +124,16 @@ func (s *UserRoleSeeder) Run() error {
 			continue
 		}
 
-		// Find tenant (if specified)
-		var tenantID *string
-		if assignment.tenantName != "" {
-			var tenant models.Tenant
-			err = facades.Orm().Query().Where("name = ?", assignment.tenantName).First(&tenant)
+		// Find organization (if specified)
+		var organizationId *string
+		if assignment.organizationName != "" {
+			var organization models.Organization
+			err = facades.Orm().Query().Where("name = ?", assignment.organizationName).First(&organization)
 			if err != nil {
-				facades.Log().Warning("Tenant not found: " + assignment.tenantName)
+				facades.Log().Warning("Organization not found: " + assignment.organizationName)
 				continue
 			}
-			tenantID = &tenant.ID
+			organizationId = &organization.ID
 		}
 
 		// Check if user-role relationship already exists
@@ -146,9 +146,9 @@ func (s *UserRoleSeeder) Run() error {
 
 		// Create user-role relationship
 		userRole := models.UserRole{
-			UserID:   user.ID,
-			RoleID:   role.ID,
-			TenantID: tenantID,
+			UserID:         user.ID,
+			RoleID:         role.ID,
+			OrganizationID: organizationId,
 		}
 
 		err = facades.Orm().Query().Create(&userRole)
@@ -183,17 +183,17 @@ func (s *UserRoleSeeder) Run() error {
 				continue // Already exists
 			}
 
-			// Assign to a random tenant if available
-			var tenantID *string
-			if len(tenants) > 0 {
-				tenantIndex := i % len(tenants)
-				tenantID = &tenants[tenantIndex].ID
+			// Assign to a random organization if available
+			var organizationId *string
+			if len(organizations) > 0 {
+				organizationIndex := i % len(organizations)
+				organizationId = &organizations[organizationIndex].ID
 			}
 
 			userRole := models.UserRole{
-				UserID:   user.ID,
-				RoleID:   role.ID,
-				TenantID: tenantID,
+				UserID:         user.ID,
+				RoleID:         role.ID,
+				OrganizationID: organizationId,
 			}
 
 			err = facades.Orm().Query().Create(&userRole)

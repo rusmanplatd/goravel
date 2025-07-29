@@ -5,7 +5,7 @@ import (
 )
 
 // User represents a user in the system
-// @Description User model with multi-tenant support and authentication features
+// @Description User model with multi-organization support and authentication features
 type User struct {
 	BaseModel
 	// User's full name
@@ -79,10 +79,7 @@ type User struct {
 	LockedUntil *time.Time `json:"locked_until,omitempty" example:"2024-01-15T10:30:00Z"`
 
 	// Relationships
-	// @Description User's associated tenants
-	Tenants []Tenant `gorm:"many2many:user_tenants;" json:"tenants,omitempty"`
-
-	// @Description User's roles across tenants
+	// @Description User's roles across organizations
 	Roles []Role `gorm:"many2many:user_roles;" json:"roles,omitempty"`
 
 	// @Description User's WebAuthn credentials
@@ -269,32 +266,8 @@ func (u *User) GetRateLimits() map[string]int {
 	return limits
 }
 
-// UserTenant represents the pivot table for user-tenant relationship
-// @Description User-tenant relationship with additional metadata
-type UserTenant struct {
-	// User ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	UserID string `gorm:"primaryKey;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
-
-	// Tenant ID
-	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"primaryKey;type:char(26)" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
-
-	// Whether the user is active in this tenant
-	// @example true
-	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
-
-	// When the user joined this tenant
-	// @example 2024-01-15T10:30:00Z
-	JoinedAt time.Time `json:"joined_at" example:"2024-01-15T10:30:00Z"`
-
-	// Relationships
-	User   User   `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Tenant Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-}
-
 // UserRole represents the pivot table for user-role relationship
-// @Description User-role relationship within a tenant context
+// @Description User-role relationship within an organization context
 type UserRole struct {
 	// User ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
@@ -304,12 +277,12 @@ type UserRole struct {
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	RoleID string `gorm:"primaryKey;type:char(26)" json:"role_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
-	// Tenant ID for role context
+	// Organization ID for role context
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID *string `gorm:"type:char(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID *string `gorm:"type:char(26)" json:"organization_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
-	User   User    `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Role   Role    `gorm:"foreignKey:RoleID" json:"role,omitempty"`
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	User         User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Role         Role          `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 }

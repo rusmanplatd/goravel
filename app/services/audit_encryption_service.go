@@ -73,7 +73,7 @@ type AuditLogEncrypted struct {
 	Severity       models.ActivityLogSeverity `gorm:"index;not null" json:"severity"`
 	Status         models.ActivityLogStatus   `gorm:"index;not null" json:"status"`
 	EventTimestamp time.Time                  `gorm:"index;not null" json:"event_timestamp"`
-	TenantID       string                     `gorm:"index;type:char(26)" json:"tenant_id"`
+	OrganizationID string                     `gorm:"index;type:char(26)" json:"organization_id"`
 	RiskScore      int                        `gorm:"index" json:"risk_score"`
 
 	// Encrypted fields
@@ -177,7 +177,7 @@ func (aes *AuditEncryptionService) EncryptAuditLog(log *models.ActivityLog) (*Au
 		Severity:       log.Severity,
 		Status:         log.Status,
 		EventTimestamp: log.EventTimestamp,
-		TenantID:       log.TenantID,
+		OrganizationID: log.OrganizationID,
 		RiskScore:      log.RiskScore,
 		EncryptedData:  encryptedData,
 		FieldHashes:    fieldHashesJSON,
@@ -217,7 +217,7 @@ func (aes *AuditEncryptionService) DecryptAuditLog(encryptedLog *AuditLogEncrypt
 		Severity:       encryptedLog.Severity,
 		Status:         encryptedLog.Status,
 		EventTimestamp: encryptedLog.EventTimestamp,
-		TenantID:       encryptedLog.TenantID,
+		OrganizationID: encryptedLog.OrganizationID,
 		RiskScore:      encryptedLog.RiskScore,
 	}
 
@@ -699,7 +699,7 @@ func (aes *AuditEncryptionService) convertToEncrypted(log *models.ActivityLog, e
 		Severity:       log.Severity,
 		Status:         log.Status,
 		EventTimestamp: log.EventTimestamp,
-		TenantID:       log.TenantID,
+		OrganizationID: log.OrganizationID,
 		RiskScore:      log.RiskScore,
 		EncryptedData:  encryptedData,
 	}
@@ -713,7 +713,7 @@ func (aes *AuditEncryptionService) convertFromEncrypted(encryptedLog *AuditLogEn
 		Severity:       encryptedLog.Severity,
 		Status:         encryptedLog.Status,
 		EventTimestamp: encryptedLog.EventTimestamp,
-		TenantID:       encryptedLog.TenantID,
+		OrganizationID: encryptedLog.OrganizationID,
 		RiskScore:      encryptedLog.RiskScore,
 	}
 }

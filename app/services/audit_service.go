@@ -150,26 +150,26 @@ const (
 
 // AuditContext contains context information for audit events
 type AuditContext struct {
-	UserID        string                 `json:"user_id,omitempty"`
-	SessionID     string                 `json:"session_id,omitempty"`
-	IPAddress     string                 `json:"ip_address,omitempty"`
-	UserAgent     string                 `json:"user_agent,omitempty"`
-	RequestID     string                 `json:"request_id,omitempty"`
-	Path          string                 `json:"path,omitempty"`
-	Method        string                 `json:"method,omitempty"`
-	StatusCode    int                    `json:"status_code,omitempty"`
-	Duration      time.Duration          `json:"duration,omitempty"`
-	Resource      string                 `json:"resource,omitempty"`
-	Action        string                 `json:"action,omitempty"`
-	Metadata      map[string]interface{} `json:"metadata,omitempty"`
-	ThreatLevel   string                 `json:"threat_level,omitempty"`
-	GeoLocation   *models.GeoLocation    `json:"geo_location,omitempty"`
-	DeviceInfo    map[string]interface{} `json:"device_info,omitempty"`
-	Tags          []string               `json:"tags,omitempty"`
-	TenantID      string                 `json:"tenant_id,omitempty"`
-	RiskScore     int                    `json:"risk_score,omitempty"`
-	BatchID       string                 `json:"batch_id,omitempty"`
-	CorrelationID string                 `json:"correlation_id,omitempty"`
+	UserID         string                 `json:"user_id,omitempty"`
+	SessionID      string                 `json:"session_id,omitempty"`
+	IPAddress      string                 `json:"ip_address,omitempty"`
+	UserAgent      string                 `json:"user_agent,omitempty"`
+	RequestID      string                 `json:"request_id,omitempty"`
+	Path           string                 `json:"path,omitempty"`
+	Method         string                 `json:"method,omitempty"`
+	StatusCode     int                    `json:"status_code,omitempty"`
+	Duration       time.Duration          `json:"duration,omitempty"`
+	Resource       string                 `json:"resource,omitempty"`
+	Action         string                 `json:"action,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	ThreatLevel    string                 `json:"threat_level,omitempty"`
+	GeoLocation    *models.GeoLocation    `json:"geo_location,omitempty"`
+	DeviceInfo     map[string]interface{} `json:"device_info,omitempty"`
+	Tags           []string               `json:"tags,omitempty"`
+	OrganizationID string                 `json:"organization_id,omitempty"`
+	RiskScore      int                    `json:"risk_score,omitempty"`
+	BatchID        string                 `json:"batch_id,omitempty"`
+	CorrelationID  string                 `json:"correlation_id,omitempty"`
 }
 
 // LogEvent logs an audit event with context (now uses batch processing)
@@ -281,7 +281,7 @@ func (s *AuditService) LogEvent(event AuditEvent, message string, context *Audit
 		Properties:      propsJSON,
 		ComplianceFlags: complianceFlagsJSON,
 		EventTimestamp:  time.Now(),
-		TenantID:        context.TenantID,
+		OrganizationID:  context.OrganizationID,
 	}
 
 	// Add to batch for processing
@@ -716,8 +716,8 @@ func (s *AuditService) GetSecurityEvents(since time.Time, limit int) ([]models.A
 }
 
 // GetHighRiskActivities retrieves high-risk activities
-func (s *AuditService) GetHighRiskActivities(tenantID string, since time.Time, limit int) ([]models.ActivityLog, error) {
-	return s.activityLogger.GetHighRiskActivities(tenantID, limit)
+func (s *AuditService) GetHighRiskActivities(organizationID string, since time.Time, limit int) ([]models.ActivityLog, error) {
+	return s.activityLogger.GetHighRiskActivities(organizationID, limit)
 }
 
 // DetectAnomalousActivity detects anomalous user activity patterns
@@ -753,8 +753,8 @@ func (s *AuditService) DetectAnomalousActivity(userID string) ([]string, error) 
 }
 
 // GetAuditStatistics returns comprehensive audit statistics
-func (s *AuditService) GetAuditStatistics(tenantID string, since time.Time) (map[string]interface{}, error) {
-	return s.activityLogger.GetActivityStats(tenantID, since)
+func (s *AuditService) GetAuditStatistics(organizationID string, since time.Time) (map[string]interface{}, error) {
+	return s.activityLogger.GetActivityStats(organizationID, since)
 }
 
 // Helper methods
@@ -779,10 +779,10 @@ func (s *AuditService) buildContextFromHTTP(ctx http.Context) *AuditContext {
 		}
 	}
 
-	// Try to get tenant ID from context
-	if tenantID := ctx.Value("tenant_id"); tenantID != nil {
-		if id, ok := tenantID.(string); ok {
-			context.TenantID = id
+	// Try to get organization ID from context
+	if organizationID := ctx.Value("organization_id"); organizationID != nil {
+		if id, ok := organizationID.(string); ok {
+			context.OrganizationID = id
 		}
 	}
 
@@ -1531,9 +1531,9 @@ func (b *AuditContextBuilder) WithMetadataMap(metadata map[string]interface{}) *
 	return b
 }
 
-// WithTenant sets the tenant ID
-func (b *AuditContextBuilder) WithTenant(tenantID string) *AuditContextBuilder {
-	b.context.TenantID = tenantID
+// WithOrganization sets the organization ID
+func (b *AuditContextBuilder) WithOrganization(organizationID string) *AuditContextBuilder {
+	b.context.OrganizationID = organizationID
 	return b
 }
 
@@ -1573,10 +1573,10 @@ func (b *AuditContextBuilder) WithHTTPContext(ctx http.Context) *AuditContextBui
 			}
 		}
 
-		// Extract tenant ID from context if available
-		if tenantID := ctx.Value("tenant_id"); tenantID != nil {
-			if tid, ok := tenantID.(string); ok {
-				b.context.TenantID = tid
+		// Extract organization ID from context if available
+		if organizationID := ctx.Value("organization_id"); organizationID != nil {
+			if tid, ok := organizationID.(string); ok {
+				b.context.OrganizationID = tid
 			}
 		}
 
@@ -2184,18 +2184,18 @@ func (s *AuditService) sendToSIEM(event AuditEvent, message string, context *Aud
 
 	severity := s.determineSeverity(event)
 	siemEvent := map[string]interface{}{
-		"timestamp":  time.Now().Unix(),
-		"event_type": string(event),
-		"severity":   string(severity),
-		"user_id":    context.UserID,
-		"ip_address": context.IPAddress,
-		"user_agent": context.UserAgent,
-		"risk_score": context.RiskScore,
-		"message":    message,
-		"source":     "goravel_audit",
-		"metadata":   context.Metadata,
-		"tenant_id":  context.TenantID,
-		"session_id": context.SessionID,
+		"timestamp":       time.Now().Unix(),
+		"event_type":      string(event),
+		"severity":        string(severity),
+		"user_id":         context.UserID,
+		"ip_address":      context.IPAddress,
+		"user_agent":      context.UserAgent,
+		"risk_score":      context.RiskScore,
+		"message":         message,
+		"source":          "goravel_audit",
+		"metadata":        context.Metadata,
+		"organization_id": context.OrganizationID,
+		"session_id":      context.SessionID,
 	}
 
 	facades.Log().Info("Sending SIEM event", map[string]interface{}{

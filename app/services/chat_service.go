@@ -23,14 +23,14 @@ func NewChatService() *ChatService {
 }
 
 // CreateChatRoom creates a new chat room
-func (s *ChatService) CreateChatRoom(name, description, roomType, tenantID, createdBy string, memberIDs []string) (*models.ChatRoom, error) {
+func (s *ChatService) CreateChatRoom(name, description, roomType, organizationID, createdBy string, memberIDs []string) (*models.ChatRoom, error) {
 	// Create the chat room
 	chatRoom := &models.ChatRoom{
-		Name:        name,
-		Description: description,
-		Type:        roomType,
-		IsActive:    true,
-		TenantID:    tenantID,
+		Name:           name,
+		Description:    description,
+		Type:           roomType,
+		IsActive:       true,
+		OrganizationID: organizationID,
 		BaseModel: models.BaseModel{
 			CreatedBy: &createdBy,
 		},
@@ -42,7 +42,7 @@ func (s *ChatService) CreateChatRoom(name, description, roomType, tenantID, crea
 	}
 
 	// Add creator as admin member
-	err = s.AddMemberToRoom(chatRoom.ID, createdBy, "admin", tenantID)
+	err = s.AddMemberToRoom(chatRoom.ID, createdBy, "admin", organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add creator to room: %v", err)
 	}
@@ -50,7 +50,7 @@ func (s *ChatService) CreateChatRoom(name, description, roomType, tenantID, crea
 	// Add other members
 	for _, memberID := range memberIDs {
 		if memberID != createdBy {
-			err = s.AddMemberToRoom(chatRoom.ID, memberID, "member", tenantID)
+			err = s.AddMemberToRoom(chatRoom.ID, memberID, "member", organizationID)
 			if err != nil {
 				facades.Log().Error("Failed to add member to room", map[string]interface{}{
 					"room_id":   chatRoom.ID,
@@ -92,7 +92,7 @@ func (s *ChatService) GetChatRoom(roomID, userID string) (*models.ChatRoom, erro
 }
 
 // GetUserChatRooms retrieves all chat rooms for a user
-func (s *ChatService) GetUserChatRooms(userID, tenantID string) ([]models.ChatRoom, error) {
+func (s *ChatService) GetUserChatRooms(userID, organizationID string) ([]models.ChatRoom, error) {
 	// First get member records for the user
 	var members []models.ChatRoomMember
 	err := facades.Orm().Query().
@@ -117,7 +117,7 @@ func (s *ChatService) GetUserChatRooms(userID, tenantID string) ([]models.ChatRo
 	var chatRooms []models.ChatRoom
 	err = facades.Orm().Query().
 		Where("id IN ?", roomIDs).
-		Where("tenant_id", tenantID).
+		Where("organization_id", organizationID).
 		Where("is_active", true).
 		Order("last_activity_at DESC").
 		Find(&chatRooms)
@@ -126,7 +126,7 @@ func (s *ChatService) GetUserChatRooms(userID, tenantID string) ([]models.ChatRo
 }
 
 // AddMemberToRoom adds a user to a chat room
-func (s *ChatService) AddMemberToRoom(roomID, userID, role, tenantID string) error {
+func (s *ChatService) AddMemberToRoom(roomID, userID, role, organizationID string) error {
 	// Check if user is already a member
 	var existingMember models.ChatRoomMember
 	err := facades.Orm().Query().Where("chat_room_id", roomID).Where("user_id", userID).First(&existingMember)

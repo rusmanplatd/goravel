@@ -43,13 +43,13 @@ type UpdateUserRequest struct {
 }
 
 // AssignRoleRequest represents the request for assigning a role to a user
-// @Description Request model for assigning a role to a user within a tenant
+// @Description Request model for assigning a role to a user within a organization
 type AssignRoleRequest struct {
 	// Role ID to assign
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	RoleID string `json:"role_id" binding:"required" example:"01HXYZ123456789ABCDEFGHIJK" validate:"required"`
 
-	// Tenant ID for the role assignment
+	// Organization ID for the role assignment
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `json:"tenant_id" binding:"required" example:"01HXYZ123456789ABCDEFGHIJK" validate:"required"`
+	OrganizationID string `json:"organization_id" binding:"required" example:"01HXYZ123456789ABCDEFGHIJK" validate:"required"`
 }

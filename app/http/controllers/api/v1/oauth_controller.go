@@ -1361,7 +1361,7 @@ func (c *OAuthController) Discovery(ctx http.Context) http.Response {
 			"locale", "phone_number", "phone_number_verified",
 			"address", "updated_at",
 			// Custom claims
-			"tenant_id", "organization_id", "roles", "permissions",
+			"organization_id", "organization_id", "roles", "permissions",
 			"session_state", "acr", "amr",
 		},
 

@@ -56,14 +56,14 @@ func (cc *ChatController) CreateChatRoom(ctx http.Context) http.Response {
 
 	// Get current user
 	user := ctx.Value("user").(*models.User)
-	tenantID := ctx.Value("tenant_id").(string)
+	organizationId := ctx.Value("organization_id").(string)
 
 	// Create chat room
 	chatRoom, err := cc.chatService.CreateChatRoom(
 		req.Name,
 		req.Description,
 		req.Type,
-		tenantID,
+		organizationId,
 		user.ID,
 		req.MemberIDs,
 	)
@@ -110,9 +110,9 @@ func (cc *ChatController) CreateChatRoom(ctx http.Context) http.Response {
 // @Router /chat/rooms [get]
 func (cc *ChatController) GetChatRooms(ctx http.Context) http.Response {
 	user := ctx.Value("user").(*models.User)
-	tenantID := ctx.Value("tenant_id").(string)
+	organizationId := ctx.Value("organization_id").(string)
 
-	chatRooms, err := cc.chatService.GetUserChatRooms(user.ID, tenantID)
+	chatRooms, err := cc.chatService.GetUserChatRooms(user.ID, organizationId)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
@@ -451,7 +451,7 @@ func (cc *ChatController) GetRoomMembers(ctx http.Context) http.Response {
 // @Router /chat/rooms/{id}/members [post]
 func (cc *ChatController) AddMember(ctx http.Context) http.Response {
 	roomID := ctx.Request().Route("id")
-	tenantID := ctx.Value("tenant_id").(string)
+	organizationId := ctx.Value("organization_id").(string)
 
 	var req requests.AddMemberRequest
 	if err := ctx.Request().Bind(&req); err != nil {
@@ -462,7 +462,7 @@ func (cc *ChatController) AddMember(ctx http.Context) http.Response {
 		})
 	}
 
-	err := cc.chatService.AddMemberToRoom(roomID, req.UserID, req.Role, tenantID)
+	err := cc.chatService.AddMemberToRoom(roomID, req.UserID, req.Role, organizationId)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",

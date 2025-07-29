@@ -20,7 +20,7 @@ func Api() {
 	}
 	oauthController := v1.NewOAuthController()
 	userController := v1.NewUserController()
-	tenantController := v1.NewTenantController()
+
 	organizationController := v1.NewOrganizationController()
 	departmentController := v1.NewDepartmentController()
 	teamController := v1.NewTeamController()
@@ -34,6 +34,7 @@ func Api() {
 	districtController := v1.NewDistrictController()
 	chatController := v1.NewChatController()
 	calendarEventController := v1.NewCalendarEventController()
+	userCalendarController := v1.NewUserCalendarController()
 	notificationController := v1.NewNotificationController()
 	driveController := v1.NewDriveController()
 	jobLevelController := v1.NewJobLevelController()
@@ -127,20 +128,10 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/{id}", userController.Show)
 	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/users/{id}", userController.Update)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/users/{id}", userController.Delete)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/{id}/tenants", userController.Tenants)
+
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/{id}/roles", userController.Roles)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/users/{id}/roles", userController.AssignRole)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/users/{id}/roles/{role_id}", userController.RevokeRole)
-
-	// Tenant management routes (protected)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/tenants", tenantController.Index)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/tenants", tenantController.Store)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/tenants/{id}", tenantController.Show)
-	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/tenants/{id}", tenantController.Update)
-	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/tenants/{id}", tenantController.Delete)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/tenants/{id}/users", tenantController.Users)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/tenants/{id}/users", tenantController.AddUser)
-	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/tenants/{id}/users/{user_id}", tenantController.RemoveUser)
 
 	// Organization management routes (protected)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/organizations", organizationController.Index)
@@ -533,16 +524,109 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/security/events", meetingSecurityController.GetSecurityEvents)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{meeting_id}/security/monitor", meetingSecurityController.MonitorMeetingSecurity)
 
-	// Calendar utility routes
+	// Google Calendar API-style routes
+
+	// Calendars API (following Google Calendar API patterns)
+	calendarsController := v1.NewCalendarsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendars/{calendarId}", calendarsController.Get)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars", calendarsController.Insert)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/calendars/{calendarId}", calendarsController.Update)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/calendars/{calendarId}", calendarsController.Patch)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/calendars/{calendarId}", calendarsController.Delete)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars/{calendarId}/clear", calendarsController.Clear)
+
+	// CalendarList API
+	calendarListController := v1.NewCalendarListController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/me/calendarList", calendarListController.List)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/me/calendarList/{calendarId}", calendarListController.Get)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/users/me/calendarList", calendarListController.Insert)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/users/me/calendarList/{calendarId}", calendarListController.Update)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/users/me/calendarList/{calendarId}", calendarListController.Patch)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/users/me/calendarList/{calendarId}", calendarListController.Delete)
+
+	// Events API (following Google Calendar API patterns)
+	eventsController := v1.NewEventsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendars/{calendarId}/events", eventsController.List)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendars/{calendarId}/events/{eventId}", eventsController.Get)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars/{calendarId}/events", eventsController.Insert)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/calendars/{calendarId}/events/{eventId}", eventsController.Update)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/calendars/{calendarId}/events/{eventId}", eventsController.Patch)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/calendars/{calendarId}/events/{eventId}", eventsController.Delete)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars/{calendarId}/events/quickAdd", eventsController.QuickAdd)
+
+	// FreeBusy API
+	freebusyController := v1.NewFreeBusyController()
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/freeBusy", freebusyController.Query)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/me/availability", freebusyController.GetAvailability)
+
+	// Colors API
+	colorsController := v1.NewColorsController()
+	facades.Route().Get("/api/v1/colors", colorsController.Get)
+	facades.Route().Get("/api/v1/colors/calendar", colorsController.GetCalendarColors)
+	facades.Route().Get("/api/v1/colors/event", colorsController.GetEventColors)
+
+	// Settings API
+	settingsController := v1.NewSettingsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/me/settings", settingsController.List)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/users/me/settings/{setting}", settingsController.Get)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/users/me/settings/{setting}", settingsController.UpdateSetting)
+
+	// ACL API
+	aclController := v1.NewAclController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendars/{calendarId}/acl", aclController.List)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendars/{calendarId}/acl/{ruleId}", aclController.Get)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars/{calendarId}/acl", aclController.Insert)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/calendars/{calendarId}/acl/{ruleId}", aclController.Update)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/calendars/{calendarId}/acl/{ruleId}", aclController.Patch)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/calendars/{calendarId}/acl/{ruleId}", aclController.Delete)
+
+	// Event Instances API
+	eventInstancesController := v1.NewEventInstancesController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendars/{calendarId}/events/{eventId}/instances", eventInstancesController.List)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/calendars/{calendarId}/events/{eventId}/instances/{instanceId}", eventInstancesController.UpdateInstance)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/calendars/{calendarId}/events/{eventId}/instances/{instanceId}", eventInstancesController.DeleteInstance)
+
+	// Event Move API
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars/{calendarId}/events/{eventId}/move", eventsController.Move)
+
+	// Import/Export API
+	importController := v1.NewImportController()
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars/{calendarId}/events/import", importController.ImportEvents)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendars/{calendarId}/events/export", importController.ExportEvents)
+
+	// Channels/Watch API
+	channelsController := v1.NewChannelsController()
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendars/{calendarId}/events/watch", channelsController.WatchCalendar)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/events/watch", channelsController.WatchEvents)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/channels/stop", channelsController.StopChannel)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/channels", channelsController.ListChannels)
+
+	// Batch Operations API
+	batchController := v1.NewBatchController()
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/batch", batchController.ProcessBatch)
+
+	// Calendar Search API
+	calendarSearchController := v1.NewSearchController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/search", calendarSearchController.GlobalSearch)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/search/events", calendarSearchController.SearchEvents)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/search/calendars", calendarSearchController.SearchCalendars)
+
+	// Analytics API
+	analyticsController := v1.NewAnalyticsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/analytics/usage", analyticsController.GetCalendarUsage)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/analytics/trends", analyticsController.GetEventTrends)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/analytics/insights", analyticsController.GetCalendarInsights)
+
+	// Legacy calendar utility routes (for backward compatibility)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/check-conflicts", calendarEventController.CheckConflicts)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/export", calendarEventController.ExportCalendar)
 
-	// Calendar bulk operations
+	// Legacy calendar bulk operations
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/bulk-update", calendarEventController.BulkUpdate)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/bulk-delete", calendarEventController.BulkDelete)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/bulk-reschedule", calendarEventController.BulkReschedule)
 
-	// Calendar view and availability routes
+	// Legacy calendar view and availability routes
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-events/view", calendarEventController.GetCalendarView)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-events/availability", calendarEventController.GetAvailability)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-events/suggestions", calendarEventController.GetEventSuggestions)
@@ -560,7 +644,7 @@ func Api() {
 	// Calendar Analytics API routes
 	calendarAnalyticsController := v1.NewCalendarAnalyticsController()
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/users/{user_id}", calendarAnalyticsController.GetUserAnalytics)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/tenants/{tenant_id}", calendarAnalyticsController.GetTenantAnalytics)
+
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/reports", calendarAnalyticsController.GenerateReport)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/meeting-effectiveness", calendarAnalyticsController.GetMeetingEffectivenessReport)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-analytics/productivity-insights", calendarAnalyticsController.GetProductivityInsights)
@@ -577,6 +661,18 @@ func Api() {
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/calendar-delegation/accept/{delegation_id}", calendarSharingController.AcceptDelegation)
 	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/calendar-delegation/revoke/{delegation_id}", calendarSharingController.RevokeDelegation)
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-delegation/activities", calendarSharingController.GetDelegationActivities)
+
+	// User Calendars API routes
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/user-calendars", userCalendarController.Index)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/user-calendars", userCalendarController.Store)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/user-calendars/{id}", userCalendarController.Show)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/user-calendars/{id}", userCalendarController.Update)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/user-calendars/{id}", userCalendarController.Destroy)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/user-calendars/{id}/toggle-visibility", userCalendarController.ToggleVisibility)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/user-calendars/reorder", userCalendarController.Reorder)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/user-calendars/{id}/events", userCalendarController.GetWithEvents)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/user-calendars/{id}/statistics", userCalendarController.GetStatistics)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/user-calendars/search", userCalendarController.Search)
 
 	// Calendar Permissions API routes
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-permissions/check", calendarSharingController.CheckPermission)

@@ -19,7 +19,7 @@ func (r *M20250115000005CreateUserRolesTable) Up() error {
 		table.Ulid("id").Comment("Unique identifier")
 		table.Ulid("user_id").Comment("User reference")
 		table.Ulid("role_id").Comment("Role reference")
-		table.Ulid("tenant_id").Nullable().Comment("Tenant reference for tenant-specific roles")
+		table.Ulid("organization_id").Nullable().Comment("Organization reference for organization-specific roles")
 		table.TimestampsTz()
 		table.SoftDeletesTz()
 		table.Ulid("created_by").Comment("User who created data")
@@ -32,12 +32,12 @@ func (r *M20250115000005CreateUserRolesTable) Up() error {
 		// Foreign keys
 		table.Foreign("user_id").References("id").On("users")
 		table.Foreign("role_id").References("id").On("roles")
-		table.Foreign("tenant_id").References("id").On("tenants")
+		table.Foreign("organization_id").References("id").On("organizations")
 
 		// Indexes
 		table.Index("user_id")
 		table.Index("role_id")
-		table.Index("tenant_id")
+		table.Index("organization_id")
 		table.Index("created_by")
 		table.Index("updated_by")
 		table.Index("deleted_by")
@@ -48,7 +48,7 @@ func (r *M20250115000005CreateUserRolesTable) Up() error {
 		table.Foreign("deleted_by").References("id").On("users")
 
 		// Unique constraint
-		table.Unique("user_id", "role_id", "tenant_id")
+		table.Unique("user_id", "role_id", "organization_id")
 	})
 }
 

@@ -72,16 +72,16 @@ type UserCalendar struct {
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	UserID string `gorm:"not null" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Calendar owner
 	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 
-	// @Description Associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description Calendar events
 	Events []CalendarEvent `gorm:"foreignKey:CalendarID" json:"events,omitempty"`
@@ -134,9 +134,9 @@ type CalendarSubscription struct {
 	// @example 2024-12-31T23:59:59Z
 	ExpiresAt *time.Time `json:"expires_at,omitempty" example:"2024-12-31T23:59:59Z"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Subscriber user
@@ -145,8 +145,8 @@ type CalendarSubscription struct {
 	// @Description Subscribed calendar
 	Calendar *UserCalendar `gorm:"foreignKey:CalendarID" json:"calendar,omitempty"`
 
-	// @Description Associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 }
 
 // CalendarIntegration represents external calendar integrations
@@ -199,14 +199,14 @@ type CalendarIntegration struct {
 	// @example
 	LastError string `json:"last_error,omitempty"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Integration owner
 	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 
-	// @Description Associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 }

@@ -183,7 +183,7 @@ func TestChatSystem(t *testing.T) {
 		chatService := services.NewChatService()
 
 		// Create test data
-		tenantID := "test_tenant_123"
+		organizationId := "test_organization_123"
 		user1ID := "test_user_1"
 		user2ID := "test_user_2"
 
@@ -192,7 +192,7 @@ func TestChatSystem(t *testing.T) {
 			"Test Room",
 			"Test Description",
 			"group",
-			tenantID,
+			organizationId,
 			user1ID,
 			[]string{user2ID},
 		)
@@ -267,11 +267,11 @@ func TestChatSystem(t *testing.T) {
 func TestChatModels(t *testing.T) {
 	t.Run("Chat Room Model", func(t *testing.T) {
 		chatRoom := &models.ChatRoom{
-			Name:        "Test Room",
-			Description: "Test Description",
-			Type:        "group",
-			IsActive:    true,
-			TenantID:    "test_tenant",
+			Name:           "Test Room",
+			Description:    "Test Description",
+			Type:           "group",
+			IsActive:       true,
+			organizationId: "test_organization",
 		}
 
 		assert.Equal(t, "Test Room", chatRoom.Name)
@@ -384,7 +384,7 @@ func TestMessageReactions(t *testing.T) {
 	chatService := services.NewChatService()
 
 	// Create test data
-	tenantID := "test_tenant_123"
+	organizationId := "test_organization_123"
 	user1ID := "test_user_1"
 	user2ID := "test_user_2"
 
@@ -393,7 +393,7 @@ func TestMessageReactions(t *testing.T) {
 		"Test Room",
 		"Test Description",
 		"group",
-		tenantID,
+		organizationId,
 		user1ID,
 		[]string{user2ID},
 	)
@@ -541,7 +541,7 @@ func TestRealTimeEvents(t *testing.T) {
 	chatService := services.NewChatService()
 
 	// Create test data
-	tenantID := "test_tenant_123"
+	organizationId := "test_organization_123"
 	user1ID := "test_user_1"
 	user2ID := "test_user_2"
 
@@ -550,7 +550,7 @@ func TestRealTimeEvents(t *testing.T) {
 		"Test Room",
 		"Test Description",
 		"group",
-		tenantID,
+		organizationId,
 		user1ID,
 		[]string{user2ID},
 	)

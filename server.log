@@ -1,0 +1,4 @@
+[2025-07-29 21:07:14.669] local.info: Registering routes...
+[2025-07-29 21:07:14.753] local.info: GeoIP City database loaded successfullymap[path:storage/geoip/GeoLite2-City.mmdb]
+[2025-07-29 21:07:14.753] local.info: GeoIP ASN database loaded successfullymap[path:storage/geoip/GeoLite2-ASN.mmdb]
+[2025-07-29 21:07:14.753] local.info: Default correlation rules loadedmap[rules_count:3]

@@ -14,13 +14,13 @@ func NewRoleController() *RoleController {
 	return &RoleController{}
 }
 
-// Index displays the roles list page for a tenant
+// Index displays the roles list page for a organization
 func (c *RoleController) Index(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
-	if tenantID == "" {
+	organizationId := ctx.Request().Input("organization_id", "")
+	if organizationId == "" {
 		return ctx.Response().View().Make("roles/index.tmpl", map[string]interface{}{
 			"title": "Roles",
-			"error": "Tenant ID is required",
+			"error": "Organization ID is required",
 			"roles": []models.Role{},
 		})
 	}
@@ -32,7 +32,7 @@ func (c *RoleController) Index(ctx http.Context) http.Response {
 	isActive := ctx.Request().Input("is_active", "")
 
 	// Build query
-	query := facades.Orm().Query().Where("tenant_id = ?", tenantID)
+	query := facades.Orm().Query().Where("organization_id = ?", organizationId)
 
 	// Apply search filter
 	if search != "" {
@@ -52,10 +52,10 @@ func (c *RoleController) Index(ctx http.Context) http.Response {
 	query, err := helpers.ApplyCursorPagination(query, cursor, limit, false)
 	if err != nil {
 		return ctx.Response().View().Make("roles/index.tmpl", map[string]interface{}{
-			"title":    "Roles",
-			"error":    "Invalid cursor format",
-			"roles":    []models.Role{},
-			"tenantID": tenantID,
+			"title":          "Roles",
+			"error":          "Invalid cursor format",
+			"roles":          []models.Role{},
+			"organizationId": organizationId,
 		})
 	}
 
@@ -63,10 +63,10 @@ func (c *RoleController) Index(ctx http.Context) http.Response {
 	err = query.Find(&roles)
 	if err != nil {
 		return ctx.Response().View().Make("roles/index.tmpl", map[string]interface{}{
-			"title":    "Roles",
-			"error":    "Failed to retrieve roles",
-			"roles":    []models.Role{},
-			"tenantID": tenantID,
+			"title":          "Roles",
+			"error":          "Failed to retrieve roles",
+			"roles":          []models.Role{},
+			"organizationId": organizationId,
 		})
 	}
 
@@ -81,15 +81,15 @@ func (c *RoleController) Index(ctx http.Context) http.Response {
 
 	// Get unique guards for filter
 	var guards []string
-	facades.Orm().Query().Where("tenant_id = ?", tenantID).
+	facades.Orm().Query().Where("organization_id = ?", organizationId).
 		Distinct("guard").
 		Pluck("guard", &guards)
 
 	return ctx.Response().View().Make("roles/index.tmpl", map[string]interface{}{
-		"title":      "Roles",
-		"roles":      roles,
-		"pagination": paginationInfo,
-		"tenantID":   tenantID,
+		"title":          "Roles",
+		"roles":          roles,
+		"pagination":     paginationInfo,
+		"organizationId": organizationId,
 		"filters": map[string]interface{}{
 			"search": search,
 			"guard":  "",
@@ -122,10 +122,10 @@ func (c *RoleController) Show(ctx http.Context) http.Response {
 
 // Create displays the role creation form
 func (c *RoleController) Create(ctx http.Context) http.Response {
-	tenantID := ctx.Request().Input("tenant_id", "")
+	organizationId := ctx.Request().Input("organization_id", "")
 	return ctx.Response().View().Make("roles/create.tmpl", map[string]interface{}{
-		"title":    "Create Role",
-		"tenantID": tenantID,
+		"title":          "Create Role",
+		"organizationId": organizationId,
 	})
 }
 
@@ -134,36 +134,36 @@ func (c *RoleController) Store(ctx http.Context) http.Response {
 	// Get form data
 	name := ctx.Request().Input("name", "")
 	description := ctx.Request().Input("description", "")
-	tenantID := ctx.Request().Input("tenant_id", "")
+	organizationId := ctx.Request().Input("organization_id", "")
 	// isActive := ctx.Request().Input("is_active", "true") == "true"
 
 	// Validate required fields
-	if name == "" || tenantID == "" {
+	if name == "" || organizationId == "" {
 		return ctx.Response().View().Make("roles/create.tmpl", map[string]interface{}{
-			"title":       "Create Role",
-			"error":       "Name and Tenant ID are required",
-			"name":        name,
-			"description": description,
-			"tenantID":    tenantID,
+			"title":          "Create Role",
+			"error":          "Name and Organization ID are required",
+			"name":           name,
+			"description":    description,
+			"organizationId": organizationId,
 		})
 	}
 
 	// Create role
 	role := models.Role{
-		Name:        name,
-		Description: description,
-		TenantID:    &tenantID,
+		Name:           name,
+		Description:    description,
+		OrganizationID: &organizationId,
 		// IsActive:    isActive,
 	}
 
 	err := facades.Orm().Query().Create(&role)
 	if err != nil {
 		return ctx.Response().View().Make("roles/create.tmpl", map[string]interface{}{
-			"title":       "Create Role",
-			"error":       "Failed to create role",
-			"name":        name,
-			"description": description,
-			"tenantID":    tenantID,
+			"title":          "Create Role",
+			"error":          "Failed to create role",
+			"name":           name,
+			"description":    description,
+			"organizationId": organizationId,
 		})
 	}
 

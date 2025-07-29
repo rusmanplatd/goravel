@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// Role represents a user role within a tenant
+// Role represents a user role within a organization
 // @Description Role model for role-based access control
 type Role struct {
 	BaseModel
@@ -17,17 +17,17 @@ type Role struct {
 	// @example web
 	Guard string `gorm:"not null;default:'api'" json:"guard" example:"web"`
 
-	// Tenant ID for role scope
+	// Organization ID for role scope
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID *string `gorm:"index;type:char(26)" json:"tenant_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+	OrganizationID *string `gorm:"index;type:char(26)" json:"organization_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Role description
 	// @example Administrator role with full access
 	Description string `json:"description" example:"Administrator role with full access"`
 
 	// Relationships
-	// @Description Tenant this role belongs to
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Organization this role belongs to
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description Permissions assigned to this role
 	Permissions []Permission `gorm:"many2many:role_permissions;" json:"permissions,omitempty"`

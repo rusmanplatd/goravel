@@ -21,17 +21,17 @@ func (r *CalendarEventSeeder) Signature() string {
 func (r *CalendarEventSeeder) Run() error {
 	facades.Log().Info(fmt.Sprintf("%s started", r.Signature()))
 	defer facades.Log().Info(fmt.Sprintf("%s completed", r.Signature()))
-	// Get existing users and tenants for relationships
+	// Get existing users and organizations for relationships
 	var users []models.User
 	facades.Orm().Query().Limit(5).Find(&users)
 	if len(users) == 0 {
 		return nil // No users to create events for
 	}
 
-	var tenants []models.Tenant
-	facades.Orm().Query().Limit(3).Find(&tenants)
-	if len(tenants) == 0 {
-		return nil // No tenants to create events for
+	var organizations []models.Organization
+	facades.Orm().Query().Limit(3).Find(&organizations)
+	if len(organizations) == 0 {
+		return nil // No organizations to create events for
 	}
 
 	// Create sample calendar events
@@ -51,9 +51,9 @@ func (r *CalendarEventSeeder) Run() error {
 				t := time.Now().AddDate(0, 1, 0) // 1 month from now
 				return &t
 			}(),
-			Timezone: "UTC",
-			Status:   "scheduled",
-			TenantID: tenants[0].ID,
+			Timezone:       "UTC",
+			Status:         "scheduled",
+			OrganizationID: organizations[0].ID,
 			BaseModel: models.BaseModel{
 				CreatedBy: &users[0].ID,
 				UpdatedBy: &users[0].ID,
@@ -74,27 +74,27 @@ func (r *CalendarEventSeeder) Run() error {
 				t := time.Now().AddDate(1, 0, 0) // 1 year from now
 				return &t
 			}(),
-			Timezone: "UTC",
-			Status:   "scheduled",
-			TenantID: tenants[0].ID,
+			Timezone:       "UTC",
+			Status:         "scheduled",
+			OrganizationID: organizations[0].ID,
 			BaseModel: models.BaseModel{
 				CreatedBy: &users[0].ID,
 				UpdatedBy: &users[0].ID,
 			},
 		},
 		{
-			Title:       "Client Meeting",
-			Description: "Quarterly client meeting to discuss project progress",
-			StartTime:   time.Now().AddDate(0, 0, 7).Add(10 * time.Hour), // 1 week from now at 10 AM
-			EndTime:     time.Now().AddDate(0, 0, 7).Add(11*time.Hour + 30*time.Minute),
-			Location:    "Zoom Meeting",
-			Color:       "#10B981",
-			Type:        "meeting",
-			IsAllDay:    false,
-			IsRecurring: false,
-			Timezone:    "UTC",
-			Status:      "scheduled",
-			TenantID:    tenants[0].ID,
+			Title:          "Client Meeting",
+			Description:    "Quarterly client meeting to discuss project progress",
+			StartTime:      time.Now().AddDate(0, 0, 7).Add(10 * time.Hour), // 1 week from now at 10 AM
+			EndTime:        time.Now().AddDate(0, 0, 7).Add(11*time.Hour + 30*time.Minute),
+			Location:       "Zoom Meeting",
+			Color:          "#10B981",
+			Type:           "meeting",
+			IsAllDay:       false,
+			IsRecurring:    false,
+			Timezone:       "UTC",
+			Status:         "scheduled",
+			OrganizationID: organizations[0].ID,
 			BaseModel: models.BaseModel{
 				CreatedBy: &users[1].ID,
 				UpdatedBy: &users[1].ID,
@@ -115,27 +115,27 @@ func (r *CalendarEventSeeder) Run() error {
 				t := time.Now().AddDate(0, 6, 0) // 6 months from now
 				return &t
 			}(),
-			Timezone: "UTC",
-			Status:   "scheduled",
-			TenantID: tenants[0].ID,
+			Timezone:       "UTC",
+			Status:         "scheduled",
+			OrganizationID: organizations[0].ID,
 			BaseModel: models.BaseModel{
 				CreatedBy: &users[0].ID,
 				UpdatedBy: &users[0].ID,
 			},
 		},
 		{
-			Title:       "Birthday Party",
-			Description: "Team birthday celebration",
-			StartTime:   time.Now().AddDate(0, 0, 5).Add(18 * time.Hour), // 5 days from now at 6 PM
-			EndTime:     time.Now().AddDate(0, 0, 5).Add(20 * time.Hour),
-			Location:    "Office Kitchen",
-			Color:       "#F59E0B",
-			Type:        "event",
-			IsAllDay:    false,
-			IsRecurring: false,
-			Timezone:    "UTC",
-			Status:      "scheduled",
-			TenantID:    tenants[0].ID,
+			Title:          "Birthday Party",
+			Description:    "Team birthday celebration",
+			StartTime:      time.Now().AddDate(0, 0, 5).Add(18 * time.Hour), // 5 days from now at 6 PM
+			EndTime:        time.Now().AddDate(0, 0, 5).Add(20 * time.Hour),
+			Location:       "Office Kitchen",
+			Color:          "#F59E0B",
+			Type:           "event",
+			IsAllDay:       false,
+			IsRecurring:    false,
+			Timezone:       "UTC",
+			Status:         "scheduled",
+			OrganizationID: organizations[0].ID,
 			BaseModel: models.BaseModel{
 				CreatedBy: &users[2].ID,
 				UpdatedBy: &users[2].ID,

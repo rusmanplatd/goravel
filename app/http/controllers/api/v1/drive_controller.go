@@ -53,7 +53,7 @@ func (dc *DriveController) UploadFile(ctx http.Context) http.Response {
 
 	// Get authenticated user
 	userID := ctx.Value("user_id").(string)
-	tenantID := ctx.Value("tenant_id").(*string)
+	organizationId := ctx.Value("organization_id").(*string)
 
 	// Get uploaded file
 	file, err := ctx.Request().File("file")
@@ -85,7 +85,7 @@ func (dc *DriveController) UploadFile(ctx http.Context) http.Response {
 		file.GetClientOriginalName(),
 		fileReader,
 		fileSize,
-		tenantID,
+		organizationId,
 	)
 	if err != nil {
 		// Log failed upload attempt
@@ -167,7 +167,7 @@ func (dc *DriveController) CreateFolder(ctx http.Context) http.Response {
 
 	// Get authenticated user
 	userID := ctx.Value("user_id").(string)
-	tenantID := ctx.Value("tenant_id").(*string)
+	organizationId := ctx.Value("organization_id").(*string)
 
 	// Create folder
 	folder, err := dc.driveService.CreateFolder(
@@ -175,7 +175,7 @@ func (dc *DriveController) CreateFolder(ctx http.Context) http.Response {
 		userID,
 		folderRequest.ParentID,
 		folderRequest.Name,
-		tenantID,
+		organizationId,
 	)
 	if err != nil {
 		return responses.BadRequest(ctx, "Failed to create folder", err.Error())

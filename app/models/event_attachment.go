@@ -76,9 +76,9 @@ type EventAttachment struct {
 	// @example 2024-12-31T23:59:59Z
 	ExpiresAt *time.Time `json:"expires_at,omitempty" example:"2024-12-31T23:59:59Z"`
 
-	// Tenant ID for multi-tenancy
+	// Organization ID for multi-tenancy
 	// @example 01HXYZ123456789ABCDEFGHIJK
-	TenantID string `gorm:"not null" json:"tenant_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+	organizationId string `gorm:"not null" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
 	// Relationships
 	// @Description Associated calendar event
@@ -87,8 +87,8 @@ type EventAttachment struct {
 	// @Description User who uploaded the file
 	Uploader *User `gorm:"foreignKey:UploadedBy" json:"uploader,omitempty"`
 
-	// @Description Associated tenant
-	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// @Description Associated organization
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 
 	// @Description Access permissions for this attachment
 	AccessPermissions []AttachmentPermission `gorm:"foreignKey:AttachmentID" json:"access_permissions,omitempty"`

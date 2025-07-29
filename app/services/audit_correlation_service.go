@@ -76,7 +76,7 @@ type CorrelationCondition struct {
 type CorrelationSession struct {
 	SessionID       string                 `json:"session_id"`
 	RuleID          string                 `json:"rule_id"`
-	TenantID        string                 `json:"tenant_id"`
+	OrganizationID string                 `json:"organization_id"`
 	StartTime       time.Time              `json:"start_time"`
 	LastActivity    time.Time              `json:"last_activity"`
 	Events          []*models.ActivityLog  `json:"events"`
@@ -103,7 +103,7 @@ type CorrelationResult struct {
 	SessionID        string                 `json:"session_id"`
 	RuleID           string                 `json:"rule_id"`
 	RuleName         string                 `json:"rule_name"`
-	TenantID         string                 `json:"tenant_id"`
+	OrganizationID  string                 `json:"organization_id"`
 	EventCount       int                    `json:"event_count"`
 	CorrelatedEvents []*models.ActivityLog  `json:"correlated_events"`
 	Score            float64                `json:"score"`
@@ -254,7 +254,7 @@ func (acs *AuditCorrelationService) CorrelateEvent(event *models.ActivityLog) ([
 			// Create correlation result for detected pattern
 			result := &CorrelationResult{
 				CorrelationID:    fmt.Sprintf("pattern_%s_%d", pattern.PatternID, time.Now().UnixNano()),
-				TenantID:         event.TenantID,
+				OrganizationID:   event.OrganizationID,
 				EventCount:       1,
 				CorrelatedEvents: []*models.ActivityLog{event},
 				Score:            pattern.Confidence * 100,
@@ -379,16 +379,16 @@ func (acs *AuditCorrelationService) GetActiveCorrelationSessions() []*Correlatio
 }
 
 // AnalyzeCorrelationHistory analyzes historical correlations
-func (acs *AuditCorrelationService) AnalyzeCorrelationHistory(tenantID string, timeRange TimeRange) (*CorrelationAnalysisReport, error) {
+func (acs *AuditCorrelationService) AnalyzeCorrelationHistory(organizationID string, timeRange TimeRange) (*CorrelationAnalysisReport, error) {
 	reportID := fmt.Sprintf("correlation_analysis_%d", time.Now().UnixNano())
 
 	// Get all correlation results for the time range
 	var correlationResults []CorrelationResult
 	err := facades.Orm().Query().
 		Model(&models.ActivityLog{}).
-		Select("correlation_id, session_id, rule_id, rule_name, tenant_id, event_count, score, confidence, "+
+		Select("correlation_id, session_id, rule_id, rule_name, organization_id, event_count, score, confidence, "+
 			"severity, start_time, end_time, duration, created_at").
-		Where("tenant_id = ? AND created_at >= ? AND created_at <= ?", tenantID, timeRange.StartTime, timeRange.EndTime).
+		Where("organization_id = ? AND created_at >= ? AND created_at <= ?", organizationID, timeRange.StartTime, timeRange.EndTime).
 		Where("correlation_id IS NOT NULL AND correlation_id != ''").
 		Scan(&correlationResults)
 	if err != nil {
@@ -549,7 +549,7 @@ func (acs *AuditCorrelationService) AnalyzeCorrelationHistory(tenantID string, t
 
 	report := &CorrelationAnalysisReport{
 		ReportID:        reportID,
-		TenantID:        tenantID,
+		OrganizationID:  organizationID,
 		TimeRange:       timeRange,
 		GeneratedAt:     time.Now(),
 		Summary:         summary,
@@ -789,8 +789,8 @@ func (acs *AuditCorrelationService) matchesCriterion(event *models.ActivityLog, 
 		fieldValue = event.IPAddress
 	case "session_id":
 		fieldValue = event.SessionID
-	case "tenant_id":
-		fieldValue = event.TenantID
+	case "organization_id":
+		fieldValue = event.OrganizationID
 	default:
 		return false
 	}
@@ -817,7 +817,7 @@ func (acs *AuditCorrelationService) findOrCreateSession(event *models.ActivityLo
 	defer acs.cacheMutex.Unlock()
 
 	// Look for existing session
-	sessionKey := fmt.Sprintf("%s_%s_%s", rule.RuleID, event.TenantID, acs.getSessionKey(event, rule))
+	sessionKey := fmt.Sprintf("%s_%s_%s", rule.RuleID, event.OrganizationID, acs.getSessionKey(event, rule))
 
 	if session, exists := acs.correlationCache[sessionKey]; exists {
 		// Check if session is still within time window
@@ -832,7 +832,7 @@ func (acs *AuditCorrelationService) findOrCreateSession(event *models.ActivityLo
 	session := &CorrelationSession{
 		SessionID:       fmt.Sprintf("session_%d", time.Now().UnixNano()),
 		RuleID:          rule.RuleID,
-		TenantID:        event.TenantID,
+		OrganizationID:  event.OrganizationID,
 		StartTime:       time.Now(),
 		LastActivity:    time.Now(),
 		Events:          []*models.ActivityLog{},
@@ -1022,7 +1022,7 @@ func (acs *AuditCorrelationService) createCorrelationResult(session *Correlation
 		SessionID:        session.SessionID,
 		RuleID:           rule.RuleID,
 		RuleName:         rule.Name,
-		TenantID:         session.TenantID,
+		OrganizationID:   session.OrganizationID,
 		EventCount:       len(session.Events),
 		CorrelatedEvents: session.Events,
 		Score:            session.Score,
@@ -1174,7 +1174,7 @@ func (acs *AuditCorrelationService) cleanupCache() {
 		// Remove oldest 10% of sessions
 		removeCount := len(sessions) / 10
 		for i := 0; i < removeCount; i++ {
-			sessionKey := fmt.Sprintf("%s_%s", sessions[i].RuleID, sessions[i].TenantID)
+			sessionKey := fmt.Sprintf("%s_%s", sessions[i].RuleID, sessions[i].OrganizationID)
 			delete(acs.correlationCache, sessionKey)
 		}
 	}
@@ -1243,7 +1243,7 @@ func NewCorrelationRuleEngine() *CorrelationRuleEngine {
 // Supporting types for analysis reports
 type CorrelationAnalysisReport struct {
 	ReportID        string                 `json:"report_id"`
-	TenantID        string                 `json:"tenant_id"`
+	OrganizationID string                 `json:"organization_id"`
 	TimeRange       TimeRange              `json:"time_range"`
 	GeneratedAt     time.Time              `json:"generated_at"`
 	Summary         CorrelationSummary     `json:"summary"`
