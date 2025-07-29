@@ -1221,7 +1221,7 @@ func (s *OAuthRiskService) checkMaxMindAnonymousIP(ip string) bool {
 		return false
 	}
 
-	// In production, you would use: github.com/oschwald/geoip2-golang
+	// TODO: In production, you would use: github.com/oschwald/geoip2-golang
 	// For now, implement a robust local check using known anonymous IP ranges
 	return s.checkAnonymousIPRanges(ip)
 }
@@ -2376,7 +2376,7 @@ func (s *OAuthRiskService) getLocationFromIPRanges(ip string, provider string) m
 // detectLocationFromKnownRanges detects location from known IP ranges
 func (s *OAuthRiskService) detectLocationFromKnownRanges(ip net.IP) map[string]interface{} {
 	// This is a simplified implementation for demonstration
-	// In production, you would use comprehensive IP range databases
+	// TODO: In production, you would use comprehensive IP range databases
 
 	// Common cloud provider ranges (simplified)
 	cloudProviders := map[string]map[string]interface{}{
@@ -2441,7 +2441,7 @@ func (s *OAuthRiskService) getLocationFromMaxMindRanges(ip string) map[string]in
 		return nil
 	}
 
-	// In production, this would read from MaxMind database files
+	// TODO: In production, this would read from MaxMind database files
 	// For now, implement comprehensive range detection with MaxMind-style accuracy
 
 	// Check for major country IP blocks (simplified MaxMind-style detection)
@@ -2484,7 +2484,7 @@ func (s *OAuthRiskService) getLocationFromIP2LocationRanges(ip string) map[strin
 		return nil
 	}
 
-	// In production, this would read from IP2Location database files
+	// TODO: In production, this would read from IP2Location database files
 	// For now, implement comprehensive range detection with IP2Location-style data
 
 	// Check for regional IP blocks (IP2Location-style detection)

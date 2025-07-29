@@ -905,7 +905,7 @@ func (s *OAuthContinuousAccessEvaluationService) getCurrentLocation(userID strin
 
 	if err == nil && session.IPAddress != "" {
 		// Use IP address to determine location (simplified implementation)
-		// In production, this would use a GeoIP service
+		// TODO: In production, this would use a GeoIP service
 		if strings.HasPrefix(session.IPAddress, "192.168.") || strings.HasPrefix(session.IPAddress, "10.") {
 			return "US-CA" // Local network
 		}

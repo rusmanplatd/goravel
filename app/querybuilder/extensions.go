@@ -224,7 +224,7 @@ func (qe *QueryExtensions) WithMax(relation string, column string) *QueryExtensi
 func (qe *QueryExtensions) ToSQL() string {
 	// Get the underlying SQL query from the query builder
 	if qe.qb.query != nil {
-		// In production, this would use the ORM's ToSQL method
+		// TODO: In production, this would use the ORM's ToSQL method
 		// For now, construct a basic SQL representation
 		sql := qe.constructBasicSQL()
 		facades.Log().Info("Generated SQL query", map[string]interface{}{
@@ -243,7 +243,7 @@ func (qe *QueryExtensions) Explain() map[string]interface{} {
 	sql := qe.ToSQL()
 	explainSQL := "EXPLAIN " + sql
 
-	// In production, this would execute EXPLAIN against the database
+	// TODO: In production, this would execute EXPLAIN against the database
 	plan := map[string]interface{}{
 		"type":           "explain",
 		"query":          sql,
@@ -378,7 +378,7 @@ func Macro(name string, callback func(*QueryExtensions, ...interface{}) *QueryEx
 // constructBasicSQL constructs a basic SQL representation of the query
 func (qe *QueryExtensions) constructBasicSQL() string {
 	// This is a simplified SQL construction
-	// In production, this would use the ORM's actual SQL generation
+	// TODO: In production, this would use the ORM's actual SQL generation
 
 	sql := "SELECT "
 

@@ -1195,7 +1195,7 @@ func (ars *AuditRetentionService) getTenantRetentionConfig(ctx context.Context, 
 	configKey := fmt.Sprintf("audit.retention.tenants.%s", tenantID)
 	if tenantConfigStr := facades.Config().GetString(configKey, ""); tenantConfigStr != "" {
 		// Parse tenant-specific configuration
-		// In production, you would implement proper config parsing
+		// TODO: In production, you would implement proper config parsing
 		facades.Log().Debug("Loading tenant-specific retention config", map[string]interface{}{
 			"tenant_id": tenantID,
 			"config":    tenantConfigStr,

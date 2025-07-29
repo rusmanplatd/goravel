@@ -354,7 +354,7 @@ func (s *OAuthSteppedUpAuthService) getCurrentAuthLevel(userID, sessionID string
 	}
 
 	// For simplified implementation, return basic
-	// In production, you'd have a dedicated session table
+	// TODO: In production, you'd have a dedicated session table
 	return "basic", nil
 }
 
@@ -1137,7 +1137,7 @@ func (s *OAuthSteppedUpAuthService) getStoredBiometricTemplates(userID, biometri
 	// Query database for stored biometric templates
 	var templates []string
 
-	// In production, you would query a dedicated biometric templates table
+	// TODO: In production, you would query a dedicated biometric templates table
 	// For now, we'll simulate with a simple query approach
 	var results []map[string]interface{}
 	err := facades.Orm().Query().
@@ -1164,7 +1164,7 @@ func (s *OAuthSteppedUpAuthService) performBiometricMatching(biometricType, temp
 	var bestMatchScore float64
 
 	for _, storedTemplate := range storedTemplates {
-		// In production, you would use specialized biometric matching libraries
+		// TODO: In production, you would use specialized biometric matching libraries
 		// For now, we'll simulate the matching process
 		matchScore := s.simulateBiometricMatching(biometricType, template, storedTemplate)
 
@@ -1537,7 +1537,7 @@ func (s *OAuthSteppedUpAuthService) updateAuthLevel(userID, sessionID, authLevel
 	}
 
 	// Update database session - for now we'll use a simple approach
-	// In production, you'd have a dedicated user_sessions table
+	// TODO: In production, you'd have a dedicated user_sessions table
 	facades.Log().Info("User authentication level updated", map[string]interface{}{
 		"user_id":    userID,
 		"session_id": sessionID,
@@ -1939,7 +1939,7 @@ func (s *OAuthSteppedUpAuthService) getIPReputation(ipAddress string) string {
 
 func (s *OAuthSteppedUpAuthService) isUnusualTime(userID string) bool {
 	// For now, we'll use a simplified time-based risk assessment
-	// In production, you'd analyze historical login patterns
+	// TODO: In production, you'd analyze historical login patterns
 	currentHour := time.Now().Hour()
 
 	// Consider hours between 2 AM and 6 AM as unusual
@@ -2045,7 +2045,7 @@ func (s *OAuthSteppedUpAuthService) isHighRiskIP(ip string) bool {
 func (s *OAuthSteppedUpAuthService) getCurrentRequestContext() *http.Request {
 	// This would typically be injected or stored in the service
 	// For now, return nil as we don't have access to the current request context
-	// In production, you would store the context when the service is created
+	// TODO: In production, you would store the context when the service is created
 	return nil
 }
 

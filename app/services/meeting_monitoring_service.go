@@ -2026,7 +2026,7 @@ func (mms *MeetingMonitoringService) getWebSocketHubParticipants(meetingID strin
 		return []string{}, fmt.Errorf("WebSocket service not enabled")
 	}
 
-	// In production, you would have a WebSocket hub service like:
+	// TODO: In production, you would have a WebSocket hub service like:
 	// hub := facades.WebSocketHub()
 	// return hub.GetMeetingParticipants(meetingID)
 

@@ -1376,7 +1376,7 @@ func (c *LogNotificationChannel) Validate() error {
 		}
 
 		// Check if directory exists or can be created
-		// In production, this would check actual filesystem permissions
+		// TODO: In production, this would check actual filesystem permissions
 		if facades.Config().GetString("app.env", "") == "production" {
 			// Validate that the log directory is writable
 			// This is a simplified check - in production you'd verify actual permissions

@@ -61,6 +61,50 @@ type CalendarEvent struct {
 	// @example scheduled
 	Status string `gorm:"default:'scheduled'" json:"status" example:"scheduled"`
 
+	// Calendar type/category for organizing events
+	// @example personal
+	CalendarType string `gorm:"default:'personal'" json:"calendar_type" example:"personal"`
+
+	// Event visibility (public, private, confidential)
+	// @example private
+	Visibility string `gorm:"default:'private'" json:"visibility" example:"private"`
+
+	// Quick add natural language input (for future processing)
+	// @example "Meeting with John tomorrow at 2pm"
+	QuickAddText string `json:"quick_add_text,omitempty" example:"Meeting with John tomorrow at 2pm"`
+
+	// Event priority (low, normal, high, urgent)
+	// @example normal
+	Priority string `gorm:"default:'normal'" json:"priority" example:"normal"`
+
+	// Whether the event can be edited by attendees
+	// @example false
+	AllowGuestEdit bool `gorm:"default:false" json:"allow_guest_edit" example:"false"`
+
+	// Whether attendees can invite others
+	// @example false
+	AllowGuestInvite bool `gorm:"default:false" json:"allow_guest_invite" example:"false"`
+
+	// Whether attendees list is visible to all
+	// @example true
+	ShowGuestList bool `gorm:"default:true" json:"show_guest_list" example:"true"`
+
+	// Maximum number of attendees
+	// @example 50
+	MaxAttendees int `gorm:"default:0" json:"max_attendees" example:"50"`
+
+	// Event source (manual, imported, synced)
+	// @example manual
+	Source string `gorm:"default:'manual'" json:"source" example:"manual"`
+
+	// External event ID for synced events
+	// @example google_cal_123456789
+	ExternalEventID string `json:"external_event_id,omitempty" example:"google_cal_123456789"`
+
+	// External calendar ID for synced events
+	// @example primary
+	ExternalCalendarID string `json:"external_calendar_id,omitempty" example:"primary"`
+
 	// Reminder settings (JSON format: {"email": 15, "push": 30, "sms": 60})
 	// @example {"email": 15, "push": 30, "sms": 60}
 	ReminderSettings string `json:"reminder_settings" example:"{\"email\": 15, \"push\": 30, \"sms\": 60}"`
@@ -85,9 +129,16 @@ type CalendarEvent struct {
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	TemplateID *string `json:"template_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
+	// Calendar ID (references UserCalendar)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	CalendarID *string `json:"calendar_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
 	// Relationships
 	// @Description Event's associated tenant
 	Tenant *Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+
+	// @Description Event's associated calendar
+	Calendar *UserCalendar `gorm:"foreignKey:CalendarID" json:"calendar,omitempty"`
 
 	// @Description Parent event for recurring instances
 	ParentEvent *CalendarEvent `gorm:"foreignKey:ParentEventID" json:"parent_event,omitempty"`

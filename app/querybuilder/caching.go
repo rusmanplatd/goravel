@@ -776,7 +776,7 @@ func (r *RedisCacheBackend) estimateCacheSize() int64 {
 	}
 
 	// Very rough estimate based on sampling
-	// In production, you'd implement proper Redis key scanning
+	// TODO: In production, you'd implement proper Redis key scanning
 	estimatedSize := existingCount * 100 // Rough multiplier
 
 	facades.Log().Debug("Estimated cache size", map[string]interface{}{

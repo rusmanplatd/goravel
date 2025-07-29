@@ -205,7 +205,7 @@ func (s *ChatSeeder) Run() error {
 			var recipientKeys []string
 
 			// For seeding purposes, generate or retrieve actual public keys
-			// In production, these come from the user_public_keys table with proper key management
+			// TODO: In production, these come from the user_public_keys table with proper key management
 			senderID := users[msg.userIdx].ID
 
 			// Get all users in the room as potential recipients

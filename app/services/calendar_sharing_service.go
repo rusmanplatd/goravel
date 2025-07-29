@@ -873,7 +873,7 @@ func (css *CalendarSharingService) sendEmail(to, subject, body string) error {
 		"type":    "calendar_sharing",
 	})
 
-	// In production, you would use the email service:
+	// TODO: In production, you would use the email service:
 	// return facades.Mail().To([]string{to}).Subject(subject).Html(body).Send()
 
 	return nil

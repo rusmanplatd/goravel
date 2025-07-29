@@ -2063,13 +2063,13 @@ func (qb *QueryBuilder) applyScopeFilter(filter AllowedFilter, value interface{}
 // getTableName attempts to get the table name from the query
 func (qb *QueryBuilder) getTableName() string {
 	// This is a simplified implementation
-	// In production, you would extract this from the actual query or model
+	// TODO: In production, you would extract this from the actual query or model
 	return "records" // Default fallback
 }
 
 // getModelType attempts to get the model type for polymorphic relationships
 func (qb *QueryBuilder) getModelType() string {
 	// This is a simplified implementation
-	// In production, you would determine this from the actual model being queried
+	// TODO: In production, you would determine this from the actual model being queried
 	return "Record" // Default fallback
 }

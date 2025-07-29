@@ -99,7 +99,7 @@ func registerAuthService(server *grpc.Server) error {
 	// Create the auth controller instance
 	_ = &controllers.AuthController{}
 
-	// In production, this would be:
+	// TODO: In production, this would be:
 	// authpb.RegisterAuthServiceServer(server, authController)
 
 	// For now, log that the controller is ready
@@ -118,7 +118,7 @@ func registerUserService(server *grpc.Server) error {
 	// Create the user controller instance
 	_ = &controllers.UserController{}
 
-	// In production, this would be:
+	// TODO: In production, this would be:
 	// userpb.RegisterUserServiceServer(server, userController)
 
 	facades.Log().Info("User gRPC service registered", map[string]interface{}{
@@ -172,7 +172,7 @@ func registerNotificationService(server *grpc.Server) error {
 
 // registerAuditService registers the audit gRPC service
 func registerAuditService(server *grpc.Server) error {
-	// In production, you would register your audit proto service here
+	// TODO: In production, you would register your audit proto service here
 	// For example:
 	// auditpb.RegisterAuditServiceServer(server, &auditController{})
 

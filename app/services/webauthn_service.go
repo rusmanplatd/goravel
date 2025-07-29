@@ -2263,7 +2263,7 @@ func (s *WebAuthnService) verifyFidoU2FAttestation(attestationData *AttestationD
 		facades.Log().Warning("U2F attestation certificate verification failed", map[string]interface{}{
 			"error": err.Error(),
 		})
-		// In production, you might want to allow this to continue with a warning
+		// TODO: In production, you might want to allow this to continue with a warning
 		// depending on your security requirements
 	}
 
@@ -2477,7 +2477,7 @@ func (s *WebAuthnService) verifyAndroidSafetyNetAttestation(attestationData *Att
 			"advice": advice,
 		})
 
-		// In production, you might want to reject based on specific advice values
+		// TODO: In production, you might want to reject based on specific advice values
 		if strings.Contains(advice, "RESTORE_TO_FACTORY_ROM") {
 			return fmt.Errorf("device has been tampered with")
 		}
@@ -2702,7 +2702,7 @@ func (s *WebAuthnService) verifyTPMAttestation(attestationData *AttestationData,
 			"pcr_count": len(pcrs),
 		})
 
-		// In production, you would verify specific PCR values match expected values
+		// TODO: In production, you would verify specific PCR values match expected values
 		// For example, PCR 0-7 for boot integrity, PCR 14 for secure boot state
 		for pcrIndex, pcrValue := range pcrs {
 			facades.Log().Debug("TPM PCR value", map[string]interface{}{
@@ -3289,7 +3289,7 @@ func (s *WebAuthnService) verifyU2FSignature(attestationData *AttestationData, c
 	signedData = append(signedData, clientDataHash[:]...)
 
 	// Credential ID - use a placeholder as this field doesn't exist in our struct
-	// In production, this would be extracted from the attestation object
+	// TODO: In production, this would be extracted from the attestation object
 	credentialID := make([]byte, 32) // Placeholder credential ID
 	signedData = append(signedData, credentialID...)
 
@@ -3409,7 +3409,7 @@ func (s *WebAuthnService) loadCertificateFromFile(certPath string) *x509.Certifi
 
 // getWellKnownU2FRootCerts returns well-known U2F root certificates
 func (s *WebAuthnService) getWellKnownU2FRootCerts() []*x509.Certificate {
-	// In production, you would embed actual root certificates here
+	// TODO: In production, you would embed actual root certificates here
 	// For now, return empty slice and log warning
 	facades.Log().Warning("Using empty U2F root certificate store - configure webauthn.u2f_root_certs", nil)
 	return []*x509.Certificate{}
@@ -3629,7 +3629,7 @@ func (s *WebAuthnService) checkCRLRevocation(cert *x509.Certificate) error {
 
 // getIssuerCertificate retrieves the issuer certificate for OCSP checking
 func (s *WebAuthnService) getIssuerCertificate(cert *x509.Certificate) (*x509.Certificate, error) {
-	// In production, this would implement certificate chain building
+	// TODO: In production, this would implement certificate chain building
 	// For now, try to get it from the certificate's AIA extension
 	if len(cert.IssuingCertificateURL) > 0 {
 		client := &http.Client{
@@ -3837,7 +3837,7 @@ func (s *WebAuthnService) parseAndroidKeyAttestationRecord(extensionValue []byte
 	// Parse ASN.1 DER encoded attestation record
 	var attestationRecord map[string]interface{}
 
-	// In production, you would use proper ASN.1 parsing for the Android attestation record
+	// TODO: In production, you would use proper ASN.1 parsing for the Android attestation record
 	// For now, create a basic structure with common fields
 	attestationRecord = map[string]interface{}{
 		"attestationVersion":       3,
@@ -3951,7 +3951,7 @@ func (s *WebAuthnService) verifyKeyProperties(properties map[string]interface{})
 // validateAndroidAppSignature validates app signature and package name
 func (s *WebAuthnService) validateAndroidAppSignature(cert *x509.Certificate) error {
 	// Extract app package name and signature from certificate subject or extensions
-	// In production, you would verify against expected package names and signatures
+	// TODO: In production, you would verify against expected package names and signatures
 
 	subject := cert.Subject.String()
 	facades.Log().Debug("Validating Android app signature", map[string]interface{}{
@@ -3974,7 +3974,7 @@ func (s *WebAuthnService) validateAndroidAppSignature(cert *x509.Certificate) er
 		}
 	}
 
-	// In production, you would also verify the app signature hash
+	// TODO: In production, you would also verify the app signature hash
 	// This requires parsing additional extensions or using Android-specific libraries
 
 	return nil
@@ -3989,7 +3989,7 @@ func (s *WebAuthnService) verifyAndroidHardwareBackedKey(cert *x509.Certificate)
 		"subject": cert.Subject.String(),
 	})
 
-	// In production, you would parse the attestation extension to check:
+	// TODO: In production, you would parse the attestation extension to check:
 	// 1. attestationSecurityLevel == "HARDWARE" or "TRUSTED_ENVIRONMENT"
 	// 2. keymasterSecurityLevel == "HARDWARE" or "TRUSTED_ENVIRONMENT"
 	// 3. TEE enforced properties are present and non-empty
@@ -4103,7 +4103,7 @@ func (s *WebAuthnService) getAndroidRootCertificates() []*x509.Certificate {
 
 // getWellKnownAndroidRootCerts returns well-known Android root certificates
 func (s *WebAuthnService) getWellKnownAndroidRootCerts() []*x509.Certificate {
-	// In production, you would embed actual Android root certificates here
+	// TODO: In production, you would embed actual Android root certificates here
 	// For now, return empty slice and log warning
 	facades.Log().Warning("Using empty Android root certificate store - configure webauthn.android_root_certs", nil)
 	return []*x509.Certificate{}
@@ -4112,7 +4112,7 @@ func (s *WebAuthnService) getWellKnownAndroidRootCerts() []*x509.Certificate {
 // decodeCBOR decodes CBOR data into Go data structures
 func (s *WebAuthnService) decodeCBOR(data []byte) (interface{}, error) {
 	// Simple CBOR decoder implementation for COSE keys
-	// In production, you would use a full CBOR library like github.com/fxamacker/cbor/v2
+	// TODO: In production, you would use a full CBOR library like github.com/fxamacker/cbor/v2
 
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty CBOR data")

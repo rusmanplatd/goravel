@@ -985,7 +985,7 @@ func (s *OAuthZeroTrustService) isVPNOrProxy(fingerprint string) bool {
 // Helper methods for location and risk assessment
 func (s *OAuthZeroTrustService) locationsAreSimilar(location1, location2 string) bool {
 	// Simple similarity check based on common substrings
-	// In production, use proper geolocation services
+	// TODO: In production, use proper geolocation services
 	if location1 == location2 {
 		return true
 	}
