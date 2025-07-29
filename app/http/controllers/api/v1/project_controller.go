@@ -396,7 +396,6 @@ func (pc *ProjectController) Users(ctx http.Context) http.Response {
 		Pagination: responses.PaginationInfo{
 			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
 			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
 			Limit:      getIntValue(paginationInfo, "limit"),
@@ -600,7 +599,6 @@ func (pc *ProjectController) Teams(ctx http.Context) http.Response {
 		Pagination: responses.PaginationInfo{
 			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
 			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
 			Limit:      getIntValue(paginationInfo, "limit"),

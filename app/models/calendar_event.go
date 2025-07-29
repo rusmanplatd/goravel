@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -153,68 +154,185 @@ type EventParticipant struct {
 }
 
 // Meeting represents meeting-specific details for calendar events
-// @Description Meeting details with platform and settings
+// @Description Meeting details with Microsoft Teams onlineMeeting compatibility
 type Meeting struct {
 	BaseModel
+
+	// Core meeting properties (Teams-compatible)
 	// Associated event ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	EventID string `gorm:"not null" json:"event_id" example:"01HXYZ123456789ABCDEFGHIJK"`
 
-	// Meeting type (video, audio, in-person, hybrid)
-	// @example video
-	MeetingType string `gorm:"default:'video'" json:"meeting_type" example:"video"`
+	// Meeting subject/title
+	// @example Team Standup Meeting
+	Subject string `json:"subject" example:"Team Standup Meeting"`
 
-	// Meeting platform (zoom, teams, meet, etc.)
-	// @example zoom
-	Platform string `json:"platform" example:"zoom"`
+	// Meeting start time
+	// @example 2024-01-15T10:00:00Z
+	StartDateTime *time.Time `json:"start_date_time" example:"2024-01-15T10:00:00Z"`
 
-	// Meeting URL
-	// @example https://zoom.us/j/123456789
-	MeetingURL string `json:"meeting_url" example:"https://zoom.us/j/123456789"`
+	// Meeting end time
+	// @example 2024-01-15T11:00:00Z
+	EndDateTime *time.Time `json:"end_date_time" example:"2024-01-15T11:00:00Z"`
 
-	// Meeting ID
+	// Meeting creation time in UTC (read-only)
+	// @example 2024-01-15T09:00:00Z
+	CreationDateTime *time.Time `json:"creation_date_time,omitempty" example:"2024-01-15T09:00:00Z"`
+
+	// Meeting URL/Join URL (read-only)
+	// @example https://teams.microsoft.com/l/meetup-join/...
+	JoinWebUrl string `json:"join_web_url" example:"https://teams.microsoft.com/l/meetup-join/..."`
+
+	// Video teleconference ID for external systems (read-only)
 	// @example 123456789
-	MeetingID string `json:"meeting_id" example:"123456789"`
+	VideoTeleconferenceId string `json:"video_teleconference_id" example:"123456789"`
+
+	// External ID for custom identification
+	// @example custom-meeting-001
+	ExternalId string `json:"external_id,omitempty" example:"custom-meeting-001"`
+
+	// Teams-specific meeting permissions and settings
+	// Whether attendees can turn on their camera
+	// @example true
+	AllowAttendeeToEnableCamera bool `gorm:"default:true" json:"allow_attendee_to_enable_camera" example:"true"`
+
+	// Whether attendees can turn on their microphone
+	// @example true
+	AllowAttendeeToEnableMic bool `gorm:"default:true" json:"allow_attendee_to_enable_mic" example:"true"`
+
+	// Whether breakout rooms are enabled
+	// @example false
+	AllowBreakoutRooms bool `gorm:"default:false" json:"allow_breakout_rooms" example:"false"`
+
+	// Whether copying and sharing meeting content is enabled
+	// @example true
+	AllowCopyingAndSharingMeetingContent bool `gorm:"default:true" json:"allow_copying_and_sharing_meeting_content" example:"true"`
+
+	// Whether live share is enabled (enabled, disabled, unknownFutureValue)
+	// @example enabled
+	AllowLiveShare string `gorm:"default:'enabled'" json:"allow_live_share" example:"enabled"`
+
+	// Meeting chat mode (enabled, disabled, limited, unknownFutureValue)
+	// @example enabled
+	AllowMeetingChat string `gorm:"default:'enabled'" json:"allow_meeting_chat" example:"enabled"`
+
+	// Whether participants can change their name
+	// @example true
+	AllowParticipantsToChangeName bool `gorm:"default:true" json:"allow_participants_to_change_name" example:"true"`
+
+	// Whether PowerPoint sharing is allowed
+	// @example true
+	AllowPowerPointSharing bool `gorm:"default:true" json:"allow_power_point_sharing" example:"true"`
+
+	// Whether recording is enabled for the meeting
+	// @example false
+	AllowRecording bool `gorm:"default:false" json:"allow_recording" example:"false"`
+
+	// Whether Teams reactions are enabled
+	// @example true
+	AllowTeamworkReactions bool `gorm:"default:true" json:"allow_teamwork_reactions" example:"true"`
+
+	// Whether transcription is enabled
+	// @example false
+	AllowTranscription bool `gorm:"default:false" json:"allow_transcription" example:"false"`
+
+	// Whether whiteboard is enabled
+	// @example true
+	AllowWhiteboard bool `gorm:"default:true" json:"allow_whiteboard" example:"true"`
+
+	// Who can be a presenter (everyone, organization, roleIsPresenter, organizer, unknownFutureValue)
+	// @example everyone
+	AllowedPresenters string `gorm:"default:'everyone'" json:"allowed_presenters" example:"everyone"`
+
+	// Specifies the users who can admit from lobby (organizerAndCoOrganizersAndPresenters, organizerAndCoOrganizers, unknownFutureValue)
+	// @example organizerAndCoOrganizers
+	AllowedLobbyAdmitters string `gorm:"default:'organizerAndCoOrganizers'" json:"allowed_lobby_admitters" example:"organizerAndCoOrganizers"`
+
+	// Specifies whose identity is anonymized (attendee)
+	// @example []
+	AnonymizeIdentityForRoles string `json:"anonymize_identity_for_roles,omitempty"`
+
+	// Whether end-to-end encryption is enabled
+	// @example false
+	IsEndToEndEncryptionEnabled bool `gorm:"default:false" json:"is_end_to_end_encryption_enabled" example:"false"`
+
+	// Whether to announce when callers join or leave
+	// @example true
+	IsEntryExitAnnounced bool `gorm:"default:true" json:"is_entry_exit_announced" example:"true"`
+
+	// Whether to record the meeting automatically
+	// @example false
+	RecordAutomatically bool `gorm:"default:false" json:"record_automatically" example:"false"`
+
+	// Meeting chat history sharing mode (all, none, unknownFutureValue)
+	// @example all
+	ShareMeetingChatHistoryDefault string `gorm:"default:'all'" json:"share_meeting_chat_history_default" example:"all"`
+
+	// Watermark protection settings (enabled, disabled, unknownFutureValue)
+	// @example disabled
+	WatermarkProtection string `gorm:"default:'disabled'" json:"watermark_protection" example:"disabled"`
+
+	// Meeting template ID for consistent setups
+	// @example template-001
+	MeetingTemplateId string `json:"meeting_template_id,omitempty" example:"template-001"`
+
+	// Lobby bypass settings (JSON structure)
+	// Lobby bypass scope (everyone, organization, organizer)
+	// @example organization
+	LobbyBypassScope string `gorm:"default:'organization'" json:"lobby_bypass_scope" example:"organization"`
+
+	// Whether dial-in users can bypass the lobby
+	// @example false
+	IsDialInBypassEnabled bool `gorm:"default:false" json:"is_dial_in_bypass_enabled" example:"false"`
+
+	// Join meeting ID settings (JSON structure)
+	// Join meeting ID for dial-in
+	// @example 1234567890
+	JoinMeetingId string `json:"join_meeting_id" example:"1234567890"`
 
 	// Meeting passcode
 	// @example 123456
-	Passcode string `json:"passcode" example:"123456"`
+	Passcode string `json:"passcode,omitempty" example:"123456"`
 
-	// Meeting notes
-	// @example Agenda: 1. Project updates 2. Q&A
-	MeetingNotes string `json:"meeting_notes" example:"Agenda: 1. Project updates 2. Q&A"`
-
-	// Whether to record the meeting
+	// Whether passcode is required for joining
 	// @example false
-	RecordMeeting bool `gorm:"default:false" json:"record_meeting" example:"false"`
+	IsPasscodeRequired bool `gorm:"default:false" json:"is_passcode_required" example:"false"`
 
-	// Whether participants can join before host
-	// @example true
-	AllowJoinBeforeHost bool `gorm:"default:true" json:"allow_join_before_host" example:"true"`
+	// Audio conferencing settings (JSON structure)
+	// Audio conferencing information
+	// @example {"tollNumber": "+1-555-0123", "tollFreeNumber": "+1-800-555-0123", "conferenceId": "123456789"}
+	AudioConferencingJSON string `gorm:"type:json" json:"-"`
 
-	// Whether to mute participants on entry
-	// @example false
-	MuteParticipantsOnEntry bool `gorm:"default:false" json:"mute_participants_on_entry" example:"false"`
+	// Chat information (JSON structure)
+	// Chat thread ID and message ID
+	// @example {"threadId": "19:meeting_abc123@thread.v2", "messageId": "1234567890"}
+	ChatInfoJSON string `gorm:"type:json" json:"-"`
 
-	// Waiting room setting
-	// @example enabled
-	WaitingRoom string `gorm:"default:'disabled'" json:"waiting_room" example:"enabled"`
+	// Chat restrictions (JSON structure)
+	// Meeting chat restrictions configuration
+	// @example {"allowedChatTypes": ["all"], "restrictedUsers": []}
+	ChatRestrictionsJSON string `gorm:"type:json" json:"-"`
 
-	// When the meeting started
+	// Join information in localized format (read-only)
+	// @example "Join Microsoft Teams Meeting..."
+	JoinInformation string `json:"join_information,omitempty"`
+
+	// Meeting status and tracking
+	// Meeting status (scheduled, in_progress, completed, cancelled)
+	// @example scheduled
+	Status string `gorm:"default:'scheduled'" json:"status" example:"scheduled"`
+
+	// When the meeting actually started
 	// @example 2024-01-15T10:00:00Z
 	StartedAt *time.Time `json:"started_at,omitempty" example:"2024-01-15T10:00:00Z"`
 
-	// When the meeting ended
+	// When the meeting actually ended
 	// @example 2024-01-15T11:00:00Z
 	EndedAt *time.Time `json:"ended_at,omitempty" example:"2024-01-15T11:00:00Z"`
 
-	// Recording URL
-	// @example https://zoom.us/recording/123456789
-	RecordingURL string `json:"recording_url" example:"https://zoom.us/recording/123456789"`
-
-	// Meeting status (scheduled, in-progress, completed, cancelled)
-	// @example scheduled
-	Status string `gorm:"default:'scheduled'" json:"status" example:"scheduled"`
+	// Meeting attendance count
+	// @example 5
+	AttendanceCount int `gorm:"default:0" json:"attendance_count" example:"5"`
 
 	// Whether the meeting has conflicts with other meetings
 	// @example false
@@ -222,21 +340,34 @@ type Meeting struct {
 
 	// Conflict details (JSON format with conflicting event IDs)
 	// @example ["01HXYZ123456789ABCDEFGHIJK", "01HXYZ123456789ABCDEFGHIJL"]
-	ConflictDetails string `json:"conflict_details" example:"[\"01HXYZ123456789ABCDEFGHIJK\", \"01HXYZ123456789ABCDEFGHIJL\"]"`
+	ConflictDetails string `json:"conflict_details,omitempty" example:"[\"01HXYZ123456789ABCDEFGHIJK\", \"01HXYZ123456789ABCDEFGHIJL\"]"`
 
-	// Meeting attendance count
-	// @example 5
-	AttendanceCount int `gorm:"default:0" json:"attendance_count" example:"5"`
+	// Legacy/Additional fields for backward compatibility
+	// Meeting type (video, audio, in-person, hybrid)
+	// @example video
+	MeetingType string `gorm:"default:'video'" json:"meeting_type,omitempty" example:"video"`
+
+	// Meeting platform (teams is default for Teams-compatible meetings)
+	// @example teams
+	Platform string `gorm:"default:'teams'" json:"platform,omitempty" example:"teams"`
+
+	// Meeting notes/description
+	// @example Agenda: 1. Project updates 2. Q&A
+	MeetingNotes string `json:"meeting_notes,omitempty" example:"Agenda: 1. Project updates 2. Q&A"`
 
 	// Meeting notes taken during the meeting
 	// @example Key decisions: 1. Project timeline approved 2. Budget increased by 10%
-	MeetingMinutes string `json:"meeting_minutes" example:"Key decisions: 1. Project timeline approved 2. Budget increased by 10%"`
+	MeetingMinutes string `json:"meeting_minutes,omitempty" example:"Key decisions: 1. Project timeline approved 2. Budget increased by 10%"`
+
+	// Recording URL
+	// @example https://teams.microsoft.com/recording/123456789
+	RecordingURL string `json:"recording_url,omitempty" example:"https://teams.microsoft.com/recording/123456789"`
 
 	// Relationships
 	// @Description Associated calendar event
 	Event *CalendarEvent `gorm:"foreignKey:EventID" json:"event,omitempty"`
 
-	// @Description Meeting participants
+	// @Description Meeting participants with organizer and attendees
 	Participants []MeetingParticipant `gorm:"foreignKey:MeetingID" json:"participants,omitempty"`
 
 	// @Description Meeting chat messages
@@ -244,6 +375,117 @@ type Meeting struct {
 
 	// @Description Meeting breakout rooms
 	BreakoutRooms []MeetingBreakoutRoom `gorm:"foreignKey:MeetingID" json:"breakout_rooms,omitempty"`
+
+	// @Description Meeting recordings with transcripts and AI insights
+	Recordings []MeetingRecording `gorm:"foreignKey:MeetingID" json:"recordings,omitempty"`
+
+	// @Description Meeting transcripts
+	Transcripts []MeetingTranscript `gorm:"foreignKey:MeetingID" json:"transcripts,omitempty"`
+
+	// @Description Meeting attendance reports
+	AttendanceReports []MeetingAttendanceReport `gorm:"foreignKey:MeetingID" json:"attendance_reports,omitempty"`
+
+	// @Description AI-generated meeting summaries and insights
+	AISummaries []MeetingSummary `gorm:"foreignKey:MeetingID" json:"ai_summaries,omitempty"`
+
+	// @Description Meeting metrics and analytics
+	Metrics []MeetingMetric `gorm:"foreignKey:MeetingID" json:"metrics,omitempty"`
+
+	// @Description Meeting security events
+	SecurityEvents []MeetingSecurityEvent `gorm:"foreignKey:MeetingID" json:"security_events,omitempty"`
+
+	// @Description Meeting polls
+	Polls []MeetingPoll `gorm:"foreignKey:MeetingID" json:"polls,omitempty"`
+
+	// @Description Meeting whiteboards
+	Whiteboards []MeetingWhiteboard `gorm:"foreignKey:MeetingID" json:"whiteboards,omitempty"`
+
+	// @Description Waiting room participants
+	WaitingRoomParticipants []MeetingWaitingRoomParticipant `gorm:"foreignKey:MeetingID" json:"waiting_room_participants,omitempty"`
+}
+
+// MeetingTranscript represents a meeting transcript
+// @Description Meeting transcript with content and metadata
+type MeetingTranscript struct {
+	BaseModel
+	// Meeting ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	MeetingID string `gorm:"not null" json:"meeting_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Transcript content type (text, vtt, srt)
+	// @example text
+	ContentType string `gorm:"default:'text'" json:"content_type" example:"text"`
+
+	// Transcript content
+	// @example "00:00:10 John: Welcome everyone to today's meeting..."
+	Content string `json:"content" example:"00:00:10 John: Welcome everyone to today's meeting..."`
+
+	// Transcript language
+	// @example en-US
+	Language string `gorm:"default:'en-US'" json:"language" example:"en-US"`
+
+	// Transcript status (processing, completed, failed)
+	// @example completed
+	Status string `gorm:"default:'processing'" json:"status" example:"completed"`
+
+	// Download URL for the transcript
+	// @example https://teams.microsoft.com/transcript/123456789
+	DownloadUrl string `json:"download_url" example:"https://teams.microsoft.com/transcript/123456789"`
+
+	// File size in bytes
+	// @example 1024
+	FileSize int64 `json:"file_size" example:"1024"`
+
+	// Duration in seconds
+	// @example 3600
+	Duration int `json:"duration" example:"3600"`
+
+	// Relationship
+	Meeting *Meeting `gorm:"foreignKey:MeetingID" json:"meeting,omitempty"`
+}
+
+// MeetingAttendanceReport represents a meeting attendance report
+// @Description Meeting attendance report with participant details
+type MeetingAttendanceReport struct {
+	BaseModel
+	// Meeting ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	MeetingID string `gorm:"not null" json:"meeting_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Report title
+	// @example Weekly Team Meeting - Attendance Report
+	Title string `json:"title" example:"Weekly Team Meeting - Attendance Report"`
+
+	// Total participants count
+	// @example 15
+	TotalParticipants int `json:"total_participants" example:"15"`
+
+	// Unique participants count (excluding duplicates)
+	// @example 12
+	UniqueParticipants int `json:"unique_participants" example:"12"`
+
+	// Report generation status (processing, completed, failed)
+	// @example completed
+	Status string `gorm:"default:'processing'" json:"status" example:"completed"`
+
+	// Download URL for the report
+	// @example https://teams.microsoft.com/attendance/123456789
+	DownloadUrl string `json:"download_url" example:"https://teams.microsoft.com/attendance/123456789"`
+
+	// Report format (csv, json, pdf)
+	// @example csv
+	Format string `gorm:"default:'csv'" json:"format" example:"csv"`
+
+	// File size in bytes
+	// @example 2048
+	FileSize int64 `json:"file_size" example:"2048"`
+
+	// Report data as JSON
+	// @example {"participants": [{"name": "John Doe", "join_time": "10:00", "leave_time": "11:00"}]}
+	ReportData string `json:"report_data" example:"{\"participants\": [{\"name\": \"John Doe\", \"join_time\": \"10:00\", \"leave_time\": \"11:00\"}]}"`
+
+	// Relationship
+	Meeting *Meeting `gorm:"foreignKey:MeetingID" json:"meeting,omitempty"`
 }
 
 // EventReminder represents a reminder for a calendar event
@@ -639,4 +881,207 @@ type EventTemplate struct {
 
 	// @Description Events created from this template
 	Events []CalendarEvent `gorm:"foreignKey:TemplateID" json:"events,omitempty"`
+}
+
+// Teams-compatible helper structs
+// AudioConferencing represents phone access information for online meetings
+type AudioConferencing struct {
+	TollNumber     string `json:"toll_number,omitempty"`
+	TollFreeNumber string `json:"toll_free_number,omitempty"`
+	ConferenceId   string `json:"conference_id,omitempty"`
+	DialinUrl      string `json:"dialin_url,omitempty"`
+}
+
+// ChatInfo represents chat information associated with the meeting
+type ChatInfo struct {
+	ThreadId  string `json:"thread_id,omitempty"`
+	MessageId string `json:"message_id,omitempty"`
+}
+
+// ChatRestrictions represents meeting chat restrictions configuration
+type ChatRestrictions struct {
+	AllowedChatTypes []string `json:"allowed_chat_types,omitempty"`
+	RestrictedUsers  []string `json:"restricted_users,omitempty"`
+}
+
+// LobbyBypassSettings represents lobby bypass configuration
+type LobbyBypassSettings struct {
+	Scope                 string `json:"scope"` // everyone, organization, organizer
+	IsDialInBypassEnabled bool   `json:"is_dial_in_bypass_enabled"`
+}
+
+// JoinMeetingIdSettings represents join meeting ID configuration
+type JoinMeetingIdSettings struct {
+	JoinMeetingId      string `json:"join_meeting_id,omitempty"`
+	Passcode           string `json:"passcode,omitempty"`
+	IsPasscodeRequired bool   `json:"is_passcode_required"`
+}
+
+// MeetingParticipants represents the participants in a meeting (Teams structure)
+type MeetingParticipants struct {
+	Organizer    *MeetingParticipant  `json:"organizer,omitempty"`
+	Attendees    []MeetingParticipant `json:"attendees,omitempty"`
+	Producers    []MeetingParticipant `json:"producers,omitempty"`
+	Contributors []MeetingParticipant `json:"contributors,omitempty"`
+}
+
+// Helper methods for JSON marshaling/unmarshaling
+func (m *Meeting) GetAudioConferencing() *AudioConferencing {
+	if m.AudioConferencingJSON == "" {
+		return nil
+	}
+	var ac AudioConferencing
+	if err := json.Unmarshal([]byte(m.AudioConferencingJSON), &ac); err != nil {
+		return nil
+	}
+	return &ac
+}
+
+func (m *Meeting) SetAudioConferencing(ac *AudioConferencing) error {
+	if ac == nil {
+		m.AudioConferencingJSON = ""
+		return nil
+	}
+	data, err := json.Marshal(ac)
+	if err != nil {
+		return err
+	}
+	m.AudioConferencingJSON = string(data)
+	return nil
+}
+
+func (m *Meeting) GetChatInfo() *ChatInfo {
+	if m.ChatInfoJSON == "" {
+		return nil
+	}
+	var ci ChatInfo
+	if err := json.Unmarshal([]byte(m.ChatInfoJSON), &ci); err != nil {
+		return nil
+	}
+	return &ci
+}
+
+func (m *Meeting) SetChatInfo(ci *ChatInfo) error {
+	if ci == nil {
+		m.ChatInfoJSON = ""
+		return nil
+	}
+	data, err := json.Marshal(ci)
+	if err != nil {
+		return err
+	}
+	m.ChatInfoJSON = string(data)
+	return nil
+}
+
+func (m *Meeting) GetChatRestrictions() *ChatRestrictions {
+	if m.ChatRestrictionsJSON == "" {
+		return nil
+	}
+	var cr ChatRestrictions
+	if err := json.Unmarshal([]byte(m.ChatRestrictionsJSON), &cr); err != nil {
+		return nil
+	}
+	return &cr
+}
+
+func (m *Meeting) SetChatRestrictions(cr *ChatRestrictions) error {
+	if cr == nil {
+		m.ChatRestrictionsJSON = ""
+		return nil
+	}
+	data, err := json.Marshal(cr)
+	if err != nil {
+		return err
+	}
+	m.ChatRestrictionsJSON = string(data)
+	return nil
+}
+
+func (m *Meeting) GetLobbyBypassSettings() *LobbyBypassSettings {
+	return &LobbyBypassSettings{
+		Scope:                 m.LobbyBypassScope,
+		IsDialInBypassEnabled: m.IsDialInBypassEnabled,
+	}
+}
+
+func (m *Meeting) SetLobbyBypassSettings(lbs *LobbyBypassSettings) {
+	if lbs != nil {
+		m.LobbyBypassScope = lbs.Scope
+		m.IsDialInBypassEnabled = lbs.IsDialInBypassEnabled
+	}
+}
+
+func (m *Meeting) GetJoinMeetingIdSettings() *JoinMeetingIdSettings {
+	return &JoinMeetingIdSettings{
+		JoinMeetingId:      m.JoinMeetingId,
+		Passcode:           m.Passcode,
+		IsPasscodeRequired: m.IsPasscodeRequired,
+	}
+}
+
+func (m *Meeting) SetJoinMeetingIdSettings(jmis *JoinMeetingIdSettings) {
+	if jmis != nil {
+		m.JoinMeetingId = jmis.JoinMeetingId
+		m.Passcode = jmis.Passcode
+		m.IsPasscodeRequired = jmis.IsPasscodeRequired
+	}
+}
+
+// Teams-compatible JSON representation methods
+func (m *Meeting) ToTeamsFormat() map[string]interface{} {
+	result := map[string]interface{}{
+		"id":                              m.ID,
+		"creation_date_time":              m.CreationDateTime,
+		"start_date_time":                 m.StartDateTime,
+		"end_date_time":                   m.EndDateTime,
+		"join_web_url":                    m.JoinWebUrl,
+		"subject":                         m.Subject,
+		"video_teleconference_id":         m.VideoTeleconferenceId,
+		"external_id":                     m.ExternalId,
+		"allow_attendee_to_enable_camera": m.AllowAttendeeToEnableCamera,
+		"allow_attendee_to_enable_mic":    m.AllowAttendeeToEnableMic,
+		"allow_breakout_rooms":            m.AllowBreakoutRooms,
+		"allow_copying_and_sharing_meeting_content": m.AllowCopyingAndSharingMeetingContent,
+		"allow_live_share":                          m.AllowLiveShare,
+		"allow_meeting_chat":                        m.AllowMeetingChat,
+		"allow_participants_to_change_name":         m.AllowParticipantsToChangeName,
+		"allow_power_point_sharing":                 m.AllowPowerPointSharing,
+		"allow_recording":                           m.AllowRecording,
+		"allow_teamwork_reactions":                  m.AllowTeamworkReactions,
+		"allow_transcription":                       m.AllowTranscription,
+		"allow_whiteboard":                          m.AllowWhiteboard,
+		"allowed_presenters":                        m.AllowedPresenters,
+		"allowed_lobby_admitters":                   m.AllowedLobbyAdmitters,
+		"is_end_to_end_encryption_enabled":          m.IsEndToEndEncryptionEnabled,
+		"is_entry_exit_announced":                   m.IsEntryExitAnnounced,
+		"record_automatically":                      m.RecordAutomatically,
+		"share_meeting_chat_history_default":        m.ShareMeetingChatHistoryDefault,
+		"watermark_protection":                      m.WatermarkProtection,
+		"meeting_template_id":                       m.MeetingTemplateId,
+		"lobby_bypass_settings":                     m.GetLobbyBypassSettings(),
+		"join_meeting_id_settings":                  m.GetJoinMeetingIdSettings(),
+		"audio_conferencing":                        m.GetAudioConferencing(),
+		"chat_info":                                 m.GetChatInfo(),
+		"chat_restrictions":                         m.GetChatRestrictions(),
+		"join_information":                          m.JoinInformation,
+	}
+
+	// Add participants in Teams format if loaded
+	if len(m.Participants) > 0 {
+		participants := MeetingParticipants{
+			Attendees: []MeetingParticipant{},
+		}
+
+		for _, p := range m.Participants {
+			if p.Role == "organizer" {
+				participants.Organizer = &p
+			} else {
+				participants.Attendees = append(participants.Attendees, p)
+			}
+		}
+		result["participants"] = participants
+	}
+
+	return result
 }

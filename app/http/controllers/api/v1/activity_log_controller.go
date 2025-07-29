@@ -621,7 +621,6 @@ func (alc *ActivityLogController) GetActivitiesForSubject(ctx http.Context) http
 		Pagination: responses.PaginationInfo{
 			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
 			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
 			Limit:      getIntValue(paginationInfo, "limit"),
@@ -700,7 +699,6 @@ func (alc *ActivityLogController) GetActivitiesForCauser(ctx http.Context) http.
 		Pagination: responses.PaginationInfo{
 			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
 			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
 			Limit:      getIntValue(paginationInfo, "limit"),
@@ -777,7 +775,6 @@ func (alc *ActivityLogController) GetActivitiesByLogName(ctx http.Context) http.
 		Pagination: responses.PaginationInfo{
 			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
 			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
 			Limit:      getIntValue(paginationInfo, "limit"),
@@ -874,10 +871,10 @@ func (alc *ActivityLogController) GetActivitiesInDateRange(ctx http.Context) htt
 		Pagination: responses.PaginationInfo{
 			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
 			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
-			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
-			Count:      getIntValue(paginationInfo, "count"),
-			Limit:      getIntValue(paginationInfo, "limit"),
+
+			HasPrev: getBoolValue(paginationInfo, "has_prev"),
+			Count:   getIntValue(paginationInfo, "count"),
+			Limit:   getIntValue(paginationInfo, "limit"),
 		},
 		Timestamp: time.Now(),
 	})

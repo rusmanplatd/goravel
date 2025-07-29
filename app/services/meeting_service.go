@@ -102,7 +102,7 @@ func (s *MeetingService) StartMeeting(meetingID, hostUserID string) error {
 		MeetingID:     meetingID,
 		Participants:  make(map[string]*models.MeetingParticipant),
 		BreakoutRooms: make(map[string]*models.MeetingBreakoutRoom),
-		IsRecording:   meeting.RecordMeeting,
+		IsRecording:   meeting.AllowRecording,
 		StartedAt:     now,
 		LastActivity:  now,
 	}
@@ -117,7 +117,7 @@ func (s *MeetingService) StartMeeting(meetingID, hostUserID string) error {
 		Data: map[string]interface{}{
 			"meeting_id":   meetingID,
 			"started_at":   now,
-			"is_recording": meeting.RecordMeeting,
+			"is_recording": meeting.AllowRecording,
 		},
 		Timestamp: now,
 	}

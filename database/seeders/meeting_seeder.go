@@ -22,12 +22,12 @@ func (s *MeetingSeeder) Run() error {
 		return nil
 	}
 	meeting := models.Meeting{
-		EventID:     event.ID,
-		MeetingType: "video",
-		Platform:    "Zoom",
-		MeetingURL:  "https://zoom.us/j/123456789",
-		MeetingID:   "123456789",
-		Passcode:    "123456",
+		EventID:               event.ID,
+		MeetingType:           "video",
+		Platform:              "Zoom",
+		JoinWebUrl:            "https://teams.microsoft.com/l/meetup-join/123456789",
+		VideoTeleconferenceId: "123456789",
+		Passcode:              "123456",
 	}
 	facades.Orm().Query().Create(&meeting)
 	return nil

@@ -114,6 +114,43 @@ type MeetingTranscription struct {
 	Speaker   *User             `gorm:"foreignKey:SpeakerID" json:"speaker,omitempty"`
 }
 
+// MeetingAISummary represents AI-generated meeting insights
+type MeetingAISummary struct {
+	BaseModel
+	// Meeting reference
+	MeetingID string `gorm:"not null" json:"meeting_id"`
+
+	// AI-generated summary
+	Summary string `json:"summary"`
+
+	// Key points from the meeting
+	KeyPoints string `json:"key_points"`
+
+	// Action items as JSON
+	ActionItems string `json:"action_items"`
+
+	// Decisions made as JSON
+	Decisions string `json:"decisions"`
+
+	// Topics discussed as JSON
+	Topics string `json:"topics"`
+
+	// Overall sentiment
+	Sentiment string `json:"sentiment"`
+
+	// AI confidence score (0-1)
+	Confidence float64 `json:"confidence"`
+
+	// Processing time in seconds
+	ProcessingTime float64 `json:"processing_time"`
+
+	// Source of the insights (recording, live_transcription, etc.)
+	Source string `gorm:"default:'recording'" json:"source"`
+
+	// Relationships
+	Meeting *Meeting `gorm:"foreignKey:MeetingID" json:"meeting,omitempty"`
+}
+
 // TableName returns the table name for MeetingRecording
 func (MeetingRecording) TableName() string {
 	return "meeting_recordings"
@@ -122,4 +159,9 @@ func (MeetingRecording) TableName() string {
 // TableName returns the table name for MeetingTranscription
 func (MeetingTranscription) TableName() string {
 	return "meeting_transcriptions"
+}
+
+// TableName returns the table name for MeetingAISummary
+func (MeetingAISummary) TableName() string {
+	return "meeting_ai_summaries"
 }

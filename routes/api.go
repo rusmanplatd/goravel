@@ -391,27 +391,119 @@ func Api() {
 	// Meeting API routes
 	meetingController := v1.NewMeetingController()
 
-	// Meeting management
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/start", meetingController.StartMeeting)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/end", meetingController.EndMeeting)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{id}/status", meetingController.GetMeetingStatus)
+	// Teams-like online meeting API endpoints (Microsoft Graph compatible)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings", meetingController.CreateOnlineMeeting)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings", meetingController.ListOnlineMeetings)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}", meetingController.GetOnlineMeeting)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/me/onlineMeetings/{id}", meetingController.UpdateOnlineMeeting)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}", meetingController.DeleteOnlineMeeting)
 
-	// Participant management
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/join", meetingController.JoinMeeting)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/leave", meetingController.LeaveMeeting)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{id}/participants", meetingController.GetParticipants)
-	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/meetings/{id}/participants/status", meetingController.UpdateParticipantStatus)
+	// Teams Graph API additional endpoints
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/createOrGet", meetingController.CreateOrGetOnlineMeeting)
 
-	// Meeting chat
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/chat", meetingController.SendChatMessage)
-	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/meetings/{id}/chat", meetingController.GetChatHistory)
+	// Filter-based queries (Teams Graph API style)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/filter/joinWebUrl", meetingController.GetOnlineMeetingByJoinWebUrl)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/communications/onlineMeetings", meetingController.GetOnlineMeetingByVideoTeleconferenceId)
 
-	// LiveKit integration
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/token", meetingController.GenerateLiveKitToken)
+	// Teams-like meeting resources and sub-resources
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/transcripts", meetingController.GetMeetingTranscripts)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/recordings", meetingController.GetMeetingRecordings)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/attendanceReports", meetingController.GetMeetingAttendanceReports)
+
+	// NEW Teams-like features
+	// Meeting invitation and calendar integration
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/invitations", meetingController.SendMeetingInvitations)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/invitations", meetingController.GetMeetingInvitations)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/invitations/{invitation_id}/respond", meetingController.RespondToInvitation)
+
+	// Meeting templates
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/meetingTemplates", meetingController.CreateMeetingTemplate)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/meetingTemplates", meetingController.ListMeetingTemplates)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/meetingTemplates/{id}", meetingController.GetMeetingTemplate)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/me/meetingTemplates/{id}", meetingController.UpdateMeetingTemplate)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/meetingTemplates/{id}", meetingController.DeleteMeetingTemplate)
+
+	// Recurring meetings
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/recurrence", meetingController.CreateRecurringMeeting)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/instances", meetingController.GetMeetingInstances)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/me/onlineMeetings/{id}/instances/{instance_id}", meetingController.UpdateMeetingInstance)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}/instances/{instance_id}", meetingController.CancelMeetingInstance)
+
+	// Meeting lobby management
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/lobby", meetingController.GetLobbyParticipants)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/lobby/manage", meetingController.ManageLobby)
 
 	// Breakout rooms
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/breakout-rooms", meetingController.CreateBreakoutRooms)
-	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/meetings/{id}/breakout-rooms/assign", meetingController.AssignToBreakoutRoom)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/breakoutRooms", meetingController.CreateBreakoutRooms)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/breakoutRooms", meetingController.GetBreakoutRooms)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/breakoutRooms/{room_id}/assign", meetingController.AssignToBreakoutRoom)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/breakoutRooms/close", meetingController.CloseBreakoutRooms)
+
+	// Meeting reactions and interactions
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/reactions", meetingController.SendReaction)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/handRaise", meetingController.RaiseHand)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}/handRaise", meetingController.LowerHand)
+
+	// Meeting polls and Q&A
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/polls", meetingController.CreatePoll)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/polls", meetingController.GetPolls)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/polls/{poll_id}/vote", meetingController.VoteOnPoll)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/polls/{poll_id}/results", meetingController.GetPollResults)
+
+	// Co-organizer management
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/coOrganizers", meetingController.AddCoOrganizer)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/coOrganizers", meetingController.GetCoOrganizers)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}/coOrganizers/{user_id}", meetingController.RemoveCoOrganizer)
+
+	// Dial-in conference management
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/dialIn", meetingController.EnableDialIn)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/dialIn", meetingController.GetDialInInfo)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}/dialIn", meetingController.DisableDialIn)
+
+	// NEW TEAMS-LIKE SCHEDULING AND AVAILABILITY ENDPOINTS
+	// Scheduling assistant and availability checking
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/calendar/availability/check", meetingController.CheckAvailability)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/calendar/findMeetingTimes", meetingController.FindMeetingTimes)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/scheduleWithAssistant", meetingController.ScheduleWithAssistant)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/calendar/freeBusy", meetingController.GetFreeBusyInfo)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/conflicts/check", meetingController.CheckMeetingConflicts)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/conflicts/resolve", meetingController.ResolveMeetingConflicts)
+
+	// Meeting attendance tracking and reporting
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/attendance/update", meetingController.UpdateAttendance)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/attendance", meetingController.GetAttendanceData)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/attendance/report", meetingController.GenerateAttendanceReport)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/attendance/summary", meetingController.GetAttendanceSummary)
+
+	// Meeting chat and messaging
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/chat/messages", meetingController.SendChatMessage)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/chat/messages", meetingController.GetChatMessages)
+	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/me/onlineMeetings/{id}/chat/messages/{message_id}", meetingController.UpdateChatMessage)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}/chat/messages/{message_id}", meetingController.DeleteChatMessage)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/chat/messages/{message_id}/react", meetingController.ReactToChatMessage)
+
+	// File sharing in meetings
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/files/upload", meetingController.UploadMeetingFile)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/files", meetingController.GetMeetingFiles)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/files/{file_id}/download", meetingController.DownloadMeetingFile)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}/files/{file_id}", meetingController.DeleteMeetingFile)
+
+	// Meeting quality and feedback
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/feedback", meetingController.SubmitMeetingFeedback)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/feedback", meetingController.GetMeetingFeedback)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/issues/report", meetingController.ReportMeetingIssue)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/quality/metrics", meetingController.GetQualityMetrics)
+
+	// Meeting room and resource management
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/calendar/rooms/available", meetingController.GetAvailableRooms)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/onlineMeetings/{id}/room/book", meetingController.BookMeetingRoom)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/onlineMeetings/{id}/room", meetingController.GetMeetingRoomInfo)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/me/onlineMeetings/{id}/room", meetingController.CancelRoomBooking)
+
+	// Calendar sync and integration
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/calendar/sync", meetingController.SyncCalendar)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/me/calendar/events", meetingController.GetCalendarEvents)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/me/calendar/events/{event_id}/convert", meetingController.ConvertToOnlineMeeting)
 
 	// Meeting WebSocket for real-time features
 	meetingWSController := v1.NewMeetingWebSocketController()

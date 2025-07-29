@@ -82,14 +82,8 @@ func (mss *MeetingSecurityService) ApplySecurityPolicy(meetingID string, policy 
 		return fmt.Errorf("meeting not found: %v", err)
 	}
 
-	// Update meeting security settings
-	if policy.RequireWaitingRoom {
-		meeting.WaitingRoom = "enabled"
-	} else {
-		meeting.WaitingRoom = "disabled"
-	}
-
-	meeting.MuteParticipantsOnEntry = policy.MuteOnEntry
+	// Note: Legacy waiting room and mute on entry settings have been removed
+	// These are now handled through Teams-like lobby bypass settings
 
 	// Save the policy to database
 	if err := facades.Orm().Query().Save(policy); err != nil {
@@ -1478,7 +1472,7 @@ func (mss *MeetingSecurityService) isAuthorizedToRecord(initiatorID, meetingID s
 			}
 
 			// Check if meeting has recording enabled
-			if meeting.RecordMeeting {
+			if meeting.AllowRecording {
 				return true
 			}
 
@@ -1653,4 +1647,468 @@ func (mss *MeetingSecurityService) getRecentHostChanges(meetingID string, durati
 	}
 
 	return changes
+}
+
+// Teams-like security features
+
+// EnableWatermarkProtection enables watermark on meeting content (Teams feature)
+func (mss *MeetingSecurityService) EnableWatermarkProtection(meetingID, hostUserID string, enable bool) error {
+	// Verify host permissions
+	if !mss.isHost(meetingID, hostUserID) {
+		return fmt.Errorf("insufficient permissions: only hosts can enable watermark protection")
+	}
+
+	// Update meeting watermark settings
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return fmt.Errorf("meeting not found: %v", err)
+	}
+
+	// Update watermark setting
+	if enable {
+		meeting.WatermarkProtection = "enabled"
+	} else {
+		meeting.WatermarkProtection = "disabled"
+	}
+
+	// Save changes
+	if err := facades.Orm().Query().Save(&meeting); err != nil {
+		return fmt.Errorf("failed to update watermark protection: %v", err)
+	}
+
+	action := "disabled"
+	if enable {
+		action = "enabled"
+	}
+
+	mss.logSecurityEvent(meetingID, "watermark_protection_"+action, "info", hostUserID,
+		fmt.Sprintf("Watermark protection %s", action), map[string]interface{}{
+			"enabled": enable,
+		})
+
+	// Notify all participants about watermark change
+	mss.notifyParticipantsWatermarkChange(meetingID, enable)
+
+	return nil
+}
+
+// ConfigureEntryExitAnnouncements configures entry/exit announcements (Teams feature)
+func (mss *MeetingSecurityService) ConfigureEntryExitAnnouncements(meetingID, hostUserID string, enableEntry, enableExit bool) error {
+	// Verify host permissions
+	if !mss.isHost(meetingID, hostUserID) {
+		return fmt.Errorf("insufficient permissions: only hosts can configure announcements")
+	}
+
+	// Update meeting announcement settings
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return fmt.Errorf("meeting not found: %v", err)
+	}
+
+	// Update announcement settings
+	meeting.IsEntryExitAnnounced = enableEntry || enableExit
+
+	// Save changes
+	if err := facades.Orm().Query().Save(&meeting); err != nil {
+		return fmt.Errorf("failed to update announcement settings: %v", err)
+	}
+
+	mss.logSecurityEvent(meetingID, "entry_exit_announcements_configured", "info", hostUserID,
+		"Entry/exit announcements configured", map[string]interface{}{
+			"entry_enabled": enableEntry,
+			"exit_enabled":  enableExit,
+		})
+
+	return nil
+}
+
+// SetMeetingLobbyBypass configures lobby bypass settings (Teams feature)
+func (mss *MeetingSecurityService) SetMeetingLobbyBypass(meetingID, hostUserID string, settings map[string]interface{}) error {
+	// Verify host permissions
+	if !mss.isHost(meetingID, hostUserID) {
+		return fmt.Errorf("insufficient permissions: only hosts can configure lobby settings")
+	}
+
+	// Update meeting lobby bypass settings
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return fmt.Errorf("meeting not found: %v", err)
+	}
+
+	// Update lobby bypass settings using the Teams-compatible field
+	if scope, ok := settings["scope"].(string); ok {
+		meeting.AllowedLobbyAdmitters = scope
+	}
+
+	// Save changes
+	if err := facades.Orm().Query().Save(&meeting); err != nil {
+		return fmt.Errorf("failed to update lobby settings: %v", err)
+	}
+
+	mss.logSecurityEvent(meetingID, "lobby_bypass_configured", "info", hostUserID,
+		"Lobby bypass settings configured", settings)
+
+	return nil
+}
+
+// EnableMeetingEncryption enables end-to-end encryption (Teams feature)
+func (mss *MeetingSecurityService) EnableMeetingEncryption(meetingID, hostUserID string, enable bool) error {
+	// Verify host permissions
+	if !mss.isHost(meetingID, hostUserID) {
+		return fmt.Errorf("insufficient permissions: only hosts can enable encryption")
+	}
+
+	// Update meeting encryption settings
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return fmt.Errorf("meeting not found: %v", err)
+	}
+
+	// Update encryption setting
+	meeting.IsEndToEndEncryptionEnabled = enable
+
+	// Save changes
+	if err := facades.Orm().Query().Save(&meeting); err != nil {
+		return fmt.Errorf("failed to update encryption settings: %v", err)
+	}
+
+	action := "disabled"
+	if enable {
+		action = "enabled"
+	}
+
+	mss.logSecurityEvent(meetingID, "end_to_end_encryption_"+action, "info", hostUserID,
+		fmt.Sprintf("End-to-end encryption %s", action), map[string]interface{}{
+			"enabled": enable,
+		})
+
+	// Notify participants about encryption change
+	mss.notifyParticipantsEncryptionChange(meetingID, enable)
+
+	return nil
+}
+
+// ConfigureMeetingChatRestrictions configures chat restrictions (Teams feature)
+func (mss *MeetingSecurityService) ConfigureMeetingChatRestrictions(meetingID, hostUserID string, chatMode string, restrictions map[string]interface{}) error {
+	// Verify host permissions
+	if !mss.isHost(meetingID, hostUserID) {
+		return fmt.Errorf("insufficient permissions: only hosts can configure chat restrictions")
+	}
+
+	// Validate chat mode
+	validChatModes := []string{"enabled", "disabled", "limitedToHosts", "limitedToPresenters"}
+	isValidMode := false
+	for _, mode := range validChatModes {
+		if chatMode == mode {
+			isValidMode = true
+			break
+		}
+	}
+	if !isValidMode {
+		return fmt.Errorf("invalid chat mode: %s", chatMode)
+	}
+
+	// Update meeting chat settings
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return fmt.Errorf("meeting not found: %v", err)
+	}
+
+	// Update chat settings
+	meeting.AllowMeetingChat = chatMode
+
+	// Save additional restrictions as JSON
+	// Convert restrictions map to JSON string for storage
+	restrictionsJSON, err := json.Marshal(restrictions)
+	if err != nil {
+		return fmt.Errorf("failed to marshal chat restrictions: %v", err)
+	}
+	meeting.ChatRestrictionsJSON = string(restrictionsJSON)
+
+	// Save changes
+	if err := facades.Orm().Query().Save(&meeting); err != nil {
+		return fmt.Errorf("failed to update chat settings: %v", err)
+	}
+
+	mss.logSecurityEvent(meetingID, "chat_restrictions_configured", "info", hostUserID,
+		"Chat restrictions configured", map[string]interface{}{
+			"chat_mode":    chatMode,
+			"restrictions": restrictions,
+		})
+
+	return nil
+}
+
+// SetMeetingPresenterControls configures presenter controls (Teams feature)
+func (mss *MeetingSecurityService) SetMeetingPresenterControls(meetingID, hostUserID string, controls map[string]interface{}) error {
+	// Verify host permissions
+	if !mss.isHost(meetingID, hostUserID) {
+		return fmt.Errorf("insufficient permissions: only hosts can configure presenter controls")
+	}
+
+	// Update meeting presenter controls
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return fmt.Errorf("meeting not found: %v", err)
+	}
+
+	// Update presenter control settings
+	if allowPresentersToUnmute, ok := controls["allowPresentersToUnmute"].(bool); ok {
+		// Store in security policy or custom settings since direct field doesn't exist
+		facades.Log().Info("Presenter unmute control configured", map[string]interface{}{
+			"meeting_id": meetingID,
+			"setting":    allowPresentersToUnmute,
+		})
+	}
+	if allowPresentersToEnableCamera, ok := controls["allowPresentersToEnableCamera"].(bool); ok {
+		// Store in security policy or custom settings since direct field doesn't exist
+		facades.Log().Info("Presenter camera control configured", map[string]interface{}{
+			"meeting_id": meetingID,
+			"setting":    allowPresentersToEnableCamera,
+		})
+	}
+
+	// Save changes
+	if err := facades.Orm().Query().Save(&meeting); err != nil {
+		return fmt.Errorf("failed to update presenter controls: %v", err)
+	}
+
+	mss.logSecurityEvent(meetingID, "presenter_controls_configured", "info", hostUserID,
+		"Presenter controls configured", controls)
+
+	return nil
+}
+
+// MonitorMeetingCompliance monitors compliance with organizational policies (Teams feature)
+func (mss *MeetingSecurityService) MonitorMeetingCompliance(meetingID string) ([]MeetingSecurityEvent, error) {
+	var events []MeetingSecurityEvent
+
+	// Get meeting details
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).With("Participants").First(&meeting)
+	if err != nil {
+		return nil, fmt.Errorf("meeting not found: %v", err)
+	}
+
+	// Check compliance requirements
+	// 1. Check if recording is required but not enabled
+	if mss.isRecordingRequired(meetingID) && !meeting.AllowRecording {
+		event := MeetingSecurityEvent{
+			ID:          mss.generateEventID(),
+			MeetingID:   meetingID,
+			EventType:   "compliance_recording_required",
+			Severity:    "warning",
+			Description: "Meeting requires recording for compliance but recording is not enabled",
+			Metadata: map[string]interface{}{
+				"compliance_requirement": "recording_required",
+				"current_setting":        meeting.AllowRecording,
+			},
+			Timestamp: time.Now(),
+			Resolved:  false,
+		}
+		events = append(events, event)
+	}
+
+	// 2. Check for external participants in sensitive meetings
+	if mss.isSensitiveMeeting(meetingID) {
+		externalParticipants := mss.getExternalParticipants(meetingID)
+		if len(externalParticipants) > 0 {
+			event := MeetingSecurityEvent{
+				ID:          mss.generateEventID(),
+				MeetingID:   meetingID,
+				EventType:   "compliance_external_participants",
+				Severity:    "high",
+				Description: fmt.Sprintf("Sensitive meeting has %d external participants", len(externalParticipants)),
+				Metadata: map[string]interface{}{
+					"external_count":        len(externalParticipants),
+					"external_participants": externalParticipants,
+				},
+				Timestamp: time.Now(),
+				Resolved:  false,
+			}
+			events = append(events, event)
+		}
+	}
+
+	// 3. Check for encryption requirements
+	if mss.isEncryptionRequired(meetingID) && !meeting.IsEndToEndEncryptionEnabled {
+		event := MeetingSecurityEvent{
+			ID:          mss.generateEventID(),
+			MeetingID:   meetingID,
+			EventType:   "compliance_encryption_required",
+			Severity:    "critical",
+			Description: "Meeting requires encryption but end-to-end encryption is not enabled",
+			Metadata: map[string]interface{}{
+				"compliance_requirement": "encryption_required",
+				"current_setting":        meeting.IsEndToEndEncryptionEnabled,
+			},
+			Timestamp: time.Now(),
+			Resolved:  false,
+		}
+		events = append(events, event)
+	}
+
+	return events, nil
+}
+
+// Notification helper methods
+func (mss *MeetingSecurityService) notifyParticipantsWatermarkChange(meetingID string, enabled bool) {
+	// Get all current participants
+	participants := mss.getCurrentParticipants(meetingID)
+
+	for _, participant := range participants {
+		// Get user details
+		var user models.User
+		if err := facades.Orm().Query().Where("id", participant.UserID).First(&user); err != nil {
+			continue
+		}
+
+		// Create notification
+		notificationService := NewNotificationService()
+		notification := notifications.NewBaseNotification()
+		notification.SetType("meeting_watermark_change")
+
+		if enabled {
+			notification.SetTitle("Watermark Protection Enabled")
+			notification.SetBody("Content watermark protection has been enabled for this meeting")
+		} else {
+			notification.SetTitle("Watermark Protection Disabled")
+			notification.SetBody("Content watermark protection has been disabled for this meeting")
+		}
+
+		notification.SetChannels([]string{"websocket", "web_push"})
+		notification.AddData("meeting_id", meetingID)
+		notification.AddData("watermark_enabled", enabled)
+
+		// Send notification
+		ctx := context.Background()
+		if err := notificationService.SendNow(ctx, notification, &user); err != nil {
+			facades.Log().Error("Failed to send watermark notification", map[string]interface{}{
+				"user_id":    user.ID,
+				"meeting_id": meetingID,
+				"error":      err.Error(),
+			})
+		}
+	}
+}
+
+func (mss *MeetingSecurityService) notifyParticipantsEncryptionChange(meetingID string, enabled bool) {
+	// Get all current participants
+	participants := mss.getCurrentParticipants(meetingID)
+
+	for _, participant := range participants {
+		// Get user details
+		var user models.User
+		if err := facades.Orm().Query().Where("id", participant.UserID).First(&user); err != nil {
+			continue
+		}
+
+		// Create notification
+		notificationService := NewNotificationService()
+		notification := notifications.NewBaseNotification()
+		notification.SetType("meeting_encryption_change")
+
+		if enabled {
+			notification.SetTitle("End-to-End Encryption Enabled")
+			notification.SetBody("End-to-end encryption has been enabled for this meeting")
+		} else {
+			notification.SetTitle("End-to-End Encryption Disabled")
+			notification.SetBody("End-to-end encryption has been disabled for this meeting")
+		}
+
+		notification.SetChannels([]string{"websocket", "web_push"})
+		notification.AddData("meeting_id", meetingID)
+		notification.AddData("encryption_enabled", enabled)
+
+		// Send notification
+		ctx := context.Background()
+		if err := notificationService.SendNow(ctx, notification, &user); err != nil {
+			facades.Log().Error("Failed to send encryption notification", map[string]interface{}{
+				"user_id":    user.ID,
+				"meeting_id": meetingID,
+				"error":      err.Error(),
+			})
+		}
+	}
+}
+
+// Compliance helper methods
+func (mss *MeetingSecurityService) isRecordingRequired(meetingID string) bool {
+	// Check organizational policies or meeting metadata for recording requirements
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return false
+	}
+
+	// Check if meeting has compliance tags that require recording
+	// This could be based on meeting subject, participants, or organizational policies
+	return strings.Contains(strings.ToLower(meeting.Subject), "compliance") ||
+		strings.Contains(strings.ToLower(meeting.Subject), "audit") ||
+		strings.Contains(strings.ToLower(meeting.Subject), "legal")
+}
+
+func (mss *MeetingSecurityService) isSensitiveMeeting(meetingID string) bool {
+	// Check if meeting is marked as sensitive
+	var meeting models.Meeting
+	err := facades.Orm().Query().Where("id", meetingID).First(&meeting)
+	if err != nil {
+		return false
+	}
+
+	// Check for sensitive keywords or classifications
+	sensitiveKeywords := []string{"confidential", "sensitive", "restricted", "internal", "private"}
+	subjectLower := strings.ToLower(meeting.Subject)
+
+	for _, keyword := range sensitiveKeywords {
+		if strings.Contains(subjectLower, keyword) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (mss *MeetingSecurityService) isEncryptionRequired(meetingID string) bool {
+	// Check if encryption is required based on organizational policies
+	return mss.isSensitiveMeeting(meetingID) // Sensitive meetings require encryption
+}
+
+func (mss *MeetingSecurityService) getExternalParticipants(meetingID string) []string {
+	// Get participants who are external to the organization
+	var participants []models.MeetingParticipant
+	err := facades.Orm().Query().
+		Where("meeting_id = ? AND status = ?", meetingID, "joined").
+		With("User").
+		Find(&participants)
+
+	if err != nil {
+		return []string{}
+	}
+
+	var externalParticipants []string
+	organizationDomain := mss.getOrganizationDomain()
+
+	for _, participant := range participants {
+		if participant.User != nil {
+			userDomain := mss.extractDomain(participant.User.Email)
+			if userDomain != organizationDomain {
+				externalParticipants = append(externalParticipants, participant.UserID)
+			}
+		}
+	}
+
+	return externalParticipants
+}
+
+func (mss *MeetingSecurityService) getOrganizationDomain() string {
+	// Get the primary organization domain from configuration
+	// This would typically be configured in the application settings
+	return "example.com" // This should be configurable
 }

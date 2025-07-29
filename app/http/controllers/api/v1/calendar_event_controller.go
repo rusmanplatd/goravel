@@ -225,17 +225,14 @@ func (cec *CalendarEventController) Store(ctx http.Context) http.Response {
 	// Create meeting details if provided
 	if request.Meeting != nil {
 		meeting := models.Meeting{
-			EventID:                 event.ID,
-			MeetingType:             request.Meeting.MeetingType,
-			Platform:                request.Meeting.Platform,
-			MeetingURL:              request.Meeting.MeetingURL,
-			MeetingID:               request.Meeting.MeetingID,
-			Passcode:                request.Meeting.Passcode,
-			MeetingNotes:            request.Meeting.MeetingNotes,
-			RecordMeeting:           request.Meeting.RecordMeeting,
-			AllowJoinBeforeHost:     request.Meeting.AllowJoinBeforeHost,
-			MuteParticipantsOnEntry: request.Meeting.MuteParticipantsOnEntry,
-			WaitingRoom:             request.Meeting.WaitingRoom,
+			EventID:               event.ID,
+			MeetingType:           request.Meeting.MeetingType,
+			Platform:              request.Meeting.Platform,
+			JoinWebUrl:            request.Meeting.MeetingURL,
+			VideoTeleconferenceId: request.Meeting.MeetingID,
+			Passcode:              request.Meeting.Passcode,
+			MeetingNotes:          request.Meeting.MeetingNotes,
+			AllowRecording:        request.Meeting.RecordMeeting,
 		}
 		if err := tx.Create(&meeting); err != nil {
 			tx.Rollback()
@@ -385,17 +382,14 @@ func (cec *CalendarEventController) Update(ctx http.Context) http.Response {
 		if err != nil {
 			// Create new meeting record
 			meeting = models.Meeting{
-				EventID:                 event.ID,
-				MeetingType:             request.Meeting.MeetingType,
-				Platform:                request.Meeting.Platform,
-				MeetingURL:              request.Meeting.MeetingURL,
-				MeetingID:               request.Meeting.MeetingID,
-				Passcode:                request.Meeting.Passcode,
-				MeetingNotes:            request.Meeting.MeetingNotes,
-				RecordMeeting:           request.Meeting.RecordMeeting,
-				AllowJoinBeforeHost:     request.Meeting.AllowJoinBeforeHost,
-				MuteParticipantsOnEntry: request.Meeting.MuteParticipantsOnEntry,
-				WaitingRoom:             request.Meeting.WaitingRoom,
+				EventID:               event.ID,
+				MeetingType:           request.Meeting.MeetingType,
+				Platform:              request.Meeting.Platform,
+				JoinWebUrl:            request.Meeting.MeetingURL,
+				VideoTeleconferenceId: request.Meeting.MeetingID,
+				Passcode:              request.Meeting.Passcode,
+				MeetingNotes:          request.Meeting.MeetingNotes,
+				AllowRecording:        request.Meeting.RecordMeeting,
 			}
 			if err := tx.Create(&meeting); err != nil {
 				tx.Rollback()
@@ -409,14 +403,12 @@ func (cec *CalendarEventController) Update(ctx http.Context) http.Response {
 			// Update existing meeting record
 			meeting.MeetingType = request.Meeting.MeetingType
 			meeting.Platform = request.Meeting.Platform
-			meeting.MeetingURL = request.Meeting.MeetingURL
-			meeting.MeetingID = request.Meeting.MeetingID
+			meeting.JoinWebUrl = request.Meeting.MeetingURL
+			meeting.VideoTeleconferenceId = request.Meeting.MeetingID
 			meeting.Passcode = request.Meeting.Passcode
 			meeting.MeetingNotes = request.Meeting.MeetingNotes
-			meeting.RecordMeeting = request.Meeting.RecordMeeting
-			meeting.AllowJoinBeforeHost = request.Meeting.AllowJoinBeforeHost
-			meeting.MuteParticipantsOnEntry = request.Meeting.MuteParticipantsOnEntry
-			meeting.WaitingRoom = request.Meeting.WaitingRoom
+			meeting.AllowRecording = request.Meeting.RecordMeeting
+			// Legacy fields removed - using Teams-like settings instead
 
 			if err := tx.Save(&meeting); err != nil {
 				tx.Rollback()
@@ -794,7 +786,6 @@ func (cec *CalendarEventController) GetMyEvents(ctx http.Context) http.Response 
 		Pagination: responses.PaginationInfo{
 			NextCursor: getStringPtr(paginationInfo, "next_cursor"),
 			PrevCursor: getStringPtr(paginationInfo, "prev_cursor"),
-			HasMore:    getBoolValue(paginationInfo, "has_more"),
 			HasPrev:    getBoolValue(paginationInfo, "has_prev"),
 			Count:      getIntValue(paginationInfo, "count"),
 			Limit:      getIntValue(paginationInfo, "limit"),

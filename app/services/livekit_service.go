@@ -159,12 +159,11 @@ func (s *LiveKitService) CreateRoom(ctx context.Context, meetingID string, meeti
 
 	// Prepare room metadata
 	metadata := map[string]interface{}{
-		"meeting_id":   meetingID,
-		"title":        meeting.Event.Title,
-		"description":  meeting.Event.Description,
-		"created_at":   time.Now(),
-		"recording":    meeting.RecordMeeting,
-		"waiting_room": meeting.WaitingRoom,
+		"meeting_id":  meetingID,
+		"title":       meeting.Event.Title,
+		"description": meeting.Event.Description,
+		"created_at":  time.Now(),
+		"recording":   meeting.AllowRecording,
 	}
 
 	metadataJSON, _ := json.Marshal(metadata)

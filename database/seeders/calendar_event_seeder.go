@@ -178,17 +178,15 @@ func (r *CalendarEventSeeder) Run() error {
 		// Create meeting details for meeting type events
 		if events[i].Type == "meeting" {
 			meeting := models.Meeting{
-				EventID:                 events[i].ID,
-				MeetingType:             "video",
-				Platform:                "zoom",
-				MeetingURL:              "https://zoom.us/j/" + helpers.GenerateULID()[:8],
-				MeetingID:               helpers.GenerateULID()[:8],
-				Passcode:                "123456",
-				MeetingNotes:            "Agenda will be shared before the meeting",
-				RecordMeeting:           false,
-				AllowJoinBeforeHost:     true,
-				MuteParticipantsOnEntry: false,
-				WaitingRoom:             "enabled",
+				EventID:               events[i].ID,
+				MeetingType:           "video",
+				Platform:              "zoom",
+				JoinWebUrl:            "https://teams.microsoft.com/l/meetup-join/" + helpers.GenerateULID()[:8],
+				VideoTeleconferenceId: helpers.GenerateULID()[:8],
+				Passcode:              "123456",
+				MeetingNotes:          "Agenda will be shared before the meeting",
+				AllowRecording:        false,
+
 				BaseModel: models.BaseModel{
 					CreatedBy: &users[0].ID,
 					UpdatedBy: &users[0].ID,

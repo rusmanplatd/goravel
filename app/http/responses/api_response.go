@@ -126,10 +126,6 @@ type PaginationInfo struct {
 	// Cursor for previous page (cursor pagination only)
 	// @example eyJpZCI6MTAwfQ==
 	PrevCursor *string `json:"prev_cursor,omitempty" example:"eyJpZCI6MTAwfQ=="`
-
-	// Legacy fields for backward compatibility
-	// @deprecated Use HasNext instead
-	HasMore bool `json:"has_more,omitempty" example:"true"`
 }
 
 // ErrorResponse represents an error response
