@@ -308,9 +308,21 @@ type Project struct {
 	// @example Redesign and modernize the customer portal
 	Description string `json:"description" example:"Redesign and modernize the customer portal"`
 
+	// Project README content (markdown supported)
+	// @example # Project Overview\n\nThis project aims to redesign the customer portal...
+	Readme string `gorm:"type:text" json:"readme" example:"# Project Overview\\n\\nThis project aims to redesign the customer portal..."`
+
 	// Project status (planning, active, on-hold, completed, cancelled)
 	// @example active
 	Status string `gorm:"default:'planning'" json:"status" example:"active"`
+
+	// Project state (open, closed) - GitHub Projects style
+	// @example open
+	State string `gorm:"default:'open'" json:"state" example:"open"`
+
+	// Project visibility (private, public)
+	// @example private
+	Visibility string `gorm:"default:'private'" json:"visibility" example:"private"`
 
 	// Project priority (low, medium, high, critical)
 	// @example high
@@ -328,6 +340,18 @@ type Project struct {
 	// @example true
 	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
 
+	// Whether the project is archived
+	// @example false
+	IsArchived bool `gorm:"default:false" json:"is_archived" example:"false"`
+
+	// Whether the project is a template
+	// @example false
+	IsTemplate bool `gorm:"default:false" json:"is_template" example:"false"`
+
+	// Project template ID if created from template
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	TemplateID *string `gorm:"index;type:char(26)" json:"template_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
 	// Organization ID
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	OrganizationID string `gorm:"not null;index;type:char(26)" json:"organization_id" example:"01HXYZ123456789ABCDEFGHIJK"`
@@ -336,6 +360,10 @@ type Project struct {
 	// @example 01HXYZ123456789ABCDEFGHIJK
 	ProjectManagerID *string `gorm:"index;type:char(26)" json:"project_manager_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
 
+	// Project owner ID (GitHub Projects style)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	OwnerID *string `gorm:"index;type:char(26)" json:"owner_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
 	// Project start date
 	// @example 2024-01-15T00:00:00Z
 	StartDate *time.Time `json:"start_date,omitempty" example:"2024-01-15T00:00:00Z"`
@@ -343,6 +371,14 @@ type Project struct {
 	// Project end date
 	// @example 2024-06-15T00:00:00Z
 	EndDate *time.Time `json:"end_date,omitempty" example:"2024-06-15T00:00:00Z"`
+
+	// Project closed date
+	// @example 2024-06-15T00:00:00Z
+	ClosedAt *time.Time `json:"closed_at,omitempty" example:"2024-06-15T00:00:00Z"`
+
+	// Project archived date
+	// @example 2024-06-15T00:00:00Z
+	ArchivedAt *time.Time `json:"archived_at,omitempty" example:"2024-06-15T00:00:00Z"`
 
 	// Project budget
 	// @example 50000.00
@@ -362,6 +398,12 @@ type Project struct {
 
 	// @Description Project manager
 	ProjectManager *User `gorm:"foreignKey:ProjectManagerID" json:"project_manager,omitempty"`
+
+	// @Description Project owner
+	Owner *User `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
+
+	// @Description Template this project was created from
+	Template *ProjectTemplate `gorm:"foreignKey:TemplateID" json:"template,omitempty"`
 
 	// @Description Teams working on this project
 	Teams []Team `gorm:"many2many:team_projects;" json:"teams,omitempty"`
@@ -392,6 +434,21 @@ type Project struct {
 
 	// @Description Project insights and analytics
 	Insights []ProjectInsight `gorm:"foreignKey:ProjectID" json:"insights,omitempty"`
+
+	// @Description Project permissions
+	Permissions []ProjectPermission `gorm:"foreignKey:ProjectID" json:"permissions,omitempty"`
+
+	// @Description Project custom statuses
+	Statuses []ProjectStatus `gorm:"foreignKey:ProjectID" json:"statuses,omitempty"`
+
+	// @Description Project iterations/sprints
+	Iterations []ProjectIteration `gorm:"foreignKey:ProjectID" json:"iterations,omitempty"`
+
+	// @Description Project automations
+	Automations []ProjectAutomation `gorm:"foreignKey:ProjectID" json:"automations,omitempty"`
+
+	// @Description Project roadmap items
+	RoadmapItems []ProjectRoadmapItem `gorm:"foreignKey:ProjectID" json:"roadmap_items,omitempty"`
 }
 
 // ProjectView represents different views of a project (table, board, roadmap, timeline)
@@ -818,4 +875,371 @@ type TeamProject struct {
 	// Relationships
 	Team    Team    `gorm:"foreignKey:TeamID" json:"team,omitempty"`
 	Project Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+}
+
+// ProjectPermission represents permissions for project access control
+// @Description Project permission model for granular access control
+type ProjectPermission struct {
+	BaseModel
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// User ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	UserID string `gorm:"not null;index;type:char(26)" json:"user_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Permission role (owner, admin, write, read)
+	// @example write
+	Role string `gorm:"not null;default:'read'" json:"role" example:"write"`
+
+	// Permission type (project, view, field, item)
+	// @example project
+	PermissionType string `gorm:"not null;default:'project'" json:"permission_type" example:"project"`
+
+	// Can read project and items
+	// @example true
+	CanRead bool `gorm:"default:true" json:"can_read" example:"true"`
+
+	// Can write/edit project and items
+	// @example true
+	CanWrite bool `gorm:"default:false" json:"can_write" example:"true"`
+
+	// Can administer project settings
+	// @example false
+	CanAdmin bool `gorm:"default:false" json:"can_admin" example:"false"`
+
+	// Whether the permission is active
+	// @example true
+	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
+
+	// Permission expiration date
+	// @example 2024-12-31T23:59:59Z
+	ExpiresAt *time.Time `json:"expires_at,omitempty" example:"2024-12-31T23:59:59Z"`
+
+	// Relationships
+	// @Description Project this permission applies to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+
+	// @Description User with the permission
+	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+// ProjectWebhook represents a webhook configuration for a project
+// @Description Project webhook model for external integrations
+type ProjectWebhook struct {
+	BaseModel
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Webhook name
+	// @example Slack Integration
+	Name string `gorm:"not null" json:"name" example:"Slack Integration"`
+
+	// Webhook URL
+	// @example https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+	URL string `gorm:"not null" json:"url" example:"https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"`
+
+	// Webhook secret for signature verification
+	// @example abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
+	Secret string `gorm:"not null" json:"secret" example:"abc123def456ghi789jkl012mno345pqr678stu901vwx234yz"`
+
+	// Events that trigger this webhook
+	// @example ["project.created","project.updated","item.created"]
+	Events []string `gorm:"type:json" json:"events" example:"[\"project.created\",\"project.updated\",\"item.created\"]"`
+
+	// Content type for webhook payload
+	// @example application/json
+	ContentType string `gorm:"default:'application/json'" json:"content_type" example:"application/json"`
+
+	// Whether the webhook is active
+	// @example true
+	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
+
+	// Webhook description
+	// @example Sends project updates to Slack channel
+	Description string `json:"description" example:"Sends project updates to Slack channel"`
+
+	// Last time webhook was triggered
+	// @example 2024-01-15T10:30:00Z
+	LastTriggeredAt *time.Time `json:"last_triggered_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// Total delivery count
+	// @example 42
+	DeliveryCount int `gorm:"default:0" json:"delivery_count" example:"42"`
+
+	// Successful delivery count
+	// @example 38
+	SuccessCount int `gorm:"default:0" json:"success_count" example:"38"`
+
+	// Failed delivery count
+	// @example 4
+	FailureCount int `gorm:"default:0" json:"failure_count" example:"4"`
+
+	// Relationships
+	// @Description Project this webhook belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+
+	// @Description Webhook deliveries
+	Deliveries []WebhookDelivery `gorm:"foreignKey:WebhookID" json:"deliveries,omitempty"`
+}
+
+// WebhookDelivery represents a webhook delivery attempt
+// @Description Webhook delivery model for tracking webhook attempts
+type WebhookDelivery struct {
+	BaseModel
+
+	// Webhook ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	WebhookID string `gorm:"not null;index;type:char(26)" json:"webhook_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Event type that triggered the webhook
+	// @example project.updated
+	EventType string `gorm:"not null;index" json:"event_type" example:"project.updated"`
+
+	// Webhook payload
+	// @example {"event":"project.updated","project":{"id":"01HXYZ123456789ABCDEFGHIJK"}}
+	Payload []byte `gorm:"type:json" json:"payload" example:"{\"event\":\"project.updated\",\"project\":{\"id\":\"01HXYZ123456789ABCDEFGHIJK\"}}"`
+
+	// Webhook signature
+	// @example sha256=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
+	Signature string `gorm:"not null" json:"signature" example:"sha256=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz"`
+
+	// HTTP status code from response
+	// @example 200
+	StatusCode int `gorm:"index" json:"status_code" example:"200"`
+
+	// Response time in milliseconds
+	// @example 150
+	ResponseTime int `json:"response_time" example:"150"`
+
+	// Whether the delivery was successful
+	// @example true
+	Success bool `gorm:"index" json:"success" example:"true"`
+
+	// Error message if delivery failed
+	// @example Connection timeout
+	ErrorMessage string `json:"error_message,omitempty" example:"Connection timeout"`
+
+	// Number of retry attempts
+	// @example 3
+	RetryCount int `gorm:"default:0" json:"retry_count" example:"3"`
+
+	// Next retry time (if applicable)
+	// @example 2024-01-15T10:35:00Z
+	NextRetryAt *time.Time `json:"next_retry_at,omitempty" example:"2024-01-15T10:35:00Z"`
+
+	// Relationships
+	// @Description Webhook this delivery belongs to
+	Webhook *ProjectWebhook `gorm:"foreignKey:WebhookID" json:"webhook,omitempty"`
+}
+
+// ProjectStatus represents custom project statuses (GitHub Projects v2 style)
+// @Description Project status model for custom status management
+type ProjectStatus struct {
+	BaseModel
+
+	// Status name
+	// @example In Review
+	Name string `gorm:"not null" json:"name" example:"In Review"`
+
+	// Status description
+	// @example Items currently under review
+	Description string `json:"description" example:"Items currently under review"`
+
+	// Status color (hex code)
+	// @example #F59E0B
+	Color string `gorm:"not null" json:"color" example:"#F59E0B"`
+
+	// Status icon
+	// @example eye
+	Icon string `json:"icon" example:"eye"`
+
+	// Status type (todo, in_progress, done, custom)
+	// @example custom
+	Type string `gorm:"not null;default:'custom'" json:"type" example:"custom"`
+
+	// Status position/order
+	// @example 3
+	Position int `gorm:"default:0" json:"position" example:"3"`
+
+	// Whether the status is active
+	// @example true
+	IsActive bool `gorm:"default:true" json:"is_active" example:"true"`
+
+	// Whether this is a default status
+	// @example false
+	IsDefault bool `gorm:"default:false" json:"is_default" example:"false"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this status belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+
+	// @Description Tasks with this status
+	Tasks []Task `gorm:"foreignKey:StatusID" json:"tasks,omitempty"`
+}
+
+// ProjectIteration represents project iterations/sprints (GitHub Projects v2 style)
+// @Description Project iteration model for sprint management
+type ProjectIteration struct {
+	BaseModel
+
+	// Iteration title
+	// @example Sprint 1
+	Title string `gorm:"not null" json:"title" example:"Sprint 1"`
+
+	// Iteration description
+	// @example First sprint of Q1 2024
+	Description string `json:"description" example:"First sprint of Q1 2024"`
+
+	// Iteration start date
+	// @example 2024-01-15T00:00:00Z
+	StartDate *time.Time `json:"start_date,omitempty" example:"2024-01-15T00:00:00Z"`
+
+	// Iteration end date
+	// @example 2024-01-29T00:00:00Z
+	EndDate *time.Time `json:"end_date,omitempty" example:"2024-01-29T00:00:00Z"`
+
+	// Iteration duration in days
+	// @example 14
+	Duration int `json:"duration" example:"14"`
+
+	// Iteration status (planning, active, completed)
+	// @example active
+	Status string `gorm:"default:'planning'" json:"status" example:"active"`
+
+	// Whether the iteration is current
+	// @example true
+	IsCurrent bool `gorm:"default:false" json:"is_current" example:"true"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this iteration belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+
+	// @Description Tasks in this iteration
+	Tasks []Task `gorm:"foreignKey:IterationID" json:"tasks,omitempty"`
+}
+
+// ProjectAutomation represents GitHub Actions-style project automation
+// @Description Project automation model for workflow automation
+type ProjectAutomation struct {
+	BaseModel
+
+	// Automation name
+	// @example Auto-assign to current iteration
+	Name string `gorm:"not null" json:"name" example:"Auto-assign to current iteration"`
+
+	// Automation description
+	// @example Automatically assign new issues to current iteration
+	Description string `json:"description" example:"Automatically assign new issues to current iteration"`
+
+	// Automation trigger event
+	// @example item_added
+	TriggerEvent string `gorm:"not null" json:"trigger_event" example:"item_added"`
+
+	// Automation conditions as JSON
+	// @example {"item_type":"issue","labels":["bug"]}
+	Conditions string `gorm:"type:json" json:"conditions" example:"{\"item_type\":\"issue\",\"labels\":[\"bug\"]}"`
+
+	// Automation actions as JSON
+	// @example {"set_iteration":"current","add_labels":["needs-triage"]}
+	Actions string `gorm:"type:json" json:"actions" example:"{\"set_iteration\":\"current\",\"add_labels\":[\"needs-triage\"]}"`
+
+	// Whether the automation is enabled
+	// @example true
+	IsEnabled bool `gorm:"default:true" json:"is_enabled" example:"true"`
+
+	// Automation runs count
+	// @example 42
+	RunsCount int `gorm:"default:0" json:"runs_count" example:"42"`
+
+	// Last run timestamp
+	// @example 2024-01-15T10:30:00Z
+	LastRunAt *time.Time `json:"last_run_at,omitempty" example:"2024-01-15T10:30:00Z"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this automation belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+}
+
+// ProjectRoadmapItem represents roadmap items (GitHub Projects v2 style)
+// @Description Project roadmap item model for timeline planning
+type ProjectRoadmapItem struct {
+	BaseModel
+
+	// Roadmap item title
+	// @example Q1 Feature Release
+	Title string `gorm:"not null" json:"title" example:"Q1 Feature Release"`
+
+	// Roadmap item description
+	// @example Major feature release for Q1 2024
+	Description string `json:"description" example:"Major feature release for Q1 2024"`
+
+	// Item type (milestone, epic, feature, release)
+	// @example milestone
+	Type string `gorm:"not null" json:"type" example:"milestone"`
+
+	// Item status (planned, in_progress, completed, cancelled)
+	// @example in_progress
+	Status string `gorm:"default:'planned'" json:"status" example:"in_progress"`
+
+	// Item start date
+	// @example 2024-01-01T00:00:00Z
+	StartDate *time.Time `json:"start_date,omitempty" example:"2024-01-01T00:00:00Z"`
+
+	// Item target date
+	// @example 2024-03-31T00:00:00Z
+	TargetDate *time.Time `json:"target_date,omitempty" example:"2024-03-31T00:00:00Z"`
+
+	// Item completion date
+	// @example 2024-03-28T00:00:00Z
+	CompletedAt *time.Time `json:"completed_at,omitempty" example:"2024-03-28T00:00:00Z"`
+
+	// Item progress percentage
+	// @example 75.5
+	Progress float64 `gorm:"default:0" json:"progress" example:"75.5"`
+
+	// Item color for visualization
+	// @example #10B981
+	Color string `json:"color" example:"#10B981"`
+
+	// Item position on roadmap
+	// @example 2
+	Position int `gorm:"default:0" json:"position" example:"2"`
+
+	// Project ID
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ProjectID string `gorm:"not null;index;type:char(26)" json:"project_id" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Parent roadmap item ID (for hierarchical items)
+	// @example 01HXYZ123456789ABCDEFGHIJK
+	ParentID *string `gorm:"index;type:char(26)" json:"parent_id,omitempty" example:"01HXYZ123456789ABCDEFGHIJK"`
+
+	// Relationships
+	// @Description Project this roadmap item belongs to
+	Project *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+
+	// @Description Parent roadmap item
+	Parent *ProjectRoadmapItem `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+
+	// @Description Child roadmap items
+	Children []ProjectRoadmapItem `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+
+	// @Description Related tasks
+	Tasks []Task `gorm:"many2many:roadmap_item_tasks;" json:"tasks,omitempty"`
 }

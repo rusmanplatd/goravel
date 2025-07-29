@@ -1,290 +1,377 @@
 package v1
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
 
+	"goravel/app/http/requests"
 	"goravel/app/http/responses"
 	"goravel/app/models"
-	"goravel/app/services"
+	"goravel/app/querybuilder"
 )
 
-type ProjectTemplateController struct {
-	templateService *services.ProjectTemplateService
-}
+type ProjectTemplateController struct{}
 
 func NewProjectTemplateController() *ProjectTemplateController {
-	return &ProjectTemplateController{
-		templateService: services.NewProjectTemplateService(),
-	}
+	return &ProjectTemplateController{}
 }
 
-// getCurrentUser gets the current authenticated user from context
-func (c *ProjectTemplateController) getCurrentUser(ctx http.Context) *models.User {
-	user := ctx.Value("user")
-	if user == nil {
-		return nil
-	}
-
-	if userPtr, ok := user.(*models.User); ok {
-		return userPtr
-	}
-
-	return nil
-}
-
-// Index returns all project templates
-// @Summary Get all project templates
-// @Description Retrieve a list of all project templates with filtering
+// Index lists all project templates
+// @Summary List project templates
+// @Description Get all project templates with filtering and sorting
 // @Tags project-templates
 // @Accept json
 // @Produce json
-// @Param category query string false "Filter by template category"
+// @Param category query string false "Filter by category (development, marketing, design, general)"
 // @Param is_public query bool false "Filter by public status"
 // @Param is_featured query bool false "Filter by featured status"
-// @Success 200 {object} responses.APIResponse{data=[]models.ProjectTemplate}
+// @Success 200 {array} models.ProjectTemplate
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /templates [get]
-func (c *ProjectTemplateController) Index(ctx http.Context) http.Response {
-	filters := make(map[string]interface{})
+func (ptc *ProjectTemplateController) Index(ctx http.Context) http.Response {
+	var templates []models.ProjectTemplate
 
-	if category := ctx.Request().Query("category", ""); category != "" {
-		filters["category"] = category
-	}
-	if isPublic := ctx.Request().Query("is_public", ""); isPublic != "" {
-		filters["is_public"] = isPublic == "true"
-	}
-	if isFeatured := ctx.Request().Query("is_featured", ""); isFeatured != "" {
-		filters["is_featured"] = isFeatured == "true"
-	}
+	query := querybuilder.For(&models.ProjectTemplate{}).
+		WithRequest(ctx).
+		AllowedFilters(
+			querybuilder.Exact("category"),
+			querybuilder.Exact("is_public"),
+			querybuilder.Exact("is_featured"),
+			querybuilder.Partial("name"),
+		).
+		AllowedSorts("name", "category", "usage_count", "created_at", "updated_at").
+		DefaultSort("-is_featured", "-usage_count", "name").
+		Build()
 
-	templates, err := c.templateService.ListTemplates(filters)
+	qb := querybuilder.For(query).WithRequest(ctx)
+	result, err := qb.AutoPaginate(&templates)
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to retrieve templates: " + err.Error(),
+			Message:   "Failed to retrieve project templates: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	return ctx.Response().Status(200).Json(responses.APIResponse{
-		Status:    "success",
-		Message:   "Templates retrieved successfully",
-		Data:      templates,
-		Timestamp: time.Now(),
-	})
+	return responses.QueryBuilderSuccessResponse(ctx, "Project templates retrieved successfully", result)
 }
 
-// Show returns a specific template
-// @Summary Get a specific template by ID
-// @Description Retrieve a specific project template by its ID
-// @Tags project-templates
-// @Accept json
-// @Produce json
-// @Param id path string true "Template ID"
-// @Success 200 {object} responses.APIResponse{data=models.ProjectTemplate}
-// @Failure 404 {object} responses.ErrorResponse
-// @Router /templates/{id} [get]
-func (c *ProjectTemplateController) Show(ctx http.Context) http.Response {
-	id := ctx.Request().Route("id")
-
-	template, err := c.templateService.GetTemplate(id)
-	if err != nil {
-		return ctx.Response().Status(404).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Template not found",
-			Timestamp: time.Now(),
-		})
-	}
-
-	return ctx.Response().Status(200).Json(responses.APIResponse{
-		Status:    "success",
-		Message:   "Template retrieved successfully",
-		Data:      template,
-		Timestamp: time.Now(),
-	})
-}
-
-// Store creates a new template
-// @Summary Create a new project template
+// Store creates a new project template
+// @Summary Create project template
 // @Description Create a new project template
 // @Tags project-templates
 // @Accept json
 // @Produce json
-// @Param request body object true "Template data"
-// @Success 201 {object} responses.APIResponse{data=models.ProjectTemplate}
+// @Param request body requests.ProjectTemplateRequest true "Template data"
+// @Success 201 {object} models.ProjectTemplate
 // @Failure 400 {object} responses.ErrorResponse
-// @Failure 500 {object} responses.ErrorResponse
 // @Router /templates [post]
-func (c *ProjectTemplateController) Store(ctx http.Context) http.Response {
-	user := c.getCurrentUser(ctx)
-	if user == nil {
-		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+func (ptc *ProjectTemplateController) Store(ctx http.Context) http.Response {
+	var request requests.ProjectTemplateRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(422).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Unauthorized",
+			Message:   "Validation failed: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	var requestData map[string]interface{}
-	if err := ctx.Request().Bind(&requestData); err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid request data: " + err.Error(),
-			Timestamp: time.Now(),
-		})
+	// Convert configuration to JSON
+	configJSON := "{}"
+	if request.Configuration != nil {
+		if configBytes, err := json.Marshal(request.Configuration); err == nil {
+			configJSON = string(configBytes)
+		}
 	}
 
-	requestData["created_by"] = &user.ID
+	template := models.ProjectTemplate{
+		Name:          request.Name,
+		Description:   request.Description,
+		Category:      request.Category,
+		Icon:          request.Icon,
+		Color:         request.Color,
+		IsPublic:      request.IsPublic,
+		IsFeatured:    false, // Only admins can set featured
+		Configuration: configJSON,
+		UsageCount:    0,
+	}
 
-	template, err := c.templateService.CreateTemplate(requestData)
-	if err != nil {
+	// Set organization ID if provided (for organization-specific templates)
+	if request.OrganizationID != nil {
+		template.OrganizationID = request.OrganizationID
+	}
+
+	if err := facades.Orm().Query().Create(&template); err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to create template: " + err.Error(),
+			Message:   "Failed to create project template: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
 	return ctx.Response().Status(201).Json(responses.APIResponse{
 		Status:    "success",
-		Message:   "Template created successfully",
+		Message:   "Project template created successfully",
 		Data:      template,
 		Timestamp: time.Now(),
 	})
 }
 
-// Update updates a template
-// @Summary Update a project template
+// Show retrieves a specific project template
+// @Summary Get project template
+// @Description Get a specific project template by ID
+// @Tags project-templates
+// @Accept json
+// @Produce json
+// @Param id path string true "Template ID"
+// @Success 200 {object} models.ProjectTemplate
+// @Failure 404 {object} responses.ErrorResponse
+// @Router /templates/{id} [get]
+func (ptc *ProjectTemplateController) Show(ctx http.Context) http.Response {
+	templateID := ctx.Request().Route("id")
+
+	var template models.ProjectTemplate
+	if err := facades.Orm().Query().Where("id = ?", templateID).First(&template); err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Project template not found",
+			Timestamp: time.Now(),
+		})
+	}
+
+	return ctx.Response().Success().Json(responses.APIResponse{
+		Status:    "success",
+		Message:   "Project template retrieved successfully",
+		Data:      template,
+		Timestamp: time.Now(),
+	})
+}
+
+// Update updates a project template
+// @Summary Update project template
 // @Description Update an existing project template
 // @Tags project-templates
 // @Accept json
 // @Produce json
 // @Param id path string true "Template ID"
-// @Param request body object true "Template data"
-// @Success 200 {object} responses.APIResponse{data=models.ProjectTemplate}
-// @Failure 400 {object} responses.ErrorResponse
+// @Param request body requests.ProjectTemplateRequest true "Template data"
+// @Success 200 {object} models.ProjectTemplate
 // @Failure 404 {object} responses.ErrorResponse
-// @Failure 500 {object} responses.ErrorResponse
 // @Router /templates/{id} [put]
-func (c *ProjectTemplateController) Update(ctx http.Context) http.Response {
-	user := c.getCurrentUser(ctx)
-	if user == nil {
-		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+func (ptc *ProjectTemplateController) Update(ctx http.Context) http.Response {
+	templateID := ctx.Request().Route("id")
+
+	var template models.ProjectTemplate
+	if err := facades.Orm().Query().Where("id = ?", templateID).First(&template); err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Unauthorized",
+			Message:   "Project template not found",
 			Timestamp: time.Now(),
 		})
 	}
 
-	id := ctx.Request().Route("id")
-
-	var requestData map[string]interface{}
-	if err := ctx.Request().Bind(&requestData); err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
+	var request requests.ProjectTemplateRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(422).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Invalid request data: " + err.Error(),
+			Message:   "Validation failed: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	requestData["updated_by"] = &user.ID
+	// Update fields
+	if request.Name != "" {
+		template.Name = request.Name
+	}
+	if request.Description != "" {
+		template.Description = request.Description
+	}
+	if request.Category != "" {
+		template.Category = request.Category
+	}
+	if request.Icon != "" {
+		template.Icon = request.Icon
+	}
+	if request.Color != "" {
+		template.Color = request.Color
+	}
+	template.IsPublic = request.IsPublic
 
-	template, err := c.templateService.UpdateTemplate(id, requestData)
-	if err != nil {
+	// Update configuration if provided
+	if request.Configuration != nil {
+		if configBytes, err := json.Marshal(request.Configuration); err == nil {
+			template.Configuration = string(configBytes)
+		}
+	}
+
+	if err := facades.Orm().Query().Save(&template); err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to update template: " + err.Error(),
+			Message:   "Failed to update project template: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	return ctx.Response().Status(200).Json(responses.APIResponse{
+	return ctx.Response().Success().Json(responses.APIResponse{
 		Status:    "success",
-		Message:   "Template updated successfully",
+		Message:   "Project template updated successfully",
 		Data:      template,
 		Timestamp: time.Now(),
 	})
 }
 
-// Delete deletes a template
-// @Summary Delete a project template
-// @Description Delete an existing project template
+// Destroy deletes a project template
+// @Summary Delete project template
+// @Description Delete a project template
 // @Tags project-templates
 // @Accept json
 // @Produce json
 // @Param id path string true "Template ID"
-// @Success 200 {object} responses.APIResponse
+// @Success 204
 // @Failure 404 {object} responses.ErrorResponse
-// @Failure 500 {object} responses.ErrorResponse
 // @Router /templates/{id} [delete]
-func (c *ProjectTemplateController) Delete(ctx http.Context) http.Response {
-	user := c.getCurrentUser(ctx)
-	if user == nil {
-		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+func (ptc *ProjectTemplateController) Destroy(ctx http.Context) http.Response {
+	templateID := ctx.Request().Route("id")
+
+	var template models.ProjectTemplate
+	if err := facades.Orm().Query().Where("id = ?", templateID).First(&template); err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Unauthorized",
+			Message:   "Project template not found",
 			Timestamp: time.Now(),
 		})
 	}
 
-	id := ctx.Request().Route("id")
+	if _, err := facades.Orm().Query().Delete(&template); err != nil {
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Failed to delete project template: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
 
-	err := c.templateService.DeleteTemplate(id, &user.ID)
+	return ctx.Response().Status(204).Json(nil)
+}
+
+// UseTemplate creates a new project from a template
+// @Summary Use project template
+// @Description Create a new project from an existing template
+// @Tags project-templates
+// @Accept json
+// @Produce json
+// @Param id path string true "Template ID"
+// @Param request body requests.UseTemplateRequest true "Project creation data"
+// @Success 201 {object} models.Project
+// @Failure 404 {object} responses.ErrorResponse
+// @Router /templates/{id}/use [post]
+func (ptc *ProjectTemplateController) UseTemplate(ctx http.Context) http.Response {
+	templateID := ctx.Request().Route("id")
+
+	var template models.ProjectTemplate
+	if err := facades.Orm().Query().Where("id = ?", templateID).First(&template); err != nil {
+		return ctx.Response().Status(404).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Project template not found",
+			Timestamp: time.Now(),
+		})
+	}
+
+	var request requests.UseTemplateRequest
+	if err := ctx.Request().Bind(&request); err != nil {
+		return ctx.Response().Status(422).Json(responses.ErrorResponse{
+			Status:    "error",
+			Message:   "Validation failed: " + err.Error(),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Start transaction
+	tx, err := facades.Orm().Query().Begin()
 	if err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Failed to delete template: " + err.Error(),
+			Message:   "Failed to start transaction: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-	return ctx.Response().Status(200).Json(responses.APIResponse{
-		Status:    "success",
-		Message:   "Template deleted successfully",
-		Timestamp: time.Now(),
-	})
-}
+	// Create project from template
+	project := models.Project{
+		Name:           request.Name,
+		Description:    request.Description,
+		Status:         "planning",
+		Priority:       "medium",
+		Color:          template.Color,
+		Icon:           template.Icon,
+		IsActive:       true,
+		OrganizationID: request.OrganizationID,
+	}
 
-// UseTemplate creates a project from a template
-// @Summary Create project from template
-// @Description Create a new project using an existing template
-// @Tags project-templates
-// @Accept json
-// @Produce json
-// @Param id path string true "Template ID"
-// @Param request body object true "Project data"
-// @Success 201 {object} responses.APIResponse{data=models.Project}
-// @Failure 400 {object} responses.ErrorResponse
-// @Failure 404 {object} responses.ErrorResponse
-// @Failure 500 {object} responses.ErrorResponse
-// @Router /templates/{id}/use [post]
-func (c *ProjectTemplateController) UseTemplate(ctx http.Context) http.Response {
-	user := c.getCurrentUser(ctx)
-	if user == nil {
-		return ctx.Response().Status(401).Json(responses.ErrorResponse{
+	if err := tx.Create(&project); err != nil {
+		tx.Rollback()
+		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
-			Message:   "Unauthorized",
+			Message:   "Failed to create project from template: " + err.Error(),
 			Timestamp: time.Now(),
 		})
 	}
 
-	templateID := ctx.Request().Route("id")
+	// Parse template configuration
+	var config map[string]interface{}
+	if err := json.Unmarshal([]byte(template.Configuration), &config); err == nil {
+		// Create default views from template
+		if defaultViews, ok := config["default_views"].([]interface{}); ok {
+			for i, viewData := range defaultViews {
+				if viewMap, ok := viewData.(map[string]interface{}); ok {
+					view := models.ProjectView{
+						ProjectID:   project.ID,
+						Name:        viewMap["name"].(string),
+						Type:        viewMap["type"].(string),
+						Description: "Created from template",
+						Layout:      "{}",
+						IsDefault:   i == 0, // First view is default
+						IsPublic:    true,
+						Position:    i + 1,
+					}
+					tx.Create(&view)
+				}
+			}
+		}
 
-	var requestData map[string]interface{}
-	if err := ctx.Request().Bind(&requestData); err != nil {
-		return ctx.Response().Status(400).Json(responses.ErrorResponse{
-			Status:    "error",
-			Message:   "Invalid request data: " + err.Error(),
-			Timestamp: time.Now(),
-		})
+		// Create custom fields from template
+		if customFields, ok := config["custom_fields"].([]interface{}); ok {
+			for i, fieldData := range customFields {
+				if fieldMap, ok := fieldData.(map[string]interface{}); ok {
+					field := models.ProjectCustomField{
+						ProjectID:   project.ID,
+						Name:        fieldMap["name"].(string),
+						Type:        fieldMap["type"].(string),
+						Description: "Created from template",
+						Options:     "{}",
+						IsRequired:  false,
+						IsActive:    true,
+						Position:    i + 1,
+					}
+					tx.Create(&field)
+				}
+			}
+		}
 	}
 
-	requestData["created_by"] = &user.ID
+	// Increment template usage count
+	template.UsageCount++
+	tx.Save(&template)
 
-	project, err := c.templateService.UseTemplate(templateID, requestData, &user.ID)
-	if err != nil {
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
 			Message:   "Failed to create project from template: " + err.Error(),
@@ -300,18 +387,21 @@ func (c *ProjectTemplateController) UseTemplate(ctx http.Context) http.Response 
 	})
 }
 
-// Featured returns featured templates
-// @Summary Get featured templates
-// @Description Retrieve a list of featured project templates
+// Featured lists featured project templates
+// @Summary List featured templates
+// @Description Get all featured project templates
 // @Tags project-templates
 // @Accept json
 // @Produce json
-// @Success 200 {object} responses.APIResponse{data=[]models.ProjectTemplate}
+// @Success 200 {array} models.ProjectTemplate
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /templates/featured [get]
-func (c *ProjectTemplateController) Featured(ctx http.Context) http.Response {
-	templates, err := c.templateService.GetFeaturedTemplates()
-	if err != nil {
+func (ptc *ProjectTemplateController) Featured(ctx http.Context) http.Response {
+	var templates []models.ProjectTemplate
+
+	if err := facades.Orm().Query().Where("is_featured = ? AND is_public = ?", true, true).
+		Order("usage_count DESC, name ASC").
+		Find(&templates); err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
 			Message:   "Failed to retrieve featured templates: " + err.Error(),
@@ -319,7 +409,7 @@ func (c *ProjectTemplateController) Featured(ctx http.Context) http.Response {
 		})
 	}
 
-	return ctx.Response().Status(200).Json(responses.APIResponse{
+	return ctx.Response().Success().Json(responses.APIResponse{
 		Status:    "success",
 		Message:   "Featured templates retrieved successfully",
 		Data:      templates,
@@ -327,21 +417,24 @@ func (c *ProjectTemplateController) Featured(ctx http.Context) http.Response {
 	})
 }
 
-// Category returns templates by category
-// @Summary Get templates by category
-// @Description Retrieve templates filtered by category
+// Categories lists templates by category
+// @Summary List templates by category
+// @Description Get all templates in a specific category
 // @Tags project-templates
 // @Accept json
 // @Produce json
-// @Param category path string true "Template category"
-// @Success 200 {object} responses.APIResponse{data=[]models.ProjectTemplate}
+// @Param category path string true "Category name"
+// @Success 200 {array} models.ProjectTemplate
 // @Failure 500 {object} responses.ErrorResponse
 // @Router /templates/category/{category} [get]
-func (c *ProjectTemplateController) Category(ctx http.Context) http.Response {
+func (ptc *ProjectTemplateController) Categories(ctx http.Context) http.Response {
 	category := ctx.Request().Route("category")
 
-	templates, err := c.templateService.GetTemplatesByCategory(category)
-	if err != nil {
+	var templates []models.ProjectTemplate
+
+	if err := facades.Orm().Query().Where("category = ? AND is_public = ?", category, true).
+		Order("is_featured DESC, usage_count DESC, name ASC").
+		Find(&templates); err != nil {
 		return ctx.Response().Status(500).Json(responses.ErrorResponse{
 			Status:    "error",
 			Message:   "Failed to retrieve templates by category: " + err.Error(),
@@ -349,7 +442,7 @@ func (c *ProjectTemplateController) Category(ctx http.Context) http.Response {
 		})
 	}
 
-	return ctx.Response().Status(200).Json(responses.APIResponse{
+	return ctx.Response().Success().Json(responses.APIResponse{
 		Status:    "success",
 		Message:   "Templates retrieved successfully",
 		Data:      templates,

@@ -250,11 +250,11 @@ func Api() {
 	templateController := v1.NewProjectTemplateController()
 	facades.Route().Get("/api/v1/templates", templateController.Index)
 	facades.Route().Get("/api/v1/templates/featured", templateController.Featured)
-	facades.Route().Get("/api/v1/templates/category/{category}", templateController.Category)
+	facades.Route().Get("/api/v1/templates/category/{category}", templateController.Categories)
 	facades.Route().Get("/api/v1/templates/{id}", templateController.Show)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/templates", templateController.Store)
 	facades.Route().Middleware(middleware.Auth()).Put("/api/v1/templates/{id}", templateController.Update)
-	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/templates/{id}", templateController.Delete)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/templates/{id}", templateController.Destroy)
 	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/templates/{id}/use", templateController.UseTemplate)
 
 	// Project insights routes (protected)
@@ -580,6 +580,246 @@ func Api() {
 
 	// Calendar Permissions API routes
 	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/calendar-permissions/check", calendarSharingController.CheckPermission)
+
+	// Modern GitHub Projects-like API structure
+	// Projects API (following GitHub Projects v2 patterns)
+	projectsController := v1.NewProjectsController()
+
+	// Organization projects
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/orgs/{org_id}/projects", projectsController.ListOrgProjects)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/orgs/{org_id}/projects", projectsController.CreateOrgProject)
+
+	// User projects
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/user/projects", projectsController.ListUserProjects)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/user/projects", projectsController.CreateUserProject)
+
+	// Individual project management
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}", projectsController.GetProject)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}", projectsController.UpdateProject)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}", projectsController.DeleteProject)
+
+	// GitHub Projects v2 style project state management
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/close", projectsController.CloseProject)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/reopen", projectsController.ReopenProject)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/archive", projectsController.ArchiveProject)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/unarchive", projectsController.UnarchiveProject)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/duplicate", projectsController.DuplicateProject)
+
+	// Project items (issues, pull requests, draft issues)
+	projectItemsController := v1.NewProjectItemsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/items", projectItemsController.ListItems)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/items", projectItemsController.AddItem)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/items/{item_id}", projectItemsController.GetItem)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/items/{item_id}", projectItemsController.UpdateItem)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/items/{item_id}", projectItemsController.RemoveItem)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/items/{item_id}/archive", projectItemsController.ArchiveItem)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/items/{item_id}/restore", projectItemsController.RestoreItem)
+
+	// Bulk operations for project items
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/items/bulk-update", projectItemsController.BulkUpdateItems)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/items/bulk-archive", projectItemsController.BulkArchiveItems)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/items/bulk-delete", projectItemsController.BulkDeleteItems)
+
+	// Project draft issues (GitHub Projects v2 style)
+	draftsController := v1.NewProjectDraftsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/drafts", draftsController.ListDrafts)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/drafts", draftsController.CreateDraft)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/drafts/{draft_id}", draftsController.GetDraft)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/drafts/{draft_id}", draftsController.UpdateDraft)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/drafts/{draft_id}", draftsController.DeleteDraft)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/drafts/{draft_id}/convert", draftsController.ConvertToIssue)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/drafts/bulk-convert", draftsController.BulkConvertDrafts)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/drafts/bulk-delete", draftsController.BulkDeleteDrafts)
+
+	// Project activities and collaboration (GitHub Projects v2 style)
+	activitiesController := v1.NewProjectActivitiesController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/activities", activitiesController.ListActivities)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/activities", activitiesController.CreateActivity)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/mentions", activitiesController.CreateMention)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/stats", activitiesController.GetProjectStats)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/timeline", activitiesController.GetProjectTimeline)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/contributors", activitiesController.GetProjectContributors)
+
+	// Project permissions and access control (GitHub Projects v2 style)
+	permissionsController := v1.NewProjectPermissionsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/members", permissionsController.ListProjectMembers)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/members/invite", permissionsController.InviteMember)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/members/{user_id}/role", permissionsController.UpdateMemberRole)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/members/{user_id}", permissionsController.RemoveMember)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/permissions", permissionsController.GetProjectPermissions)
+
+	// Project search and discovery (GitHub Projects v2 style)
+	searchController := v1.NewProjectSearchController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/search", searchController.SearchProjects)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/recommendations", searchController.GetProjectRecommendations)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/suggestions", searchController.GetProjectSuggestions)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/filters", searchController.GetProjectFilters)
+
+	// Project webhooks for external integrations (GitHub Projects v2 style)
+	webhooksController := v1.NewProjectWebhooksController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/webhooks", webhooksController.ListWebhooks)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/webhooks", webhooksController.CreateWebhook)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/webhooks/{webhook_id}", webhooksController.GetWebhook)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/webhooks/{webhook_id}", webhooksController.UpdateWebhook)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/webhooks/{webhook_id}", webhooksController.DeleteWebhook)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/webhooks/{webhook_id}/test", webhooksController.TestWebhook)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/webhooks/{webhook_id}/deliveries", webhooksController.GetWebhookDeliveries)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/webhooks/{webhook_id}/deliveries/{delivery_id}/redeliver", webhooksController.RedeliverWebhook)
+
+	// Project insights and analytics (GitHub Projects v2 style)
+
+	// Project statuses (GitHub Projects v2 style custom statuses)
+	statusesController := v1.NewProjectStatusesController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/statuses", statusesController.ListStatuses)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/statuses", statusesController.CreateStatus)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/statuses/{status_id}", statusesController.GetStatus)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/statuses/{status_id}", statusesController.UpdateStatus)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/statuses/{status_id}", statusesController.DeleteStatus)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/statuses/reorder", statusesController.ReorderStatuses)
+
+	// Project iterations/sprints (GitHub Projects v2 style)
+	iterationsController := v1.NewProjectIterationsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/iterations", iterationsController.ListIterations)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/iterations", iterationsController.CreateIteration)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/iterations/{iteration_id}", iterationsController.GetIteration)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/iterations/{iteration_id}", iterationsController.UpdateIteration)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/iterations/{iteration_id}", iterationsController.DeleteIteration)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/iterations/{iteration_id}/start", iterationsController.StartIteration)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/iterations/{iteration_id}/complete", iterationsController.CompleteIteration)
+
+	// Project automations (GitHub Actions-style)
+	automationsController := v1.NewProjectAutomationsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/automations", automationsController.ListAutomations)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/automations", automationsController.CreateAutomation)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/automations/{automation_id}", automationsController.GetAutomation)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/automations/{automation_id}", automationsController.UpdateAutomation)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/automations/{automation_id}", automationsController.DeleteAutomation)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/automations/{automation_id}/toggle", automationsController.ToggleAutomation)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/automations/{automation_id}/trigger", automationsController.TriggerAutomation)
+
+	// Project roadmap (GitHub Projects v2 style)
+	roadmapController := v1.NewProjectRoadmapController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/roadmap", roadmapController.ListRoadmapItems)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/roadmap", roadmapController.CreateRoadmapItem)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/roadmap/{item_id}", roadmapController.GetRoadmapItem)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/roadmap/{item_id}", roadmapController.UpdateRoadmapItem)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/roadmap/{item_id}", roadmapController.DeleteRoadmapItem)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/roadmap/{item_id}/progress", roadmapController.UpdateRoadmapItemProgress)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/roadmap/{item_id}/tasks", roadmapController.LinkTasksToRoadmapItem)
+
+	// Advanced filtering (GitHub Projects-style)
+	filtersController := v1.NewProjectFiltersController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/filters", filtersController.GetAvailableFilters)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/filters/validate", filtersController.ValidateFilterString)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/filters/suggestions", filtersController.GetFilterSuggestions)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/search", filtersController.SearchProjects)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/roadmap/search", filtersController.SearchRoadmapItems)
+
+	// Bulk operations (GitHub Projects-style)
+	bulkController := v1.NewProjectBulkOperationsController()
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/tasks/bulk", bulkController.BulkUpdateTasks)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/tasks/bulk/delete", bulkController.BulkDeleteTasks)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/tasks/bulk/create", bulkController.BulkCreateTasks)
+
+	// Project views (GitHub Projects v2 style)
+	viewsController := v1.NewProjectViewsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/views", viewsController.ListViews)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/views", viewsController.CreateView)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/views/{view_id}", viewsController.GetView)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/views/{view_id}", viewsController.UpdateView)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/views/{view_id}", viewsController.DeleteView)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/views/{view_id}/duplicate", viewsController.DuplicateView)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/views/reorder", viewsController.ReorderViews)
+
+	// Project insights and analytics
+	insightsController := v1.NewProjectInsightsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/insights/overview", insightsController.GetProjectOverview)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/insights/tasks", insightsController.GetTaskAnalytics)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/insights/velocity", insightsController.GetVelocityMetrics)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/insights/burndown", insightsController.GetBurndownChart)
+
+	// Project fields (custom fields)
+	projectFieldsController := v1.NewProjectFieldsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/fields", projectFieldsController.ListFields)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/fields", projectFieldsController.CreateField)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/fields/{field_id}", projectFieldsController.GetField)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/fields/{field_id}", projectFieldsController.UpdateField)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/fields/{field_id}", projectFieldsController.DeleteField)
+
+	// Project views
+	projectViewsController := v1.NewProjectViewsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/views", projectViewsController.ListViews)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/views", projectViewsController.CreateView)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/views/{view_id}", projectViewsController.GetView)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/views/{view_id}", projectViewsController.UpdateView)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/views/{view_id}", projectViewsController.DeleteView)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/views/{view_id}/duplicate", projectViewsController.DuplicateView)
+
+	// Project workflows and automation
+	projectWorkflowsController := v1.NewProjectWorkflowsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/workflows", projectWorkflowsController.ListWorkflows)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/workflows", projectWorkflowsController.CreateWorkflow)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/workflows/{workflow_id}", projectWorkflowsController.GetWorkflow)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/workflows/{workflow_id}", projectWorkflowsController.UpdateWorkflow)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/workflows/{workflow_id}", projectWorkflowsController.DeleteWorkflow)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/workflows/{workflow_id}/enable", projectWorkflowsController.EnableWorkflow)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/workflows/{workflow_id}/disable", projectWorkflowsController.DisableWorkflow)
+
+	// Project status and analytics
+	projectStatusController := v1.NewProjectStatusController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/stats", projectStatusController.GetProjectStats)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/status", projectStatusController.UpdateProjectStatus)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/archive", projectStatusController.ArchiveProject)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/restore", projectStatusController.RestoreProject)
+
+	// Project analytics and insights
+	projectAnalyticsController := v1.NewProjectAnalyticsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/insights", projectAnalyticsController.GetProjectInsights)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/velocity", projectAnalyticsController.GetProjectVelocity)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/burndown", projectAnalyticsController.GetProjectBurndown)
+
+	// Project draft issues
+	projectDraftsController := v1.NewProjectDraftsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/drafts", projectDraftsController.ListDrafts)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/drafts", projectDraftsController.CreateDraft)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/drafts/{draft_id}", projectDraftsController.GetDraft)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/drafts/{draft_id}", projectDraftsController.UpdateDraft)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/drafts/{draft_id}", projectDraftsController.DeleteDraft)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/drafts/{draft_id}/convert", projectDraftsController.ConvertToIssue)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/drafts/bulk-convert", projectDraftsController.BulkConvertDrafts)
+
+	// Project activity and collaboration
+	projectActivityController := v1.NewProjectActivityController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/activities", projectActivityController.ListActivities)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/activities", projectActivityController.CreateActivity)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/activities/{activity_id}", projectActivityController.GetActivity)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/activities/summary", projectActivityController.GetActivitySummary)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/activities/feed", projectActivityController.GetUserActivityFeed)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/mentions", projectActivityController.ListMentions)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/mentions", projectActivityController.CreateMention)
+
+	// Project labels
+	projectLabelsController := v1.NewProjectLabelsController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/labels", projectLabelsController.ListLabels)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/labels", projectLabelsController.CreateLabel)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/labels/{label_id}", projectLabelsController.GetLabel)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/labels/{label_id}", projectLabelsController.UpdateLabel)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/labels/{label_id}", projectLabelsController.DeleteLabel)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/labels/{label_id}/usage", projectLabelsController.GetLabelUsage)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/labels/bulk-delete", projectLabelsController.BulkDeleteLabels)
+
+	// Project milestones
+	projectMilestonesController := v1.NewProjectMilestonesController()
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/milestones", projectMilestonesController.ListMilestones)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/milestones", projectMilestonesController.CreateMilestone)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/milestones/{milestone_id}", projectMilestonesController.GetMilestone)
+	facades.Route().Middleware(middleware.Auth()).Patch("/api/v1/projects/{project_id}/milestones/{milestone_id}", projectMilestonesController.UpdateMilestone)
+	facades.Route().Middleware(middleware.Auth()).Delete("/api/v1/projects/{project_id}/milestones/{milestone_id}", projectMilestonesController.DeleteMilestone)
+	facades.Route().Middleware(middleware.Auth()).Get("/api/v1/projects/{project_id}/milestones/{milestone_id}/progress", projectMilestonesController.GetMilestoneProgress)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/milestones/{milestone_id}/close", projectMilestonesController.CloseMilestone)
+	facades.Route().Middleware(middleware.Auth()).Post("/api/v1/projects/{project_id}/milestones/{milestone_id}/reopen", projectMilestonesController.ReopenMilestone)
+
+	// Project roadmap
 
 	// API Documentation (public)
 	facades.Route().Get("/api/docs", func(ctx http.Context) http.Response {
