@@ -1797,7 +1797,7 @@ func init() {
 		// HTTP Host
 		"host": config.Env("APP_HOST", "127.0.0.1"),
 		// HTTP Port
-		"port": config.Env("APP_PORT", "3000"),
+		"port": config.Env("APP_PORT", "7000"),
 		// HTTP Timeout, default is 3 seconds
 		"request_timeout": 3,
 		// HTTPS Configuration
@@ -1805,7 +1805,7 @@ func init() {
 			// HTTPS Host
 			"host": config.Env("APP_HOST", "127.0.0.1"),
 			// HTTPS Port
-			"port": config.Env("APP_PORT", "3000"),
+			"port": config.Env("APP_PORT", "7000"),
 			// SSL Certificate, you can put the certificate in /public folder
 			"ssl": map[string]any{
 				// ca.pem

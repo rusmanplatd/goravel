@@ -678,7 +678,7 @@ func main() {
 		},
 		Servers: []Server{
 			{
-				URL:         "http://localhost:3000",
+				URL:         "http://localhost:7000",
 				Description: "Development server",
 			},
 			{

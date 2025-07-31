@@ -157,12 +157,12 @@ func (s *OAuthClientSeeder) Run() error {
 	}
 
 	// Set redirect URIs for each client
-	clients[0].SetRedirectURIs([]string{"https://webapp.example.com/callback", "http://localhost:3000/callback", "https://staging.webapp.example.com/callback"})
+	clients[0].SetRedirectURIs([]string{"https://webapp.example.com/callback", "http://localhost:7000/callback", "https://staging.webapp.example.com/callback"})
 	clients[1].SetRedirectURIs([]string{"com.mobileapp://oauth/callback", "com.mobileapp://auth", "com.mobileapp://login"})
 	clients[2].SetRedirectURIs([]string{"https://api.example.com/oauth/callback", "https://api-staging.example.com/oauth/callback"})
 	clients[3].SetRedirectURIs([]string{"https://revoked-app.example.com/callback"})
 	clients[4].SetRedirectURIs([]string{"https://integration.example.com/oauth/callback", "https://partner.example.com/oauth/callback"})
-	clients[5].SetRedirectURIs([]string{"http://localhost:3000/callback", "https://desktop.example.com/callback"})
+	clients[5].SetRedirectURIs([]string{"http://localhost:7000/callback", "https://desktop.example.com/callback"})
 	clients[6].SetRedirectURIs([]string{"https://iot.example.com/device/callback", "https://sensor.example.com/auth"})
 	clients[7].SetRedirectURIs([]string{"https://admin.example.com/dashboard/callback", "http://localhost:4000/admin/callback"})
 	clients[8].SetRedirectURIs([]string{"https://microservice.example.com/oauth/callback", "https://service.example.com/auth"})

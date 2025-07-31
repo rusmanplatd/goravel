@@ -95,7 +95,7 @@ func init() {
 		"google_oauth": map[string]interface{}{
 			"client_id":     config.Env("GOOGLE_CLIENT_ID", ""),
 			"client_secret": config.Env("GOOGLE_CLIENT_SECRET", ""),
-			"redirect_url":  config.Env("GOOGLE_REDIRECT_URL", "http://localhost:3000/auth/google/callback"),
+			"redirect_url":  config.Env("GOOGLE_REDIRECT_URL", "http://localhost:7000/auth/google/callback"),
 			"scopes": []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
@@ -109,7 +109,7 @@ func init() {
 				"enabled":       config.Env("GOOGLE_OAUTH_ENABLED", false),
 				"client_id":     config.Env("GOOGLE_CLIENT_ID", ""),
 				"client_secret": config.Env("GOOGLE_CLIENT_SECRET", ""),
-				"redirect_url":  config.Env("GOOGLE_REDIRECT_URL", "http://localhost:3000/auth/oauth/google/callback"),
+				"redirect_url":  config.Env("GOOGLE_REDIRECT_URL", "http://localhost:7000/auth/oauth/google/callback"),
 				"scopes": []string{
 					"https://www.googleapis.com/auth/userinfo.email",
 					"https://www.googleapis.com/auth/userinfo.profile",
@@ -119,7 +119,7 @@ func init() {
 				"enabled":       config.Env("GITHUB_OAUTH_ENABLED", false),
 				"client_id":     config.Env("GITHUB_CLIENT_ID", ""),
 				"client_secret": config.Env("GITHUB_CLIENT_SECRET", ""),
-				"redirect_url":  config.Env("GITHUB_REDIRECT_URL", "http://localhost:3000/auth/oauth/github/callback"),
+				"redirect_url":  config.Env("GITHUB_REDIRECT_URL", "http://localhost:7000/auth/oauth/github/callback"),
 				"scopes": []string{
 					"user:email",
 					"read:user",
@@ -129,7 +129,7 @@ func init() {
 				"enabled":       config.Env("MICROSOFT_OAUTH_ENABLED", false),
 				"client_id":     config.Env("MICROSOFT_CLIENT_ID", ""),
 				"client_secret": config.Env("MICROSOFT_CLIENT_SECRET", ""),
-				"redirect_url":  config.Env("MICROSOFT_REDIRECT_URL", "http://localhost:3000/auth/oauth/microsoft/callback"),
+				"redirect_url":  config.Env("MICROSOFT_REDIRECT_URL", "http://localhost:7000/auth/oauth/microsoft/callback"),
 				"scopes": []string{
 					"openid",
 					"profile",
@@ -140,7 +140,7 @@ func init() {
 				"enabled":       config.Env("DISCORD_OAUTH_ENABLED", false),
 				"client_id":     config.Env("DISCORD_CLIENT_ID", ""),
 				"client_secret": config.Env("DISCORD_CLIENT_SECRET", ""),
-				"redirect_url":  config.Env("DISCORD_REDIRECT_URL", "http://localhost:3000/auth/oauth/discord/callback"),
+				"redirect_url":  config.Env("DISCORD_REDIRECT_URL", "http://localhost:7000/auth/oauth/discord/callback"),
 				"scopes": []string{
 					"identify",
 					"email",
@@ -150,8 +150,8 @@ func init() {
 
 		// Allowed redirect hosts for OAuth callbacks
 		"allowed_redirect_hosts": []string{
-			"localhost:3000",
-			"127.0.0.1:3000",
+			"localhost:7000",
+			"127.0.0.1:7000",
 		},
 
 		// Multi-Factor Authentication
@@ -168,7 +168,7 @@ func init() {
 			"enabled":   config.Env("WEBAUTHN_ENABLED", true),
 			"rp_id":     config.Env("WEBAUTHN_RP_ID", "localhost"),
 			"rp_name":   config.Env("WEBAUTHN_RP_NAME", "Goravel App"),
-			"rp_origin": config.Env("WEBAUTHN_RP_ORIGIN", "http://localhost:3000"),
+			"rp_origin": config.Env("WEBAUTHN_RP_ORIGIN", "http://localhost:7000"),
 			"timeout":   config.Env("WEBAUTHN_TIMEOUT", 60000),
 		},
 	})

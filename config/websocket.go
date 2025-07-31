@@ -76,7 +76,7 @@ func init() {
 			// Allowed origins for websocket connections
 			"allowed_origins": []string{
 				config.Env("APP_URL", "http://localhost").(string),
-				"http://localhost:3000",
+				"http://localhost:7000",
 				"http://localhost:8080",
 			},
 

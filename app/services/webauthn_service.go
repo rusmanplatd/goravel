@@ -68,7 +68,7 @@ func NewWebAuthnService() *WebAuthnService {
 	config := &WebAuthnConfig{
 		RPName:           facades.Config().GetString("app.name", "Goravel App"),
 		RPID:             facades.Config().GetString("webauthn.rp_id", "localhost"),
-		RPOrigin:         facades.Config().GetString("webauthn.rp_origin", "http://localhost:3000"),
+		RPOrigin:         facades.Config().GetString("webauthn.rp_origin", "http://localhost:7000"),
 		ChallengeTimeout: 5 * time.Minute,
 		AuthenticatorSelection: AuthenticatorSelection{
 			AuthenticatorAttachment: "cross-platform",
@@ -1205,7 +1205,7 @@ func (s *WebAuthnService) getRPName() string {
 }
 
 func (s *WebAuthnService) getOrigin() string {
-	return facades.Config().GetString("webauthn.origin", "http://localhost:3000")
+	return facades.Config().GetString("webauthn.origin", "http://localhost:7000")
 }
 
 func (s *WebAuthnService) getExcludeCredentials(user *models.User) ([]map[string]interface{}, error) {

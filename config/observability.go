@@ -76,7 +76,7 @@ func init() {
 		// Grafana Configuration
 		"grafana": map[string]any{
 			"enabled":  config.Env("GRAFANA_ENABLED", true),
-			"endpoint": config.Env("GRAFANA_ENDPOINT", "http://grafana:3000"),
+			"endpoint": config.Env("GRAFANA_ENDPOINT", "http://grafana:7030"),
 			"username": config.Env("GRAFANA_USERNAME", "admin"),
 			"password": config.Env("GRAFANA_PASSWORD", "admin"),
 		},

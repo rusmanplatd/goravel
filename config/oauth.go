@@ -390,7 +390,7 @@ func init() {
 
 		// Device Authorization Enhanced Settings
 		"device_authorization": map[string]interface{}{
-			"verification_uri":          config.Env("OAUTH_DEVICE_VERIFICATION_URI", "http://localhost:3000/device"),
+			"verification_uri":          config.Env("OAUTH_DEVICE_VERIFICATION_URI", "http://localhost:7000/device"),
 			"verification_uri_complete": config.Env("OAUTH_DEVICE_VERIFICATION_URI_COMPLETE", ""),
 			"user_code_charset":         config.Env("OAUTH_DEVICE_USER_CODE_CHARSET", "BCDFGHJKLMNPQRSTVWXZ"),
 			"user_code_length":          config.Env("OAUTH_DEVICE_USER_CODE_LENGTH", 8),

@@ -12,7 +12,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
+      "url": "http://localhost:7000",
       "description": "Development server"
     },
     {
@@ -42956,7 +42956,7 @@
           },
           "RedirectURL": {
             "type": "string",
-            "example": "http://localhost:3000/auth/google/callback"
+            "example": "http://localhost:7000/auth/google/callback"
           },
           "Scopes": {
             "type": "string",
@@ -49912,31 +49912,7 @@
   ],
   "tags": [
     {
-      "name": "departments",
-      "description": ""
-    },
-    {
-      "name": "user-job-management",
-      "description": ""
-    },
-    {
-      "name": "calendar-sharing",
-      "description": ""
-    },
-    {
-      "name": "OAuth2",
-      "description": ""
-    },
-    {
-      "name": "project-automations",
-      "description": ""
-    },
-    {
-      "name": "project-items",
-      "description": ""
-    },
-    {
-      "name": "project-labels",
+      "name": "provinces",
       "description": ""
     },
     {
@@ -49944,55 +49920,7 @@
       "description": ""
     },
     {
-      "name": "milestones",
-      "description": ""
-    },
-    {
-      "name": "meeting-security",
-      "description": ""
-    },
-    {
-      "name": "project-analytics",
-      "description": ""
-    },
-    {
-      "name": "project-fields",
-      "description": ""
-    },
-    {
-      "name": "project-filters",
-      "description": ""
-    },
-    {
-      "name": "project-milestones",
-      "description": ""
-    },
-    {
-      "name": "project-search",
-      "description": ""
-    },
-    {
-      "name": "task-boards",
-      "description": ""
-    },
-    {
-      "name": "teams",
-      "description": ""
-    },
-    {
-      "name": "acl",
-      "description": ""
-    },
-    {
-      "name": "Drive",
-      "description": ""
-    },
-    {
-      "name": "meeting-analytics",
-      "description": ""
-    },
-    {
-      "name": "channels",
+      "name": "project-drafts",
       "description": ""
     },
     {
@@ -50000,7 +49928,163 @@
       "description": ""
     },
     {
+      "name": "job-levels",
+      "description": ""
+    },
+    {
       "name": "job-positions",
+      "description": ""
+    },
+    {
+      "name": "Meeting Whiteboard",
+      "description": ""
+    },
+    {
+      "name": "teams",
+      "description": ""
+    },
+    {
+      "name": "analytics",
+      "description": ""
+    },
+    {
+      "name": "Authentication",
+      "description": ""
+    },
+    {
+      "name": "project-iterations",
+      "description": ""
+    },
+    {
+      "name": "roles",
+      "description": ""
+    },
+    {
+      "name": "calendars",
+      "description": ""
+    },
+    {
+      "name": "colors",
+      "description": ""
+    },
+    {
+      "name": "project-fields",
+      "description": ""
+    },
+    {
+      "name": "project-views",
+      "description": ""
+    },
+    {
+      "name": "calendar-analytics",
+      "description": ""
+    },
+    {
+      "name": "chat",
+      "description": ""
+    },
+    {
+      "name": "meeting-security",
+      "description": ""
+    },
+    {
+      "name": "project-permissions",
+      "description": ""
+    },
+    {
+      "name": "project-milestones",
+      "description": ""
+    },
+    {
+      "name": "project-statuses",
+      "description": ""
+    },
+    {
+      "name": "events",
+      "description": ""
+    },
+    {
+      "name": "calendar-events",
+      "description": ""
+    },
+    {
+      "name": "calendar-delegation",
+      "description": ""
+    },
+    {
+      "name": "cities",
+      "description": ""
+    },
+    {
+      "name": "Meeting Polls",
+      "description": ""
+    },
+    {
+      "name": "project-activities",
+      "description": ""
+    },
+    {
+      "name": "project-automations",
+      "description": ""
+    },
+    {
+      "name": "projects",
+      "description": ""
+    },
+    {
+      "name": "project-items",
+      "description": ""
+    },
+    {
+      "name": "channels",
+      "description": ""
+    },
+    {
+      "name": "Drive",
+      "description": ""
+    },
+    {
+      "name": "tasks",
+      "description": ""
+    },
+    {
+      "name": "milestones",
+      "description": ""
+    },
+    {
+      "name": "task-boards",
+      "description": ""
+    },
+    {
+      "name": "users",
+      "description": ""
+    },
+    {
+      "name": "project-analytics",
+      "description": ""
+    },
+    {
+      "name": "project-roadmap",
+      "description": ""
+    },
+    {
+      "name": "project-search",
+      "description": ""
+    },
+    {
+      "name": "meeting-analytics",
+      "description": ""
+    },
+    {
+      "name": "activity-logs",
+      "description": ""
+    },
+    {
+      "name": "calendar-sharing",
+      "description": ""
+    },
+    {
+      "name": "departments",
       "description": ""
     },
     {
@@ -50008,15 +50092,43 @@
       "description": ""
     },
     {
-      "name": "user-calendars",
+      "name": "permissions",
       "description": ""
     },
     {
-      "name": "job-levels",
+      "name": "project-insights",
       "description": ""
     },
     {
-      "name": "calendars",
+      "name": "project-templates",
+      "description": ""
+    },
+    {
+      "name": "settings",
+      "description": ""
+    },
+    {
+      "name": "project-activity",
+      "description": ""
+    },
+    {
+      "name": "project-bulk",
+      "description": ""
+    },
+    {
+      "name": "project-custom-fields",
+      "description": ""
+    },
+    {
+      "name": "project-filters",
+      "description": ""
+    },
+    {
+      "name": "user-job-management",
+      "description": ""
+    },
+    {
+      "name": "batch",
       "description": ""
     },
     {
@@ -50028,95 +50140,7 @@
       "description": ""
     },
     {
-      "name": "project-insights",
-      "description": ""
-    },
-    {
-      "name": "users",
-      "description": ""
-    },
-    {
-      "name": "project-bulk",
-      "description": ""
-    },
-    {
-      "name": "roles",
-      "description": ""
-    },
-    {
-      "name": "batch",
-      "description": ""
-    },
-    {
-      "name": "calendar-events",
-      "description": ""
-    },
-    {
-      "name": "events",
-      "description": ""
-    },
-    {
-      "name": "project-permissions",
-      "description": ""
-    },
-    {
-      "name": "project-statuses",
-      "description": ""
-    },
-    {
-      "name": "tasks",
-      "description": ""
-    },
-    {
-      "name": "calendar-permissions",
-      "description": ""
-    },
-    {
-      "name": "Meeting Whiteboard",
-      "description": ""
-    },
-    {
-      "name": "organizations",
-      "description": ""
-    },
-    {
-      "name": "permissions",
-      "description": ""
-    },
-    {
-      "name": "chat",
-      "description": ""
-    },
-    {
-      "name": "calendar-analytics",
-      "description": ""
-    },
-    {
-      "name": "search",
-      "description": ""
-    },
-    {
-      "name": "settings",
-      "description": ""
-    },
-    {
-      "name": "analytics",
-      "description": ""
-    },
-    {
-      "name": "colors",
-      "description": ""
-    },
-    {
-      "name": "Meeting Polls",
-      "description": ""
-    },
-    {
-      "name": "project-custom-fields",
-      "description": ""
-    },
-    {
-      "name": "project-webhooks",
+      "name": "countries",
       "description": ""
     },
     {
@@ -50124,11 +50148,15 @@
       "description": ""
     },
     {
-      "name": "projects",
+      "name": "import",
       "description": ""
     },
     {
-      "name": "project-roadmap",
+      "name": "project-webhooks",
+      "description": ""
+    },
+    {
+      "name": "search",
       "description": ""
     },
     {
@@ -50136,35 +50164,7 @@
       "description": ""
     },
     {
-      "name": "countries",
-      "description": ""
-    },
-    {
-      "name": "import",
-      "description": ""
-    },
-    {
-      "name": "project-activities",
-      "description": ""
-    },
-    {
-      "name": "project-drafts",
-      "description": ""
-    },
-    {
-      "name": "project-iterations",
-      "description": ""
-    },
-    {
-      "name": "project-views",
-      "description": ""
-    },
-    {
-      "name": "Authentication",
-      "description": ""
-    },
-    {
-      "name": "calendar-delegation",
+      "name": "calendar-permissions",
       "description": ""
     },
     {
@@ -50172,19 +50172,11 @@
       "description": ""
     },
     {
-      "name": "project-activity",
+      "name": "organizations",
       "description": ""
     },
     {
-      "name": "provinces",
-      "description": ""
-    },
-    {
-      "name": "activity-logs",
-      "description": ""
-    },
-    {
-      "name": "cities",
+      "name": "user-calendars",
       "description": ""
     },
     {
@@ -50192,7 +50184,15 @@
       "description": ""
     },
     {
-      "name": "project-templates",
+      "name": "acl",
+      "description": ""
+    },
+    {
+      "name": "OAuth2",
+      "description": ""
+    },
+    {
+      "name": "project-labels",
       "description": ""
     },
     {
@@ -50200,7 +50200,11 @@
       "description": ""
     },
     {
-      "name": "ws",
+      "name": "oauth",
+      "description": ""
+    },
+    {
+      "name": "auth",
       "description": ""
     },
     {
@@ -50208,15 +50212,7 @@
       "description": ""
     },
     {
-      "name": "websocket",
-      "description": ""
-    },
-    {
       "name": "user",
-      "description": ""
-    },
-    {
-      "name": "oauth",
       "description": ""
     },
     {
@@ -50224,11 +50220,15 @@
       "description": ""
     },
     {
+      "name": "websocket",
+      "description": ""
+    },
+    {
       "name": "orgs",
       "description": ""
     },
     {
-      "name": "auth",
+      "name": "ws",
       "description": ""
     }
   ]

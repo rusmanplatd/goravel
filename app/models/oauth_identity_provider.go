@@ -27,8 +27,8 @@ type OAuthIdentityProvider struct {
 	ClientSecret string `gorm:"not null" json:"client_secret,omitempty" example:"secret123"`
 
 	// OAuth redirect URL
-	// @example http://localhost:3000/auth/google/callback
-	RedirectURL string `gorm:"not null" json:"redirect_url" example:"http://localhost:3000/auth/google/callback"`
+	// @example http://localhost:7000/auth/google/callback
+	RedirectURL string `gorm:"not null" json:"redirect_url" example:"http://localhost:7000/auth/google/callback"`
 
 	// JSON array of OAuth scopes
 	// @example ["openid", "profile", "email"]

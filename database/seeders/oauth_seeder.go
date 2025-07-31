@@ -94,7 +94,7 @@ func (s *OAuthSeeder) Run() error {
 			Revoked:              false,
 		}
 		authCodeClient.SetRedirectURIs([]string{
-			"http://localhost:3000/oauth/callback",
+			"http://localhost:7000/oauth/callback",
 			"https://app.goravel.com/oauth/callback",
 			"https://demo.goravel.com/oauth/callback",
 		})
@@ -123,7 +123,7 @@ func (s *OAuthSeeder) Run() error {
 		}
 		deviceClient.SetRedirectURIs([]string{
 			"https://device.goravel.com/oauth/device",
-			"http://localhost:3000/oauth/device",
+			"http://localhost:7000/oauth/device",
 		})
 
 		err = facades.Orm().Query().Create(&deviceClient)
